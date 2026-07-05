@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vite+
+        run: |
+          curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
+          # The installer drops the `vp` binary in ~/.vite-plus/bin.
+          echo "$HOME/.vite-plus/bin" >> "$GITHUB_PATH"
+
+      - name: Install workspace
+        run: vp install
+
+      - name: Lint & format (Oxlint + Oxfmt)
+        run: vp check
+        working-directory: packages/core
+
+      - name: Type-check
+        run: vp run "@louisecms/core#typecheck"
+
+      - name: Test
+        run: vp test
+        working-directory: packages/core
+
+      - name: Pack the library
+        run: vp run "@louisecms/core#pack"
+
+      - name: Build the site
+        run: vp run "site#build"

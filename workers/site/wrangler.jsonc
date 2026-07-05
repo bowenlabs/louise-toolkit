@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "louisecms",
+  "compatibility_date": "2026-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  // @astrojs/cloudflare v14 dropped `workerEntryPoint`, so `main` points at the
+  // source entry (src/worker.ts); the adapter builds it and wires the
+  // prerendered pages + static assets under dist/.
+  "main": "src/worker.ts",
+  "observability": {
+    "enabled": true
+  }
+}

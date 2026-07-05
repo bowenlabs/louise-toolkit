@@ -1,0 +1,118 @@
+/*
+ * Louise CMS editor theme — BowenLabs brand system.
+ *
+ * Two daisyUI 5 themes (Tailwind v4 `@plugin` syntax — this file must be
+ * imported from a stylesheet that Tailwind processes, after `@plugin "daisyui"`):
+ *
+ *   louise       — light editor chrome (default)
+ *   louise-dark  — dark editor chrome (applied via prefers-color-scheme)
+ *
+ * Palette source: bowenlabs/branding — Brand Guidelines PDF.
+ *   blue #1481ef (primary per project direction) · dark green #4f6933 ·
+ *   light green #8ebe59 · yellow #f3ae29 · orange #db6327 · white
+ *
+ * The site (prairie) theme is separate and lives with the site worker; this
+ * file styles Louise surfaces only (drawer, inline chrome, panels).
+ */
+
+@plugin "daisyui/theme" {
+  name: "louise";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f5f7f9;
+  --color-base-300: #e8ecf1;
+  --color-base-content: #1a2430;
+
+  --color-primary: #1481ef;
+  --color-primary-content: #ffffff;
+
+  /* Dark green carries enough contrast for light surfaces. */
+  --color-secondary: #4f6933;
+  --color-secondary-content: #ffffff;
+
+  --color-accent: #f3ae29;
+  --color-accent-content: #231903;
+
+  --color-neutral: #1a2430;
+  --color-neutral-content: #f5f7f9;
+
+  --color-info: #1481ef;
+  --color-info-content: #ffffff;
+  --color-success: #8ebe59;
+  --color-success-content: #1a2408;
+  --color-warning: #f3ae29;
+  --color-warning-content: #231903;
+  --color-error: #db6327;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "louise-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: #131a22;
+  --color-base-200: #0e141b;
+  --color-base-300: #1c2530;
+  --color-base-content: #e8edf3;
+
+  --color-primary: #1481ef;
+  --color-primary-content: #ffffff;
+
+  /* Per the brand colorway rules, the light green is the green for dark
+   * backgrounds (the dark green falls below contrast). */
+  --color-secondary: #8ebe59;
+  --color-secondary-content: #16210b;
+
+  --color-accent: #f3ae29;
+  --color-accent-content: #231903;
+
+  --color-neutral: #26313e;
+  --color-neutral-content: #e8edf3;
+
+  --color-info: #1481ef;
+  --color-info-content: #ffffff;
+  --color-success: #8ebe59;
+  --color-success-content: #16210b;
+  --color-warning: #f3ae29;
+  --color-warning-content: #231903;
+  --color-error: #db6327;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/*
+ * Louise chrome variables — consumed by @louise/client (inline-edit
+ * affordances, drawer, action bar). Defined per-theme so the chrome follows
+ * the editor theme, never the site theme.
+ */
+[data-theme="louise"],
+[data-theme="louise-dark"] {
+  --louise-accent: var(--color-primary);
+  --louise-accent-soft: color-mix(in oklch, var(--color-primary) 12%, transparent);
+  --louise-ring: color-mix(in oklch, var(--color-primary) 40%, transparent);
+  /* Headers use Hepta Slab; body copy uses Roboto Flex. */
+  --louise-font: "Hepta Slab", "Iowan Old Style", Georgia, serif;
+  --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}

@@ -1,0 +1,239 @@
+---
+// louisecms.com landing page (scaffold).
+// Deliberately self-contained — no shared layout yet — so the marketing site
+// can grow its own design later without entangling the Starlight docs theme.
+export const prerender = true;
+
+const year = new Date().getFullYear();
+const features = [
+  {
+    title: "Edit in place",
+    body: "Editable regions carry a data-louise-field marker; in edit mode the client makes each one editable right where it lives.",
+  },
+  {
+    title: "Real rich text",
+    body: "A ProseKit editor for prose — not a JSON form. Storage is sanitized HTML, rendered straight back onto the page.",
+  },
+  {
+    title: "V8-native",
+    body: "No Node runtime, no React. Everything runs in workerd and deploys to Cloudflare Workers at the edge.",
+  },
+  {
+    title: "Bring your own bindings",
+    body: "D1, R2, Queues, Email are passed in. Louise has no opinion about your schema, your auth, or your framework.",
+  },
+  {
+    title: "Tree-shakeable",
+    body: "One ESM package with granular subpath exports — import only the primitive a route needs.",
+  },
+  {
+    title: "Commerce included",
+    body: "Stripe invoices and Fourthwall storefront glue, written with raw fetch + crypto.subtle. No SDKs.",
+  },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Louise CMS — edit the live page</title>
+    <meta
+      name="description"
+      content="A V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="mark" aria-hidden="true">L</div>
+        <h1>Louise CMS</h1>
+        <p class="tagline">
+          A V8-native, inline <em>edit-on-the-live-page</em> CMS for Cloudflare
+          Workers.
+        </p>
+        <p class="sub">
+          No separate admin app. No JSON forms for prose. Log in, and the live
+          site becomes editable in place.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="/docs">Read the docs</a>
+          <a class="btn ghost" href="https://github.com/bowenlabs/louisecms"
+            >GitHub</a
+          >
+        </div>
+        <pre class="install"><code>npm install @louisecms/core</code></pre>
+      </section>
+
+      <section class="features" aria-label="Features">
+        {
+          features.map((f) => (
+            <article class="card">
+              <h2>{f.title}</h2>
+              <p>{f.body}</p>
+            </article>
+          ))
+        }
+      </section>
+
+      <footer>
+        <p>
+          <a href="/docs">Documentation</a> · <a
+            href="https://github.com/bowenlabs/louisecms">Source</a
+          > · MIT © {year} BowenLabs
+        </p>
+      </footer>
+    </main>
+
+    <style>
+      :root {
+        --blue: #1481ef;
+        --blue-ink: #08284a;
+        --gold: #f3ae29;
+        --ink: #14181f;
+        --muted: #5b6472;
+        --line: #e6e9ef;
+        --bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #eef1f6;
+          --muted: #9aa4b2;
+          --line: #232a35;
+          --bg: #0e1117;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.6
+          "Roboto Flex",
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 62rem;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+      .hero {
+        text-align: center;
+        padding: 5.5rem 0 3rem;
+      }
+      .mark {
+        width: 68px;
+        height: 68px;
+        margin: 0 auto 1.5rem;
+        border-radius: 16px;
+        background: var(--blue);
+        color: #fff;
+        font-weight: 900;
+        font-size: 2.2rem;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--blue) 60%, transparent);
+      }
+      h1 {
+        font-size: clamp(2.4rem, 6vw, 3.6rem);
+        line-height: 1.05;
+        margin: 0 0 0.75rem;
+        letter-spacing: -0.02em;
+      }
+      .tagline {
+        font-size: clamp(1.1rem, 2.6vw, 1.4rem);
+        margin: 0 auto 0.5rem;
+        max-width: 40rem;
+      }
+      .tagline em {
+        color: var(--blue);
+        font-style: normal;
+      }
+      .sub {
+        color: var(--muted);
+        max-width: 34rem;
+        margin: 0 auto 2rem;
+      }
+      .cta {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+      }
+      .btn {
+        display: inline-block;
+        padding: 0.7rem 1.4rem;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition:
+          transform 0.08s ease,
+          background 0.15s ease;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn.primary {
+        background: var(--blue);
+        color: #fff;
+      }
+      .btn.ghost {
+        border-color: var(--line);
+        color: var(--ink);
+      }
+      .install {
+        display: inline-block;
+        margin: 0 auto;
+        padding: 0.8rem 1.1rem;
+        background: color-mix(in srgb, var(--blue) 8%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        font-family: "Roboto Mono", ui-monospace, SFMono-Regular, monospace;
+        font-size: 0.95rem;
+      }
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+        gap: 1rem;
+        padding: 2rem 0 4rem;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1.4rem;
+      }
+      .card h2 {
+        font-size: 1.15rem;
+        margin: 0 0 0.5rem;
+      }
+      .card p {
+        color: var(--muted);
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 2rem 0 3rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      a {
+        color: var(--blue);
+      }
+    </style>
+  </body>
+</html>

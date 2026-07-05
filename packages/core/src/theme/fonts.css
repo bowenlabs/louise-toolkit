@@ -1,0 +1,29 @@
+/*
+ * BowenLabs brand type for Louise surfaces (variable Google Fonts):
+ *   - Headers: Hepta Slab — Black (900) for headings, Medium (500) subheadings.
+ *   - Body:    Roboto Flex — 400–500 for screen legibility.
+ *
+ * The client chrome loads + applies these at runtime (see client/styles.ts,
+ * injectStyles) so they're only ever fetched on Louise surfaces, never on
+ * public page loads. This file is the equivalent contract for markup that opts
+ * in via the `.louise-type` class.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@400;500;700;900&family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap");
+
+.louise-type {
+  font-family:
+    "Roboto Flex",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+.louise-type :is(h1, h2, h3, h4, h5, h6, .louise-heading, .louise-subheading) {
+  font-family: "Hepta Slab", "Iowan Old Style", Georgia, serif;
+}
+.louise-type :is(h1, h2, h3, .louise-heading) {
+  font-weight: 900;
+}
+.louise-type :is(h4, h5, h6, .louise-subheading) {
+  font-weight: 500;
+}

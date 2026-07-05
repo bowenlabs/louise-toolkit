@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+  - workers/*
+
+# Postinstall-script approvals. Without these, esbuild/workerd/sharp skip their
+# postinstall and the Astro (Cloudflare) build fails.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

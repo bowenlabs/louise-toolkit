@@ -1,0 +1,72 @@
+---
+title: Louise CMS
+description: A V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers.
+template: doc
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+**Louise** turns your live site into its own CMS. There is no separate admin
+app and no JSON form for prose: an editor logs in, the page sprouts edit
+affordances, and every editable region becomes editable *in place*. Structured,
+back-office work happens in a drawer rendered over the live site.
+
+Louise ships as one tree-shakeable package, `@louisecms/core`, exposing
+framework-agnostic core primitives, a SolidJS + ProseKit inline-edit client, and
+the editor theme.
+
+```ts
+import { db } from "@louisecms/core/db";
+import { sendEmail } from "@louisecms/core/email";
+// Bindings are passed in — Louise never imports `cloudflare:workers` itself.
+```
+
+<CardGrid>
+  <Card title="V8-native" icon="rocket">
+    No Node runtime, no React. Everything runs in workerd and deploys to
+    Cloudflare Workers at the edge.
+  </Card>
+  <Card title="Edit in place" icon="pencil">
+    `data-louise-field` markers make regions editable where they live. Rich text
+    is a real ProseKit editor; storage is sanitized HTML.
+  </Card>
+  <Card title="Dependency-injected" icon="setting">
+    You pass in D1, R2, Queues, and Email. Louise has no opinion about your
+    schema, your auth, or your framework.
+  </Card>
+  <Card title="Tree-shakeable" icon="approve-check">
+    Granular subpath exports — import only the primitive a route needs.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<CardGrid>
+  <LinkCard
+    title="Getting started"
+    href="/docs/guide/getting-started/"
+    description="Install, wire the peers, and make your first field editable."
+  />
+  <LinkCard
+    title="Concepts"
+    href="/docs/guide/concepts/"
+    description="The three ideas that shape every Louise API."
+  />
+  <LinkCard
+    title="Inline editing"
+    href="/docs/guide/inline-editing/"
+    description="Markers, the client, and the save endpoint."
+  />
+  <LinkCard
+    title="API reference"
+    href="/docs/reference/db/"
+    description="Every subpath export, documented with examples."
+  />
+</CardGrid>
+
+:::note[Where Louise comes from]
+Louise is the CMS behind [themidwestartist.com](https://themidwestartist.com).
+This package is the reusable engine, extracted and published on its own. Some
+guides describe patterns (the drawer, panels) that a host app assembles from the
+primitives rather than APIs Louise hands you fully built.
+:::
