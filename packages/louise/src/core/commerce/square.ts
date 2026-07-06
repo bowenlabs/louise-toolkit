@@ -12,6 +12,8 @@
 // an Order, then charge it with a Web Payments SDK card token via /v2/payments
 // (card data is tokenized in the browser and never reaches the Worker).
 
+import { centsToMajor, hmacSha256Base64, safeEqual, type Money } from "./index.js";
+
 export type SquareEnvironment = "sandbox" | "production";
 
 export interface SquareConfig {
@@ -78,16 +80,13 @@ async function sqPost<T>(config: SquareConfig, path: string, body: unknown): Pro
 
 // ── Money ────────────────────────────────────────────────────────────────────
 
-/** Square money is an integer amount in the currency's minor unit (cents). */
-export interface SquareMoney {
-  amount: number;
-  currency: string;
-}
+/** Square money is an integer amount in the currency's minor unit (cents) —
+ *  the shared {@link Money} shape. */
+export type SquareMoney = Money;
 
-/** Cents → whole-currency number (2500 → 25). */
-export function centsToMajor(cents: number): number {
-  return cents / 100;
-}
+// `centsToMajor` is a shared commerce helper (louisecms/commerce); re-exported
+// so `louisecms/commerce/square` keeps exposing it.
+export { centsToMajor };
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
 
@@ -706,19 +705,6 @@ export async function createSubscription(
 
 // ── Webhooks ──────────────────────────────────────────────────────────────────
 
-/** Base64-encode raw bytes. */
-function toBase64(buf: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
-
-/** Constant-time string compare (avoids early-exit timing leaks). */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /**
  * Verify a Square webhook signature. Square signs the concatenation of the
  * exact notification URL you configured and the raw request body with
@@ -733,17 +719,6 @@ export async function verifySquareSignature(
   signatureKey: string,
 ): Promise<boolean> {
   if (!signatureHeader) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(signatureKey),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(notificationUrl + body),
-  );
-  return safeEqual(toBase64(sig), signatureHeader.trim());
+  const expected = await hmacSha256Base64(signatureKey, notificationUrl + body);
+  return safeEqual(expected, signatureHeader.trim());
 }

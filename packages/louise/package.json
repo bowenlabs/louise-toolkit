@@ -60,6 +60,10 @@
       "types": "./dist/core/commerce/fourthwall.d.ts",
       "import": "./dist/core/commerce/fourthwall.js"
     },
+    "./commerce/stripe": {
+      "types": "./dist/core/commerce/stripe.d.ts",
+      "import": "./dist/core/commerce/stripe.js"
+    },
     "./commerce/square": {
       "types": "./dist/core/commerce/square.d.ts",
       "import": "./dist/core/commerce/square.js"

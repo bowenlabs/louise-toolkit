@@ -50,6 +50,8 @@ export default {
       "src/core/db/index.ts",
       "src/core/commerce/index.ts",
       "src/core/commerce/fourthwall.ts",
+      "src/core/commerce/square.ts",
+      "src/core/commerce/stripe.ts",
       "src/core/email/index.ts",
       "src/core/queues/index.ts",
       "src/core/security/index.ts",

@@ -13,6 +13,8 @@
 // the money unit (major vs minor) are confirmed against a live store when the
 // token is provisioned — the parsing below is defensive about both.
 
+import { hmacSha256Base64, safeEqual } from "./index.js";
+
 const STOREFRONT_API = "https://storefront-api.fourthwall.com/v1";
 
 export interface FwMoney {
@@ -165,14 +167,6 @@ export function lowestPrice(product: FwProduct): number {
   return prices.length ? Math.min(...prices) : 0;
 }
 
-/** Constant-time string compare (avoids early-exit timing leaks). */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /**
  * Verify a Fourthwall webhook signature. Fourthwall sends the base64-encoded
  * HMAC-SHA256 of the raw request body in the `X-Fourthwall-Hmac-SHA256` header,
@@ -184,15 +178,6 @@ export async function verifyFourthwallSignature(
   secret: string,
 ): Promise<boolean> {
   if (!header) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  // Base64-encode the raw HMAC bytes to match Fourthwall's header encoding.
-  const expected = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  const expected = await hmacSha256Base64(secret, payload);
   return safeEqual(expected, header.trim());
 }
