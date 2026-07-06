@@ -1,14 +1,36 @@
 ---
 title: commerce
-description: "louisecms/commerce, /commerce/fourthwall, and /commerce/square — Stripe, Fourthwall, and Square."
+description: "louisecms/commerce (shared base) + /commerce/stripe, /commerce/square, /commerce/fourthwall — Stripe, Square, and Fourthwall clients."
 sidebar:
   order: 4
 ---
 
-Three entry points, all raw `fetch` + `crypto.subtle` — no SDKs, no peers. See the
-[Commerce guide](/docs/guide/commerce/) for the how and why.
+A shared base plus three provider clients, all raw `fetch` + `crypto.subtle` — no
+SDKs, no peers. See the [Commerce guide](/docs/guide/commerce/) for the how and why.
 
-## `louisecms/commerce` (Stripe)
+## `louisecms/commerce` (shared base)
+
+The primitives every provider client shares: a money shape and the webhook
+signature crypto. Import them directly if you verify a custom provider's webhook.
+
+```ts
+import {
+  centsToMajor,
+  hmacSha256Hex,
+  hmacSha256Base64,
+  safeEqual,
+  type Money,
+} from "louisecms/commerce";
+```
+
+| Export | Purpose |
+| --- | --- |
+| `Money` | `{ amount, currency }` — amount in the currency's minor unit (cents). |
+| `centsToMajor(cents)` | Minor units → major (`2500` → `25`). |
+| `hmacSha256Hex` / `hmacSha256Base64` | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
+| `safeEqual(a, b)` | Constant-time-ish compare — use it to check a computed signature against a header value. |
+
+## `louisecms/commerce/stripe`
 
 ```ts
 import {
@@ -21,7 +43,7 @@ import {
   type CartItem,
   type InvoiceLineItem,
   type StripeAddress,
-} from "louisecms/commerce";
+} from "louisecms/commerce/stripe";
 ```
 
 | Export | Purpose |
@@ -120,7 +142,9 @@ import {
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
 `SquareSubscription`, `SquareMoney`, …) type the normalized, camelCase shapes the
-client returns.
+client returns. `SquareMoney` is an alias of the shared `Money`, and
+`centsToMajor` is re-exported from the [shared base](#louisecmscommerce-shared-base)
+— both still import from `louisecms/commerce/square`.
 
 :::note[Verify prices before charging]
 `createOrder` takes catalog variation ids, not prices — Square computes the total.

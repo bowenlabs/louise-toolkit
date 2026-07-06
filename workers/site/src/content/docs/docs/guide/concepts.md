@@ -12,9 +12,9 @@ surface stops surprising you.
 
 Louise assumes a V8 isolate (workerd / Cloudflare Workers), not Node. It never
 imports `node:*`, never assumes a filesystem, and expects Web-standard globals
-(`fetch`, `crypto.subtle`, `Request`/`Response`). The commerce module talks to
-Stripe with raw `fetch` and HMAC-verifies webhooks with `crypto.subtle` rather
-than pulling an SDK that assumes Node.
+(`fetch`, `crypto.subtle`, `Request`/`Response`). The commerce clients talk to
+Stripe, Square, and Fourthwall with raw `fetch` and HMAC-verify webhooks with
+`crypto.subtle` rather than pulling an SDK that assumes Node.
 
 The one deliberately non-standard touch is `Error.captureStackTrace` in
 [`errors`](/docs/reference/errors/) — a real V8 engine feature that Louise
