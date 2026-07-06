@@ -12,8 +12,9 @@ affordances, and every editable region becomes editable *in place*. Structured,
 back-office work happens in a drawer rendered over the live site.
 
 Louise ships as one tree-shakeable package, `louisecms`, exposing
-framework-agnostic core primitives, a SolidJS + ProseKit inline-edit client, and
-the editor theme.
+framework-agnostic core primitives — CMS, storage, commerce, email, queues, and
+opt-in **auth** and **security** modules — plus a SolidJS + ProseKit inline-edit
+client and the editor theme.
 
 ```ts
 import { db } from "louisecms/db";
@@ -31,8 +32,8 @@ import { sendEmail } from "louisecms/email";
     is a real ProseKit editor; storage is sanitized HTML.
   </Card>
   <Card title="Dependency-injected" icon="setting">
-    You pass in D1, R2, Queues, and Email. Louise has no opinion about your
-    schema, your auth, or your framework.
+    You pass in D1, R2, Queues, and Email — Louise never imports
+    `cloudflare:workers` itself, and has no opinion about your schema or framework.
   </Card>
   <Card title="Tree-shakeable" icon="approve-check">
     Granular subpath exports — import only the primitive a route needs.
@@ -67,5 +68,6 @@ import { sendEmail } from "louisecms/email";
 :::note[Primitives, not a prebuilt app]
 Louise is a toolkit, not a turnkey admin. Some guides describe *patterns* (the
 drawer, panels) that your app assembles from the primitives rather than APIs
-Louise hands you fully built — you own the routes, the auth, and the schema.
+Louise hands you fully built — you own the routes and wire the pieces (auth,
+schema, panels) together.
 :::
