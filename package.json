@@ -11,7 +11,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "vp run louisecms#pack && vp run site#build",
+    "build": "sh ./scripts/ci-build.sh",
     "typecheck": "vp run louisecms#typecheck",
     "check": "vp run louisecms#check",
     "test": "vp test",
