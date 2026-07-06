@@ -223,9 +223,11 @@ export async function retrieveVariationPrices(
     if (obj.type === "ITEM_VARIATION") {
       // batch-retrieve returns variations as top-level objects with
       // item_variation_data on the object itself.
-      const price = (obj as unknown as {
-        item_variation_data?: { price_money?: { amount?: number; currency?: string } };
-      }).item_variation_data?.price_money;
+      const price = (
+        obj as unknown as {
+          item_variation_data?: { price_money?: { amount?: number; currency?: string } };
+        }
+      ).item_variation_data?.price_money;
       prices.set(obj.id, { amount: price?.amount ?? 0, currency: price?.currency ?? "USD" });
     }
   }
@@ -248,7 +250,12 @@ export async function retrieveInventoryCounts(
   locationIds?: string[],
 ): Promise<SquareInventoryCount[]> {
   const res = await sqPost<{
-    counts?: { catalog_object_id?: string; state?: string; quantity?: string; location_id?: string }[];
+    counts?: {
+      catalog_object_id?: string;
+      state?: string;
+      quantity?: string;
+      location_id?: string;
+    }[];
   }>(config, "/v2/inventory/counts/batch-retrieve", {
     catalog_object_ids: catalogObjectIds,
     ...(locationIds ? { location_ids: locationIds } : {}),
@@ -358,7 +365,10 @@ export async function createOrder(
 
 /** Retrieve one order. GET /v2/orders/{id}. */
 export async function retrieveOrder(config: SquareConfig, orderId: string): Promise<SquareOrder> {
-  const res = await sqGet<{ order?: RawOrder }>(config, `/v2/orders/${encodeURIComponent(orderId)}`);
+  const res = await sqGet<{ order?: RawOrder }>(
+    config,
+    `/v2/orders/${encodeURIComponent(orderId)}`,
+  );
   if (!res.order) throw new Error(`Square order ${orderId} not found`);
   return mapOrder(res.order);
 }
@@ -539,10 +549,21 @@ export interface SquareCard {
  */
 export async function createCard(
   config: SquareConfig,
-  input: { sourceId: string; customerId: string; idempotencyKey?: string; verificationToken?: string },
+  input: {
+    sourceId: string;
+    customerId: string;
+    idempotencyKey?: string;
+    verificationToken?: string;
+  },
 ): Promise<SquareCard> {
   const res = await sqPost<{
-    card?: { id?: string; last_4?: string; card_brand?: string; exp_month?: number; exp_year?: number };
+    card?: {
+      id?: string;
+      last_4?: string;
+      card_brand?: string;
+      exp_month?: number;
+      exp_year?: number;
+    };
   }>(config, "/v2/cards", {
     idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
     source_id: input.sourceId,
