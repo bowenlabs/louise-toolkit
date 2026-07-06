@@ -1,11 +1,11 @@
 ---
 title: Commerce
-description: Stripe invoices and Fourthwall storefront glue — no SDKs.
+description: Stripe invoices, Fourthwall storefront, and the Square /v2 client — no SDKs.
 sidebar:
   order: 9
 ---
 
-Louise's commerce primitives are thin, V8-native glue over two external
+Louise's commerce primitives are thin, V8-native glue over three external
 services. They use raw `fetch` and `crypto.subtle` — **no Node SDKs** — so they
 run in a Worker unchanged.
 
@@ -55,6 +55,56 @@ hands off to Fourthwall's **hosted checkout** — Fourthwall owns payment, tax,
 shipping, and fulfillment. Orders mirror back read-only via an HMAC-verified
 webhook, which you can route through a [queue](/docs/reference/queues/) to an
 idempotent consumer.
+
+## Square — catalog, orders, payments & subscriptions
+
+`louisecms/commerce/square` is the fullest of the three: a **read-first** client
+over Square's `/v2` REST surface, covering catalog, inventory, orders, payments,
+customers, cards, loyalty, and subscriptions. Everything is injected through a
+`SquareConfig` (an access token plus a `sandbox`/`production` environment), and the
+`Square-Version` is pinned — unlike Stripe, Square has no `/v1` vs `/v2` split, so
+date-versioning rides on a single namespace.
+
+```ts
+import {
+  listCatalogItems,
+  retrieveVariationPrices,
+  createOrder,
+  createPayment,
+  verifySquareSignature,
+} from "louisecms/commerce/square";
+
+const config = { accessToken: env.SQUARE_ACCESS_TOKEN, environment: "production" };
+```
+
+The one write path is **checkout**, and it's deliberately trust-nothing:
+
+1. **Verify prices** — re-fetch the cart's variations with `retrieveVariationPrices`
+   and compare them against the client-submitted amounts before charging.
+2. **Create the Order** from catalog references with `createOrder`, so Square
+   computes the authoritative total and taxes — the browser never dictates price.
+3. **Charge** with `createPayment`, passing a Web Payments SDK card token
+   (`sourceId`) tokenized in the browser (raw card data never reaches the Worker)
+   plus the `orderId`, so the amount matches Square's computed total.
+
+Subscriptions reuse the same tokenized-card model: save a card on file with
+`createCard`, then enroll against a plan variation with `createSubscription`.
+
+Webhooks differ from Stripe and Fourthwall in one important way — Square signs the
+**concatenation of your exact notification URL and the raw body**, so
+`verifySquareSignature` takes that URL as its first argument:
+
+```ts
+const ok = await verifySquareSignature(
+  "https://example.com/webhooks/square", // the URL configured in Square, exactly
+  await request.text(),
+  request.headers.get("x-square-hmacsha256-signature"),
+  env.SQUARE_SIGNATURE_KEY,
+);
+```
+
+As with Fourthwall, route the verified event through a
+[queue](/docs/reference/queues/) to an idempotent consumer.
 
 See the [commerce reference](/docs/reference/commerce/) for the full export
 list.
