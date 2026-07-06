@@ -43,6 +43,7 @@ const rawLoader = {
 export default {
   pack: {
     entry: [
+      "src/core/auth/index.ts",
       "src/client/index.ts",
       "src/core/cms/index.ts",
       "src/core/db/index.ts",
@@ -67,6 +68,8 @@ export default {
         /^prosekit(\/|$)/,
         /^@prosekit\/pm(\/|$)/,
         /^drizzle-orm(\/|$)/,
+        /^better-auth(\/|$)/,
+        /^@better-auth\/(passkey|core)(\/|$)/,
       ],
     },
   },
