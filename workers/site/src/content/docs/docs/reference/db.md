@@ -1,12 +1,12 @@
 ---
 title: db
-description: "louisecms/db — Drizzle over D1, plus the site_settings table."
+description: "louisecms/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
 sidebar:
   order: 1
 ---
 
 ```ts
-import { db, siteSettings, siteSettingsColumns } from "louisecms/db";
+import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louisecms/db";
 ```
 
 A thin wrapper around Drizzle's D1 driver. **Raw binding in, Drizzle instance
@@ -54,9 +54,40 @@ const [settings] = await db(env.DB).select().from(siteSettings).limit(1);
 `siteSettingsColumns` exposes the column set for composing your own table
 variant when you need to extend it.
 
+## `pages` / `inquiries`
+
+The two other framework-generic CMS tables, offered on the same
+compose-or-use-as-is pattern:
+
+- **`pages`** (`pagesColumns`, `Page`, `NewPage`) — slug, title, sanitized rich
+  `body`, publish status, SEO/OG, ordering, timestamps.
+- **`inquiries`** (`inquiriesColumns`, `Inquiry`, `NewInquiry`) — contact-form
+  submissions.
+
+```ts
+import { sqliteTable, integer } from "drizzle-orm/sqlite-core";
+import { pagesColumns } from "louisecms/db";
+
+// Use as-is, or spread the columns to add site-specific fields:
+export const pages = sqliteTable("pages", {
+  ...pagesColumns,
+  authorId: integer("author_id"),
+});
+```
+
+drizzle-kit still generates each site's migration from its composed schema, so
+sharing the column set costs no flexibility.
+
 :::tip
-`db()` is intentionally the *only* opinion Louise has about your database, and
-`siteSettings` is the *only* table it ships. Everything else — artworks,
-products, pages, your content model — is yours. The [`cms`](/docs/reference/cms/)
-module generates Drizzle schema from a collection config if you want that.
+`db()` stays schema-agnostic — the tables above are **opt-in building blocks**,
+not a schema Louise imposes. They exist so the core CMS tables (`pages`,
+`inquiries`, `site_settings`) don't drift between projects; everything else —
+products, artworks, your content model — is yours. The
+[`cms`](/docs/reference/cms/) module generates Drizzle schema from a collection
+config if you want that.
+:::
+
+:::note
+Auth tables (`user`, `session`, …) are **not** here — they're generated from your
+[`auth`](/docs/reference/auth/) config by Better Auth, not hand-written.
 :::

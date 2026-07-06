@@ -100,3 +100,26 @@ function injectStyles(): void;
 
 Ensures the shared Louise stylesheet (and edit-mode fonts) is present, even on a
 page that has no inline fields — call it before opening a drawer on a bare page.
+
+## `louisecms/client/drawer`
+
+The **drawer data layer** — the shared TanStack Solid Query wiring and typed
+fetch helpers every editor drawer uses. Optional peer: `@tanstack/solid-query`.
+(The drawer *shell* and panels are still site-specific.)
+
+```ts
+import {
+  createDrawerQueryClient,
+  apiGet,
+  apiSend,
+  louiseQueryKey,
+  louiseQueryKeys,
+} from "louisecms/client/drawer";
+```
+
+- `createDrawerQueryClient()` — a `QueryClient` tuned for the editor-only drawer
+  (no window-focus refetch, 30s stale, one retry).
+- `apiGet<T>(url)` / `apiSend<T>(method, url, body?)` — typed JSON fetch that
+  throws on a non-2xx status.
+- `louiseQueryKey(collection, …rest)` — namespaced query key; `louiseQueryKeys`
+  holds the framework-generic ones (`pages`, `media`, `settings`).
