@@ -11,13 +11,13 @@ app and no JSON form for prose: an editor logs in, the page sprouts edit
 affordances, and every editable region becomes editable *in place*. Structured,
 back-office work happens in a drawer rendered over the live site.
 
-Louise ships as one tree-shakeable package, `@louisecms/core`, exposing
+Louise ships as one tree-shakeable package, `louisecms`, exposing
 framework-agnostic core primitives, a SolidJS + ProseKit inline-edit client, and
 the editor theme.
 
 ```ts
-import { db } from "@louisecms/core/db";
-import { sendEmail } from "@louisecms/core/email";
+import { db } from "louisecms/db";
+import { sendEmail } from "louisecms/email";
 // Bindings are passed in — Louise never imports `cloudflare:workers` itself.
 ```
 
@@ -64,9 +64,8 @@ import { sendEmail } from "@louisecms/core/email";
   />
 </CardGrid>
 
-:::note[Where Louise comes from]
-Louise is the CMS behind [themidwestartist.com](https://themidwestartist.com).
-This package is the reusable engine, extracted and published on its own. Some
-guides describe patterns (the drawer, panels) that a host app assembles from the
-primitives rather than APIs Louise hands you fully built.
+:::note[Primitives, not a prebuilt app]
+Louise is a toolkit, not a turnkey admin. Some guides describe *patterns* (the
+drawer, panels) that your app assembles from the primitives rather than APIs
+Louise hands you fully built — you own the routes, the auth, and the schema.
 :::

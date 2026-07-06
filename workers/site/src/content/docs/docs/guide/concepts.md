@@ -60,9 +60,8 @@ Editing is gated by **edit mode**, which a host app resolves per request
 Two facts matter:
 
 - The page's edit mode controls whether *edit affordances render*.
-- A separate, session-derived signal (`locals.editor` in the reference app)
-  controls whether *writes are trusted*. Never authorize a save on the page's
-  edit mode alone.
+- A separate, session-derived signal (e.g. `locals.editor`) controls whether
+  *writes are trusted*. Never authorize a save on the page's edit mode alone.
 
 Louise gives you the client and the field contract; **you own the auth**. The
 [Auth & edit mode](/docs/guide/auth-and-edit-mode/) guide walks the reference

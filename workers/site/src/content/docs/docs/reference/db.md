@@ -1,12 +1,12 @@
 ---
 title: db
-description: "@louisecms/core/db — Drizzle over D1, plus the site_settings table."
+description: "louisecms/db — Drizzle over D1, plus the site_settings table."
 sidebar:
   order: 1
 ---
 
 ```ts
-import { db, siteSettings, siteSettingsColumns } from "@louisecms/core/db";
+import { db, siteSettings, siteSettingsColumns } from "louisecms/db";
 ```
 
 A thin wrapper around Drizzle's D1 driver. **Raw binding in, Drizzle instance
@@ -27,7 +27,7 @@ Returns a Drizzle instance bound to your D1 database. Pass your own schema objec
 for typed relational queries; omit it for a schema-less handle.
 
 ```ts
-import { db } from "@louisecms/core/db";
+import { db } from "louisecms/db";
 import * as schema from "./schema"; // your Drizzle tables
 
 export async function GET({ locals, request }, env: Env) {
@@ -46,7 +46,7 @@ A framework-owned **singleton config table** you can compose into your schema or
 use as-is, so a generic "site settings" row doesn't drift between projects.
 
 ```ts
-import { siteSettings } from "@louisecms/core/db";
+import { siteSettings } from "louisecms/db";
 
 const [settings] = await db(env.DB).select().from(siteSettings).limit(1);
 ```

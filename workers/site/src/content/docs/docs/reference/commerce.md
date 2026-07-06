@@ -1,6 +1,6 @@
 ---
 title: commerce
-description: "@louisecms/core/commerce and /commerce/fourthwall — Stripe and Fourthwall glue."
+description: "louisecms/commerce and /commerce/fourthwall — Stripe and Fourthwall glue."
 sidebar:
   order: 4
 ---
@@ -8,7 +8,7 @@ sidebar:
 Two entry points, both raw `fetch` + `crypto.subtle` — no SDKs, no peers. See the
 [Commerce guide](/docs/guide/commerce/) for the how and why.
 
-## `@louisecms/core/commerce` (Stripe)
+## `louisecms/commerce` (Stripe)
 
 ```ts
 import {
@@ -21,7 +21,7 @@ import {
   type CartItem,
   type InvoiceLineItem,
   type StripeAddress,
-} from "@louisecms/core/commerce";
+} from "louisecms/commerce";
 ```
 
 | Export | Purpose |
@@ -35,7 +35,7 @@ import {
 The Stripe API version is pinned in the module so an account-default upgrade
 can't silently change response shapes — bump it deliberately.
 
-## `@louisecms/core/commerce/fourthwall`
+## `louisecms/commerce/fourthwall`
 
 ```ts
 import {
@@ -49,7 +49,7 @@ import {
   type FwProduct,
   type FwVariant,
   type FwCartItem,
-} from "@louisecms/core/commerce/fourthwall";
+} from "louisecms/commerce/fourthwall";
 ```
 
 | Export | Purpose |

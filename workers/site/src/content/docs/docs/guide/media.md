@@ -6,14 +6,14 @@ sidebar:
 ---
 
 Louise's editor uploads images (paste, drop, or the toolbar button) to a media
-endpoint you own. The reference app stores them in **R2**; the endpoint is the
-trust boundary, so it does the validation Louise can't do from the client.
+endpoint you own — typically **R2**. That endpoint is the trust boundary, so it
+does the validation Louise can't do from the client.
 
 ## The endpoint's job
 
 A media endpoint should be **admin-gated** and enforce, at minimum:
 
-- **A size cap** (10 MB in the reference app).
+- **A size cap** (e.g. 10 MB).
 - **Content sniffing over trust.** Validate the *actual* image bytes with a
   magic-number check rather than trusting the client's `Content-Type`. Store and
   serve the verified type — not the claimed one.

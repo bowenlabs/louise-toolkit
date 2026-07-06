@@ -16,7 +16,7 @@ Louise gives you the building blocks — the client's `Icon`/`RichText` exports,
 and the [CMS](/docs/reference/cms/) primitives. The drawer itself is assembled by
 the host app, because its tabs and panels are inherently app-specific (a
 portfolio site and a docs site want different back offices). This guide describes
-the shape the reference app uses so you can build your own.
+one shape you can build your own from.
 :::
 
 ## Shape
@@ -44,7 +44,7 @@ To keep the drawer visually consistent with inline editing, render the same
 pieces:
 
 ```tsx
-import { Icon, RichText, injectStyles } from "@louisecms/core/client";
+import { Icon, RichText, injectStyles } from "louisecms/client";
 
 // Ensure the shared Louise stylesheet is present even on pages with no inline
 // fields (so a drawer opened on a bare page still styles correctly).

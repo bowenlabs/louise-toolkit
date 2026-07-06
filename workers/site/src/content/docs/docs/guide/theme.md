@@ -32,8 +32,8 @@ chrome:
 @plugin "daisyui" {
   themes: louise --default, louise-dark --prefersdark;
 }
-@import "@louisecms/core/theme/louise.css";
-@import "@louisecms/core/theme/fonts.css";
+@import "louisecms/theme/louise.css";
+@import "louisecms/theme/fonts.css";
 ```
 
 Apply `data-theme="louise"` (or `louise-dark`) to the root of any editor surface

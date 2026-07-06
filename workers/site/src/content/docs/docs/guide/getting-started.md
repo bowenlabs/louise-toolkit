@@ -11,17 +11,17 @@ Louise is a library, not a scaffold — you add it to a Cloudflare Workers app
 ## Install
 
 ```sh
-npm install @louisecms/core
+npm install louisecms
 ```
 
 Louise's heavier dependencies are **optional peers**, so a route that only uses
-`@louisecms/core/errors` pulls in nothing extra. Install the peers for the
+`louisecms/errors` pulls in nothing extra. Install the peers for the
 exports you actually use:
 
 | If you import…                            | Also install                     |
 | ----------------------------------------- | -------------------------------- |
-| `@louisecms/core/db`, `/cms`            | `drizzle-orm`                    |
-| `@louisecms/core/client`                | `solid-js prosekit @prosekit/pm` |
+| `louisecms/db`, `/cms`            | `drizzle-orm`                    |
+| `louisecms/client`                | `solid-js prosekit @prosekit/pm` |
 | `/email`, `/queues`, `/errors`, `/commerce` | *(no peers)*                   |
 
 ```sh
@@ -38,8 +38,8 @@ and in a unit test with a fake binding.
 
 ```ts
 // A bare Cloudflare Worker endpoint.
-import { db } from "@louisecms/core/db";
-import { sendEmail } from "@louisecms/core/email";
+import { db } from "louisecms/db";
+import { sendEmail } from "louisecms/email";
 
 export default {
   async fetch(_req: Request, env: Env) {
@@ -63,7 +63,7 @@ edit mode, mark the editable regions and mount the client.
 **1. Mark the region.** The marker is `"<collection>:<key>:<field>"`.
 
 ```html
-<h1 data-louise-field="settings:1:heroHeadline">Meg Bowen</h1>
+<h1 data-louise-field="settings:1:heroHeadline">Your Studio</h1>
 ```
 
 **2. Mount the client.** It self-gates — if the page has no markers (i.e. it
@@ -71,7 +71,7 @@ wasn't rendered in edit mode) `mountLouise` does nothing, so you can lazy-import
 it safely.
 
 ```ts
-import { mountLouise } from "@louisecms/core/client";
+import { mountLouise } from "louisecms/client";
 mountLouise();
 ```
 

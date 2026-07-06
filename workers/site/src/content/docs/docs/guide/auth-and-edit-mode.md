@@ -6,8 +6,8 @@ sidebar:
 ---
 
 Louise ships the editor and the field contract; **you own authentication**. Any
-auth that can answer "is this request an editor?" works. This guide describes the
-reference app's approach so you have a concrete, secure baseline.
+auth that can answer "is this request an editor?" works. This guide describes one
+concrete, secure approach as a baseline.
 
 ## Edit mode is a signal, not a permission
 
@@ -29,9 +29,9 @@ mode only decides whether affordances render; a save must be re-checked against
 the session. Never authorize a write on edit mode alone.
 :::
 
-## The reference auth (Better Auth)
+## An example auth setup (Better Auth)
 
-The reference app logs in at **`/louise`**, passwordless via **Better Auth
+In this example, login is at **`/louise`**, passwordless via **Better Auth
 magic-link** delivered through Cloudflare Email Sending (Louise's
 [`email`](/docs/reference/email/) primitive). Notable choices:
 
@@ -46,6 +46,6 @@ magic-link** delivered through Cloudflare Email Sending (Louise's
   request time on Workers.
 - **Rate-limited & captcha'd** public POSTs (sign-in, contact, checkout).
 
-None of this is *in* the `@louisecms/core` package — it's the host app's
+None of this is *in* the `louisecms` package — it's the host app's
 wiring. Louise's contribution is the `email` primitive the magic link rides on
 and the client that only renders once your middleware says "editor".

@@ -6,7 +6,7 @@ sidebar:
 ---
 
 Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid) —
-`@louisecms/core/client`'s `RichText` — used identically by inline fields and
+`louisecms/client`'s `RichText` — used identically by inline fields and
 by any drawer form a host app builds.
 
 ## HTML in, HTML out
@@ -51,15 +51,15 @@ Phosphor SVGs inlined raw, so they're CSP-safe (no external requests, no inline
 
 ## Images
 
-Paste, drop, or the toolbar button upload to your media endpoint (R2 in the
-reference app — see [Media](/docs/guide/media/)) and insert an `<img>`. A
+Paste, drop, or the toolbar button upload to your media endpoint (typically R2 —
+see [Media](/docs/guide/media/)) and insert an `<img>`. A
 resizable node view lets an editor drag the corner; the size persists as
 `width`/`height` attributes. A block drag handle reorders blocks.
 
 ## Using it directly
 
 ```tsx
-import { RichText } from "@louisecms/core/client";
+import { RichText } from "louisecms/client";
 
 <RichText
   value={html}

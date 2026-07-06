@@ -27,17 +27,17 @@ jobs:
 
       - name: Lint & format (Oxlint + Oxfmt)
         run: vp check
-        working-directory: packages/core
+        working-directory: packages/louise
 
       - name: Type-check
-        run: vp run "@louisecms/core#typecheck"
+        run: vp run "louisecms#typecheck"
 
       - name: Test
         run: vp test
-        working-directory: packages/core
+        working-directory: packages/louise
 
       - name: Pack the library
-        run: vp run "@louisecms/core#pack"
+        run: vp run "louisecms#pack"
 
       - name: Build the site
         run: vp run "site#build"

@@ -16,7 +16,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.1",
     "@astrojs/starlight": "^0.41.0",
-    "@louisecms/core": "workspace:*",
+    "louisecms": "workspace:*",
     "astro": "^7.0.6",
     "sharp": "^0.34.0"
   },

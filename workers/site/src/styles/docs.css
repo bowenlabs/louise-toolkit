@@ -1,7 +1,7 @@
 /* Louise brand accent for the Starlight docs.
    Palette from the BowenLabs brand system: blue #1481ef primary, yellow
    #f3ae29 accent, green #8ebe59 success — the same tokens the editor theme
-   (`@louisecms/core/theme`) ships. */
+   (`louisecms/theme`) ships. */
 :root {
   --sl-color-accent-low: #08284a;
   --sl-color-accent: #1481ef;

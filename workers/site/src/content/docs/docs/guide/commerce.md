@@ -11,12 +11,12 @@ run in a Worker unchanged.
 
 ## Stripe — invoices only
 
-`@louisecms/core/commerce` creates hosted Stripe invoices: reuse-or-create a
+`louisecms/commerce` creates hosted Stripe invoices: reuse-or-create a
 customer, add line items, enable automatic tax when the customer has an address,
 and verify incoming webhooks.
 
 ```ts
-import { verifyStripeSignature } from "@louisecms/core/commerce";
+import { verifyStripeSignature } from "louisecms/commerce";
 
 // Webhook route — verify before trusting the payload.
 export async function POST({ request, env }) {
@@ -38,7 +38,7 @@ Two design notes worth knowing:
 
 ## Fourthwall — storefront & orders
 
-`@louisecms/core/commerce/fourthwall` wraps the Fourthwall storefront
+`louisecms/commerce/fourthwall` wraps the Fourthwall storefront
 (catalog + cart) and platform (orders) APIs, plus HMAC webhook verification.
 
 ```ts
@@ -47,7 +47,7 @@ import {
   lowestPrice,
   createCart,
   verifyFourthwallSignature,
-} from "@louisecms/core/commerce/fourthwall";
+} from "louisecms/commerce/fourthwall";
 ```
 
 A typical shop keeps a light on-site cart keyed by Fourthwall variant id, then

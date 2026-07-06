@@ -32,7 +32,7 @@ List items are patched by index with a dotted field: `aboutParagraphs.2`.
 ## Mounting the client
 
 ```ts
-import { mountLouise } from "@louisecms/core/client";
+import { mountLouise } from "louisecms/client";
 
 // Safe to call on every page: if there are no markers (the page wasn't rendered
 // in edit mode), mountLouise does nothing — so you can lazy-import it.
@@ -48,7 +48,7 @@ The client also re-exports the pieces a host app's own panels reuse, so the
 drawer renders the same editor and icon set as inline editing:
 
 ```ts
-import { RichText, mountRichText, Icon } from "@louisecms/core/client";
+import { RichText, mountRichText, Icon } from "louisecms/client";
 ```
 
 See the [client reference](/docs/reference/client/) for the full export list.
@@ -56,8 +56,7 @@ See the [client reference](/docs/reference/client/) for the full export list.
 ## The save contract
 
 On **Save**, the client sends **one `PATCH` per changed field** to your save
-endpoint (`POST /api/louise/save` in the reference app). Unchanged fields are
-never sent.
+endpoint (e.g. `POST /api/louise/save`). Unchanged fields are never sent.
 
 Your endpoint owns two responsibilities Louise cannot do for you:
 
@@ -82,7 +81,7 @@ export async function POST({ request, locals, env }) {
 
 ## Adding an inline-editable field
 
-The pattern the reference app uses, generalised:
+The pattern, generalised:
 
 1. Add the field to your content type and give it a seed/default value.
 2. Render it with the marker (plain or `data-louise-type="richtext"`).

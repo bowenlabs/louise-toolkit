@@ -1,6 +1,6 @@
 ---
 title: client
-description: "@louisecms/core/client — the inline-edit client, ProseKit editor, icons, and blocks."
+description: "louisecms/client — the inline-edit client, ProseKit editor, icons, and blocks."
 sidebar:
   order: 3
 ---
@@ -16,7 +16,7 @@ import {
   BlockInserter,
   defineBlock,
   injectStyles,
-} from "@louisecms/core/client";
+} from "louisecms/client";
 ```
 
 The browser-side editor. This is the only subpath that touches the DOM and Solid;
@@ -40,7 +40,7 @@ The ProseKit (Solid) editor used identically by inline fields and by any
 drawer form you build.
 
 ```tsx
-import { RichText, type RichTextProps } from "@louisecms/core/client";
+import { RichText, type RichTextProps } from "louisecms/client";
 
 <RichText
   value={html}
@@ -60,12 +60,17 @@ The Phosphor icon set the toolbar and panels share, inlined as raw SVG (CSP-safe
 — no external requests).
 
 ```tsx
-import { Icon, type IconName } from "@louisecms/core/client";
+import { Icon, type IconName } from "louisecms/client";
 
 <Icon name="pencil-simple" />;
 ```
 
 `icons` is the registry; `IconName` is the union of available names.
+
+:::note[Credit]
+The icons are [Phosphor Icons](https://phosphoricons.com) (MIT © Phosphor Icons),
+inlined at build time. See the package's `THIRD_PARTY_NOTICES.md`.
+:::
 
 ## Blocks
 
@@ -80,7 +85,7 @@ import {
   defineBlocksExtension,
   type BlockDef,
   type BlockEntry,
-} from "@louisecms/core/client";
+} from "louisecms/client";
 ```
 
 - `BLOCKS` — the registry that drives the `/` slash menu.
