@@ -36,6 +36,7 @@ The core primitives are dependency-injected — you pass in your Cloudflare bind
 | `louisecms/db`                                   | Thin Drizzle-over-D1 helper + framework-owned `site_settings`  |
 | `louisecms/commerce`                             | Stripe invoices (raw `fetch` + `crypto.subtle`, no SDK)        |
 | `louisecms/commerce/fourthwall`                  | Fourthwall storefront/catalog + webhook verification           |
+| `louisecms/commerce/square`                      | Square `/v2` catalog, orders, payments, customers, loyalty, subscriptions + webhook verification |
 | `louisecms/email`                                | Cloudflare Email Sending (`env.EMAIL.send`)                    |
 | `louisecms/queues`                               | Cloudflare Queues producer + batch consumer                    |
 | `louisecms/errors`                               | `LouiseError` and typed subclasses                             |
