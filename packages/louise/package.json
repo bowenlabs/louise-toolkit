@@ -40,6 +40,10 @@
       "types": "./dist/core/auth/index.d.ts",
       "import": "./dist/core/auth/index.js"
     },
+    "./browser": {
+      "types": "./dist/core/browser/index.d.ts",
+      "import": "./dist/core/browser/index.js"
+    },
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js"
@@ -113,6 +117,7 @@
   },
   "devDependencies": {
     "@better-auth/passkey": "^1.6.23",
+    "@cloudflare/puppeteer": "^1.1.0",
     "@cloudflare/workers-types": "^5.20260703.1",
     "@phosphor-icons/core": "^2.1.1",
     "@prosekit/pm": "^0.1.18",
@@ -130,6 +135,7 @@
   },
   "peerDependencies": {
     "@better-auth/passkey": "^1.6.23",
+    "@cloudflare/puppeteer": "^1.0.0",
     "@prosekit/pm": "^0.1.18",
     "@tanstack/solid-query": "^5.101.2",
     "@vercel/stega": "^1.1.0",
@@ -143,6 +149,9 @@
       "optional": true
     },
     "@better-auth/passkey": {
+      "optional": true
+    },
+    "@cloudflare/puppeteer": {
       "optional": true
     },
     "@prosekit/pm": {

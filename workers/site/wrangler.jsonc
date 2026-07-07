@@ -7,7 +7,15 @@
   // source entry (src/worker.ts); the adapter builds it and wires the
   // prerendered pages + static assets under dist/.
   "main": "src/worker.ts",
+  // Browser Run (louisecms/browser, #5): OG-image rendering + link-checking.
+  "browser": {
+    "binding": "BROWSER",
+  },
+  // Daily link-checker crawl of the docs (worker.ts `scheduled`).
+  "triggers": {
+    "crons": ["0 6 * * *"],
+  },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }
