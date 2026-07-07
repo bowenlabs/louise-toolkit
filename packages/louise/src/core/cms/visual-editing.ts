@@ -182,16 +182,44 @@ export interface VisualEditingOptions {
   targetOrigin?: string;
   /** Outline color for the hover highlight. Default a teal accent. */
   highlightColor?: string;
+  /**
+   * Resolve a stega-encoded {@link EditRef} from a text run (pass `stegaDecode`
+   * from `louisecms/stega`). When provided, the overlay ALSO hit-tests text
+   * nodes: prose tagged invisibly via stega becomes a click target with no
+   * wrapper element — in addition to the `data-louise-edit` element targets.
+   * Kept as an injected callback so this module stays free of the optional
+   * `@vercel/stega` dependency.
+   */
+  resolveStega?: (text: string) => EditRef | null;
+}
+
+/** The text node directly under a viewport point, or null. Feature-detects the
+ *  two caret APIs (`caretRangeFromPoint` — WebKit/Blink; `caretPositionFromPoint`
+ *  — Firefox/spec). */
+function textNodeFromPoint(x: number, y: number): Text | null {
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node } | null;
+  };
+  let node: Node | null = null;
+  if (typeof doc.caretRangeFromPoint === "function") {
+    node = doc.caretRangeFromPoint(x, y)?.startContainer ?? null;
+  } else if (typeof doc.caretPositionFromPoint === "function") {
+    node = doc.caretPositionFromPoint(x, y)?.offsetNode ?? null;
+  }
+  return node && node.nodeType === Node.TEXT_NODE ? (node as Text) : null;
 }
 
 /**
  * Mount the click-to-edit overlay. Browser-only — call from a preview page's
  * client script. Highlights `[data-louise-edit]` elements on hover and, on
  * click, calls `onSelect` and posts a {@link VisualEditingMessage} to the
- * parent window. Returns a cleanup function that removes the listeners.
+ * parent window. With `resolveStega`, also hit-tests stega-tagged text runs
+ * (highlighted via a floating box, since a text node has no outline). Returns a
+ * cleanup function that removes the listeners.
  */
 export function mountVisualEditing(options: VisualEditingOptions = {}): () => void {
-  const { onSelect, targetOrigin = "*", highlightColor = "#56c6be" } = options;
+  const { onSelect, targetOrigin = "*", highlightColor = "#56c6be", resolveStega } = options;
 
   const closest = (target: EventTarget | null): HTMLElement | null => {
     if (!(target instanceof Element)) return null;
@@ -207,26 +235,80 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
     }
   };
 
+  // Floating highlight for stega text hits (a text run can't carry an outline).
+  let stegaBox: HTMLElement | null = null;
+  const showStegaBox = (rect: DOMRect) => {
+    if (!stegaBox) {
+      stegaBox = document.createElement("div");
+      stegaBox.style.cssText =
+        "position:fixed;pointer-events:none;z-index:2147483646;border-radius:2px";
+      document.body.appendChild(stegaBox);
+    }
+    stegaBox.style.outline = `2px solid ${highlightColor}`;
+    stegaBox.style.outlineOffset = "2px";
+    stegaBox.style.left = `${rect.left}px`;
+    stegaBox.style.top = `${rect.top}px`;
+    stegaBox.style.width = `${rect.width}px`;
+    stegaBox.style.height = `${rect.height}px`;
+    stegaBox.style.display = "block";
+  };
+  const hideStegaBox = () => {
+    if (stegaBox) stegaBox.style.display = "none";
+  };
+
+  // A stega text hit at a viewport point: the decoded ref + the run's rect.
+  const stegaHit = (x: number, y: number): { ref: EditRef; rect: DOMRect; node: Text } | null => {
+    if (!resolveStega) return null;
+    const node = textNodeFromPoint(x, y);
+    if (!node?.textContent) return null;
+    const ref = resolveStega(node.textContent);
+    if (!ref) return null;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return { ref, rect: range.getBoundingClientRect(), node };
+  };
+
   const onOver = (event: Event) => {
     const el = closest(event.target);
-    if (!el || el === previous?.el) return;
+    if (el) {
+      hideStegaBox();
+      if (el === previous?.el) return;
+      clearHighlight();
+      previous = { el, outline: el.style.outline };
+      el.style.outline = `2px solid ${highlightColor}`;
+      el.style.outlineOffset = "2px";
+      el.style.cursor = "pointer";
+      return;
+    }
     clearHighlight();
-    previous = { el, outline: el.style.outline };
-    el.style.outline = `2px solid ${highlightColor}`;
-    el.style.outlineOffset = "2px";
-    el.style.cursor = "pointer";
+    const hit = stegaHit((event as MouseEvent).clientX, (event as MouseEvent).clientY);
+    if (hit) showStegaBox(hit.rect);
+    else hideStegaBox();
   };
 
   const onClick = (event: Event) => {
     const el = closest(event.target);
-    if (!el) return;
-    const ref = decodeEditRef(el.getAttribute(EDIT_ATTR) ?? "");
-    if (!ref) return;
+    if (el) {
+      const ref = decodeEditRef(el.getAttribute(EDIT_ATTR) ?? "");
+      if (!ref) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onSelect?.(ref, el);
+      window.parent?.postMessage(
+        { type: VISUAL_EDIT_MESSAGE, ref } satisfies VisualEditingMessage,
+        targetOrigin,
+      );
+      return;
+    }
+    const hit = stegaHit((event as MouseEvent).clientX, (event as MouseEvent).clientY);
+    if (!hit) return;
     event.preventDefault();
     event.stopPropagation();
-    onSelect?.(ref, el);
-    const message: VisualEditingMessage = { type: VISUAL_EDIT_MESSAGE, ref };
-    window.parent?.postMessage(message, targetOrigin);
+    onSelect?.(hit.ref, hit.node.parentElement ?? document.body);
+    window.parent?.postMessage(
+      { type: VISUAL_EDIT_MESSAGE, ref: hit.ref } satisfies VisualEditingMessage,
+      targetOrigin,
+    );
   };
 
   document.addEventListener("mouseover", onOver, true);
@@ -234,6 +316,10 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
 
   return () => {
     clearHighlight();
+    if (stegaBox) {
+      stegaBox.remove();
+      stegaBox = null;
+    }
     document.removeEventListener("mouseover", onOver, true);
     document.removeEventListener("click", onClick, true);
   };

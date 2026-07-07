@@ -9,6 +9,7 @@
 // It self-gates: if there are no markers (i.e. the page wasn't rendered in
 // edit mode) it does nothing, so the bootstrap can lazy-import it safely.
 
+import { stegaClean } from "../core/cms/stega-clean.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
@@ -185,7 +186,11 @@ export function mountLouise(opts: MountLouiseOptions): void {
     if (el.dataset.louiseType === "richtext") {
       // Rich fields save serialized HTML — the site stores and renders HTML
       // (no ProseMirror on the Worker), and the editor re-parses it on load.
-      const field = mountRichText(el, () => markDirty(fieldKey, () => field.getHTML()));
+      // stegaClean before persisting: if stega visual-editing tagged this
+      // field's text, its invisible payload must never round-trip into stored
+      // HTML / ProseMirror JSON (it would compound on every save). No-op when
+      // stega isn't in use.
+      const field = mountRichText(el, () => markDirty(fieldKey, () => stegaClean(field.getHTML())));
     } else {
       // Plain-text field: contenteditable, single line.
       el.setAttribute("contenteditable", "plaintext-only");
@@ -193,7 +198,9 @@ export function mountLouise(opts: MountLouiseOptions): void {
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter") e.preventDefault();
       });
-      el.addEventListener("input", () => markDirty(fieldKey, () => el.textContent?.trim() ?? ""));
+      el.addEventListener("input", () =>
+        markDirty(fieldKey, () => stegaClean(el.textContent?.trim() ?? "")),
+      );
     }
   }
 }
