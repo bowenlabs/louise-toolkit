@@ -1,0 +1,27 @@
+// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+//
+// louisecms/media
+//
+// A site's media library: verified R2 uploads (magic-byte sniffed), paged
+// listing, delete-with-reference-scan, and Cloudflare Image-Resizing URL
+// transforms + a per-usage CSS crop. The `media` table these track lives in
+// `louisecms/db` (`mediaColumns` / `media`). Bindings contract: `MEDIA` (R2) +
+// `MEDIA_URL` — see {@link LouiseMediaEnv}.
+
+export { sniffImageType, type SniffedImageType } from "./sniff.js";
+export {
+  DEFAULT_MAX_BYTES,
+  deleteMedia,
+  findMediaReferences,
+  likePattern,
+  listMedia,
+  type MediaItem,
+  type MediaReference,
+  type MediaRefSource,
+  mediaUrl,
+  putMedia,
+  type PutMediaOptions,
+  type PutMediaResult,
+} from "./storage.js";
+export { cfImage, type CfImageOptions, circleImage, type Crop, cropStyle } from "./transform.js";
+export type { LouiseMediaEnv } from "./types.js";

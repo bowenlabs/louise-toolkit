@@ -1,6 +1,6 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
-import { inquiries, pages, siteSettings } from "../../src/core/db/index.js";
+import { inquiries, media, pages, siteSettings } from "../../src/core/db/index.js";
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]): Set<string> =>
   new Set(getTableConfig(table).columns.map((c) => c.name));
@@ -57,5 +57,31 @@ describe("inquiries table", () => {
 describe("siteSettings table (regression)", () => {
   it("is the site_settings singleton", () => {
     expect(getTableConfig(siteSettings).name).toBe("site_settings");
+  });
+});
+
+describe("media table", () => {
+  it("maps to the expected SQLite table + column set", () => {
+    expect(getTableConfig(media).name).toBe("media");
+    expect(columnNames(media)).toEqual(
+      new Set([
+        "id",
+        "key",
+        "content_type",
+        "size",
+        "width",
+        "height",
+        "alt",
+        "caption",
+        "uploaded_at",
+      ]),
+    );
+  });
+
+  it("pins id primary and a unique, not-null key", () => {
+    const cols = byName(media);
+    expect(cols.id.primary).toBe(true);
+    expect(cols.key.notNull).toBe(true);
+    expect(cols.key.isUnique).toBe(true);
   });
 });

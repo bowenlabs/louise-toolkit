@@ -53,6 +53,7 @@ export default {
       "src/core/commerce/square.ts",
       "src/core/commerce/stripe.ts",
       "src/core/email/index.ts",
+      "src/core/media/index.ts",
       "src/core/queues/index.ts",
       "src/core/security/index.ts",
       "src/core/errors.ts",
