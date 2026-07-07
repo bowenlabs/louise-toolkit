@@ -50,6 +50,11 @@ export interface LouiseAuthConfig {
   customers?: { minPasswordLength?: number; requireEmailVerification?: boolean };
   /** Extra Better Auth user columns (e.g. `squareCustomerId`). */
   additionalFields?: AdditionalFields;
+  /** Table-name prefix for a same-D1 auth boundary (issue #15, Option B), e.g.
+   *  `"auth_"`. Renames the auth tables so they're a visible namespace in one
+   *  database; MUST match the prefix passed to `generateAuthSchemaSql`. Omit for
+   *  default table names (identical to prior behavior). */
+  tablePrefix?: string;
   /** Session lifetime overrides (defaults: 45-day rolling, daily refresh). */
   session?: { expiresIn?: number; updateAge?: number };
   /** Cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`): D1
@@ -120,6 +125,15 @@ export async function getLouiseAuth(
   const isAdmin = (email: string | null | undefined) =>
     admins.includes((email ?? "").trim().toLowerCase());
 
+  // Same-D1 auth namespace (issue #15, Option B): when set, every auth table is
+  // renamed `<prefix><model>` so it queries the same tables the namespaced
+  // `generateAuthSchemaSql` emits. Empty prefix → default names, no overrides.
+  const prefix = config.tablePrefix ?? "";
+  const userOptions = {
+    ...(prefix ? { modelName: `${prefix}user` } : {}),
+    ...(config.additionalFields ? { additionalFields: config.additionalFields } : {}),
+  };
+
   return betterAuth({
     database: env.DB,
     baseURL,
@@ -134,8 +148,13 @@ export async function getLouiseAuth(
       updateAge: config.session?.updateAge ?? 60 * 60 * 24,
       // D1 stays authoritative so a KV TTL lapse recovers instead of logging out.
       ...(config.sessionCacheKv ? { storeSessionInDatabase: true } : {}),
+      ...(prefix ? { modelName: `${prefix}session` } : {}),
     },
-    account: { accountLinking: { enabled: false } },
+    account: {
+      accountLinking: { enabled: false },
+      ...(prefix ? { modelName: `${prefix}account` } : {}),
+    },
+    ...(prefix ? { verification: { modelName: `${prefix}verification` } } : {}),
     ...(config.customers
       ? {
           emailAndPassword: {
@@ -145,7 +164,7 @@ export async function getLouiseAuth(
           },
         }
       : {}),
-    ...(config.additionalFields ? { user: { additionalFields: config.additionalFields } } : {}),
+    ...(Object.keys(userOptions).length ? { user: userOptions } : {}),
     databaseHooks: {
       user: {
         create: {
@@ -182,7 +201,12 @@ export async function getLouiseAuth(
       }),
       admin(),
       // rpID is origin-bound: a localhost-enrolled passkey won't work on prod.
-      passkey({ rpID: host, rpName: config.rpName, origin: baseURL }),
+      passkey({
+        rpID: host,
+        rpName: config.rpName,
+        origin: baseURL,
+        ...(prefix ? { schema: { passkey: { modelName: `${prefix}passkey` } } } : {}),
+      }),
       ...(captchaKey
         ? [
             captcha({

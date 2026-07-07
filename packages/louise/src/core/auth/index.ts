@@ -15,6 +15,7 @@ export {
 export { defaultResolveAdmins, isAllowedSignInEmail } from "./admins.js";
 export { resolveEditorSession } from "./session.js";
 export { handleAuthRequest } from "./handler.js";
+export { authSchemaOptions, type AuthSchemaConfig, generateAuthSchemaSql } from "./schema-gen.js";
 export { isSameOrigin, pick, requireEditor, type EditorRequest } from "./guard.js";
 export {
   activeCaptchaSecret,

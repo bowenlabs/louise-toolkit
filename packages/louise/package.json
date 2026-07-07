@@ -21,8 +21,12 @@
     "url": "git+https://github.com/bowenlabs/louisecms.git",
     "directory": "packages/louise"
   },
+  "bin": {
+    "louise": "./bin/louise.mjs"
+  },
   "files": [
     "dist",
+    "bin",
     "src/theme",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
