@@ -22,3 +22,4 @@ export function db<TSchema extends Record<string, unknown> = Record<string, neve
 export * from "./site-settings.js";
 export * from "./pages.js";
 export * from "./inquiries.js";
+export * from "./media.js";

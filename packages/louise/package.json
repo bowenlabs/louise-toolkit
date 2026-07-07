@@ -72,6 +72,10 @@
       "types": "./dist/core/email/index.d.ts",
       "import": "./dist/core/email/index.js"
     },
+    "./media": {
+      "types": "./dist/core/media/index.d.ts",
+      "import": "./dist/core/media/index.js"
+    },
     "./queues": {
       "types": "./dist/core/queues/index.d.ts",
       "import": "./dist/core/queues/index.js"
