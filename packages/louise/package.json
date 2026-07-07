@@ -92,6 +92,10 @@
       "types": "./dist/core/errors.d.ts",
       "import": "./dist/core/errors.js"
     },
+    "./stega": {
+      "types": "./dist/core/cms/stega.d.ts",
+      "import": "./dist/core/cms/stega.js"
+    },
     "./theme/louise.css": "./src/theme/louise.css",
     "./theme/fonts.css": "./src/theme/fonts.css",
     "./package.json": "./package.json"
@@ -113,6 +117,7 @@
     "@phosphor-icons/core": "^2.1.1",
     "@prosekit/pm": "^0.1.18",
     "@tanstack/solid-query": "^5.101.2",
+    "@vercel/stega": "^1.1.0",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.0",
     "happy-dom": "^17.0.0",
@@ -127,12 +132,16 @@
     "@better-auth/passkey": "^1.6.23",
     "@prosekit/pm": "^0.1.18",
     "@tanstack/solid-query": "^5.101.2",
+    "@vercel/stega": "^1.1.0",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.0",
     "prosekit": "^0.21.4",
     "solid-js": "^1.9.14"
   },
   "peerDependenciesMeta": {
+    "@vercel/stega": {
+      "optional": true
+    },
     "@better-auth/passkey": {
       "optional": true
     },

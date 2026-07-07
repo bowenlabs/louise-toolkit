@@ -29,6 +29,9 @@ importers:
       '@tanstack/solid-query':
         specifier: ^5.101.2
         version: 5.101.2(solid-js@1.9.14)
+      '@vercel/stega':
+        specifier: ^1.1.0
+        version: 1.1.0
       better-auth:
         specifier: ^1.6.23
         version: 1.6.23(@cloudflare/workers-types@5.20260705.1)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260705.1)(kysely@0.29.3))(solid-js@1.9.14)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(happy-dom@17.6.3)(jiti@2.7.0)(lightningcss@1.32.0))
@@ -1620,6 +1623,9 @@ packages:
 
   '@ungap/structured-clone@1.3.2':
     resolution: {integrity: sha512-5jsZFwgR5rTdKwidH9Qmat75RKwqfpKlWWB1frDkljN127mwqBu8K0PYo7/hFpF03IEJpfVPpCQDY/eDx3iHvA==}
+
+  '@vercel/stega@1.1.0':
+    resolution: {integrity: sha512-DFOm3Gk78nKDkppQEG5aj8Wj8R8hPKu/xrz4Rtp0AfiaNbZNCoJbxn7VI6iMxqhGeLdUDy/8mTuTWMz/izAtPA==}
 
   '@vitest/expect@3.2.6':
     resolution: {integrity: sha512-1+7q9BtaKzEmO+fmNT3kYvoNn5Y71XWAx2Q5HRim4tTVRQVRv4uJFAQ5FbK0OPUeNP/WmVCpxYxoJdvuHVjzBQ==}
@@ -5611,6 +5617,8 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@ungap/structured-clone@1.3.2': {}
+
+  '@vercel/stega@1.1.0': {}
 
   '@vitest/expect@3.2.6':
     dependencies:
