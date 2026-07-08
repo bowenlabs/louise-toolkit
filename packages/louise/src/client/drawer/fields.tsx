@@ -32,6 +32,15 @@ export interface SettingsFieldDef {
   type?: SettingsFieldType;
   hint?: string;
   placeholder?: string;
+  /**
+   * Escape hatch for a field whose UI none of the built-in `type`s cover — a
+   * label/value row list, a microcopy grid, a per-page SEO editor, etc. Given
+   * the loaded value (once, at mount) and an `onChange`, it renders arbitrary
+   * markup that persists to `key` through the same save flow as any field.
+   * Overrides `type` when present. Manage local state internally — it's called
+   * once, so keystrokes won't reset it.
+   */
+  render?: (args: { value: unknown; onChange: (value: unknown) => void }) => JSX.Element;
 }
 
 /** A titled, collapsible group of settings fields. */
@@ -244,6 +253,11 @@ export function SettingsField(props: {
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
+  // A custom-render field bypasses the built-in type switch: it owns its markup
+  // and local state, persisting to `key` via the same onChange. Called once with
+  // the loaded value, so its internal state survives keystrokes.
+  if (props.def.render) return props.def.render({ value: props.value, onChange: props.onChange });
+
   const id = () => `louise-set-${props.def.key}`;
   return (
     <Switch

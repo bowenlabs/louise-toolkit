@@ -195,6 +195,74 @@ describe("SettingsPanel — base groups + declarative extension", () => {
       expect(body.roastNote).toBe("medium");
     });
   });
+
+  it("baseGroups replaces the default framework groups (no empty base fields)", async () => {
+    stubFetch((url, method) =>
+      url.includes("/api/louise/settings") && method === "GET"
+        ? jsonResponse({ settings: {} })
+        : jsonResponse({ ok: true }),
+    );
+    mount(() => (
+      <SettingsPanel
+        baseGroups={[
+          { title: "Navigation", fields: [{ key: "navLinks", label: "Nav", type: "links" }] },
+        ]}
+      />
+    ));
+    await vi.waitFor(() => expect(host.textContent).toContain("Save settings"));
+    expect(host.textContent).toContain("Navigation");
+    // Default framework groups the site didn't include are gone.
+    expect(host.textContent).not.toContain("Appearance");
+    expect(host.textContent).not.toContain("Identity");
+  });
+
+  it("a custom-render field renders and its value saves to its key", async () => {
+    const fetchMock = stubFetch((url, method) =>
+      url.includes("/api/louise/settings") && method === "GET"
+        ? jsonResponse({ settings: { tagline: "Prints & goods" } })
+        : jsonResponse({ ok: true }),
+    );
+    mount(() => (
+      <SettingsPanel
+        baseGroups={[]}
+        extension={[
+          {
+            title: "Shop",
+            fields: [
+              {
+                key: "tagline",
+                label: "Tagline",
+                render: ({ value, onChange }) => (
+                  <button
+                    type="button"
+                    data-testid="custom-field"
+                    onClick={() => onChange(`${String(value)}!`)}
+                  >
+                    custom:{String(value)}
+                  </button>
+                ),
+              },
+            ],
+          },
+        ]}
+      />
+    ));
+    await vi.waitFor(() => expect(host.textContent).toContain("custom:Prints & goods"));
+
+    // The render field drives onChange → the new value lands in the save payload.
+    host.querySelector<HTMLButtonElement>('[data-testid="custom-field"]')!.click();
+    const save = Array.from(host.querySelectorAll<HTMLButtonElement>("button")).find(
+      (b) => b.textContent?.trim() === "Save settings",
+    )!;
+    save.click();
+    await vi.waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        (c) => (c[1]?.method ?? "GET").toUpperCase() === "POST",
+      );
+      expect(post).toBeTruthy();
+      expect(JSON.parse(String(post![1]!.body)).tagline).toBe("Prints & goods!");
+    });
+  });
 });
 
 describe("InquiriesPanel — list + delete", () => {
