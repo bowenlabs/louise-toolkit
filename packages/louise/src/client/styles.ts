@@ -10,9 +10,10 @@ const CSS = `
   --louise-blue: ${LOUISE_BLUE};
   --louise-green: #16a34a;
   --louise-orange: #ea7317;
-  /* BowenLabs brand type: Hepta Slab for headers, Roboto Flex for body copy.
-     Loaded via a <link> in injectStyles() — only on Louise surfaces. */
-  --louise-font-head: "Hepta Slab", "Iowan Old Style", Georgia, serif;
+  /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
+     the same family, just a heavier weight. Loaded via a <link> in
+     injectStyles() — only on Louise surfaces. */
+  --louise-font-head: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -220,12 +221,13 @@ const CSS = `
   align-items: center;
   gap: 4px;
 }
-/* Headers use the brand slab (Hepta Slab); body copy stays Roboto Flex. */
+/* Titles: same Roboto Flex, just a heavier weight. */
 .louise-drawer-brand,
 .louise-settings-title,
 .louise-item-title,
 .louise-drawer :is(h1, h2, h3, h4) {
   font-family: var(--louise-font-head);
+  font-weight: 700;
 }
 .louise-drawer-close {
   display: inline-flex;
@@ -641,6 +643,71 @@ const CSS = `
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+/* Structured sections editor (visual block builder for bespoke pages). */
+.louise-sections {
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  font-family: var(--louise-font-body);
+  color: #0f172a;
+}
+.louise-sections-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.louise-sections-title { font-weight: 700; font-size: 14px; }
+.louise-sections-status { font-size: 12px; color: #64748b; }
+.louise-sections-status[data-status="error"] { color: #dc2626; }
+.louise-sections-status[data-status="saved"] { color: #16a34a; }
+.louise-section-card {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.louise-section-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.louise-section-type { font-weight: 600; font-size: 13px; }
+.louise-section-ops { display: flex; gap: 4px; }
+.louise-section-fields { display: grid; gap: 10px; }
+.louise-sections-add { position: relative; margin: 6px 0 14px; }
+.louise-arr { display: grid; gap: 8px; }
+.louise-arr-item {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border-radius: 8px;
+}
+.louise-arr-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.louise-sections-palette {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+}
 /* Button block — editor chrome (label/link popup). */
 .louise-button-block { position: relative; display: inline-block; margin: 8px 0; }
 .louise-button-block .pb-button-link {
@@ -1002,9 +1069,9 @@ const CSS = `
 }
 `;
 
-/** Google Fonts request for the brand type — Hepta Slab + Roboto Flex. */
+/** Google Fonts request for the brand type — Roboto Flex (variable). */
 const FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@400;500;700;900&family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap";
+  "https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap";
 
 export function injectStyles(): void {
   if (document.getElementById("louise-styles")) return;

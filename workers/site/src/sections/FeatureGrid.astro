@@ -1,0 +1,28 @@
+---
+// Bespoke feature-grid section — site-owned design (Tailwind + daisyUI cards),
+// rendered from a structured `items` array. Editors add/edit/reorder cards via
+// the block builder; the markup stays here.
+interface Item {
+  title?: string;
+  body?: string;
+}
+interface Props {
+  heading?: string;
+  items?: Item[];
+}
+const { heading, items = [] } = Astro.props;
+---
+
+<section class="px-5 pb-16">
+  {heading && <h2 class="mb-6 text-center text-2xl font-black">{heading}</h2>}
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4">
+    {
+      items.map((f) => (
+        <article class="card rounded-box border border-base-300 bg-base-100 p-6">
+          <h3 class="mb-2 text-lg font-black">{f.title}</h3>
+          <p class="text-sm text-base-content/60">{f.body}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

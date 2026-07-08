@@ -18,6 +18,7 @@ import {
   ogImage,
 } from "louisecms/browser";
 import {
+  DEFAULT_PAGE_FIELDS,
   inquiriesRoute,
   mediaRoute,
   pagesRoute,
@@ -143,7 +144,9 @@ const SETTINGS_COLUMNS = [
 ];
 
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
-  pagesRoute({ table: pages, resolveEditor }),
+  // `sections` (structured page-builder blocks JSON) is editable alongside the
+  // framework page fields.
+  pagesRoute({ table: pages, resolveEditor, fields: [...DEFAULT_PAGE_FIELDS, "sections"] }),
   saveRoute({
     resolveEditor,
     collections: {

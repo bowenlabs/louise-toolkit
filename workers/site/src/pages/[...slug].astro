@@ -5,6 +5,7 @@ import { db } from "louisecms/db";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import SiteChrome from "../components/SiteChrome.astro";
 import { pages } from "../schema.js";
+import "louisecms/theme/fonts.css";
 import "../styles/louise.css";
 
 // Renders published Louise CMS pages (drafts are visible only in edit mode).
@@ -31,7 +32,7 @@ const title = page.seoTitle || page.title;
     {page.noindex && <meta name="robots" content="noindex" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
-  <body>
+  <body class="louise-type">
     <SiteChrome>
       <main class="louise-page">
         {

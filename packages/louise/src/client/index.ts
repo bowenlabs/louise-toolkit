@@ -33,6 +33,17 @@ export {
 // Re-exported so the site-local explorer drawer (slice 2) can ensure the
 // shared Louise stylesheet is present even on pages with no inline fields.
 export { injectStyles } from "./styles.js";
+// Structured "sections" editor — the visual block builder for bespoke,
+// component-rendered pages (site owns rendering; this owns editing).
+export {
+  mountSections,
+  SectionsEditor,
+  type SectionCatalog,
+  type SectionDef,
+  type SectionField,
+  type SectionItem,
+  type SectionsEditorProps,
+} from "./sections.jsx";
 
 interface FieldRef {
   collection: string;
