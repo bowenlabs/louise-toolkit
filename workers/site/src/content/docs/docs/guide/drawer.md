@@ -92,9 +92,23 @@ mountDrawer({
 ```
 
 Field `type` is one of `text` (default), `textarea`, `color`, `toggle`, `image`
-(with a media-library picker), or `links` (a label/href list editor). A key you
-didn't declare is ignored server-side — never written — because the handler's
-allowlist is authoritative.
+(with a media-library picker), or `links` (a label/href list editor); for
+anything else, give a field a `render` function. A key you didn't declare is
+ignored server-side — never written — because the handler's allowlist is
+authoritative.
+
+A site whose settings don't map to `siteSettingsColumns` (and keeps its own
+storage + `settings` route) can replace the framework base groups entirely with
+`settingsBaseGroups` — pass `[]` to show none, so only your `settingsExtension`
+fields render:
+
+```tsx
+mountDrawer({
+  userName,
+  settingsBaseGroups: [], // hide the framework base fields this site doesn't use
+  settingsExtension: [/* the site's own settings groups */],
+});
+```
 
 ## Building a collection panel
 

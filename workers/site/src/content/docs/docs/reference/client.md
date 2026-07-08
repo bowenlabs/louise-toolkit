@@ -119,9 +119,10 @@ import type { DrawerConfig, CollectionTab } from "louisecms/client/drawer";
 - `mountDrawer(config)` — inject the stylesheet, create the shared `QueryClient`,
   and render the drawer into a body-appended root. Idempotent. Opens on
   `OPEN_DRAWER_EVENT` (`"louise:open-drawer"`).
-- `DrawerConfig` — `{ userName, tabs?, builtInPages?, settingsExtension?, settingsExtras? }`.
+- `DrawerConfig` — `{ userName, tabs?, builtInPages?, settingsBaseGroups?, settingsExtension?, settingsExtras? }`.
   `tabs` is the bottom group (site collections); the top strip is fixed and can't
-  be registered into.
+  be registered into. `settingsBaseGroups` overrides which framework Settings
+  groups render (pass `[]` for a site that keeps its own settings shape).
 - `CollectionTab` — `{ id, label, panel: () => JSX.Element }`.
 - `Drawer` — the underlying component, if you provide your own `QueryClientProvider`.
 

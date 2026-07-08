@@ -154,6 +154,27 @@ describe("Drawer shell — two-group registry split", () => {
     expect(host.querySelector(".louise-drawer-tabs")).toBeNull();
     await vi.waitFor(() => expect(host.textContent).toContain("New page"));
   });
+
+  it("threads settingsBaseGroups through to the framework Settings panel", async () => {
+    stubFetch((url) =>
+      url.includes("/api/louise/settings") ? jsonResponse({ settings: {} }) : jsonResponse({}),
+    );
+    mount(() => (
+      <Drawer
+        userName="Baylee"
+        tabs={[{ id: "x", label: "X", panel: () => <div>x-body</div> }]}
+        settingsBaseGroups={[
+          { title: "Site config", fields: [{ key: "tagline", label: "Tagline" }] },
+        ]}
+      />
+    ));
+    openDrawer();
+    frameButton("Settings")!.click();
+    await vi.waitFor(() => expect(host.textContent).toContain("Site config"));
+    // The site's baseGroups replace the framework defaults — no empty base fields.
+    expect(host.textContent).not.toContain("Appearance");
+    expect(host.textContent).not.toContain("Identity");
+  });
 });
 
 describe("SettingsPanel — base groups + declarative extension", () => {

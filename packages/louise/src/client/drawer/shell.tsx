@@ -51,6 +51,11 @@ export interface DrawerConfig {
   tabs?: CollectionTab[];
   /** Code-defined routes listed in the framework Pages panel. */
   builtInPages?: BuiltInPageRef[];
+  /** Override which framework Settings groups render. Omit for the defaults;
+   *  pass a subset (or `[]`) so a site whose settings don't map to
+   *  `siteSettingsColumns` shows no empty base fields — its config lives in
+   *  `settingsExtension` instead. */
+  settingsBaseGroups?: SettingsFieldGroup[];
   /** Site-specific settings groups rendered inside the framework Settings panel. */
   settingsExtension?: SettingsFieldGroup[];
   /** Bespoke Settings sections (e.g. passkey enrollment) that self-persist. */
@@ -150,7 +155,11 @@ export function Drawer(props: DrawerConfig) {
               <PagesPanel builtInPages={props.builtInPages} />
             </Show>
             <Show when={overlay() === "settings"}>
-              <SettingsPanel extension={props.settingsExtension} extras={props.settingsExtras} />
+              <SettingsPanel
+                baseGroups={props.settingsBaseGroups}
+                extension={props.settingsExtension}
+                extras={props.settingsExtras}
+              />
             </Show>
             <Show when={overlay() === null}>
               <For each={tabs()} fallback={<p class="louise-muted">Pick a section above.</p>}>
