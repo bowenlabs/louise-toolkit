@@ -166,6 +166,12 @@ editor…), give it a `render: ({ value, onChange }) => JSX.Element` — it pers
 to `key` through the same save flow. `SETTINGS_BASE_GROUPS` exports the default
 framework groups so a site can cherry-pick them into a custom `baseGroups`.
 
+`ImageField` (a URL field with a live preview + the media-library picker) takes
+two opt-ins: `upload` adds an upload-into-slot button (POSTs to the media route,
+refreshes the media list, sets the field to the returned URL), and
+`transform(url)` resizes the preview thumbnail only (e.g. a CDN resizer like
+`cfImage`). Both default off, preserving pick/paste.
+
 ### Data layer
 
 ```ts
