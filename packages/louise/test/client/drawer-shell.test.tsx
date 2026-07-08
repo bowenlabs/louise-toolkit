@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDrawerQueryClient,
   Drawer,
+  ImageField,
   InquiriesPanel,
   MediaPanel,
   OPEN_DRAWER_EVENT,
@@ -310,6 +311,33 @@ describe("InquiriesPanel — list + delete", () => {
       expect(String(del![0])).toContain("id=7");
     });
   });
+
+  it("renders the framework inquiriesColumns (firstName/lastName/regarding) with no custom renderRow", async () => {
+    stubFetch((url, method) => {
+      if (url.endsWith("/api/louise/inquiries") && method === "GET") {
+        return jsonResponse({
+          inquiries: [
+            {
+              id: 3,
+              firstName: "Grace",
+              lastName: "Hopper",
+              email: "grace@navy.mil",
+              regarding: "Commission",
+              message: "A portrait, please",
+            },
+          ],
+        });
+      }
+      return jsonResponse({ ok: true });
+    });
+    mount(() => <InquiriesPanel />);
+
+    // Name composed from firstName + lastName (not the email fallback).
+    await vi.waitFor(() => expect(host.textContent).toContain("Grace Hopper"));
+    // Subject surfaced in the subline, message in the body.
+    expect(host.textContent).toContain("Commission");
+    expect(host.textContent).toContain("A portrait, please");
+  });
 });
 
 describe("PagesPanel — list + built-in pages", () => {
@@ -344,5 +372,53 @@ describe("MediaPanel — list", () => {
 
     await vi.waitFor(() => expect(host.textContent).toContain("photo.jpg"));
     expect(host.textContent).toContain("2 KB");
+  });
+});
+
+describe("ImageField — upload + transform", () => {
+  it("applies the transform to the preview thumbnail only", () => {
+    mount(() => (
+      <ImageField
+        label="Hero"
+        value="https://cdn/x.png"
+        transform={(u) => `${u}?w=320`}
+        onChange={() => {}}
+      />
+    ));
+    expect(host.querySelector("img")?.getAttribute("src")).toBe("https://cdn/x.png?w=320");
+    // The stored value (URL input) is untouched by the transform.
+    expect(host.querySelector<HTMLInputElement>("input.louise-input")?.value).toBe(
+      "https://cdn/x.png",
+    );
+  });
+
+  it("shows the upload control only when `upload` is set", () => {
+    mount(() => <ImageField label="Hero" value="" onChange={() => {}} />);
+    expect(host.querySelector('input[type="file"]')).toBeNull();
+    dispose?.();
+
+    mount(() => <ImageField label="Hero" value="" upload onChange={() => {}} />);
+    expect(host.querySelector('input[type="file"]')).not.toBeNull();
+  });
+
+  it("uploads the picked file and sets the field to the returned URL", async () => {
+    const fetchMock = stubFetch((url, method) => {
+      if (url.endsWith("/api/louise/media") && method === "POST") {
+        return jsonResponse({ ok: true, key: "web/up.png", url: "https://cdn/web/up.png" });
+      }
+      return jsonResponse({});
+    });
+    let picked = "";
+    mount(() => <ImageField label="Hero" value="" upload onChange={(u) => (picked = u)} />);
+
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File([new Uint8Array([1, 2, 3])], "up.png", { type: "image/png" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change"));
+
+    await vi.waitFor(() => expect(picked).toBe("https://cdn/web/up.png"));
+    const post = fetchMock.mock.calls.find((c) => (c[1]?.method ?? "GET").toUpperCase() === "POST");
+    expect(post).toBeTruthy();
+    expect(String(post![0])).toContain("/api/louise/media");
   });
 });

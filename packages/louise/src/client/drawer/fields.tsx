@@ -6,10 +6,10 @@
 // groups render through the same field renderer, so a site's extra settings
 // look and behave exactly like the built-in ones.
 
-import { useQuery } from "@tanstack/solid-query";
+import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
 import { Icon } from "../icons.jsx";
-import { apiGet } from "./query.js";
+import { apiGet, louiseQueryKeys } from "./query.js";
 
 /** A label/href row — the shape stored in the `navLinks`/`socialLinks` JSON. */
 export interface LinkRow {
@@ -196,13 +196,54 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
 }
 
 /** An image URL field: live thumbnail, a URL input, a media-library picker, and
- *  a clear button. Empty = the site shows its placeholder. */
+ *  a clear button. Empty = the site shows its placeholder. Opt into
+ *  upload-into-slot with `upload`, and a resized preview with `transform`. */
 export function ImageField(props: {
   label: string;
   hint?: string;
   value: string;
   onChange: (url: string) => void;
+  /** Show an upload-into-slot button: POST the file to the media route, set the
+   *  field to the returned URL, and refresh the media list. Off by default (the
+   *  media-library picker + a pasted URL cover the base case). */
+  upload?: boolean;
+  /** Scope (R2 key prefix) sent with the upload. Default `"web"`. */
+  uploadScope?: string;
+  /** Transform the preview thumbnail URL — e.g. a CDN resizer like `cfImage`.
+   *  Defaults to the raw URL. Does not affect the stored value. */
+  transform?: (url: string) => string;
 }) {
+  const qc = useQueryClient();
+  const [uploading, setUploading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const preview = () => (props.transform ? props.transform(props.value) : props.value);
+
+  const onUpload = async (e: Event & { currentTarget: HTMLInputElement }) => {
+    const input = e.currentTarget;
+    const file = (input.files ?? [])[0];
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("scope", props.uploadScope ?? "web");
+      const res = await fetch("/api/louise/media", { method: "POST", body: fd });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (res.ok && data.url) {
+        props.onChange(data.url);
+        await qc.invalidateQueries({ queryKey: louiseQueryKeys.media });
+      } else {
+        setError(data.error || `Upload failed (${res.status})`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      input.value = "";
+    }
+  };
+
   return (
     <div class="louise-field">
       <label>{props.label}</label>
@@ -211,7 +252,7 @@ export function ImageField(props: {
       </Show>
       <Show when={props.value}>
         <img
-          src={props.value}
+          src={preview()}
           alt=""
           loading="lazy"
           style="display:block; width:auto; max-width:100%; max-height:160px; border-radius:8px; margin-bottom:8px;"
@@ -224,6 +265,18 @@ export function ImageField(props: {
         onInput={(e) => props.onChange(e.currentTarget.value)}
       />
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+        <Show when={props.upload}>
+          <label class="louise-btn louise-media-upload">
+            <Icon name="plus" /> {uploading() ? "Uploading…" : "Upload"}
+            <input
+              type="file"
+              accept="image/*"
+              class="louise-hidden-file"
+              onChange={onUpload}
+              disabled={uploading()}
+            />
+          </label>
+        </Show>
         <MediaUrlPicker onPick={props.onChange} />
         <Show when={props.value}>
           <button class="louise-btn" type="button" onClick={() => props.onChange("")}>
@@ -231,6 +284,11 @@ export function ImageField(props: {
           </button>
         </Show>
       </div>
+      <Show when={error()}>
+        <div class="louise-alert" role="alert" style="margin-top:8px;">
+          {error()}
+        </div>
+      </Show>
     </div>
   );
 }

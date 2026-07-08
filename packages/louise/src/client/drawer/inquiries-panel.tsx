@@ -34,17 +34,30 @@ const fmtDate = (v: unknown) => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
 };
 
-/** The built-in row renderer: name/email header, timestamp, message body. */
+/** The built-in row renderer: name/email header, subject + timestamp, message
+ *  body. Reads the framework `inquiriesColumns` (firstName/lastName/regarding)
+ *  first, so a site on the stock schema needs no custom `renderRow`, then falls
+ *  back to the common single-field variants other sites use. */
 function DefaultRow(props: { row: InquiryRow }) {
-  const name = () => pick(props.row, ["name", "fullName", "full_name"]);
+  const name = () => {
+    const full = [
+      pick(props.row, ["firstName", "first_name"]),
+      pick(props.row, ["lastName", "last_name"]),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    return full || pick(props.row, ["name", "fullName", "full_name"]);
+  };
   const email = () => pick(props.row, ["email", "emailAddress", "email_address"]);
+  const regarding = () => pick(props.row, ["regarding", "subject"]);
   const message = () => pick(props.row, ["message", "body", "notes", "note"]);
   const when = () => fmtDate(props.row.createdAt ?? props.row.created_at ?? props.row.created);
   return (
     <div class="louise-item-main">
       <div class="louise-item-title">{name() || email() || `#${props.row.id}`}</div>
       <div class="louise-item-sub">
-        {[email() && name() ? email() : "", when()].filter(Boolean).join(" · ")}
+        {[email() && name() ? email() : "", regarding(), when()].filter(Boolean).join(" · ")}
       </div>
       <Show when={message()}>
         <p class="louise-inquiry-body">{message()}</p>

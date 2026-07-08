@@ -1,6 +1,6 @@
 {
   "name": "louisecms",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Louise CMS — a V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers. Framework-agnostic core primitives (cms, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
   "keywords": [
     "astro",

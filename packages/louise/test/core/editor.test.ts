@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { inquiries, media, pages, siteSettings } from "../../src/core/db/index.js";
 import {
+  blobSettingsRoute,
   inquiriesRoute,
+  listMediaRoute,
   mediaRoute,
+  mergeBlobPatch,
   pagesRoute,
   partitionSettingsPatch,
   pickFields,
   resolveFieldValue,
+  runEditorRoute,
   type SaveCollectionConfig,
   saveRoute,
   seedRoute,
@@ -120,6 +124,26 @@ describe("inquiriesRoute", () => {
   });
 });
 
+describe("runEditorRoute (non-Worker adapter)", () => {
+  it("supplies a no-op ctx and returns the route's response", async () => {
+    const rows = [{ id: 1, email: "a@x" }];
+    const { db } = makeD1(() => rows);
+    const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
+    // No ExecutionContext passed — runEditorRoute fills it in.
+    const res = await runEditorRoute(route, req("GET"), { DB: db });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ inquiries: rows });
+  });
+
+  it("turns a path fall-through into a 404 JSON", async () => {
+    const { db } = makeD1(() => []);
+    const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
+    const res = await runEditorRoute(route, new Request("https://site.example/nope"), { DB: db });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Not found" });
+  });
+});
+
 describe("partitionSettingsPatch", () => {
   const columns = ["siteName", "navLinks", "metaDescription"];
   const customKeys = ["heroHeadline", "aboutBlurb"];
@@ -186,6 +210,82 @@ describe("settingsRoute (guard + dispatch)", () => {
     const { db } = makeD1(() => []);
     const res = await settingsRoute(cfg())(
       new Request(settingsUrl, { method: "DELETE" }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(405);
+  });
+});
+
+describe("mergeBlobPatch", () => {
+  const allow = {
+    nav: (v: unknown) => v,
+    footerBlurb: (v: unknown) => String(v ?? "").slice(0, 5),
+  };
+
+  it("sanitizes + merges allowlisted keys and ignores the rest", () => {
+    const out = mergeBlobPatch(
+      { nav: [{ href: "/old" }], keep: 1 },
+      { nav: [{ href: "/new" }], footerBlurb: "hello world", bogus: "x" },
+      allow,
+    );
+    expect(out.blob).toEqual({ nav: [{ href: "/new" }], footerBlurb: "hello", keep: 1 });
+    expect(out.ignored).toEqual(["bogus"]);
+    expect(out.changed).toBe(2);
+  });
+
+  it("reports changed=0 when nothing is allowlisted (never mutates input)", () => {
+    const blob = { nav: [] };
+    const out = mergeBlobPatch(blob, { bogus: 1 }, allow);
+    expect(out.changed).toBe(0);
+    expect(out.ignored).toEqual(["bogus"]);
+    expect(out.blob).not.toBe(blob);
+    expect(out.blob).toEqual({ nav: [] });
+  });
+});
+
+describe("blobSettingsRoute (guard + dispatch)", () => {
+  const url = "https://site.example/api/louise/settings";
+  const cfg = () => ({
+    table: siteSettings,
+    column: "data",
+    allow: { nav: (v: unknown) => v },
+    resolveEditor: () => editor,
+  });
+
+  it("passes through a non-matching path", async () => {
+    const { db } = makeD1(() => []);
+    const res = await blobSettingsRoute(cfg())(
+      new Request("https://site.example/other"),
+      { DB: db },
+      ctx,
+    );
+    expect(res).toBeUndefined();
+  });
+
+  it("401s an unauthenticated read before touching the DB", async () => {
+    const { db, calls } = makeD1(() => []);
+    const route = blobSettingsRoute({ ...cfg(), resolveEditor: () => null });
+    const res = await route(new Request(url, { method: "GET" }), { DB: db }, ctx);
+    expect(res?.status).toBe(401);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("403s a cross-origin write (CSRF) before touching the DB", async () => {
+    const { db, calls } = makeD1(() => []);
+    const res = await blobSettingsRoute(cfg())(
+      new Request(url, { method: "PATCH", headers: { origin: "https://evil.example" } }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("405s an unsupported method", async () => {
+    const { db } = makeD1(() => []);
+    const res = await blobSettingsRoute(cfg())(
+      new Request(url, { method: "DELETE" }),
       { DB: db },
       ctx,
     );
@@ -499,6 +599,85 @@ describe("mediaRoute", () => {
       ctx,
     );
     expect(res?.status).toBe(405);
+  });
+});
+
+// A bucket that also implements list(), for the registry-less listMediaRoute.
+function makeListBucket(objects: { key: string; size: number; uploaded: Date }[] = []) {
+  const puts: { key: string }[] = [];
+  const deletes: string[] = [];
+  const bucket = {
+    async list() {
+      return { objects, truncated: false as const };
+    },
+    async put(key: string) {
+      puts.push({ key });
+    },
+    async delete(key: string) {
+      deletes.push(key);
+    },
+  };
+  return { bucket: bucket as unknown as R2Bucket, puts, deletes };
+}
+
+describe("listMediaRoute (registry-less + per-request scope)", () => {
+  const mediaBase = "https://site.example/api/louise/media";
+  const MEDIA_URL = "https://media.example.com";
+  const uploadReq = (scope?: string) => {
+    const fd = new FormData();
+    fd.set("file", new File([new Uint8Array(PNG_HEADER)], "p.png", { type: "image/png" }));
+    if (scope !== undefined) fd.set("scope", scope);
+    return new Request(mediaBase, {
+      method: "POST",
+      body: fd,
+      headers: { origin: "https://site.example" },
+    });
+  };
+
+  it("lists straight from the R2 bucket without touching D1", async () => {
+    const { db, calls } = makeD1(() => []);
+    const { bucket } = makeListBucket([{ key: "web/a.png", size: 12, uploaded: new Date() }]);
+    const route = listMediaRoute({ resolveEditor: () => editor });
+    const res = await route(new Request(mediaBase), { DB: db, MEDIA: bucket, MEDIA_URL }, ctx);
+    expect(res?.status).toBe(200);
+    const body = (await res?.json()) as { media: { key: string; url: string }[] };
+    expect(body.media[0]?.url).toBe("https://media.example.com/web/a.png");
+    expect(calls).toHaveLength(0); // no registry table read
+  });
+
+  it("uploads under an allowlisted scope from the form", async () => {
+    const { db } = makeD1(() => []);
+    const { bucket, puts } = makeListBucket();
+    const route = listMediaRoute({ resolveEditor: () => editor, scopes: ["web", "print"] });
+    const res = await route(uploadReq("print"), { DB: db, MEDIA: bucket, MEDIA_URL }, ctx);
+    expect(res?.status).toBe(201);
+    expect(puts[0]?.key.startsWith("print/")).toBe(true);
+  });
+
+  it("falls back to the default scope when the form sends one not allowlisted", async () => {
+    const { db } = makeD1(() => []);
+    const { bucket, puts } = makeListBucket();
+    const route = listMediaRoute({ resolveEditor: () => editor, scopes: ["web", "print"] });
+    const res = await route(uploadReq("evil"), { DB: db, MEDIA: bucket, MEDIA_URL }, ctx);
+    expect(res?.status).toBe(201);
+    expect(puts[0]?.key.startsWith("web/")).toBe(true);
+  });
+
+  it("deletes an unreferenced key from R2 (no registry write)", async () => {
+    const { db, calls } = makeD1(() => []);
+    const { bucket, deletes } = makeListBucket();
+    const route = listMediaRoute({ resolveEditor: () => editor });
+    const res = await route(
+      new Request(`${mediaBase}?key=web/a.png`, {
+        method: "DELETE",
+        headers: { origin: "https://site.example" },
+      }),
+      { DB: db, MEDIA: bucket, MEDIA_URL },
+      ctx,
+    );
+    expect(res?.status).toBe(200);
+    expect(deletes).toEqual(["web/a.png"]);
+    expect(calls).toHaveLength(0);
   });
 });
 
