@@ -103,9 +103,64 @@ page that has no inline fields — call it before opening a drawer on a bare pag
 
 ## `louisecms/client/drawer`
 
-The **drawer data layer** — the shared TanStack Solid Query wiring and typed
-fetch helpers every editor drawer uses. Optional peer: `@tanstack/solid-query`.
-(The drawer *shell* and panels are still site-specific.)
+The **editor drawer** — a registry-driven SolidJS shell with a fixed top strip of
+framework panels (Pages/Media/Settings) and a bottom group of site-registered
+collection tabs. Optional peer: `@tanstack/solid-query`. See
+[The drawer](/docs/guide/drawer/) for the full walkthrough; it pairs with the
+[`louisecms/editor`](/docs/reference/editor/) handlers on the server.
+
+### Shell
+
+```ts
+import { mountDrawer, OPEN_DRAWER_EVENT } from "louisecms/client/drawer";
+import type { DrawerConfig, CollectionTab } from "louisecms/client/drawer";
+```
+
+- `mountDrawer(config)` — inject the stylesheet, create the shared `QueryClient`,
+  and render the drawer into a body-appended root. Idempotent. Opens on
+  `OPEN_DRAWER_EVENT` (`"louise:open-drawer"`).
+- `DrawerConfig` — `{ userName, tabs?, builtInPages?, settingsExtension?, settingsExtras? }`.
+  `tabs` is the bottom group (site collections); the top strip is fixed and can't
+  be registered into.
+- `CollectionTab` — `{ id, label, panel: () => JSX.Element }`.
+- `Drawer` — the underlying component, if you provide your own `QueryClientProvider`.
+
+### Panels
+
+```ts
+import {
+  PagesPanel,
+  MediaPanel,
+  SettingsPanel,
+  InquiriesPanel,
+} from "louisecms/client/drawer";
+```
+
+- `PagesPanel` / `MediaPanel` / `SettingsPanel` — the fixed framework panels the
+  shell renders in the top strip. `SettingsPanel` takes `extension` (declarative
+  `SettingsFieldGroup[]`) and `extras` (a render slot).
+- `InquiriesPanel` — the default panel for an Inquiries **tab** (register it in
+  `tabs`), customizable via `renderRow`.
+
+### Field primitives + settings extension
+
+```ts
+import {
+  Section,
+  LinkListEditor,
+  ImageField,
+  MediaUrlPicker,
+  SettingsField,
+} from "louisecms/client/drawer";
+import type { SettingsFieldGroup, SettingsFieldDef, SettingsFieldType } from "louisecms/client/drawer";
+```
+
+The primitives the framework panels are built from — reuse them so your own tabs
+and Settings extension groups match. A `SettingsFieldDef` is
+`{ key, label, type?, hint?, placeholder? }`; `SettingsFieldType` is
+`text | textarea | color | toggle | image | links`.
+
+### Data layer
 
 ```ts
 import {
@@ -122,4 +177,4 @@ import {
 - `apiGet<T>(url)` / `apiSend<T>(method, url, body?)` — typed JSON fetch that
   throws on a non-2xx status.
 - `louiseQueryKey(collection, …rest)` — namespaced query key; `louiseQueryKeys`
-  holds the framework-generic ones (`pages`, `media`, `settings`).
+  holds the framework-generic ones (`pages`, `media`, `settings`, `inquiries`).

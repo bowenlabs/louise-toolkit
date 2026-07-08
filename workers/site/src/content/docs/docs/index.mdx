@@ -65,9 +65,10 @@ import { sendEmail } from "louisecms/email";
   />
 </CardGrid>
 
-:::note[Primitives, not a prebuilt app]
-Louise is a toolkit, not a turnkey admin. Some guides describe *patterns* (the
-drawer, panels) that your app assembles from the primitives rather than APIs
-Louise hands you fully built — you own the routes and wire the pieces (auth,
-schema, panels) together.
+:::note[Primitives, not a turnkey app]
+Louise is a toolkit, not a turnkey admin. It hands you a lot fully built — the
+inline client, the [editor drawer shell](/docs/guide/drawer/) with its framework
+panels, and the generic [`api/louise/*` handlers](/docs/reference/editor/) — but
+you still own the wiring: your routes, auth, and schema, and you register your own
+collection panels as drawer tabs.
 :::

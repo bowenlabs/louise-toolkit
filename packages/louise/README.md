@@ -3,9 +3,11 @@
 **A V8-native, inline "edit-on-the-live-page" CMS for Cloudflare Workers.**
 
 Louise makes the live site editable in place: no separate admin app, no JSON forms
-for prose. It ships as framework-agnostic core primitives (`cms`, `db`, `commerce`,
-`email`, `queues`), a SolidJS + ProseKit inline-edit client, and the daisyUI editor
-theme — as granular, tree-shakeable subpath exports.
+for prose. It ships as framework-agnostic core primitives (`cms`, `db`, `media`,
+`commerce`, `email`, `queues`, `worker`, plus opt-in `auth`/`security`), a SolidJS +
+ProseKit inline-edit client, a registry-driven editor drawer, the generic
+`api/louise/*` handlers, and the daisyUI editor theme — as granular, tree-shakeable
+subpath exports.
 
 > Full guide and API reference: **[louisecms.com/docs](https://louisecms.com/docs)**
 
@@ -18,11 +20,15 @@ npm install louisecms
 Louise's heavier dependencies are **optional peers** — install only what the exports
 you use require:
 
-| If you use…                                 | Install                          |
-| ------------------------------------------- | -------------------------------- |
-| `louisecms/db`, `/cms`                      | `drizzle-orm`                    |
-| `louisecms/client`                          | `solid-js prosekit @prosekit/pm` |
-| `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_                     |
+| If you use…                                       | Install                          |
+| ------------------------------------------------- | -------------------------------- |
+| `louisecms/db`, `/cms`, `/media`, `/editor`       | `drizzle-orm`                    |
+| `louisecms/client`                                | `solid-js prosekit @prosekit/pm` |
+| `louisecms/client/drawer`                         | `@tanstack/solid-query` (+ the client peers) |
+| `louisecms/auth`                                  | `better-auth` (`@better-auth/passkey` for passkeys) |
+| `louisecms/browser`                               | `@cloudflare/puppeteer`          |
+| `louisecms/stega`                                 | `@vercel/stega`                  |
+| `/security`, `/worker`, `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_    |
 
 The core primitives are dependency-injected — you pass in your Cloudflare bindings
 (D1, R2, Queues, Email); Louise never reaches for `cloudflare:workers` itself.
@@ -31,14 +37,23 @@ The core primitives are dependency-injected — you pass in your Cloudflare bind
 
 | Subpath                                          | What it is                                                                                       |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `louisecms/client`                               | The inline edit-on-the-page client + ProseKit rich-text editor                                   |
+| `louisecms/client`                               | The inline edit-on-the-page client + ProseKit rich-text editor, icons, blocks                    |
+| `louisecms/client/drawer`                        | The registry-driven editor drawer: shell (`mountDrawer`), framework panels, data layer           |
+| `louisecms/editor`                               | Framework-generic `api/louise/*` handlers (save/settings/pages/media/seed/inquiries)             |
 | `louisecms/cms`                                  | Collections, codegen, patch/validation, structure, webhooks                                      |
-| `louisecms/db`                                   | Thin Drizzle-over-D1 helper + framework-owned `site_settings`                                    |
-| `louisecms/commerce`                             | Stripe invoices (raw `fetch` + `crypto.subtle`, no SDK)                                          |
-| `louisecms/commerce/fourthwall`                  | Fourthwall storefront/catalog + webhook verification                                             |
+| `louisecms/db`                                   | Thin Drizzle-over-D1 helper + framework-owned `pages`/`inquiries`/`media`/`site_settings` columns |
+| `louisecms/media`                                | R2 media: magic-byte-sniffed uploads, `cfImage` transforms, delete-safety reference scan          |
+| `louisecms/auth`                                 | Better Auth factory + guard/handler + `generateAuthSchemaSql` (and the `louise` CLI)             |
+| `louisecms/security`                             | `sanitize`, rate-limit, secrets, security headers                                                |
+| `louisecms/worker`                               | `composeWorker` — compose editor + site routes over an SSR fallthrough                           |
+| `louisecms/browser`                              | Cache-first OG-image render + link checker (Cloudflare Browser Rendering)                        |
+| `louisecms/commerce`                             | Shared commerce primitives: money helpers + webhook-signature crypto                             |
+| `louisecms/commerce/stripe`                      | Stripe glue: Payment Element / PaymentIntents, invoices, webhooks (raw `fetch`, no SDK)          |
 | `louisecms/commerce/square`                      | Square `/v2` catalog, orders, payments, customers, loyalty, subscriptions + webhook verification |
+| `louisecms/commerce/fourthwall`                  | Fourthwall storefront/catalog + webhook verification                                             |
 | `louisecms/email`                                | Cloudflare Email Sending (`env.EMAIL.send`)                                                      |
 | `louisecms/queues`                               | Cloudflare Queues producer + batch consumer                                                      |
+| `louisecms/stega`                                | `@vercel/stega` visual-editing tagging + a dependency-free stripper                              |
 | `louisecms/errors`                               | `LouiseError` and typed subclasses                                                               |
 | `louisecms/theme/louise.css`, `/theme/fonts.css` | the daisyUI "louise" editor theme                                                                |
 
