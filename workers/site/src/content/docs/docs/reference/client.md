@@ -137,8 +137,9 @@ import {
 ```
 
 - `PagesPanel` / `MediaPanel` / `SettingsPanel` — the fixed framework panels the
-  shell renders in the top strip. `SettingsPanel` takes `extension` (declarative
-  `SettingsFieldGroup[]`) and `extras` (a render slot).
+  shell renders in the top strip. `SettingsPanel` takes `baseGroups` (override
+  which framework groups show — omit for all of `SETTINGS_BASE_GROUPS`),
+  `extension` (declarative `SettingsFieldGroup[]`), and `extras` (a render slot).
 - `InquiriesPanel` — the default panel for an Inquiries **tab** (register it in
   `tabs`), customizable via `renderRow`.
 
@@ -157,8 +158,12 @@ import type { SettingsFieldGroup, SettingsFieldDef, SettingsFieldType } from "lo
 
 The primitives the framework panels are built from — reuse them so your own tabs
 and Settings extension groups match. A `SettingsFieldDef` is
-`{ key, label, type?, hint?, placeholder? }`; `SettingsFieldType` is
-`text | textarea | color | toggle | image | links`.
+`{ key, label, type?, hint?, placeholder?, render? }`; `SettingsFieldType` is
+`text | textarea | color | toggle | image | links`. For a field none of the
+built-in types cover (a label/value row list, a microcopy grid, a per-page SEO
+editor…), give it a `render: ({ value, onChange }) => JSX.Element` — it persists
+to `key` through the same save flow. `SETTINGS_BASE_GROUPS` exports the default
+framework groups so a site can cherry-pick them into a custom `baseGroups`.
 
 ### Data layer
 

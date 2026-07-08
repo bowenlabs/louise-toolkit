@@ -25,10 +25,11 @@ import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
 
 /**
  * The framework-common settings groups — mapped 1:1 to the owner-facing
- * `siteSettingsColumns`. The shell always renders these; sites add their own
- * fields via `extension`, never by forking this list.
+ * `siteSettingsColumns`. Rendered by default; a site that only uses some of them
+ * (or wants them reordered) passes its own selection as `baseGroups`, so no
+ * empty framework fields show. Exported so a site can cherry-pick from them.
  */
-const BASE_GROUPS: SettingsFieldGroup[] = [
+export const SETTINGS_BASE_GROUPS: SettingsFieldGroup[] = [
   {
     title: "Identity",
     hint: "Your site's name and marks.",
@@ -101,6 +102,10 @@ async function signOut() {
 }
 
 export interface SettingsPanelProps {
+  /** Override the framework base groups shown at the top. Omit for all of
+   *  {@link SETTINGS_BASE_GROUPS}; pass a subset (or reordered/edited copy) so a
+   *  site only surfaces the framework fields it actually uses. */
+  baseGroups?: SettingsFieldGroup[];
   /** Site-specific settings groups (declarative field defs), rendered below the
    *  base groups and persisted to `custom` via the site's declared keys. */
   extension?: SettingsFieldGroup[];
@@ -114,7 +119,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const [values, setValues] = createSignal<Record<string, unknown>>({});
   const [status, setStatus] = createSignal<"idle" | "saving" | "saved" | "error">("idle");
 
-  const groups = () => [...BASE_GROUPS, ...(props.extension ?? [])];
+  const groups = () => [...(props.baseGroups ?? SETTINGS_BASE_GROUPS), ...(props.extension ?? [])];
   const allFields = () => groups().flatMap((g) => g.fields);
 
   const setField = (key: string, value: unknown) => {
@@ -128,7 +133,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
       const data = await apiGet<{ settings: Record<string, unknown> }>("/api/louise/settings");
       const settings = data.settings ?? {};
       const seeded: Record<string, unknown> = {};
-      for (const def of allFields()) seeded[def.key] = coerce(settings[def.key], def.type);
+      // Custom-render fields get the raw stored value (they own their own shape,
+      // e.g. an array of rows); typed fields are coerced to a controlled default.
+      for (const def of allFields()) {
+        seeded[def.key] = def.render ? settings[def.key] : coerce(settings[def.key], def.type);
+      }
       setValues(seeded);
       return settings;
     },
