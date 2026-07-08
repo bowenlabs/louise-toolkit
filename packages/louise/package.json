@@ -38,75 +38,93 @@
   "exports": {
     "./auth": {
       "types": "./dist/core/auth/index.d.ts",
-      "import": "./dist/core/auth/index.js"
+      "import": "./dist/core/auth/index.js",
+      "default": "./dist/core/auth/index.js"
     },
     "./browser": {
       "types": "./dist/core/browser/index.d.ts",
-      "import": "./dist/core/browser/index.js"
+      "import": "./dist/core/browser/index.js",
+      "default": "./dist/core/browser/index.js"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js"
+      "import": "./dist/client/index.js",
+      "default": "./dist/client/index.js"
     },
     "./client/drawer": {
       "types": "./dist/client/drawer/index.d.ts",
-      "import": "./dist/client/drawer/index.js"
+      "import": "./dist/client/drawer/index.js",
+      "default": "./dist/client/drawer/index.js"
     },
     "./cms": {
       "types": "./dist/core/cms/index.d.ts",
-      "import": "./dist/core/cms/index.js"
+      "import": "./dist/core/cms/index.js",
+      "default": "./dist/core/cms/index.js"
     },
     "./editor": {
       "types": "./dist/core/editor/index.d.ts",
-      "import": "./dist/core/editor/index.js"
+      "import": "./dist/core/editor/index.js",
+      "default": "./dist/core/editor/index.js"
     },
     "./db": {
       "types": "./dist/core/db/index.d.ts",
-      "import": "./dist/core/db/index.js"
+      "import": "./dist/core/db/index.js",
+      "default": "./dist/core/db/index.js"
     },
     "./commerce": {
       "types": "./dist/core/commerce/index.d.ts",
-      "import": "./dist/core/commerce/index.js"
+      "import": "./dist/core/commerce/index.js",
+      "default": "./dist/core/commerce/index.js"
     },
     "./commerce/fourthwall": {
       "types": "./dist/core/commerce/fourthwall.d.ts",
-      "import": "./dist/core/commerce/fourthwall.js"
+      "import": "./dist/core/commerce/fourthwall.js",
+      "default": "./dist/core/commerce/fourthwall.js"
     },
     "./commerce/stripe": {
       "types": "./dist/core/commerce/stripe.d.ts",
-      "import": "./dist/core/commerce/stripe.js"
+      "import": "./dist/core/commerce/stripe.js",
+      "default": "./dist/core/commerce/stripe.js"
     },
     "./commerce/square": {
       "types": "./dist/core/commerce/square.d.ts",
-      "import": "./dist/core/commerce/square.js"
+      "import": "./dist/core/commerce/square.js",
+      "default": "./dist/core/commerce/square.js"
     },
     "./email": {
       "types": "./dist/core/email/index.d.ts",
-      "import": "./dist/core/email/index.js"
+      "import": "./dist/core/email/index.js",
+      "default": "./dist/core/email/index.js"
     },
     "./media": {
       "types": "./dist/core/media/index.d.ts",
-      "import": "./dist/core/media/index.js"
+      "import": "./dist/core/media/index.js",
+      "default": "./dist/core/media/index.js"
     },
     "./queues": {
       "types": "./dist/core/queues/index.d.ts",
-      "import": "./dist/core/queues/index.js"
+      "import": "./dist/core/queues/index.js",
+      "default": "./dist/core/queues/index.js"
     },
     "./security": {
       "types": "./dist/core/security/index.d.ts",
-      "import": "./dist/core/security/index.js"
+      "import": "./dist/core/security/index.js",
+      "default": "./dist/core/security/index.js"
     },
     "./worker": {
       "types": "./dist/core/worker/index.d.ts",
-      "import": "./dist/core/worker/index.js"
+      "import": "./dist/core/worker/index.js",
+      "default": "./dist/core/worker/index.js"
     },
     "./errors": {
       "types": "./dist/core/errors.d.ts",
-      "import": "./dist/core/errors.js"
+      "import": "./dist/core/errors.js",
+      "default": "./dist/core/errors.js"
     },
     "./stega": {
       "types": "./dist/core/cms/stega.d.ts",
-      "import": "./dist/core/cms/stega.js"
+      "import": "./dist/core/cms/stega.js",
+      "default": "./dist/core/cms/stega.js"
     },
     "./theme/louise.css": "./src/theme/louise.css",
     "./theme/fonts.css": "./src/theme/fonts.css",
