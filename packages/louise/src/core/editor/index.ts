@@ -13,6 +13,7 @@ export {
   json,
   matchPath,
   type ResolveEditor,
+  runEditorRoute,
   tableMeta,
 } from "./shared.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";

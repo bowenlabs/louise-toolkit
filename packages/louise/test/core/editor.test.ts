@@ -8,6 +8,7 @@ import {
   partitionSettingsPatch,
   pickFields,
   resolveFieldValue,
+  runEditorRoute,
   type SaveCollectionConfig,
   saveRoute,
   seedRoute,
@@ -117,6 +118,26 @@ describe("inquiriesRoute", () => {
     const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
     const res = await route(req("POST"), { DB: db }, ctx);
     expect(res?.status).toBe(405);
+  });
+});
+
+describe("runEditorRoute (non-Worker adapter)", () => {
+  it("supplies a no-op ctx and returns the route's response", async () => {
+    const rows = [{ id: 1, email: "a@x" }];
+    const { db } = makeD1(() => rows);
+    const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
+    // No ExecutionContext passed — runEditorRoute fills it in.
+    const res = await runEditorRoute(route, req("GET"), { DB: db });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ inquiries: rows });
+  });
+
+  it("turns a path fall-through into a 404 JSON", async () => {
+    const { db } = makeD1(() => []);
+    const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
+    const res = await runEditorRoute(route, new Request("https://site.example/nope"), { DB: db });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Not found" });
   });
 });
 

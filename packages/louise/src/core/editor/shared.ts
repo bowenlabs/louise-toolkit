@@ -10,6 +10,7 @@
 import { getTableConfig, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { requireEditor } from "../auth/guard.js";
 import type { EditorSession } from "../auth/types.js";
+import type { WorkerRoute } from "../worker/index.js";
 
 /** The minimum a Worker `env` must expose for the editor routes: the D1 binding.
  *  Media routes widen this with the R2 bindings (see LouiseMediaEnv). */
@@ -74,4 +75,38 @@ export function tableMeta(table: SQLiteTable): { name: string; pk: string } {
   const config = getTableConfig(table);
   const pkColumn = config.columns.find((c) => c.primary);
   return { name: config.name, pk: pkColumn?.name ?? "id" };
+}
+
+/** A no-op `ExecutionContext` for calling editor routes outside a Worker fetch
+ *  handler (e.g. an Astro `APIRoute`). The editor routes don't use `ctx`; it's
+ *  only part of the `WorkerRoute`/composeWorker contract. */
+const NOOP_CTX = {
+  waitUntil() {},
+  passThroughOnException() {},
+} as unknown as ExecutionContext;
+
+/**
+ * Run an editor {@link WorkerRoute} from a non-Worker context — an Astro
+ * `APIRoute`, a Nitro/Nuxt handler, etc. — where you already have the resolved
+ * editor session (e.g. from middleware) and the bindings, but no
+ * `ExecutionContext`. Supplies a no-op `ctx` and turns a path fall-through
+ * (`undefined`) into a 404, so a consuming route is a one-liner:
+ *
+ * ```ts
+ * // Astro: the session is already on locals; hand it back via resolveEditor.
+ * export const ALL: APIRoute = (ctx) =>
+ *   runEditorRoute(
+ *     inquiriesRoute({ table: inquiries, resolveEditor: () => ctx.locals.editor }),
+ *     ctx.request,
+ *     env,
+ *   );
+ * ```
+ */
+export async function runEditorRoute<Env>(
+  route: WorkerRoute<Env>,
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const res = await route(request, env, NOOP_CTX);
+  return res ?? json({ error: "Not found" }, 404);
 }
