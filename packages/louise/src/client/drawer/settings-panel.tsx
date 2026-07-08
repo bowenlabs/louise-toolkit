@@ -1,0 +1,201 @@
+// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+//
+// Framework Settings panel — edits the structured `site_settings` singleton
+// (identity, appearance, navigation, contact, SEO) that every Louise site
+// shares, and exposes an extension slot for site-specific settings. Talks to
+// the generic louisecms/editor `settings` route (GET current, POST patch)
+// through TanStack Query. Opened from the gear icon in the drawer's top strip.
+//
+// The panel is fixed and framework-owned, but its contents = a common base
+// (mapping 1:1 to `siteSettingsColumns`) PLUS a site's declarative extension
+// groups. Base keys patch their structured columns; extension keys (site-
+// declared) merge into the `custom` JSON — the server allowlist is authoritative,
+// so a key the site didn't declare is ignored, never written.
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
+import { createSignal, For, type JSX, Show } from "solid-js";
+import { Icon } from "../icons.jsx";
+import {
+  Section,
+  SettingsField,
+  type SettingsFieldDef,
+  type SettingsFieldGroup,
+} from "./fields.jsx";
+import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
+
+/**
+ * The framework-common settings groups — mapped 1:1 to the owner-facing
+ * `siteSettingsColumns`. The shell always renders these; sites add their own
+ * fields via `extension`, never by forking this list.
+ */
+const BASE_GROUPS: SettingsFieldGroup[] = [
+  {
+    title: "Identity",
+    hint: "Your site's name and marks.",
+    open: true,
+    fields: [
+      { key: "siteName", label: "Site name" },
+      { key: "tagline", label: "Tagline" },
+      { key: "logoUrl", label: "Logo", type: "image" },
+      { key: "faviconUrl", label: "Favicon", type: "image" },
+    ],
+  },
+  {
+    title: "Appearance",
+    hint: "Brand colors and light/dark preference.",
+    fields: [
+      { key: "brandColor", label: "Brand color", type: "color" },
+      { key: "secondaryColor", label: "Secondary color", type: "color" },
+      { key: "tertiaryColor", label: "Tertiary color", type: "color" },
+      { key: "darkMode", label: "Dark mode", type: "toggle" },
+    ],
+  },
+  {
+    title: "Navigation",
+    hint: "Links in the header and footer. Order here is the order shown.",
+    fields: [{ key: "navLinks", label: "Navigation links", type: "links" }],
+  },
+  {
+    title: "Contact",
+    hint: "How visitors reach you, and your social links.",
+    fields: [
+      { key: "contactEmail", label: "Contact email" },
+      { key: "contactPhone", label: "Contact phone" },
+      { key: "contactAddress", label: "Contact address", type: "textarea" },
+      { key: "socialLinks", label: "Social links", type: "links" },
+    ],
+  },
+  {
+    title: "SEO",
+    hint: "Site-wide defaults; individual pages can override them.",
+    fields: [
+      { key: "metaDescription", label: "Meta description", type: "textarea" },
+      { key: "defaultOgImageUrl", label: "Default share image", type: "image" },
+      { key: "disableIndexing", label: "Hide from search engines", type: "toggle" },
+    ],
+  },
+];
+
+/** Seed a store value from the loaded settings, defaulting by field type so
+ *  every rendered field is controlled from first paint. */
+function coerce(value: unknown, type: SettingsFieldDef["type"]): unknown {
+  if (type === "toggle") return Boolean(value);
+  if (type === "links") return Array.isArray(value) ? value : [];
+  return value ?? "";
+}
+
+/** Ends the session and drops edit mode. */
+async function signOut() {
+  try {
+    await fetch("/api/auth/sign-out", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+  } catch {
+    /* best-effort — still drop edit mode below */
+  }
+  const url = new URL(location.href);
+  url.searchParams.set("louise", "off");
+  location.assign(`${url.pathname}${url.search}`);
+}
+
+export interface SettingsPanelProps {
+  /** Site-specific settings groups (declarative field defs), rendered below the
+   *  base groups and persisted to `custom` via the site's declared keys. */
+  extension?: SettingsFieldGroup[];
+  /** Escape hatch for bespoke sections that manage their own persistence
+   *  (e.g. a passkey enrollment section) — rendered after the save action. */
+  extras?: () => JSX.Element;
+}
+
+export function SettingsPanel(props: SettingsPanelProps) {
+  const qc = useQueryClient();
+  const [values, setValues] = createSignal<Record<string, unknown>>({});
+  const [status, setStatus] = createSignal<"idle" | "saving" | "saved" | "error">("idle");
+
+  const groups = () => [...BASE_GROUPS, ...(props.extension ?? [])];
+  const allFields = () => groups().flatMap((g) => g.fields);
+
+  const setField = (key: string, value: unknown) => {
+    setValues({ ...values(), [key]: value });
+    setStatus("idle");
+  };
+
+  const query = useQuery(() => ({
+    queryKey: louiseQueryKeys.settings,
+    queryFn: async () => {
+      const data = await apiGet<{ settings: Record<string, unknown> }>("/api/louise/settings");
+      const settings = data.settings ?? {};
+      const seeded: Record<string, unknown> = {};
+      for (const def of allFields()) seeded[def.key] = coerce(settings[def.key], def.type);
+      setValues(seeded);
+      return settings;
+    },
+  }));
+
+  const saveMutation = useMutation(() => ({
+    mutationFn: () => {
+      const patch: Record<string, unknown> = {};
+      for (const def of allFields()) patch[def.key] = values()[def.key];
+      return apiSend("POST", "/api/louise/settings", patch);
+    },
+    onSuccess: async () => {
+      setStatus("saved");
+      await qc.invalidateQueries({ queryKey: louiseQueryKeys.settings });
+    },
+    onError: (err) => {
+      console.error("[louise]", err);
+      setStatus("error");
+    },
+  }));
+  const save = () => {
+    setStatus("saving");
+    saveMutation.mutate();
+  };
+
+  return (
+    <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
+      <For each={groups()}>
+        {(group) => (
+          <Section title={group.title} hint={group.hint} open={group.open}>
+            <For each={group.fields}>
+              {(def) => (
+                <SettingsField
+                  def={def}
+                  value={values()[def.key]}
+                  onChange={(v) => setField(def.key, v)}
+                />
+              )}
+            </For>
+          </Section>
+        )}
+      </For>
+
+      <div class="louise-form-actions">
+        <button
+          class="louise-btn louise-btn-primary"
+          type="button"
+          disabled={status() === "saving"}
+          onClick={save}
+        >
+          {status() === "saving" ? "Saving…" : "Save settings"}
+        </button>
+        <Show when={status() === "saved"}>
+          <span class="louise-muted">Saved</span>
+        </Show>
+        <Show when={status() === "error"}>
+          <span class="louise-muted">Couldn’t save</span>
+        </Show>
+      </div>
+
+      <Show when={props.extras}>{props.extras?.()}</Show>
+
+      <Section title="Session" hint="Sign out of Louise and return to the public site.">
+        <button class="louise-btn louise-btn-danger" type="button" onClick={() => void signOut()}>
+          <Icon name="signOut" /> Sign out
+        </button>
+      </Section>
+    </Show>
+  );
+}
