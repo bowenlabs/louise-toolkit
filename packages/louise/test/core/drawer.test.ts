@@ -6,7 +6,7 @@ import {
   createDrawerQueryClient,
   louiseQueryKey,
   louiseQueryKeys,
-} from "../../src/client/drawer/index.js";
+} from "../../src/client/drawer/query.js";
 
 describe("createDrawerQueryClient", () => {
   it("returns a QueryClient with editor-tuned defaults", () => {

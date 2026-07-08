@@ -1,60 +1,45 @@
 // Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
 //
-// `louisecms/client/drawer` — the drawer data layer: the shared TanStack Solid
-// Query wiring and typed fetch helpers every Louise editor drawer uses. The
-// drawer *shell* and panels are still site-specific (turning the hand-wired
-// drawer into a panel-registry-driven shell is the larger follow-up); this is
-// the data plumbing all of them share.
+// `louisecms/client/drawer` — the Louise editor drawer: a registry-driven
+// SolidJS shell with a fixed top strip of framework panels (Pages/Media/
+// Settings) and a bottom group of site-registered collection tabs. Sites call
+// `mountDrawer(config)` in edit mode and register their own collections;
+// everything shares one TanStack Query cache (the data layer below).
 
-import { QueryClient } from "@tanstack/solid-query";
+// Data layer — the shared QueryClient, query keys, and typed fetch helpers.
+export {
+  apiGet,
+  apiSend,
+  createDrawerQueryClient,
+  louiseQueryKey,
+  louiseQueryKeys,
+} from "./query.js";
 
-/**
- * The drawer's QueryClient. The drawer is a short-lived, editor-only surface
- * that opens over the live page, so: no window-focus refetch, a short stale
- * window to keep tab switches snappy without hammering the API, and one retry.
- */
-export function createDrawerQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { refetchOnWindowFocus: false, staleTime: 30_000, retry: 1 },
-    },
-  });
-}
+// Shell + registry API.
+export {
+  type CollectionTab,
+  Drawer,
+  type DrawerConfig,
+  mountDrawer,
+  OPEN_DRAWER_EVENT,
+} from "./shell.jsx";
 
-/**
- * A namespaced drawer query key, e.g. `louiseQueryKey("products", id)`. Sites
- * use this for their own collections; the framework-generic ones are in
- * {@link louiseQueryKeys}.
- */
-export function louiseQueryKey(
-  collection: string,
-  ...rest: readonly (string | number)[]
-): readonly [string, string, ...(string | number)[]] {
-  return ["louise", collection, ...rest];
-}
+// Framework panels (top strip) + the default Inquiries panel (a bottom tab).
+export { MediaPanel, type MediaItem } from "./media-panel.jsx";
+export { type BuiltInPageRef, PagesPanel, type PageRow } from "./pages-panel.jsx";
+export { SettingsPanel, type SettingsPanelProps } from "./settings-panel.jsx";
+export { InquiriesPanel, type InquiriesPanelProps, type InquiryRow } from "./inquiries-panel.jsx";
 
-/** Query keys for the framework-generic collections. Sites add their own via
- *  {@link louiseQueryKey} (e.g. `products`, `artworks`). */
-export const louiseQueryKeys = {
-  pages: ["louise", "pages"],
-  media: ["louise", "media"],
-  settings: ["louise", "settings"],
-} as const;
-
-/** GET JSON, throwing on a non-2xx status. */
-export async function apiGet<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET ${url} ${res.status}`);
-  return (await res.json()) as T;
-}
-
-/** Send JSON (POST/PATCH/DELETE/…) and parse the JSON response; throws on non-2xx. */
-export async function apiSend<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`${method} ${url} ${res.status}`);
-  return (await res.json()) as T;
-}
+// Shared form primitives + the declarative settings-field types, so sites can
+// build extension groups and reuse the same field editors.
+export {
+  ImageField,
+  LinkListEditor,
+  type LinkRow,
+  MediaUrlPicker,
+  Section,
+  SettingsField,
+  type SettingsFieldDef,
+  type SettingsFieldGroup,
+  type SettingsFieldType,
+} from "./fields.jsx";

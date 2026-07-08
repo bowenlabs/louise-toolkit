@@ -56,6 +56,10 @@
       "types": "./dist/core/cms/index.d.ts",
       "import": "./dist/core/cms/index.js"
     },
+    "./editor": {
+      "types": "./dist/core/editor/index.d.ts",
+      "import": "./dist/core/editor/index.js"
+    },
     "./db": {
       "types": "./dist/core/db/index.d.ts",
       "import": "./dist/core/db/index.js"

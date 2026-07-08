@@ -21,7 +21,10 @@ export default defineConfig({
         },
         test: {
           name: "client",
-          environment: "happy-dom",
+          // A path-named custom environment, not the "happy-dom" builtin: the
+          // vp-bundled vitest lives outside the workspace and can't resolve the
+          // happy-dom package from its own location. See test/happy-dom-env.ts.
+          environment: "./test/happy-dom-env.ts",
           include: ["test/client/**/*.test.{ts,tsx}"],
         },
       },
