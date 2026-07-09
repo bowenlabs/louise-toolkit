@@ -7,9 +7,20 @@
 // (`id`, `status`, `publishedVersionId`, timestamps) are deliberately absent, so
 // a draft snapshot never carries them.
 import { defineCollection } from "louisecms/cms";
+import { sanitizeRichHtml } from "louisecms/security";
 
 export const pagesCollection = defineCollection({
   slug: "pages",
+  // Sanitize the rich-text `body` on every write (draft save, publish, direct
+  // update). The body used to be sanitized only on the live `/save` route; now
+  // that body edits stage drafts via the versioned API, the sanitize must live
+  // on the collection so it covers saveDraft/publish too — never store raw HTML.
+  hooks: {
+    beforeChange: [
+      ({ data }) =>
+        typeof data.body === "string" ? { ...data, body: sanitizeRichHtml(data.body) } : data,
+    ],
+  },
   fields: {
     slug: { type: "text", required: true },
     title: { type: "text", required: true },

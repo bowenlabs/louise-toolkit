@@ -183,13 +183,16 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
       }
     },
   }),
+  // NOTE: the rich-text page `body` is NOT here — it stages drafts via
+  // versionsRoute now (the versioned workflow), not a live `/save` write. The
+  // sanitize that used to happen here lives on the collection's beforeChange
+  // hook (pages-collection.ts) so it covers the draft/publish paths.
   saveRoute({
     resolveEditor,
     collections: {
       pages: {
         table: pages,
-        fields: ["title", "body", "seoTitle", "seoDescription"],
-        richFields: ["body"],
+        fields: ["title", "seoTitle", "seoDescription"],
       },
     },
   }),

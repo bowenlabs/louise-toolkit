@@ -301,6 +301,13 @@ function Toolbar() {
  */
 function ToolbarDock(props: { focused: () => boolean }) {
   const caret = useEditorDerivedValue((e: Editor<LouiseEditorExtension>) => {
+    // useEditorDerivedValue wraps this in a createMemo that Solid evaluates
+    // EAGERLY during render — before RichText's onMount runs editor.mount(host).
+    // Reading e.view (assertView) before then throws "Editor is not mounted",
+    // and that synchronous throw aborts the whole render(), leaving the field
+    // empty with no editor. Bail while unmounted (e.mounted never throws); the
+    // memo re-runs once mounted (the mount/update handlers force it).
+    if (!e.mounted) return null;
     const sel = e.view.state.selection;
     if (sel instanceof NodeSelection) return null;
     try {

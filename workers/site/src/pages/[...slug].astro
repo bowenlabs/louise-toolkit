@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "louisecms/db";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import SiteChrome from "../components/SiteChrome.astro";
+import { latestDraftBody } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 import "louisecms/theme/fonts.css";
 import "../styles/louise.css";
@@ -19,6 +20,12 @@ const [page] = await db(DB).select().from(pages).where(eq(pages.slug, slug)).lim
 if (!page || (page.status !== "published" && !Astro.locals.editMode)) {
   return new Response("Not found", { status: 404 });
 }
+
+// View mode renders the published body; edit mode resumes the latest still-draft
+// version's body so an editor sees their work-in-progress (staged via the bar's
+// Save draft → /versions) until they publish, mirroring the sections workflow.
+const draftBody = Astro.locals.editMode ? await latestDraftBody(DB, page.id) : null;
+const body = draftBody ?? page.body;
 
 const title = page.seoTitle || page.title;
 ---
@@ -47,14 +54,14 @@ const title = page.seoTitle || page.title;
               data-louise-field={`pages:${page.id}:body`}
               data-louise-type="richtext"
               data-louise-blocks="1"
-              set:html={page.body ?? "<p></p>"}
+              set:html={body ?? "<p></p>"}
             />
           ) : (
-            <article class="louise-prose" set:html={page.body ?? ""} />
+            <article class="louise-prose" set:html={body ?? ""} />
           )
         }
       </main>
     </SiteChrome>
-    <LouiseEditor />
+    <LouiseEditor versionedPageId={page.id} />
   </body>
 </html>
