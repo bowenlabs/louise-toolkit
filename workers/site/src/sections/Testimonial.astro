@@ -1,0 +1,63 @@
+---
+// Bespoke testimonials section — site-owned design (Tailwind + daisyUI cards),
+// rendered from a structured `items` array of quotes. Editors add/remove quotes
+// from the dock; quote/author/role are edited in place via `data-louise-sfield`
+// markers stamped in edit mode. The markup stays here.
+interface Item {
+  quote?: string;
+  author?: string;
+  role?: string;
+}
+interface Props {
+  heading?: string;
+  items?: Item[];
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const { heading = "", items = [], _editIndex = 0, _editMode: edit = false } = Astro.props;
+const idx = _editIndex;
+---
+
+<section class="px-5 pb-16">
+  {
+    (edit || heading) && (
+      <h2
+        class="mb-6 text-center text-2xl font-black"
+        data-louise-sfield={edit ? `${idx}.heading` : undefined}
+      >
+        {heading}
+      </h2>
+    )
+  }
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-4">
+    {
+      items.map((t, j) => (
+        <figure class="card rounded-box border border-base-300 bg-base-100 p-6">
+          <blockquote
+            class="text-lg leading-relaxed text-balance"
+            data-louise-sfield={edit ? `${idx}.items.${j}.quote` : undefined}
+            data-louise-multiline={edit || undefined}
+          >
+            {t.quote}
+          </blockquote>
+          <figcaption class="mt-4 flex flex-col">
+            <span
+              class="font-black"
+              data-louise-sfield={edit ? `${idx}.items.${j}.author` : undefined}
+            >
+              {t.author}
+            </span>
+            {(edit || t.role) && (
+              <span
+                class="text-sm text-base-content/60"
+                data-louise-sfield={edit ? `${idx}.items.${j}.role` : undefined}
+              >
+                {t.role}
+              </span>
+            )}
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</section>

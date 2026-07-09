@@ -1,0 +1,40 @@
+---
+// Bespoke media section — a site-owned figure (image + caption). The image and
+// its alt text are edited in the dock (upload/clear + a text field with no
+// visible node); the caption is edited in place via a `data-louise-sfield`
+// marker. In edit mode with no image yet, a placeholder keeps the section
+// visible and clickable so it can be filled from the dock.
+interface Props {
+  image?: string;
+  alt?: string;
+  caption?: string;
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const { image = "", alt = "", caption = "", _editIndex = 0, _editMode: edit = false } = Astro.props;
+const idx = _editIndex;
+---
+
+<section class="px-5 pb-16">
+  <figure class="mx-auto max-w-3xl">
+    {
+      image ? (
+        <img src={image} alt={alt} class="rounded-box w-full object-cover" />
+      ) : edit ? (
+        <div class="rounded-box grid h-64 place-items-center border border-dashed border-base-300 text-base-content/40">
+          <span class="text-sm">Upload an image in the dock →</span>
+        </div>
+      ) : null
+    }
+    {
+      (edit || caption) && (
+        <figcaption
+          class="mt-3 text-center text-sm text-base-content/60"
+          data-louise-sfield={edit ? `${idx}.caption` : undefined}
+        >
+          {caption}
+        </figcaption>
+      )
+    }
+  </figure>
+</section>

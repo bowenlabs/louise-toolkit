@@ -7,14 +7,23 @@
 // In edit mode it also threads each section's array index (`_editIndex`) and the
 // edit flag (`_editMode`) into the component, so the bespoke markup can stamp
 // `data-louise-sfield` markers the client turns into in-place editors.
+import Banner from "../sections/Banner.astro";
 import FeatureGrid from "../sections/FeatureGrid.astro";
 import Hero from "../sections/Hero.astro";
+import Media from "../sections/Media.astro";
+import Testimonial from "../sections/Testimonial.astro";
 
 type Item = Record<string, unknown> & { _type?: string };
 const { sections = [] } = Astro.props as { sections?: Item[] };
 const editMode = Astro.locals.editMode;
 
-const COMPONENTS = { hero: Hero, featureGrid: FeatureGrid } as const;
+const COMPONENTS = {
+  hero: Hero,
+  featureGrid: FeatureGrid,
+  banner: Banner,
+  testimonial: Testimonial,
+  media: Media,
+} as const;
 ---
 
 {
