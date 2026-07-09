@@ -23,7 +23,7 @@
 
 import { createSignal, For, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
-import { render } from "solid-js/web";
+import { Portal, render } from "solid-js/web";
 import { Icon } from "./icons.jsx";
 import { injectStyles } from "./styles.js";
 
@@ -54,6 +54,30 @@ export interface SectionsEditorProps {
 
 function humanize(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Resolve when an element matching `selector` exists — checking now, then via a
+ *  MutationObserver — or `null` after `timeoutMs`. The shared edit bar
+ *  (`.louise-bar`) and this sections dock mount independently and in either
+ *  order, so the dock can't assume the bar is already in the DOM. */
+function whenElement(selector: string, timeoutMs = 3000): Promise<HTMLElement | null> {
+  const now = document.querySelector<HTMLElement>(selector);
+  if (now) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const obs = new MutationObserver(() => {
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        obs.disconnect();
+        clearTimeout(timer);
+        resolve(el);
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    const timer = setTimeout(() => {
+      obs.disconnect();
+      resolve(null);
+    }, timeoutMs);
+  });
 }
 
 /** A blank value for a field: `[]` for arrays, `""` for text. */
@@ -221,6 +245,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [showHistory, setShowHistory] = createSignal(false);
   const hasDraft = () => versions().some((v) => v.status === "draft");
 
+  // A leading slot injected into the shared edit bar (`.louise-bar`) that hosts
+  // the Save-draft / Publish actions, so the page shows ONE action bar rather
+  // than a second set of buttons in this dock. Null until the bar is found (it
+  // mounts separately); the actions fall back into the dock while so.
+  const [barSlot, setBarSlot] = createSignal<HTMLElement | null>(null);
+
   const touched = () => {
     setDirty(true);
     if (status() !== "idle") setStatus("idle");
@@ -244,6 +274,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   onMount(() => {
     wireInline(props.host, props.catalog, state.items, set, touched);
     void loadVersions();
+    // Relocate Save-draft / Publish onto the shared edit bar once it exists.
+    void whenElement(".louise-bar").then((bar) => {
+      if (!bar) return;
+      const slot = document.createElement("span");
+      slot.className = "louise-bar-actions";
+      bar.insertBefore(slot, bar.firstChild);
+      setBarSlot(slot);
+    });
   });
 
   // Parse a `{ error, violations }` body into a display detail (validation reason).
@@ -408,6 +446,30 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const arrayFields = (item: SectionItem): [string, SectionField][] =>
     Object.entries(props.catalog[item._type]?.fields ?? {}).filter(([, f]) => f.type === "array");
 
+  // The page's primary save actions — Save draft (green) and Publish (yellow) —
+  // rendered onto the shared edit bar (or the dock as fallback). A component so
+  // the same markup mounts in either place.
+  const SaveActions = () => (
+    <>
+      <button
+        class="louise-savedraft"
+        type="button"
+        disabled={status() === "saving" || status() === "publishing" || !dirty()}
+        onClick={() => void save()}
+      >
+        {status() === "saving" ? "Saving…" : "Save draft"}
+      </button>
+      <button
+        class="louise-publish"
+        type="button"
+        disabled={status() === "publishing" || (!dirty() && !hasDraft())}
+        onClick={() => void publish()}
+      >
+        {status() === "publishing" ? "Publishing…" : "Publish"}
+      </button>
+    </>
+  );
+
   return (
     <div
       class="louise-sections-dock"
@@ -552,6 +614,33 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             )}
           </For>
 
+          {/* Add section — full-width, above the version history. */}
+          <div class="louise-sections-add">
+            <button
+              class="louise-btn louise-btn-block"
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+            >
+              <Icon name="plus" /> Add section
+            </button>
+            <Show when={adding()}>
+              <div class="louise-sections-palette" role="menu">
+                <For each={Object.entries(props.catalog)}>
+                  {([type, def]) => (
+                    <button
+                      class="louise-slash-item"
+                      type="button"
+                      role="menuitem"
+                      onClick={() => addSection(type)}
+                    >
+                      {def.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+
           {/* Version history — publish (restore) any version to make it live. */}
           <div class="louise-sections-history">
             <button
@@ -618,46 +707,20 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             </Show>
           </div>
 
-          <div class="louise-form-actions">
-            <button
-              class="louise-btn louise-btn-primary"
-              type="button"
-              disabled={status() === "saving" || status() === "publishing" || !dirty()}
-              onClick={() => void save()}
-            >
-              {status() === "saving" ? "Saving…" : "Save draft"}
-            </button>
-            <button
-              class="louise-btn"
-              type="button"
-              disabled={status() === "publishing" || (!dirty() && !hasDraft())}
-              onClick={() => void publish()}
-            >
-              {status() === "publishing" ? "Publishing…" : "Publish"}
-            </button>
-            <div class="louise-sections-add">
-              <button class="louise-btn" type="button" onClick={() => setAdding((v) => !v)}>
-                <Icon name="plus" /> Add section
-              </button>
-              <Show when={adding()}>
-                <div class="louise-sections-palette" role="menu">
-                  <For each={Object.entries(props.catalog)}>
-                    {([type, def]) => (
-                      <button
-                        class="louise-slash-item"
-                        type="button"
-                        role="menuitem"
-                        onClick={() => addSection(type)}
-                      >
-                        {def.label}
-                      </button>
-                    )}
-                  </For>
-                </div>
-              </Show>
+          {/* Fallback home for Save draft + Publish when no edit bar exists. */}
+          <Show when={!barSlot()}>
+            <div class="louise-sections-footer">
+              <SaveActions />
             </div>
-          </div>
+          </Show>
         </div>
+      </Show>
+      {/* Save draft + Publish, relocated onto the shared edit bar. Kept outside
+          the collapse toggle so they stay on the bar when the dock is collapsed. */}
+      <Show when={barSlot()}>
+        <Portal mount={barSlot()!}>
+          <SaveActions />
+        </Portal>
       </Show>
     </div>
   );

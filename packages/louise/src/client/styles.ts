@@ -10,6 +10,7 @@ const CSS = `
   --louise-blue: ${LOUISE_BLUE};
   --louise-green: #16a34a;
   --louise-orange: #ea7317;
+  --louise-yellow: #ca8a04;
   /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
      the same family, just a heavier weight. Loaded via a <link> in
      injectStyles() — only on Louise surfaces. */
@@ -154,6 +155,33 @@ const CSS = `
 .louise-settings:hover { background: rgba(20, 129, 239, 0.1); }
 .louise-exit { color: var(--louise-orange); }
 .louise-exit:hover { background: rgba(234, 115, 23, 0.12); }
+
+/* The sections editor injects its Save-draft / Publish actions here — a leading
+   slot on the shared edit bar. display:contents so the buttons participate
+   directly in the bar's flex row, sharing its gap + alignment with Settings/Done
+   (one uniform row, not a nested group). */
+.louise-bar-actions { display: contents; }
+/* Save draft (green) / Publish (yellow) — the SAME text-button treatment as the
+   bar's Settings/Done (transparent, pill hover), just brand-coloured, so all the
+   bar actions read as one consistent row. */
+.louise-savedraft,
+.louise-publish {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 120ms ease;
+}
+.louise-savedraft { color: var(--louise-green); }
+.louise-savedraft:hover:not(:disabled) { background: rgba(22, 163, 74, 0.1); }
+.louise-publish { color: var(--louise-yellow); }
+.louise-publish:hover:not(:disabled) { background: rgba(234, 179, 8, 0.12); }
+.louise-savedraft:disabled,
+.louise-publish:disabled { opacity: 0.45; cursor: default; }
 
 /* Enter-edit floating button shown to authed editors (rendered server-side). */
 .louise-enter {
@@ -732,7 +760,12 @@ const CSS = `
   color: #16a34a;
   font-weight: 600;
 }
-.louise-sections-add { position: relative; margin-left: auto; }
+/* Add section — full-width block above the version history, matching the section
+   rows' width. Relative so its palette anchors to it. */
+.louise-sections-add { position: relative; margin: 8px 0; }
+/* Fallback home for Save-draft / Publish when no edit bar is present to host
+   them (normally they live on the .louise-bar via .louise-bar-actions). */
+.louise-sections-footer { display: flex; gap: 8px; margin-top: 8px; }
 .louise-sections-img {
   display: block;
   max-width: 100%;

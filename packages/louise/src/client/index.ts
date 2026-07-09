@@ -76,13 +76,18 @@ interface ChromeOptions {
   onSave: () => void;
   /** Opens the explorer/settings drawer (the bar's Settings action). */
   onOpenDrawer: () => void;
+  /** Whether this page has inline `data-louise-field`s. When false there's
+   *  nothing for the bar to save (e.g. a sections-only page, which owns its own
+   *  Save/Publish in the sections dock), so the Save button is omitted to avoid
+   *  two competing, half-dead Save controls on screen. */
+  hasFields: boolean;
 }
 
 /**
- * The single, unified edit bar: just three text actions — Save (green),
- * Settings (blue, opens the drawer), Done (orange, leaves edit mode) — plus a
- * transient save-status message that collapses when idle. The editor's identity
- * (live dot + name) now lives in the drawer header, not on the bar.
+ * The single, unified edit bar: Settings (opens the drawer) and Done (leaves
+ * edit mode), plus — only on pages with inline fields — a Save button (green)
+ * and a transient save-status message that collapses when idle. The editor's
+ * identity (live dot + name) lives in the drawer header, not on the bar.
  */
 function createChrome(opts: ChromeOptions): Chrome {
   const bar = document.createElement("div");
@@ -90,12 +95,17 @@ function createChrome(opts: ChromeOptions): Chrome {
   bar.setAttribute("role", "toolbar");
   bar.setAttribute("aria-label", "Louise editing toolbar");
 
-  const save = document.createElement("button");
-  save.type = "button";
-  save.className = "louise-save";
-  save.textContent = "Save";
-  save.disabled = true;
-  save.addEventListener("click", opts.onSave);
+  // Save + status only exist when there are inline fields to save; otherwise the
+  // sections dock is the page's sole save authority.
+  const save = opts.hasFields ? document.createElement("button") : null;
+  const status = opts.hasFields ? document.createElement("span") : null;
+  if (save) {
+    save.type = "button";
+    save.className = "louise-save";
+    save.textContent = "Save";
+    save.disabled = true;
+    save.addEventListener("click", opts.onSave);
+  }
 
   const settings = document.createElement("button");
   settings.type = "button";
@@ -108,24 +118,26 @@ function createChrome(opts: ChromeOptions): Chrome {
   exit.href = exitHref();
   exit.textContent = "Done";
 
-  // Transient save feedback, trailing the actions. Empty at rest (:empty in CSS
-  // collapses it) so the bar reads as just the three buttons until a save runs.
-  const status = document.createElement("span");
-  status.className = "louise-status";
-  status.dataset.status = "idle";
-  status.setAttribute("aria-live", "polite");
+  if (status) {
+    // Transient save feedback, trailing the actions. Empty at rest (:empty in CSS
+    // collapses it) so the bar reads as just the buttons until a save runs.
+    status.className = "louise-status";
+    status.dataset.status = "idle";
+    status.setAttribute("aria-live", "polite");
+  }
 
   // appendChild (single node), not the variadic append(): the latter's DOM
   // signature collides with @cloudflare/workers-types' HTMLRewriter `append`
   // when both type libs are in scope.
-  for (const el of [save, settings, exit, status]) bar.appendChild(el);
+  for (const el of [save, settings, exit, status]) if (el) bar.appendChild(el);
   document.body.appendChild(bar);
 
   return {
     setDirty: (dirty) => {
-      save.disabled = !dirty;
+      if (save) save.disabled = !dirty;
     },
     setStatus: (s) => {
+      if (!status) return;
       status.dataset.status = s;
       status.textContent =
         s === "saving" ? "Saving…" : s === "saved" ? "Saved" : s === "error" ? "Couldn’t save" : "";
@@ -185,6 +197,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   chrome = createChrome({
     onSave: () => void saveAll(),
     onOpenDrawer: opts.onOpenDrawer,
+    hasFields: fieldEls.length > 0,
   });
 
   for (const el of fieldEls) {
