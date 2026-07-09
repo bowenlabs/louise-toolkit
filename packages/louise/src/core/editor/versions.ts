@@ -47,6 +47,35 @@ function violationsOf(err: unknown): { message: string; violations?: unknown } {
 }
 
 /**
+ * The newest still-*pending* draft among `versions` (which {@link findVersions}
+ * returns newest-first, so the first match is the newest), or `undefined` when
+ * there is none. A draft is pending only if it's newer than the live pointer
+ * (`id > publishedVersionId`); a draft at or below `publishedVersionId` is
+ * *superseded* — publishing has already moved the live row past it, so it must
+ * not be resumed or auto-published as if it were current work.
+ *
+ * This backs two behaviours:
+ *  - **Concurrent surfaces (draft merge base):** a versioned page may mount more
+ *    than one editing surface (e.g. a rich-text body canvas and a sections dock),
+ *    each saving only the fields it owns. Layering every partial save over the
+ *    newest pending draft — instead of always over the live row — lets those
+ *    surfaces compose into one snapshot rather than each reverting the other's
+ *    pending work.
+ *  - **Publish with no explicit `versionId`:** promoting "the latest draft" must
+ *    skip superseded drafts so a stale snapshot can't silently go live.
+ */
+export function latestPendingDraft(
+  versions: readonly Record<string, unknown>[],
+  publishedVersionId: number | null,
+): Record<string, unknown> | undefined {
+  return versions.find(
+    (v) =>
+      v.status === "draft" &&
+      (publishedVersionId === null || (v.id as number) > publishedVersionId),
+  );
+}
+
+/**
  * Build the draft/publish/versions route for a versioned collection. Returns
  * `undefined` for any path it doesn't own so `composeWorker` falls through.
  */
@@ -98,17 +127,26 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       return json({ versions, publishedVersionId });
     }
 
-    // POST /:id/versions — save a draft. Merge the edit over the current live
-    // row (config fields only) so the snapshot is complete and publishable.
+    // POST /:id/versions — save a draft. Merge the edit (config fields only) over
+    // the newest pending draft's snapshot when one exists, else the live row, so
+    // the snapshot is complete and publishable AND a second editing surface's
+    // partial save layers onto — rather than reverts — the pending draft. See
+    // `latestPendingDraft`.
     if (action === "versions" && method === "POST") {
       const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
       const [current] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
       if (!current) return json({ error: "Not found" }, 404);
       const cur = current as Record<string, unknown>;
+      const publishedVersionId = (cur.publishedVersionId as number | null) ?? null;
+      const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
+      const pending = latestPendingDraft(versions, publishedVersionId);
+      const base = (pending?.versionData as Record<string, unknown> | undefined) ?? cur;
       const merged: Record<string, unknown> = {};
       for (const key of fieldKeys) {
-        merged[key] = key in input ? input[key] : cur[key];
+        // Prefer this save's fields, then the pending draft's snapshot, then the
+        // live row — so a key the draft snapshot happens to lack still resolves.
+        merged[key] = key in input ? input[key] : key in base ? base[key] : cur[key];
       }
       if (cfg.validate) {
         try {
@@ -123,15 +161,18 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     }
 
     // POST /:id/publish — promote a draft to live. `versionId` in the body, else
-    // the newest still-draft version.
+    // the newest still-*pending* draft (a superseded draft — one publishing has
+    // already moved past — must not silently go live). See `latestPendingDraft`.
     if (action === "publish" && method === "POST") {
       const body = (await request.json().catch(() => ({}))) as { versionId?: number };
       let versionId = body.versionId;
       if (versionId === undefined) {
-        const versions = await api.findVersions(context, id);
-        const latestDraft = versions.find(
-          (v) => (v as Record<string, unknown>).status === "draft",
-        ) as Record<string, unknown> | undefined;
+        const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
+        const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
+        const publishedVersionId =
+          ((row as Record<string, unknown> | undefined)?.publishedVersionId as number | null) ??
+          null;
+        const latestDraft = latestPendingDraft(versions, publishedVersionId);
         if (!latestDraft) return json({ error: "No draft to publish" }, 400);
         versionId = latestDraft.id as number;
       }

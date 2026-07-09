@@ -115,10 +115,16 @@ function createChrome(opts: ChromeOptions): Chrome {
     return b;
   };
 
-  const saveDraft = opts.versioned ? btn("louise-savedraft", "Save draft", opts.onSave) : null;
-  const publish = opts.versioned ? btn("louise-publish", "Publish", opts.onPublish) : null;
+  // Save controls only when this page owns inline fields for the bar to save. A
+  // versioned page with no inline fields (its sections dock owns Save/Publish)
+  // shows neither, so the dock's relocated actions are the bar's only pair — one
+  // versioned surface per page drives the bar (see the Drafts & publishing guide).
+  const saveDraft =
+    opts.versioned && opts.hasFields ? btn("louise-savedraft", "Save draft", opts.onSave) : null;
+  const publish =
+    opts.versioned && opts.hasFields ? btn("louise-publish", "Publish", opts.onPublish) : null;
   const save = !opts.versioned && opts.hasFields ? btn("louise-save", "Save", opts.onSave) : null;
-  const status = opts.versioned || opts.hasFields ? document.createElement("span") : null;
+  const status = opts.hasFields ? document.createElement("span") : null;
 
   const settings = document.createElement("button");
   settings.type = "button";

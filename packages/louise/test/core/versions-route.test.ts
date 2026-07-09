@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { collectionVersionsTable, defineCollection } from "../../src/core/cms/index.js";
 import { pages } from "../../src/core/db/index.js";
-import { versionsRoute } from "../../src/core/editor/index.js";
+import { latestPendingDraft, versionsRoute } from "../../src/core/editor/index.js";
 
 // The route short-circuits (fall-through / auth / bad-id) before ever touching
 // the DB, so these contract tests need only a no-op D1. The draft-merge /
@@ -97,5 +97,47 @@ describe("versionsRoute — routing", () => {
     );
     expect(res?.status).toBeGreaterThanOrEqual(401);
     expect(res?.status).toBeLessThan(404);
+  });
+});
+
+describe("latestPendingDraft — merge base / publish target", () => {
+  // findVersions returns rows newest-first, so these fixtures are id-descending.
+  const draft = (id: number, versionData: Record<string, unknown> = {}) => ({
+    id,
+    status: "draft",
+    versionData,
+  });
+  const published = (id: number) => ({ id, status: "published", versionData: {} });
+
+  it("returns undefined when there are no versions", () => {
+    expect(latestPendingDraft([], null)).toBeUndefined();
+  });
+
+  it("returns the newest draft when nothing is published yet", () => {
+    const versions = [draft(3), draft(2), published(1)];
+    // published(1) here is a stray status, but no live pointer → drafts are pending.
+    expect(latestPendingDraft(versions, null)?.id).toBe(3);
+  });
+
+  it("returns the newest draft above the published pointer", () => {
+    // Live pointer is 2; draft 4 is pending, drafts 1 are superseded.
+    const versions = [draft(4), published(2), draft(1)];
+    expect(latestPendingDraft(versions, 2)?.id).toBe(4);
+  });
+
+  it("ignores drafts at or below the published pointer (superseded)", () => {
+    // Only a stale draft (id 1) remains under a live pointer of 3 → nothing pending.
+    const versions = [published(3), draft(1)];
+    expect(latestPendingDraft(versions, 3)).toBeUndefined();
+  });
+
+  it("treats a draft equal to the published id as superseded", () => {
+    expect(latestPendingDraft([draft(2)], 2)).toBeUndefined();
+    expect(latestPendingDraft([draft(3)], 2)?.id).toBe(3);
+  });
+
+  it("carries the snapshot so a partial save can layer over it", () => {
+    const base = latestPendingDraft([draft(5, { body: "wip", sections: [] })], 1);
+    expect(base?.versionData).toEqual({ body: "wip", sections: [] });
   });
 });

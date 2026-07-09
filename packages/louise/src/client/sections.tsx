@@ -317,9 +317,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   onMount(() => {
     wireInline(props.host, props.catalog, state.items, set, touched);
     void loadVersions();
-    // Relocate Save-draft / Publish onto the shared edit bar once it exists.
+    // Relocate Save-draft / Publish onto the shared edit bar once it exists — but
+    // only if the bar isn't already driven by another versioned surface. The bar
+    // is created by `mountLouise`'s chrome, which renders its own Save-draft /
+    // Publish when the page has versioned inline fields; stacking a second pair
+    // here would duplicate the actions (each wired to a different surface). Only
+    // one versioned surface per page should own the bar (see the Drafts &
+    // publishing guide), so if the chrome already put actions there, keep ours in
+    // the dock footer (the `!barSlot()` fallback) instead of duplicating them.
     void whenElement(".louise-bar").then((bar) => {
       if (!bar) return;
+      if (bar.querySelector(".louise-savedraft, .louise-publish, .louise-bar-actions")) return;
       const slot = document.createElement("span");
       slot.className = "louise-bar-actions";
       bar.insertBefore(slot, bar.firstChild);

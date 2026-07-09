@@ -60,12 +60,68 @@ versionsRoute({
 });
 ```
 
-A save merges the edit over the current live row (config fields only) and stores
-a complete, publishable snapshot; the field keys must match the `pages` table's
-property names so publish's write maps straight onto columns.
+A save merges the edit (config fields only) over the newest **pending draft** —
+falling back to the live row when there is none — and stores a complete,
+publishable snapshot; the field keys must match the `pages` table's property
+names so publish's write maps straight onto columns. Merging over the pending
+draft (not always the live row) is what lets a partial save layer onto
+work-in-progress instead of reverting it (see below).
+
+## One versioned surface per page
+
+A save sends only the fields it changed, and the route backfills the rest. That
+works cleanly when **one** surface drives a page's drafts. Mounting two versioned
+surfaces on the same page — e.g. `mountLouise({ versionedPageId })` for an inline
+body **and** a sections dock for the same page id — is not the supported model:
+
+- Each surface would render its own **Save draft** / **Publish**. The framework
+  de-dupes the shared edit bar (only the first surface's actions land on it), but
+  the two surfaces still save independently.
+- Saves are made safe by merging each partial edit over the newest pending draft
+  rather than the live row, so concurrent surfaces no longer revert each other —
+  but keeping **one** versioned surface per page is still the clearer model.
+
+If a page needs both an inline body and structured sections, prefer a single
+surface (put the body in the sections catalog, or vice versa) so one **Save
+draft** / **Publish** governs the whole page.
 
 ## Rendering
 
 View mode renders the live main row. In **edit mode**, resume the latest draft so
 work-in-progress is visible until published — query the newest `status: 'draft'`
 version for the page and render its content, falling back to the main row.
+
+Skip **superseded** drafts: ignore any draft whose `id` is at or below the live
+row's `published_version_id`. Publishing a version stamps `published_version_id`
+and leaves older drafts in history; resuming one of those would silently revert
+the just-published content. Only a draft **newer** than the live pointer is
+pending work (a page that has never published has no pointer, so every draft
+counts):
+
+```ts
+import { and, desc, eq, gt } from "drizzle-orm";
+
+async function latestPendingDraft(db, pageId) {
+  const [page] = await db
+    .select({ publishedVersionId: pages.publishedVersionId })
+    .from(pages)
+    .where(eq(pages.id, pageId));
+  const live = page?.publishedVersionId ?? null;
+  const [draft] = await db
+    .select()
+    .from(pagesVersions)
+    .where(
+      and(
+        eq(pagesVersions.parentId, pageId),
+        eq(pagesVersions.status, "draft"),
+        live === null ? undefined : gt(pagesVersions.id, live),
+      ),
+    )
+    .orderBy(desc(pagesVersions.id))
+    .limit(1);
+  return draft?.versionData ?? null;
+}
+```
+
+The route applies the same rule server-side: publishing with no explicit
+`versionId` promotes the newest pending draft, never a superseded one.
