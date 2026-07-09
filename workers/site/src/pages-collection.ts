@@ -34,4 +34,7 @@ export const pagesCollection = defineCollection({
     publish: (ctx) => Boolean(ctx?.session),
   },
   versions: { drafts: true },
+  // Full-text search over the page title, body, and (flattened) sections content
+  // — indexed into a `pages_fts` FTS5 table, kept in sync on publish.
+  search: { fields: ["title", "body", "sections"] },
 });

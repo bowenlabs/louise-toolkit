@@ -23,6 +23,7 @@ import {
   mediaRoute,
   pagesRoute,
   saveRoute,
+  searchRoute,
   seedRoute,
   settingsRoute,
   versionsRoute,
@@ -164,6 +165,10 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
       }
     },
   }),
+  // Full-text search over pages (title/body/flattened sections) — /search + a
+  // /reindex to rebuild the FTS index. Before pagesRoute (its `/:id` matcher
+  // would else claim the non-integer `search`/`reindex` segments).
+  searchRoute({ table: pages, config: pagesCollection, resolveEditor }),
   // `sections` (structured page-builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is

@@ -142,3 +142,12 @@ validated in turn). A field can also carry a `validation` chain — the same
 `assertValidSections` throws `LouiseValidationError` on any error-severity
 violation, which `pagesRoute` turns into a `422 { error, violations }` — the
 on-page dock surfaces the first violation as the save-failure reason.
+
+## Search
+
+Because `sections` is a `json` field, its content is full-text searchable: list
+it in the collection's `search.fields` and the FTS index flattens every string
+leaf (headings, feature text…) into the index. Mount
+[`searchRoute`](/reference/editor/) and the drawer's Pages panel gains a search
+box. Only published content is indexed; run `POST /api/louise/pages/reindex` once
+after adding the FTS table to backfill existing rows.

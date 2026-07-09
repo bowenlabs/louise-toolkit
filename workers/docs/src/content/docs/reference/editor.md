@@ -12,6 +12,7 @@ import {
   blobSettingsRoute,
   pagesRoute,
   versionsRoute,
+  searchRoute,
   mediaRoute,
   listMediaRoute,
   inquiriesRoute,
@@ -114,17 +115,18 @@ export const ALL: APIRoute = (ctx) =>
 
 ## Routes
 
-| Factory             | Endpoint                       | Methods                                                       |
-| ------------------- | ------------------------------ | ------------------------------------------------------------- |
-| `pagesRoute`        | `/api/louise/pages` (+ `/:id`) | GET list · POST create · GET/PATCH/DELETE one                 |
-| `versionsRoute`     | `/api/louise/pages/:id/…`      | GET/POST `versions` · POST `publish` · POST `unpublish`       |
-| `mediaRoute`        | `/api/louise/media`            | GET list · POST upload · DELETE (reference-scanned)           |
-| `listMediaRoute`    | `/api/louise/media`            | registry-less variant: lists R2 directly, per-request `scope` |
-| `settingsRoute`     | `/api/louise/settings`         | GET · POST/PATCH (structured base + `custom`)                 |
-| `blobSettingsRoute` | `/api/louise/settings`         | GET · POST/PATCH — single-JSON-blob variant                   |
-| `saveRoute`         | `/api/louise/save`             | POST (inline field save)                                      |
-| `inquiriesRoute`    | `/api/louise/inquiries`        | GET list · DELETE one                                         |
-| `seedRoute`         | `/api/louise/seed`             | seeds the `site_settings` singleton (idempotent)              |
+| Factory             | Endpoint                             | Methods                                                       |
+| ------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `pagesRoute`        | `/api/louise/pages` (+ `/:id`)       | GET list · POST create · GET/PATCH/DELETE one                 |
+| `versionsRoute`     | `/api/louise/pages/:id/…`            | GET/POST `versions` · POST `publish` · POST `unpublish`       |
+| `searchRoute`       | `/api/louise/pages/{search,reindex}` | GET `search?q=` · POST `reindex`                              |
+| `mediaRoute`        | `/api/louise/media`                  | GET list · POST upload · DELETE (reference-scanned)           |
+| `listMediaRoute`    | `/api/louise/media`                  | registry-less variant: lists R2 directly, per-request `scope` |
+| `settingsRoute`     | `/api/louise/settings`               | GET · POST/PATCH (structured base + `custom`)                 |
+| `blobSettingsRoute` | `/api/louise/settings`               | GET · POST/PATCH — single-JSON-blob variant                   |
+| `saveRoute`         | `/api/louise/save`                   | POST (inline field save)                                      |
+| `inquiriesRoute`    | `/api/louise/inquiries`              | GET list · DELETE one                                         |
+| `seedRoute`         | `/api/louise/seed`                   | seeds the `site_settings` singleton (idempotent)              |
 
 - **`pagesRoute`** — CMS pages CRUD. Create/update are allowlisted to
   `fields` (defaults `DEFAULT_PAGE_FIELDS`) and rich fields (`body`) are run
@@ -140,6 +142,11 @@ export const ALL: APIRoute = (ctx) =>
   row and sets `published_version_id`. Takes `{ table, versionsTable, config,
 resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher.
+- **`searchRoute`** — full-text search over a collection with a `search` config:
+  `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
+  the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
+  `search.fields` is indexed by flattening every string leaf, so structured
+  `sections` content is searchable. Also **mount before `pagesRoute`**.
 - **`mediaRoute`** — wraps [`louisecms/media`](/guide/media/): magic-byte-
   sniffed uploads, the registry list, and a delete-safety reference scan (a
   `409 in_use` unless `?force=1`). Its env widens `EditorRouteEnv` with the R2

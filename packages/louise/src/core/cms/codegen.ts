@@ -233,10 +233,24 @@ function flattenRichText(value: unknown): string {
   return parts.filter(Boolean).join(" ");
 }
 
+// Flattens any JSON value (an `array`/block field, or a freeform `json` blob —
+// e.g. the structured "sections" array) into plain text for FTS5 by collecting
+// every string leaf, keys included, joined with spaces. Marks/attrs/numbers are
+// ignored; indexing is best-effort, so a non-object is coerced to its string
+// form rather than throwing.
+function flattenJson(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value !== "object") return String(value);
+  const parts = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>);
+  return parts.map(flattenJson).filter(Boolean).join(" ");
+}
+
 // Builds the row inserted into a collection's FTS5 table from a freshly
 // written document — one column per `search.fields` entry, in that order,
 // matching collectionSearchTableSQL's column list. `text`/`upload` fields
-// are indexed as-is; `richText` fields go through flattenRichText first.
+// are indexed as-is; `richText` fields go through flattenRichText, and
+// `json` fields through flattenJson.
 export function extractSearchText(
   config: CollectionConfig,
   doc: Record<string, unknown>,
@@ -246,6 +260,7 @@ export function extractSearchText(
     const field = config.fields[key];
     const raw = doc[key];
     if (field?.type === "richText") return flattenRichText(raw);
+    if (field?.type === "json") return flattenJson(raw);
     return typeof raw === "string" ? raw : "";
   });
 }

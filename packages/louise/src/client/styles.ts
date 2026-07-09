@@ -293,6 +293,7 @@ const CSS = `
 
 /* ── Artworks panel (slice 2) ──────────────────────────────────────────── */
 .louise-list { display: flex; flex-direction: column; gap: 8px; }
+.louise-pages-search { width: 100%; margin-bottom: 10px; }
 .louise-list-item {
   display: flex;
   align-items: center;

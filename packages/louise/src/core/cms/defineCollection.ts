@@ -72,6 +72,9 @@ function validateCollectionConfig(config: CollectionConfig): void {
     "text",
     "richText",
     "upload",
+    // `json` (and array-of-block content stored as json) is indexed by flattening
+    // every string leaf to plain text — see codegen's `extractSearchText`.
+    "json",
   ]);
   for (const key of config.search?.fields ?? []) {
     const field = config.fields[key];

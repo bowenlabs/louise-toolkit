@@ -83,6 +83,15 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
     query: string,
     options?: { limit?: number },
   ): Promise<InferSelectModel<TTable>[]>;
+  /**
+   * Rebuild the FTS5 index from the current main-table rows — clears the index
+   * and re-inserts every row's search text. For backfilling after the FTS table
+   * is first created (an empty `search.fields`-configured migration) or after a
+   * bulk import that bypassed the Local API. Gated by `read` access; returns the
+   * number of rows indexed. A no-op (returns 0) when the collection has no
+   * `search` config.
+   */
+  reindexSearch(context: TContext): Promise<number>;
   create(context: TContext, input: InferInsertModel<TTable>): Promise<InferSelectModel<TTable>>;
   update(
     context: TContext,
@@ -504,6 +513,18 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       return rows.map((row) =>
         toNestedDoc(row as Record<string, unknown>),
       ) as InferSelectModel<TTable>[];
+    },
+
+    async reindexSearch(context) {
+      await checkAccess(config, "read", context);
+      if (!config.search?.fields.length) return 0;
+      const fts = sql.identifier(collectionSearchTableName(config));
+      await db.run(sql`DELETE FROM ${fts}`);
+      const rows = await db.select().from(table);
+      for (const row of rows) {
+        await syncSearchIndex(db, config, toNestedDoc(row as Record<string, unknown>) as AnyRecord);
+      }
+      return rows.length;
     },
 
     async create(context, input) {

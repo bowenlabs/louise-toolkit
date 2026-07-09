@@ -64,6 +64,23 @@ export function PagesPanel(props: {
   }));
   const list = () => query.data ?? [];
 
+  // Full-text search over pages (title/body/sections). Non-empty query swaps the
+  // list for ranked matches from /api/louise/pages/search.
+  const [q, setQ] = createSignal("");
+  const searchQuery = useQuery(() => ({
+    queryKey: [...louiseQueryKeys.pages, "search", q().trim()],
+    queryFn: () => {
+      const term = q().trim();
+      if (!term) return Promise.resolve([] as PageRow[]);
+      return apiSend<{ results: PageRow[] }>(
+        "GET",
+        `/api/louise/pages/search?q=${encodeURIComponent(term)}`,
+      ).then((d) => d.results);
+    },
+  }));
+  const searching = () => q().trim().length > 0;
+  const shown = () => (searching() ? (searchQuery.data ?? []) : list());
+
   const createMutation = useMutation(() => ({
     mutationFn: (input: { title: string; slug: string; body?: string }) =>
       apiSend<{ page: PageRow }>("POST", "/api/louise/pages", input),
@@ -106,10 +123,20 @@ export function PagesPanel(props: {
             </div>
           </Show>
           <div style={{ height: "14px" }} />
+          <input
+            class="louise-input louise-pages-search"
+            type="search"
+            placeholder="Search pages…"
+            value={q()}
+            onInput={(e) => setQ(e.currentTarget.value)}
+          />
           <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
-            <Show when={list().length > 0} fallback={<p class="louise-muted">No pages yet.</p>}>
+            <Show
+              when={shown().length > 0}
+              fallback={<p class="louise-muted">{searching() ? "No matches." : "No pages yet."}</p>}
+            >
               <div class="louise-list">
-                <For each={list()}>
+                <For each={shown()}>
                   {(p) => (
                     <div class="louise-list-item">
                       <div class="louise-item-main">
