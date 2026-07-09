@@ -126,7 +126,10 @@ export const ALL: APIRoute = (ctx) =>
 
 - **`pagesRoute`** — CMS pages CRUD. Create/update are allowlisted to
   `fields` (defaults `DEFAULT_PAGE_FIELDS`) and rich fields (`body`) are run
-  through `sanitizeRichHtml` before store.
+  through `sanitizeRichHtml` before store. An optional `validate(data, ctx)` hook
+  runs after allowlisting and before the write — throw `LouiseValidationError`
+  (e.g. via [`assertValidSections`](/guide/sections/#validation)) to reject with a
+  `422` carrying the per-field `violations`.
 - **`mediaRoute`** — wraps [`louisecms/media`](/guide/media/): magic-byte-
   sniffed uploads, the registry list, and a delete-safety reference scan (a
   `409 in_use` unless `?force=1`). Its env widens `EditorRouteEnv` with the R2

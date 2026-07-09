@@ -453,6 +453,33 @@ async function evaluateReference(
 }
 
 /**
+ * Evaluate a single value against a field's `validation` chain, returning its
+ * violations. Reuses the same {@link Rule} builder and check semantics as
+ * {@link validateDocument}, but for one value in isolation — so schemas that
+ * aren't a `CollectionConfig` (e.g. the structured-sections catalog) can run
+ * the exact same rules. DB-backed checks (`unique`/`reference`) are inapplicable
+ * here and no-op (no `db`/`table` in scope).
+ */
+export async function validateValue(
+  builder: ValidationBuilder | undefined,
+  value: unknown,
+  ctx: ValidationFieldContext,
+): Promise<ValidationViolation[]> {
+  if (!builder) return [];
+  const built = builder(new Rule());
+  const checks = (Array.isArray(built) ? built : [built]).flatMap((r) => r.toChecks());
+  // A synthetic non-relationship field: `reference` short-circuits on it, and
+  // `unique` no-ops without a `table`, so only the pure/custom checks run.
+  const field = { type: "text" } as unknown as FieldConfig;
+  const out: ValidationViolation[] = [];
+  for (const check of checks) {
+    const violation = await evaluateCheck(check, value, field, ctx, { operation: ctx.operation });
+    if (violation) out.push(violation);
+  }
+  return out;
+}
+
+/**
  * Run {@link validateDocument} and throw {@link LouiseValidationError} if any
  * `"error"`-severity violations are found. Warnings are returned (never
  * thrown) so a caller can still surface them. The thrown error's message is

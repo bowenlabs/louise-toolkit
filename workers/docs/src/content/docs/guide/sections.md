@@ -104,3 +104,33 @@ mountSections(el, { catalog: SECTIONS, pageId, initial });
 
 Add `sections` to your [`pagesRoute`](/reference/editor/) `fields` allowlist so
 the `PATCH` is accepted, and store it as a JSON column on your `pages` table.
+
+## Validation
+
+The stored JSON is validated server-side before every write. Give `pagesRoute` a
+`validate` hook that runs `assertValidSections` against your catalog:
+
+```ts
+import { assertValidSections } from "louisecms/cms";
+import { SECTIONS } from "./sections/catalog";
+
+pagesRoute({
+  table: pages,
+  resolveEditor,
+  fields: [...DEFAULT_PAGE_FIELDS, "sections"],
+  validate: async (data, ctx) => {
+    if ("sections" in data) await assertValidSections(SECTIONS, data.sections, ctx);
+  },
+});
+```
+
+`validateSections` (the non-throwing form) checks that the value is an array, that
+every item's `_type` is a known catalog entry, and that each field matches its
+declared shape (text/textarea → string; array → objects whose `itemFields` are
+validated in turn). A field can also carry a `validation` chain — the same
+[`Rule`](/reference/cms/) builder collection fields use, e.g.
+`heading: { type: "text", validation: (r) => r.required().max(80) }`.
+
+`assertValidSections` throws `LouiseValidationError` on any error-severity
+violation, which `pagesRoute` turns into a `422 { error, violations }` — the
+on-page dock surfaces the first violation as the save-failure reason.

@@ -27,44 +27,22 @@ import { render } from "solid-js/web";
 import { Icon } from "./icons.jsx";
 import { injectStyles } from "./styles.js";
 
-export type SectionFieldType = "text" | "textarea" | "array";
-
-export interface SectionField {
-  type: SectionFieldType;
-  label?: string;
-  placeholder?: string;
-  /** Whether this field is edited in place on the bespoke render (a visible text
-   *  node) vs. in the dock (a value you can't point at, e.g. a link URL).
-   *  Defaults to `true` for text/textarea, `false` for `array`. */
-  inline?: boolean;
-  /** `array` only — label for each repeated item (e.g. "Feature"). */
-  itemLabel?: string;
-  /** `array` only — the fields of each repeated item. */
-  itemFields?: Record<string, SectionField>;
-}
+// The section schema types live in core (server-safe) so the same catalog object
+// drives both this on-page editor and the write-time validator (louisecms/cms's
+// validateSections). Type-only import — no server/validation code enters the
+// client bundle.
+import type {
+  SectionCatalog,
+  SectionDef,
+  SectionField,
+  SectionFieldType,
+  SectionItem,
+} from "../core/cms/sections.js";
+export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
 /** Whether a field is edited in place (default: text/textarea yes, array no). */
 function isInline(field: SectionField): boolean {
   return field.inline ?? field.type !== "array";
-}
-
-export interface SectionDef {
-  /** Palette label. */
-  label: string;
-  /** Optional palette icon (opaque string passed through). */
-  icon?: string;
-  /** The section's editable fields, keyed by prop name. */
-  fields: Record<string, SectionField>;
-}
-
-/** The site's catalog of preconfigured section types (schema only — the bespoke
- *  render components live on the site). */
-export type SectionCatalog = Record<string, SectionDef>;
-
-/** One stored section: a `_type` discriminant plus its field values. */
-export interface SectionItem {
-  _type: string;
-  [key: string]: unknown;
 }
 
 export interface SectionsEditorProps {
@@ -159,6 +137,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [dirty, setDirty] = createSignal(false);
   const [adding, setAdding] = createSignal(false);
   const [collapsed, setCollapsed] = createSignal(false);
+  // A specific save-failure reason (e.g. a server validation violation), shown
+  // in place of the generic "Couldn't save".
+  const [errorDetail, setErrorDetail] = createSignal("");
 
   const touched = () => {
     setDirty(true);
@@ -168,13 +149,23 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   onMount(() => wireInline(props.host, props.catalog, state.items, set, touched));
 
   const persist = async (): Promise<boolean> => {
+    setErrorDetail("");
     try {
       const res = await fetch(`/api/louise/pages/${props.pageId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sections: unwrap(state.items) }),
       });
-      if (!res.ok) throw new Error(`save failed: ${res.status}`);
+      if (!res.ok) {
+        // A 422 from the pages route carries per-field validation violations.
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          violations?: { message: string }[];
+        } | null;
+        const detail = body?.violations?.[0]?.message ?? body?.error;
+        if (detail) setErrorDetail(detail);
+        throw new Error(`save failed: ${res.status}`);
+      }
       return true;
     } catch (err) {
       console.error("[louise] sections save failed", err);
@@ -258,13 +249,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           <Icon name={collapsed() ? "caretRight" : "caretDown"} />
         </button>
         <span class="louise-sections-title">Page sections</span>
-        <span class="louise-sections-status" data-status={status()}>
+        <span
+          class="louise-sections-status"
+          data-status={status()}
+          title={status() === "error" ? errorDetail() : undefined}
+        >
           {status() === "saving"
             ? "Saving…"
             : status() === "saved"
               ? "Saved"
               : status() === "error"
-                ? "Couldn’t save"
+                ? errorDetail() || "Couldn’t save"
                 : dirty()
                   ? "Unsaved"
                   : ""}

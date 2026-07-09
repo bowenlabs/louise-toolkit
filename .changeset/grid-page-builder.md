@@ -29,6 +29,12 @@ Grid page-builder + editor packaging fixes.
   out of inline editing with `SectionField.inline: false`, e.g. a link URL). Text
   saves in place; structural changes persist then reload so the server re-renders
   the new shape.
+- **Sections validation** (`louisecms/cms`): the section schema types now live in
+  core, and `validateSections` / `assertValidSections` validate a `sections` write
+  against the catalog — the value is an array, every item's `_type` is known, and
+  each field matches its declared shape (with optional per-field `validation` Rule
+  chains reused from the collection validator). `pagesRoute` gains a `validate`
+  hook; a failed validation is a `422 { error, violations }` the dock surfaces.
 - **Type**: brand type is now **Roboto Flex** throughout (`theme/fonts.css` +
   client chrome); headings are the same family at a heavier weight (no Hepta Slab).
 - **Sanitizer** (`louisecms/security`): the inline-`style` allowlist now accepts a
