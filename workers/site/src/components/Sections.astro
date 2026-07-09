@@ -1,0 +1,25 @@
+---
+// Render bridge: maps each stored section item (`{ _type, ...props }`) to its
+// bespoke Astro component. This is the site half of the preconfigured-blocks
+// model — add a section type by adding a component here + a schema entry in
+// ../sections/catalog.ts.
+//
+// In edit mode it also threads each section's array index (`_editIndex`) and the
+// edit flag (`_editMode`) into the component, so the bespoke markup can stamp
+// `data-louise-sfield` markers the client turns into in-place editors.
+import FeatureGrid from "../sections/FeatureGrid.astro";
+import Hero from "../sections/Hero.astro";
+
+type Item = Record<string, unknown> & { _type?: string };
+const { sections = [] } = Astro.props as { sections?: Item[] };
+const editMode = Astro.locals.editMode;
+
+const COMPONENTS = { hero: Hero, featureGrid: FeatureGrid } as const;
+---
+
+{
+  sections.map((s, i) => {
+    const Comp = s._type ? COMPONENTS[s._type as keyof typeof COMPONENTS] : undefined;
+    return Comp ? <Comp {...s} _editIndex={i} _editMode={editMode} /> : null;
+  })
+}

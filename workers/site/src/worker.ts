@@ -1,12 +1,13 @@
-// Worker entrypoint. @astrojs/cloudflare v14 dropped `workerEntryPoint`, so
-// `wrangler.jsonc`'s `main` points here. Every request falls through to Astro's
-// SSR handler; this seam adds two Browser Run features (louisecms/browser, #5):
+// Worker entrypoint (composeWorker). One Worker, many concerns, dispatched in
+// order over the Astro SSR fallback:
 //
-//   - GET /og.png?slug=&title=  — a per-page Open Graph card, rendered on
-//     Cloudflare Browser Run and cached (content-hashed) so the second request
-//     for unchanged content is served from cache with no browser session.
-//   - scheduled()               — a daily link-checker crawling the docs, run
-//     from the Cron Trigger in wrangler.jsonc; broken links are logged.
+//   docs.louisecms.com/*  → static Starlight bundle folded into /_docs (serveDocs)
+//   /api/louise/*         → louisecms/editor routes (pages/save/settings/media/
+//                           inquiries/seed), guarded by the cookie editor gate
+//   /media/*              → uploaded R2 objects (self-hosted media, no public bucket)
+//   /og.png?slug=&title=  → Browser-Run OG card, content-hash cached
+//   else                  → Astro SSR (marketing + published CMS pages)
+//   scheduled()           → daily link-checker across both hosts
 import { handle } from "@astrojs/cloudflare/handler";
 import {
   checkLinks,
@@ -16,10 +17,25 @@ import {
   ogCacheKey,
   ogImage,
 } from "louisecms/browser";
+import {
+  DEFAULT_PAGE_FIELDS,
+  inquiriesRoute,
+  mediaRoute,
+  pagesRoute,
+  saveRoute,
+  seedRoute,
+  settingsRoute,
+} from "louisecms/editor";
+import { composeWorker, type WorkerRoute } from "louisecms/worker";
+import { resolveEditorFromCookie } from "./lib/louise/session.js";
+import { inquiries, media, pages, siteSettings } from "./schema.js";
 
-type WorkerEnv = Env & LouiseBrowserEnv;
+type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
 
 const SITE_ORIGIN = "https://louisecms.com";
+const DOCS_ORIGIN = "https://docs.louisecms.com";
+
+/* ── OG image (louisecms/browser, #5) ─────────────────────────────────── */
 
 /** The OG card markup screenshotted into a share image. Self-contained (inline
  *  styles, system fonts) so no network fetch is needed during rendering. */
@@ -80,21 +96,123 @@ async function handleOgImage(url: URL, env: WorkerEnv): Promise<Response> {
   });
 }
 
-export default {
-  fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    if (url.pathname === "/og.png") return handleOgImage(url, env as WorkerEnv);
-    return handle(request, env, ctx);
-  },
-  // Cron Trigger (wrangler.jsonc): crawl the docs and log any broken links.
+/* ── Static docs host ─────────────────────────────────────────────────── */
+
+/**
+ * Serve the static docs bundle (folded into this Worker's assets at /_docs by
+ * scripts/ci-build.sh) at the docs subdomain root. The docs app is built as a
+ * root site, so we uniformly prefix every docs-host path with /_docs before the
+ * ASSETS binding. ASSETS emits its trailing-slash redirects with that
+ * /_docs-prefixed Location, so strip the prefix back off — otherwise the browser
+ * would be sent to `docs.host/_docs/…`, leaking the prefix and double-prefixing
+ * the retry.
+ */
+async function serveDocs(url: URL, request: Request, env: WorkerEnv): Promise<Response> {
+  const assetUrl = new URL(url);
+  assetUrl.pathname = `/_docs${url.pathname}`;
+  const res = await env.ASSETS.fetch(new Request(assetUrl, request));
+  const location = res.headers.get("location");
+  if (location?.startsWith("/_docs/")) {
+    const headers = new Headers(res.headers);
+    headers.set("location", location.slice("/_docs".length));
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  }
+  return res;
+}
+
+/* ── Louise CMS editor routes ─────────────────────────────────────────── */
+
+const resolveEditor = (request: Request, env: WorkerEnv) => resolveEditorFromCookie(request, env);
+
+/** Base `site_settings` columns the drawer Settings panel may write. */
+const SETTINGS_COLUMNS = [
+  "siteName",
+  "tagline",
+  "logoUrl",
+  "faviconUrl",
+  "brandColor",
+  "secondaryColor",
+  "tertiaryColor",
+  "contactEmail",
+  "contactPhone",
+  "contactAddress",
+  "socialLinks",
+  "navLinks",
+  "metaDescription",
+  "defaultOgImageUrl",
+  "disableIndexing",
+];
+
+const editorRoutes: WorkerRoute<WorkerEnv>[] = [
+  // `sections` (structured page-builder blocks JSON) is editable alongside the
+  // framework page fields.
+  pagesRoute({ table: pages, resolveEditor, fields: [...DEFAULT_PAGE_FIELDS, "sections"] }),
+  saveRoute({
+    resolveEditor,
+    collections: {
+      pages: {
+        table: pages,
+        fields: ["title", "body", "seoTitle", "seoDescription"],
+        richFields: ["body"],
+      },
+    },
+  }),
+  settingsRoute({ table: siteSettings, resolveEditor, columns: SETTINGS_COLUMNS }),
+  mediaRoute({
+    table: media,
+    resolveEditor,
+    referenceSources: [
+      { collection: "pages", table: "pages", columns: ["body"], labelColumn: "title" },
+    ],
+  }),
+  inquiriesRoute({ table: inquiries, resolveEditor }),
+  seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise dogfood" } }),
+];
+
+/* ── Non-editor routes ────────────────────────────────────────────────── */
+
+const docsRoute: WorkerRoute<WorkerEnv> = (request, env) => {
+  const url = new URL(request.url);
+  return url.hostname.startsWith("docs.") ? serveDocs(url, request, env) : undefined;
+};
+
+/** Stream uploaded media back from R2 (MEDIA_URL = "/media"). */
+const mediaAssetRoute: WorkerRoute<WorkerEnv> = async (request, env) => {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/media/")) return undefined;
+  const key = decodeURIComponent(url.pathname.slice("/media/".length));
+  if (!key) return undefined;
+  const obj = await env.MEDIA.get(key);
+  if (!obj) return new Response("Not found", { status: 404 });
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("etag", obj.httpEtag);
+  headers.set("cache-control", "public, max-age=31536000, immutable");
+  return new Response(obj.body, { headers });
+};
+
+const ogRoute: WorkerRoute<WorkerEnv> = (request, env) => {
+  const url = new URL(request.url);
+  return url.pathname === "/og.png" ? handleOgImage(url, env) : undefined;
+};
+
+export default composeWorker<WorkerEnv>({
+  // docs host first (never touches the CMS); then the editor API, media, OG;
+  // everything else falls through to Astro SSR.
+  routes: [docsRoute, ...editorRoutes, mediaAssetRoute, ogRoute],
+  fetch: (request, env, ctx) => handle(request, env, ctx),
+  // Cron Trigger (wrangler.jsonc): crawl both hosts and log any broken links.
   async scheduled(_event, _env, ctx) {
     ctx.waitUntil(
       (async () => {
-        const broken = await checkLinks({ base: SITE_ORIGIN, paths: ["/", "/docs/"] });
+        const broken = [
+          ...(await checkLinks({ base: SITE_ORIGIN, paths: ["/"] })),
+          ...(await checkLinks({ base: DOCS_ORIGIN, paths: ["/"] })),
+        ];
         if (broken.length > 0)
           console.warn(`[link-check] ${broken.length} broken link(s):`, broken);
         else console.log("[link-check] all links OK");
       })(),
     );
   },
-} satisfies ExportedHandler<WorkerEnv>;
+});

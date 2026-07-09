@@ -25,7 +25,7 @@ import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
 import { MediaPanel } from "./media-panel.jsx";
-import { type BuiltInPageRef, PagesPanel } from "./pages-panel.jsx";
+import { type BuiltInPageRef, type PageTemplate, PagesPanel } from "./pages-panel.jsx";
 import { createDrawerQueryClient } from "./query.js";
 import { SettingsPanel } from "./settings-panel.jsx";
 
@@ -51,6 +51,8 @@ export interface DrawerConfig {
   tabs?: CollectionTab[];
   /** Code-defined routes listed in the framework Pages panel. */
   builtInPages?: BuiltInPageRef[];
+  /** Starter layouts offered under "New page from template" in the Pages panel. */
+  pageTemplates?: PageTemplate[];
   /** Override which framework Settings groups render. Omit for the defaults;
    *  pass a subset (or `[]`) so a site whose settings don't map to
    *  `siteSettingsColumns` shows no empty base fields — its config lives in
@@ -152,7 +154,7 @@ export function Drawer(props: DrawerConfig) {
               <MediaPanel />
             </Show>
             <Show when={overlay() === "pages"}>
-              <PagesPanel builtInPages={props.builtInPages} />
+              <PagesPanel builtInPages={props.builtInPages} pageTemplates={props.pageTemplates} />
             </Show>
             <Show when={overlay() === "settings"}>
               <SettingsPanel

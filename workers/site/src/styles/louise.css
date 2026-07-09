@@ -88,3 +88,249 @@
   --depth: 0;
   --noise: 0;
 }
+
+/* ── Site chrome (header/nav + footer) — settings-driven, drawer-only ─────── */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-base-300);
+}
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color-base-content);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.site-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+.site-nav {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: var(--color-base-content);
+  text-decoration: none;
+  font-weight: 500;
+  opacity: 0.8;
+}
+.site-nav a:hover {
+  opacity: 1;
+  color: var(--color-primary);
+}
+.site-footer {
+  border-top: 1px solid var(--color-base-300);
+  margin-top: 64px;
+}
+.site-footer-inner {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 28px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+}
+.site-footer-nav {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.site-footer-nav a {
+  color: inherit;
+  text-decoration: none;
+}
+.site-footer-nav a:hover {
+  color: var(--color-primary);
+}
+
+/* ── Louise CMS page rendering ────────────────────────────────────────────
+ * Published `pages` bodies: the drawer's rich-text editor serializes
+ * page-builder blocks to semantic, `pb-`-classed HTML, and these styles render
+ * that markup on the public site. Column widths for `.pb-row` come from a
+ * sanitizer-validated inline `grid-template-columns` (louisecms/security), so
+ * there's no per-layout CSS — any percentage split just works.
+ */
+.louise-page {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 48px 20px 96px;
+}
+.louise-prose {
+  line-height: 1.7;
+  color: var(--color-base-content);
+}
+.louise-prose h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 0.5em;
+}
+.louise-prose h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 1.4em 0 0.4em;
+}
+.louise-prose h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1.2em 0 0.3em;
+}
+.louise-prose p {
+  margin: 0 0 1em;
+}
+.louise-prose a {
+  color: var(--color-primary);
+  text-underline-offset: 2px;
+}
+.louise-prose ul,
+.louise-prose ol {
+  margin: 0 0 1em;
+  padding-left: 1.4em;
+}
+.louise-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.louise-draft-note {
+  margin: 0 0 20px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: color-mix(in oklab, var(--color-warning) 18%, transparent);
+  color: var(--color-base-content);
+}
+
+/* Block containers */
+.pb-hero {
+  padding: 24px 0 8px;
+  margin: 0 0 24px;
+}
+.pb-hero h1,
+.pb-hero h2 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  margin: 0 0 0.3em;
+}
+.pb-bleed {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+}
+.pb-bleed img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.pb-bleed figcaption {
+  text-align: center;
+  font-size: 0.85rem;
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  margin-top: 8px;
+}
+.pb-quote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 20px;
+  margin: 28px 0;
+  font-size: 1.2rem;
+  font-style: italic;
+}
+.pb-cta {
+  text-align: center;
+  padding: 28px;
+  margin: 28px 0;
+  border-radius: 14px;
+  background: var(--color-base-200);
+}
+.pb-button {
+  margin: 20px 0;
+}
+.pb-button a {
+  display: inline-block;
+  padding: 11px 20px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+  text-decoration: none;
+  font-weight: 600;
+}
+.pb-button a:hover {
+  filter: brightness(0.94);
+}
+.pb-hr {
+  border: 0;
+  border-top: 1px solid var(--color-base-300);
+  margin: 40px 0;
+}
+.pb-hr[data-size="lg"] {
+  margin: 80px 0;
+}
+
+/* Adjustable grid: a row is a CSS grid whose track list is its sanitized inline
+   `grid-template-columns` (e.g. "33% 33% 34%"); columns just fill their track. */
+.pb-row {
+  display: grid;
+  gap: 28px;
+  margin: 28px 0;
+  align-items: start;
+}
+.pb-col {
+  min-width: 0;
+}
+.pb-col img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Legacy fixed two-column block (pre-grid content) still renders. */
+.pb-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin: 28px 0;
+}
+
+/* Gallery / image-grid block (data-cols drives the column count). */
+.pb-grid {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0;
+  grid-template-columns: repeat(3, 1fr);
+}
+.pb-grid[data-cols="2"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+.pb-grid[data-cols="4"] {
+  grid-template-columns: repeat(4, 1fr);
+}
+.pb-grid-item {
+  margin: 0;
+}
+.pb-grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+/* Collapse multi-column layouts on narrow screens. `!important` beats the
+   per-row inline grid-template-columns, which otherwise wins on specificity. */
+@media (max-width: 640px) {
+  .pb-row,
+  .pb-cols,
+  .pb-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

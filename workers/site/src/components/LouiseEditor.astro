@@ -1,0 +1,29 @@
+---
+// Mounts the Louise inline client + drawer, but only in edit mode. The inline
+// script (rendered only when editMode) stamps body flags from server state; the
+// bundled module script self-gates on that flag and dynamically imports the
+// heavy Solid/ProseKit client, so public visitors never download it. Drop
+// <LouiseEditor /> just before </body> on any page that should be editable.
+const { editMode, editor } = Astro.locals;
+---
+
+{
+  editMode && (
+    <script is:inline define:vars={{ userName: editor?.name ?? "Editor" }}>
+      document.body.dataset.louiseEdit = "1";
+      document.body.dataset.louiseUser = userName;
+    </script>
+  )
+}
+<script>
+  if (document.body.dataset.louiseEdit === "1") {
+    Promise.all([import("louisecms/client"), import("louisecms/client/drawer")]).then(
+      ([client, drawer]) => {
+        drawer.mountDrawer({ userName: document.body.dataset.louiseUser || "Editor" });
+        client.mountLouise({
+          onOpenDrawer: () => window.dispatchEvent(new Event(drawer.OPEN_DRAWER_EVENT)),
+        });
+      },
+    );
+  }
+</script>

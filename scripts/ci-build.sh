@@ -15,4 +15,14 @@ if ! command -v vp >/dev/null 2>&1; then
 fi
 
 vp run "louisecms#pack"
+
+# Build the standalone static docs app (workers/docs) and fold its output into
+# the marketing Worker's static assets at public/_docs. Astro copies public/
+# verbatim into the build, so the one Worker serves docs.louisecms.com from
+# /_docs (see workers/site/src/worker.ts). Must happen before the site build.
+vp run "docs#build"
+rm -rf workers/site/public/_docs
+mkdir -p workers/site/public
+cp -R workers/docs/dist workers/site/public/_docs
+
 vp run "site#build"

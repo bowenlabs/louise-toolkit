@@ -1,0 +1,103 @@
+---
+import { env } from "cloudflare:workers";
+import {
+  checkPassword,
+  EDIT_COOKIE,
+  type EditorGateEnv,
+  gateEditor,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  signSession,
+} from "../lib/louise/session.js";
+
+export const prerender = false;
+
+const gate = env as unknown as EditorGateEnv;
+const url = Astro.url;
+const secure = url.protocol === "https:";
+const next = url.searchParams.get("next") || "/";
+let error = "";
+
+// Sign out: clear both cookies and return to the public site.
+if (url.searchParams.get("logout") === "1") {
+  Astro.cookies.delete(SESSION_COOKIE, { path: "/" });
+  Astro.cookies.delete(EDIT_COOKIE, { path: "/" });
+  return Astro.redirect("/");
+}
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  if (checkPassword(gate, String(form.get("password") ?? ""))) {
+    const token = await signSession(gate, gateEditor(gate));
+    Astro.cookies.set(SESSION_COOKIE, token, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure,
+      maxAge: SESSION_MAX_AGE,
+    });
+    Astro.cookies.set(EDIT_COOKIE, "1", {
+      path: "/",
+      httpOnly: false,
+      sameSite: "lax",
+      secure,
+      maxAge: SESSION_MAX_AGE,
+    });
+    const dest = next.startsWith("/") ? next : "/";
+    return Astro.redirect(`${dest}${dest.includes("?") ? "&" : "?"}louise`);
+  }
+  error = "Incorrect password.";
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · Louise</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        min-height: 100vh; margin: 0; display: grid; place-items: center;
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a; color: #f8fafc;
+      }
+      .card {
+        width: min(92vw, 340px); padding: 28px; border-radius: 14px;
+        background: #1e293b; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+      }
+      h1 { margin: 0 0 4px; font-size: 22px; }
+      p { margin: 0 0 18px; color: #94a3b8; }
+      form { display: grid; gap: 10px; }
+      input {
+        padding: 11px 12px; border-radius: 9px; border: 1px solid #334155;
+        background: #0f172a; color: inherit; font-size: 15px;
+      }
+      button {
+        padding: 11px 12px; border: 0; border-radius: 9px; cursor: pointer;
+        background: #1481ef; color: #fff; font-weight: 600; font-size: 15px;
+      }
+      button:hover { background: #0f6fd6; }
+      .err { color: #fca5a5; margin: 0 0 12px; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Louise</h1>
+      <p>Sign in to edit this site.</p>
+      {error && <p class="err">{error}</p>}
+      <form method="POST">
+        <input
+          type="password"
+          name="password"
+          placeholder="Editor password"
+          aria-label="Editor password"
+          autofocus
+          required
+        />
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+  </body>
+</html>

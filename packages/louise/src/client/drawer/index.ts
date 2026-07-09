@@ -26,7 +26,12 @@ export {
 
 // Framework panels (top strip) + the default Inquiries panel (a bottom tab).
 export { MediaPanel, type MediaItem } from "./media-panel.jsx";
-export { type BuiltInPageRef, PagesPanel, type PageRow } from "./pages-panel.jsx";
+export {
+  type BuiltInPageRef,
+  type PageRow,
+  type PageTemplate,
+  PagesPanel,
+} from "./pages-panel.jsx";
 export { SETTINGS_BASE_GROUPS, SettingsPanel, type SettingsPanelProps } from "./settings-panel.jsx";
 export { InquiriesPanel, type InquiriesPanelProps, type InquiryRow } from "./inquiries-panel.jsx";
 

@@ -1,0 +1,9 @@
+# Local dev secrets for the Louise CMS dogfood. Copy to `.dev.vars` (gitignored)
+# and fill in. In deployed pre-prod, set these with `wrangler secret put`.
+#
+# HMAC key that signs the editor session cookie — use a long random string.
+LOUISE_SESSION_SECRET=change-me-to-a-long-random-string
+# Shared password the /louise login checks to sign in as the editor.
+LOUISE_EDITOR_PASSWORD=set-a-password
+# Optional: email used as the editor identity.
+OWNER_EMAIL=you@example.com

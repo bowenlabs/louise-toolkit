@@ -1,0 +1,26 @@
+---
+// Mounts the on-page block builder over the sections region in edit mode. The
+// heavy Solid client is dynamically imported (only when editing) and reads the
+// page id + current sections off the [data-louise-sections] wrapper, plus the
+// site's field catalog. Public visitors download nothing.
+---
+
+<script>
+  if (document.body.dataset.louiseEdit === "1") {
+    const el = document.querySelector<HTMLElement>("[data-louise-sections]");
+    if (el?.dataset.louiseSections) {
+      const pageId = Number(el.dataset.louiseSections);
+      let initial: Record<string, unknown>[] = [];
+      try {
+        initial = JSON.parse(el.dataset.louiseSectionsInitial || "[]");
+      } catch {
+        initial = [];
+      }
+      Promise.all([import("louisecms/client"), import("../sections/catalog")]).then(
+        ([client, cat]) => {
+          client.mountSections(el, { catalog: cat.SECTIONS, pageId, initial });
+        },
+      );
+    }
+  }
+</script>

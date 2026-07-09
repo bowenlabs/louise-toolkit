@@ -10,9 +10,10 @@ const CSS = `
   --louise-blue: ${LOUISE_BLUE};
   --louise-green: #16a34a;
   --louise-orange: #ea7317;
-  /* BowenLabs brand type: Hepta Slab for headers, Roboto Flex for body copy.
-     Loaded via a <link> in injectStyles() — only on Louise surfaces. */
-  --louise-font-head: "Hepta Slab", "Iowan Old Style", Georgia, serif;
+  /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
+     the same family, just a heavier weight. Loaded via a <link> in
+     injectStyles() — only on Louise surfaces. */
+  --louise-font-head: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -220,12 +221,13 @@ const CSS = `
   align-items: center;
   gap: 4px;
 }
-/* Headers use the brand slab (Hepta Slab); body copy stays Roboto Flex. */
+/* Titles: same Roboto Flex, just a heavier weight. */
 .louise-drawer-brand,
 .louise-settings-title,
 .louise-item-title,
 .louise-drawer :is(h1, h2, h3, h4) {
   font-family: var(--louise-font-head);
+  font-weight: 700;
 }
 .louise-drawer-close {
   display: inline-flex;
@@ -561,11 +563,210 @@ const CSS = `
   color: #94a3b8;
 }
 .louise-rt .pb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.louise-rt .pb-col { min-width: 0; border: 1px dashed rgba(15, 23, 42, 0.1); border-radius: 6px; padding: 6px; }
+.louise-rt .pb-col {
+  min-width: 0;
+  outline: 1px dashed rgba(219, 99, 39, 0.3);
+  outline-offset: 2px;
+  border-radius: 4px;
+  padding: 6px;
+}
+/* Editing outlines (brand orange #db6327) so block/component boundaries are
+   clear while editing. View mode (public page) is untouched. */
+.louise-rt .pb-hero,
+.louise-rt .pb-bleed,
+.louise-rt .pb-quote,
+.louise-rt .pb-cta,
+.louise-rt .louise-row,
+.louise-rt .louise-block {
+  outline: 1px dashed rgba(219, 99, 39, 0.4);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.louise-rt .pb-hero:hover,
+.louise-rt .pb-bleed:hover,
+.louise-rt .pb-quote:hover,
+.louise-rt .pb-cta:hover,
+.louise-rt .louise-row:hover,
+.louise-rt .louise-block:hover {
+  outline-color: rgba(219, 99, 39, 0.85);
+}
 .louise-rt .pb-hero h1, .louise-rt .pb-hero h2 { font-size: 1.5em; margin: 0 0 6px; }
 .louise-rt .pb-quote { border-top: 1px solid rgba(15, 23, 42, 0.14); border-bottom: 1px solid rgba(15, 23, 42, 0.14); padding: 10px 4px; font-style: italic; }
 .louise-rt .pb-cta { text-align: center; }
 .louise-rt .pb-bleed img { max-width: 100%; }
+/* Adjustable grid (rowBlock) + gallery — editor preview + chrome. */
+.louise-rt .pb-row { display: grid; gap: 14px; align-items: start; }
+.louise-rt .pb-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+.louise-rt .pb-grid[data-cols="2"] { grid-template-columns: repeat(2, 1fr); }
+.louise-rt .pb-grid[data-cols="4"] { grid-template-columns: repeat(4, 1fr); }
+.louise-rt .pb-grid img { width: 100%; height: auto; border-radius: 6px; }
+.louise-row { position: relative; border: 1px solid transparent; border-radius: 8px; }
+.louise-row.is-selected,
+.louise-rt .ProseMirror-selectednode.louise-row { border-color: rgba(20, 129, 239, 0.5); }
+.louise-row-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.04);
+  font-size: 11px;
+}
+.louise-row:not(:hover):not(.is-selected) .louise-row-bar { opacity: 0.55; }
+.louise-row-presets,
+.louise-row-ops { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.louise-row-presets { margin-right: auto; }
+.louise-chip {
+  padding: 2px 7px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11px;
+  font-family: var(--louise-font-body);
+  color: #475569;
+  cursor: pointer;
+}
+.louise-chip:hover { background: rgba(20, 129, 239, 0.08); }
+.louise-chip.is-active { background: var(--louise-blue); border-color: transparent; color: #fff; }
+.louise-col-adj { display: inline-flex; align-items: center; gap: 2px; }
+.louise-col-w {
+  min-width: 12px;
+  text-align: center;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.louise-btn-xs { padding: 1px 6px; font-size: 11px; line-height: 1.4; }
+.louise-row-sep { width: 1px; align-self: stretch; margin: 0 2px; background: rgba(15, 23, 42, 0.12); }
+.louise-row-count { color: #64748b; font-weight: 600; }
+/* "New page from template" chooser (Pages panel). */
+.louise-tpl-row { margin-top: 10px; }
+.louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+/* Structured sections — in-place text editing on the bespoke render, plus a
+   floating control dock for structure (add/reorder/remove, array items, and
+   any field with no visible text on the page, like a link URL). */
+
+/* An inline section field on the live design: it reuses the .louise-editable
+   affordance; when empty it surfaces its placeholder so an empty node is still
+   discoverable and clickable. */
+.louise-sfield:empty::before {
+  content: attr(data-louise-placeholder);
+  color: rgba(15, 23, 42, 0.35);
+  pointer-events: none;
+}
+
+/* Control dock — bottom-left, clearing the center save bar and right drawer. */
+.louise-sections-dock {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2147483000;
+  width: 300px;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  font-family: var(--louise-font-body);
+  color: #0f172a;
+}
+.louise-sections-dock[data-collapsed="1"] { width: auto; }
+.louise-sections-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.louise-sections-toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #475569;
+  padding: 0 2px;
+}
+.louise-sections-title { font-weight: 700; font-size: 14px; }
+.louise-sections-status { margin-left: auto; font-size: 12px; color: #64748b; }
+.louise-sections-status[data-status="error"] { color: #dc2626; }
+.louise-sections-status[data-status="saved"] { color: #16a34a; }
+.louise-sections-body { overflow-y: auto; }
+.louise-section-row {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 8px;
+}
+.louise-section-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.louise-section-type { font-weight: 600; font-size: 13px; }
+.louise-section-ops { display: flex; gap: 4px; }
+.louise-arr { display: grid; gap: 6px; }
+.louise-arr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #475569;
+  padding: 4px 6px;
+  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border-radius: 8px;
+}
+.louise-sections-add { position: relative; margin: 4px 0 10px; }
+.louise-sections-hint { font-size: 11px; }
+.louise-sections-palette {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+}
+/* Button block — editor chrome (label/link popup). */
+.louise-button-block { position: relative; display: inline-block; margin: 8px 0; }
+.louise-button-block .pb-button-link {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: var(--louise-blue);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+.louise-button-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2147483003;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 240px;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+}
+/* Open on selection (is-selected) or while a field inside has focus, so
+   clicking into the label/link input keeps the popup open. */
+.louise-button-block.is-selected .louise-button-pop,
+.louise-button-block:focus-within .louise-button-pop {
+  display: flex;
+}
 /* Slash-menu inserter (#16 phase 2). */
 .louise-slash-menu {
   display: block;
@@ -592,9 +793,11 @@ const CSS = `
 .louise-block-add { position: relative; padding: 6px 8px 8px; border-top: 1px solid rgba(15, 23, 42, 0.08); }
 .louise-block-add-menu {
   position: absolute;
-  bottom: calc(100% + 4px);
+  top: calc(100% + 4px);
   left: 8px;
   min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
   padding: 4px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
@@ -609,7 +812,14 @@ const CSS = `
    positions over the current selection, rather than a strip pinned to the top
    of the field. Layout styling lives here on the inner div; the popup custom
    element controls its own show/hide. */
-prosekit-inline-popover-positioner { z-index: 40; }
+/* Focus-shown formatting toolbar: a floating pill docked just above the caret
+   (top/left set inline from coordsAtPos) so it's there while typing, where you
+   are typing — not pinned to the top of the page. */
+.louise-toolbar-dock {
+  position: fixed;
+  transform: translateY(calc(-100% - 8px));
+  z-index: 2147483004;
+}
 .louise-toolbar {
   display: flex;
   align-items: center;
@@ -886,9 +1096,9 @@ prosekit-inline-popover-positioner { z-index: 40; }
 }
 `;
 
-/** Google Fonts request for the brand type — Hepta Slab + Roboto Flex. */
+/** Google Fonts request for the brand type — Roboto Flex (variable). */
 const FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@400;500;700;900&family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap";
+  "https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap";
 
 export function injectStyles(): void {
   if (document.getElementById("louise-styles")) return;

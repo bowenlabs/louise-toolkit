@@ -1,0 +1,47 @@
+---
+import { env } from "cloudflare:workers";
+import { db } from "louisecms/db";
+import { siteSettings } from "../schema.js";
+
+// The shared, site-wide chrome — header/nav + footer — rendered around every
+// page's editable canvas. It's sourced entirely from `site_settings` (siteName,
+// logo, navLinks, socialLinks), so it is edited ONLY through the drawer
+// (Settings), never inline. This is the "everything is editable except
+// header/footer/nav" boundary: content lives on the canvas, chrome lives here.
+type Link = { label: string; href: string };
+
+const DB = (env as unknown as CloudflareEnv).DB;
+const [settings] = await db(DB).select().from(siteSettings).limit(1);
+
+const siteName = (settings?.siteName as string | null) ?? "Louise";
+const logoUrl = (settings?.logoUrl as string | null) ?? null;
+const navLinks = (Array.isArray(settings?.navLinks) ? settings?.navLinks : []) as Link[];
+const social = (Array.isArray(settings?.socialLinks) ? settings?.socialLinks : []) as Link[];
+const year = new Date().getFullYear();
+---
+
+<header class="site-header">
+  <a class="site-brand" href="/">
+    {
+      logoUrl ? (
+        <img class="site-logo" src={logoUrl} alt={siteName} />
+      ) : (
+        <span class="site-brand-name">{siteName}</span>
+      )
+    }
+  </a>
+  <nav class="site-nav" aria-label="Primary">
+    {navLinks.map((l) => <a href={l.href}>{l.label}</a>)}
+  </nav>
+</header>
+
+<slot />
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span class="site-footer-copy">© {year} {siteName}</span>
+    <nav class="site-footer-nav" aria-label="Footer">
+      {social.map((l) => <a href={l.href}>{l.label}</a>)}
+    </nav>
+  </div>
+</footer>

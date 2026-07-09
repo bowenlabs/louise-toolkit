@@ -14,7 +14,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
 import { Icon } from "../icons.jsx";
-import { RichText, type RichTextField } from "../RichText.jsx";
 import { MediaUrlPicker } from "./fields.jsx";
 import { apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
 
@@ -23,6 +22,19 @@ export interface BuiltInPageRef {
   key: string;
   title: string;
   path: string;
+}
+
+/** A starter layout offered under "New page from template" — canned block HTML
+ *  (sanitized on save like any page body); no schema change. */
+export interface PageTemplate {
+  /** Stable id. */
+  id: string;
+  /** Button label. */
+  label: string;
+  /** Prefilled page title (defaults to `label`). */
+  title?: string;
+  /** Prefilled page-builder body (HTML). */
+  body: string;
 }
 
 /** A row of the site's `pages` table (the fields the panel edits). */
@@ -39,7 +51,10 @@ export interface PageRow {
   sortOrder: number | null;
 }
 
-export function PagesPanel(props: { builtInPages?: BuiltInPageRef[] }) {
+export function PagesPanel(props: {
+  builtInPages?: BuiltInPageRef[];
+  pageTemplates?: PageTemplate[];
+}) {
   const qc = useQueryClient();
   const [editing, setEditing] = createSignal<PageRow | null>(null);
 
@@ -50,17 +65,20 @@ export function PagesPanel(props: { builtInPages?: BuiltInPageRef[] }) {
   const list = () => query.data ?? [];
 
   const createMutation = useMutation(() => ({
-    mutationFn: () =>
-      apiSend<{ page: PageRow }>("POST", "/api/louise/pages", {
-        title: "New page",
-        slug: `new-page-${Date.now() % 100000}`,
-      }),
+    mutationFn: (input: { title: string; slug: string; body?: string }) =>
+      apiSend<{ page: PageRow }>("POST", "/api/louise/pages", input),
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.pages });
-      setEditing(data.page);
+      // Jump straight to the new page's canvas — content is built in place, not
+      // in the drawer.
+      window.location.href = `/${data.page.slug}?louise`;
     },
     onError: (err) => console.error("[louise]", err),
   }));
+  const newSlug = () => `new-page-${Date.now() % 100000}`;
+  const createBlank = () => createMutation.mutate({ title: "New page", slug: newSlug() });
+  const createFromTemplate = (t: PageTemplate) =>
+    createMutation.mutate({ title: t.title ?? t.label, slug: newSlug(), body: t.body });
 
   return (
     <Switch
@@ -69,10 +87,24 @@ export function PagesPanel(props: { builtInPages?: BuiltInPageRef[] }) {
           <button
             class="louise-btn louise-btn-primary louise-btn-block"
             type="button"
-            onClick={() => createMutation.mutate()}
+            onClick={createBlank}
           >
             + New page
           </button>
+          <Show when={(props.pageTemplates ?? []).length > 0}>
+            <div class="louise-tpl-row">
+              <span class="louise-muted louise-settings-hint">Or start from a template:</span>
+              <div class="louise-tpl-buttons">
+                <For each={props.pageTemplates}>
+                  {(t) => (
+                    <button class="louise-btn" type="button" onClick={() => createFromTemplate(t)}>
+                      {t.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
           <div style={{ height: "14px" }} />
           <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
             <Show when={list().length > 0} fallback={<p class="louise-muted">No pages yet.</p>}>
@@ -86,8 +118,18 @@ export function PagesPanel(props: { builtInPages?: BuiltInPageRef[] }) {
                           /{p.slug} · {p.status === "published" ? "Published" : "Draft"}
                         </div>
                       </div>
-                      <button class="louise-btn" type="button" onClick={() => setEditing(p)}>
-                        Open
+                      {/* Edit content on the page canvas; the gear opens page settings. */}
+                      <a class="louise-btn" href={`/${p.slug}?louise`}>
+                        Edit
+                      </a>
+                      <button
+                        class="louise-btn"
+                        type="button"
+                        aria-label="Page settings"
+                        title="Page settings"
+                        onClick={() => setEditing(p)}
+                      >
+                        <Icon name="gear" />
                       </button>
                     </div>
                   )}
@@ -148,10 +190,9 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
 
-  // Fetch the fresh row rather than trusting the (possibly stale) cached list
-  // item — the body especially may have been saved since the list loaded. The
-  // editor mounts only once the fresh row is in (initialDoc isn't reactive).
-  const detail = useQuery(() => ({
+  // Populate the settings fields from a fresh row (the cached list item may be
+  // stale). The body is intentionally not read here — content lives on the canvas.
+  useQuery(() => ({
     queryKey: louiseQueryKey("pages", p.id),
     queryFn: async () => {
       const data = await apiSend<{ page: PageRow }>("GET", `/api/louise/pages/${p.id}`);
@@ -171,12 +212,12 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
     gcTime: 0,
   }));
 
-  let rt: RichTextField | undefined;
-
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
+      // Settings only — the body is edited (and saved) on the page canvas, so it
+      // is intentionally omitted here to never clobber in-place content edits.
       await apiSend(`PATCH`, `/api/louise/pages/${p.id}`, {
         title: title(),
         slug: slug(),
@@ -185,7 +226,6 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
         seoDescription: seoDescription(),
         ogImage: ogImage(),
         noindex: noindex(),
-        body: rt?.getHTML() ?? detail.data?.body ?? p.body ?? "",
       });
       props.onDone();
     } catch (err) {
@@ -212,6 +252,16 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
       </button>
       <div style={{ height: "14px" }} />
 
+      <div class="louise-field">
+        <span class="louise-field-label">Content</span>
+        <a class="louise-btn louise-btn-primary louise-btn-block" href={`/${slug()}?louise`}>
+          Edit content on the page →
+        </a>
+        <p class="louise-muted louise-settings-hint">
+          Build this page’s layout and text directly on the page. These are its settings.
+        </p>
+      </div>
+
       <div class="louise-grid-2">
         <div class="louise-field">
           <label for="pg-title">Title</label>
@@ -232,13 +282,6 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
             placeholder="about-the-studio"
           />
         </div>
-      </div>
-
-      <div class="louise-field">
-        <span class="louise-field-label">Body</span>
-        <Show when={!detail.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
-          <RichText initialDoc={detail.data?.body ?? undefined} blocks ref={(f) => (rt = f)} />
-        </Show>
       </div>
 
       <div class="louise-grid-2">
@@ -314,7 +357,7 @@ function PageForm(props: { page: PageRow; onDone: () => void }) {
           disabled={saving()}
           onClick={() => void save()}
         >
-          {saving() ? "Saving…" : "Save page"}
+          {saving() ? "Saving…" : "Save settings"}
         </button>
         <Show when={status() === "published" && slug()}>
           <a class="louise-btn" href={`/${slug()}`} target="_blank" rel="noreferrer">

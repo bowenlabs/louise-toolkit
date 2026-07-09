@@ -1,14 +1,14 @@
 /*
- * BowenLabs brand type for Louise surfaces (variable Google Fonts):
- *   - Headers: Hepta Slab — Black (900) for headings, Medium (500) subheadings.
- *   - Body:    Roboto Flex — 400–500 for screen legibility.
+ * BowenLabs brand type for Louise surfaces: Roboto Flex throughout (variable
+ * Google Font). There's no separate display face — headings are the same family,
+ * just a heavier weight.
  *
- * The client chrome loads + applies these at runtime (see client/styles.ts,
- * injectStyles) so they're only ever fetched on Louise surfaces, never on
- * public page loads. This file is the equivalent contract for markup that opts
- * in via the `.louise-type` class.
+ * The client chrome loads + applies this at runtime (see client/styles.ts,
+ * injectStyles) so it's only ever fetched on Louise surfaces, never on public
+ * page loads. This file is the equivalent contract for markup that opts in via
+ * the `.louise-type` class.
  */
-@import url("https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@400;500;700;900&family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap");
 
 .louise-type {
   font-family:
@@ -18,12 +18,10 @@
     -apple-system,
     sans-serif;
 }
-.louise-type :is(h1, h2, h3, h4, h5, h6, .louise-heading, .louise-subheading) {
-  font-family: "Hepta Slab", "Iowan Old Style", Georgia, serif;
-}
+/* Titles a little thicker than body; subheadings medium. */
 .louise-type :is(h1, h2, h3, .louise-heading) {
-  font-weight: 900;
+  font-weight: 800;
 }
 .louise-type :is(h4, h5, h6, .louise-subheading) {
-  font-weight: 500;
+  font-weight: 600;
 }

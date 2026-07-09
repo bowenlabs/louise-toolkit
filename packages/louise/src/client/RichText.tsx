@@ -12,6 +12,7 @@ import {
   type Editor,
   type NodeJSON,
 } from "prosekit/core";
+import { NodeSelection } from "@prosekit/pm/state";
 import { defineBlockquote } from "prosekit/extensions/blockquote";
 import { defineImageUploadHandler, uploadImage } from "prosekit/extensions/image";
 import { defineTextColor } from "prosekit/extensions/text-color";
@@ -28,11 +29,6 @@ import {
   BlockHandlePositioner,
   BlockHandleRoot,
 } from "prosekit/solid/block-handle";
-import {
-  InlinePopoverPopup,
-  InlinePopoverPositioner,
-  InlinePopoverRoot,
-} from "prosekit/solid/inline-popover";
 import { ResizableHandle, ResizableRoot } from "prosekit/solid/resizable";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { render } from "solid-js/web";
@@ -181,133 +177,147 @@ function Toolbar() {
     </button>
   );
 
+  // Rendered by RichText inside a focus-shown dock (not a selection popover), so
+  // the formatting menu is available while typing, not only when text is
+  // highlighted. Buttons use onMouseDown-preventDefault so clicking one doesn't
+  // blur the editor (which would hide the dock).
   return (
-    <InlinePopoverRoot>
-      {/* hoist → render in the top layer (native Popover API) so the toolbar
-          floats above the field/drawer instead of being positioned (and
-          clipped) inside the relatively-positioned .louise-rt frame.
-          strategy="fixed" is the correct floating-ui pairing for top-layer. */}
-      <InlinePopoverPositioner placement="top" hoist strategy="fixed">
-        <InlinePopoverPopup>
-          {/* Flex/pill styling lives on this inner div, never on the popup
-              element itself — a `display:flex` there would override the
-              overlay's own `[hidden]` and keep it visible when closed. */}
-          <div class="louise-toolbar" role="toolbar" aria-label="Formatting">
-            <Btn
-              icon="bold"
-              title="Bold"
-              on={active().bold}
-              run={() => editor().commands.toggleBold()}
-            />
-            <Btn
-              icon="italic"
-              title="Italic"
-              on={active().italic}
-              run={() => editor().commands.toggleItalic()}
-            />
-            <Btn
-              icon="underline"
-              title="Underline"
-              on={active().underline}
-              run={() => editor().commands.toggleUnderline()}
-            />
-            <Btn
-              icon="strike"
-              title="Strikethrough"
-              on={active().strike}
-              run={() => editor().commands.toggleStrike()}
-            />
-            <span class="louise-tb-sep" />
-            <Btn
-              icon="heading"
-              title="Heading"
-              on={active().h2}
-              run={() => editor().commands.toggleHeading({ level: 2 })}
-            />
-            <Btn
-              icon="paragraph"
-              title="Subheading"
-              on={active().h3}
-              run={() => editor().commands.toggleHeading({ level: 3 })}
-            />
-            <Btn
-              icon="listBullets"
-              title="Bullet list"
-              on={active().bullet}
-              run={() => editor().commands.toggleList({ kind: "bullet" })}
-            />
-            <Btn
-              icon="listNumbers"
-              title="Numbered list"
-              on={active().ordered}
-              run={() => editor().commands.toggleList({ kind: "ordered" })}
-            />
-            <Btn
-              icon="quote"
-              title="Quote"
-              on={active().quote}
-              run={() => editor().commands.toggleBlockquote()}
-            />
-            <span class="louise-tb-sep" />
-            <Btn icon="image" title="Insert image" run={pickImage} />
-            <input
-              ref={imageInput}
-              type="file"
-              accept="image/*"
-              class="louise-hidden-file"
-              aria-hidden="true"
-              tabindex={-1}
-              onChange={onImagePicked}
-            />
-            <span class="louise-tb-sep" />
-            <div class="louise-tb-color">
-              <button
-                type="button"
-                class="louise-tb-btn"
-                classList={{ "is-active": colorOpen() }}
-                title="Text color"
-                aria-label="Text color"
-                aria-expanded={colorOpen()}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setColorOpen((v) => !v)}
-              >
-                <Icon name="palette" />
-              </button>
-              <Show when={colorOpen()}>
-                <div class="louise-tb-swatches">
-                  <For each={TEXT_COLORS}>
-                    {(c) => (
-                      <button
-                        type="button"
-                        class="louise-swatch"
-                        title={c.label}
-                        aria-label={`Text color ${c.label}`}
-                        style={{ background: c.value }}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applyColor(c.value)}
-                      />
-                    )}
-                  </For>
-                  <button
-                    type="button"
-                    class="louise-swatch louise-swatch-clear"
-                    title="Default color"
-                    aria-label="Clear text color"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      editor().commands.removeTextColor();
-                      setColorOpen(false);
-                    }}
-                  >
-                    <Icon name="x" />
-                  </button>
-                </div>
-              </Show>
-            </div>
+    <div class="louise-toolbar" role="toolbar" aria-label="Formatting">
+      <Btn icon="bold" title="Bold" on={active().bold} run={() => editor().commands.toggleBold()} />
+      <Btn
+        icon="italic"
+        title="Italic"
+        on={active().italic}
+        run={() => editor().commands.toggleItalic()}
+      />
+      <Btn
+        icon="underline"
+        title="Underline"
+        on={active().underline}
+        run={() => editor().commands.toggleUnderline()}
+      />
+      <Btn
+        icon="strike"
+        title="Strikethrough"
+        on={active().strike}
+        run={() => editor().commands.toggleStrike()}
+      />
+      <span class="louise-tb-sep" />
+      <Btn
+        icon="heading"
+        title="Heading"
+        on={active().h2}
+        run={() => editor().commands.toggleHeading({ level: 2 })}
+      />
+      <Btn
+        icon="paragraph"
+        title="Subheading"
+        on={active().h3}
+        run={() => editor().commands.toggleHeading({ level: 3 })}
+      />
+      <Btn
+        icon="listBullets"
+        title="Bullet list"
+        on={active().bullet}
+        run={() => editor().commands.toggleList({ kind: "bullet" })}
+      />
+      <Btn
+        icon="listNumbers"
+        title="Numbered list"
+        on={active().ordered}
+        run={() => editor().commands.toggleList({ kind: "ordered" })}
+      />
+      <Btn
+        icon="quote"
+        title="Quote"
+        on={active().quote}
+        run={() => editor().commands.toggleBlockquote()}
+      />
+      <span class="louise-tb-sep" />
+      <Btn icon="image" title="Insert image" run={pickImage} />
+      <input
+        ref={imageInput}
+        type="file"
+        accept="image/*"
+        class="louise-hidden-file"
+        aria-hidden="true"
+        tabindex={-1}
+        onChange={onImagePicked}
+      />
+      <span class="louise-tb-sep" />
+      <div class="louise-tb-color">
+        <button
+          type="button"
+          class="louise-tb-btn"
+          classList={{ "is-active": colorOpen() }}
+          title="Text color"
+          aria-label="Text color"
+          aria-expanded={colorOpen()}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setColorOpen((v) => !v)}
+        >
+          <Icon name="palette" />
+        </button>
+        <Show when={colorOpen()}>
+          <div class="louise-tb-swatches">
+            <For each={TEXT_COLORS}>
+              {(c) => (
+                <button
+                  type="button"
+                  class="louise-swatch"
+                  title={c.label}
+                  aria-label={`Text color ${c.label}`}
+                  style={{ background: c.value }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyColor(c.value)}
+                />
+              )}
+            </For>
+            <button
+              type="button"
+              class="louise-swatch louise-swatch-clear"
+              title="Default color"
+              aria-label="Clear text color"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor().commands.removeTextColor();
+                setColorOpen(false);
+              }}
+            >
+              <Icon name="x" />
+            </button>
           </div>
-        </InlinePopoverPopup>
-      </InlinePopoverPositioner>
-    </InlinePopoverRoot>
+        </Show>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Docks the formatting toolbar next to the caret while the editor is focused, so
+ * it's available where you're typing (not only over a highlight, and not pinned
+ * to the top of the page). Hidden over a node selection (e.g. a selected button
+ * or divider) — there's no text to format and the block has its own controls.
+ */
+function ToolbarDock(props: { focused: () => boolean }) {
+  const caret = useEditorDerivedValue((e: Editor<LouiseEditorExtension>) => {
+    const sel = e.view.state.selection;
+    if (sel instanceof NodeSelection) return null;
+    try {
+      const c = e.view.coordsAtPos(sel.head);
+      return { top: c.top, left: c.left };
+    } catch {
+      return null;
+    }
+  });
+  return (
+    <Show when={props.focused() && caret()}>
+      {(pos) => (
+        <div class="louise-toolbar-dock" style={{ top: `${pos().top}px`, left: `${pos().left}px` }}>
+          <Toolbar />
+        </div>
+      )}
+    </Show>
   );
 }
 
@@ -323,8 +333,18 @@ export function RichText(props: RichTextProps) {
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned by Solid's `ref` binding below
   let host!: HTMLDivElement;
+  // oxlint-disable-next-line no-unassigned-vars -- assigned by Solid's `ref` binding below
+  let frame!: HTMLDivElement;
+  // The formatting toolbar shows while the editor is focused (typing OR
+  // selecting), not only over a highlight. Tracked via focusin/focusout on the
+  // frame so clicks on the toolbar (a descendant) keep it open.
+  const [focused, setFocused] = createSignal(false);
   onMount(() => {
     editor.mount(host);
+    frame.addEventListener("focusin", () => setFocused(true));
+    frame.addEventListener("focusout", (e) => {
+      if (!frame.contains(e.relatedTarget as Node | null)) setFocused(false);
+    });
     props.ref?.({
       getJSON: () => editor.getDocJSON(),
       getHTML: () => htmlFromNode(editor.view.state.doc),
@@ -337,9 +357,9 @@ export function RichText(props: RichTextProps) {
 
   return (
     <ProseKit editor={editor}>
-      <div class="louise-rt">
+      <div class="louise-rt" ref={frame}>
         <Show when={props.toolbar !== false}>
-          <Toolbar />
+          <ToolbarDock focused={focused} />
         </Show>
         <div class={props.class ?? "louise-prose-surface"} ref={host} />
         {/* Floating drag handle that appears in the gutter of the hovered
@@ -371,6 +391,7 @@ export function mountRichText(
   el: HTMLElement,
   onChange: () => void,
   initialDoc?: NodeJSON,
+  opts?: { blocks?: boolean },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
   let field: RichTextField | null = null;
@@ -379,6 +400,7 @@ export function mountRichText(
     () => (
       <RichText
         initialDoc={defaultContent}
+        blocks={opts?.blocks}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;

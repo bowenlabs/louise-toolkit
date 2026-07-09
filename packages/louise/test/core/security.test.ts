@@ -40,6 +40,55 @@ describe("sanitizeRichHtml", () => {
     expect(out).toContain('class="pb-grid"');
     expect(out).not.toContain("btn-solid");
   });
+
+  it("round-trips an adjustable grid row + columns", () => {
+    const out = sanitizeRichHtml(
+      '<div data-block="row" class="pb-row" style="grid-template-columns: 6fr 4fr">' +
+        '<div data-block="col" class="pb-col"><p>a</p></div>' +
+        '<div data-block="col" class="pb-col"><p>b</p></div>' +
+        "</div>",
+    );
+    expect(out).toContain('data-block="row"');
+    expect(out).toContain('class="pb-row"');
+    expect(out).toContain("grid-template-columns: 6fr 4fr");
+    expect(out).toContain('data-block="col"');
+    expect(out).toContain("<p>a</p>");
+  });
+
+  it("allows a validated grid-template-columns but strips any other style", () => {
+    // percentages ok
+    expect(sanitizeRichHtml('<div style="grid-template-columns: 33% 33% 34%"></div>')).toContain(
+      "grid-template-columns: 33% 33% 34%",
+    );
+    // arbitrary declarations dropped
+    expect(sanitizeRichHtml('<div style="background: red"></div>')).not.toContain("background");
+    // no url()/functions
+    expect(
+      sanitizeRichHtml('<div style="grid-template-columns: url(javascript:alert(1))"></div>'),
+    ).not.toMatch(/url|javascript/i);
+    // no ;-chaining a second declaration onto a valid one
+    expect(
+      sanitizeRichHtml('<div style="grid-template-columns: 1fr 1fr; background: red"></div>'),
+    ).not.toContain("background");
+  });
+
+  it("round-trips a button block (div wrapper keeps class, anchor keeps href)", () => {
+    const out = sanitizeRichHtml(
+      '<div data-block="button" class="pb-button"><a href="https://x.com">Go</a></div>',
+    );
+    expect(out).toContain('data-block="button"');
+    expect(out).toContain('class="pb-button"');
+    expect(out).toContain('href="https://x.com"');
+    expect(out).toContain(">Go</a>");
+  });
+
+  it("keeps the gallery block's data-cols", () => {
+    const out = sanitizeRichHtml(
+      '<section data-block="grid" class="pb-grid" data-cols="4">x</section>',
+    );
+    expect(out).toContain('data-cols="4"');
+    expect(out).toContain('class="pb-grid"');
+  });
 });
 
 describe("rateLimit", () => {

@@ -5,58 +5,30 @@
 // comes from the package (`louisecms/theme/fonts.css`, applied via `.louise-type`)
 // and the hero mark is the real `louise-mark.svg`. Icons are Phosphor, inlined
 // raw so they inherit `currentColor` — no icon font, no runtime fetch.
+import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
+import { db } from "louisecms/db";
 import "louisecms/theme/fonts.css";
 import "../styles/louise.css";
-import louiseMark from "../assets/louise-mark.svg?raw";
-import bookOpen from "@phosphor-icons/core/assets/regular/book-open-text.svg?raw";
-import githubLogo from "@phosphor-icons/core/assets/regular/github-logo.svg?raw";
-import pencil from "@phosphor-icons/core/assets/regular/pencil-simple.svg?raw";
-import textAa from "@phosphor-icons/core/assets/regular/text-aa.svg?raw";
-import lightning from "@phosphor-icons/core/assets/regular/lightning.svg?raw";
-import plugs from "@phosphor-icons/core/assets/regular/plugs-connected.svg?raw";
-import pkg from "@phosphor-icons/core/assets/regular/package.svg?raw";
-import cart from "@phosphor-icons/core/assets/regular/shopping-cart-simple.svg?raw";
-import shield from "@phosphor-icons/core/assets/regular/shield-check.svg?raw";
-export const prerender = true;
+import LouiseEditor from "../components/LouiseEditor.astro";
+import Sections from "../components/Sections.astro";
+import SectionsMount from "../components/SectionsMount.astro";
+import { pages } from "../schema.js";
+
+// SSR: the marketing app is `output: server` for Louise, and a prerendered
+// `/index.html` asset would shadow the docs root on docs.louisecms.com (both map
+// to `/`). The homepage is now built entirely from structured "sections" (hero +
+// feature grid), edited on the page and rendered by bespoke components
+// (../sections/*.astro) — so the whole landing is editor-controlled while the
+// design stays bespoke. Header/footer/nav remain site chrome (settings).
+export const prerender = false;
+
+const DB = (env as unknown as CloudflareEnv).DB;
+const [home] = await db(DB).select().from(pages).where(eq(pages.slug, "home")).limit(1);
+const editMode = Astro.locals.editMode;
+const sections = (home?.sections ?? []) as Record<string, unknown>[];
 
 const year = new Date().getFullYear();
-const features = [
-  {
-    icon: pencil,
-    title: "Edit in place",
-    body: "Editable regions carry a data-louise-field marker; in edit mode the client makes each one editable right where it lives.",
-  },
-  {
-    icon: textAa,
-    title: "Real rich text",
-    body: "A ProseKit editor for prose — not a JSON form. Storage is sanitized HTML, rendered straight back onto the page.",
-  },
-  {
-    icon: lightning,
-    title: "V8-native",
-    body: "No Node runtime, no React. Everything runs in workerd and deploys to Cloudflare Workers at the edge.",
-  },
-  {
-    icon: plugs,
-    title: "Bring your own bindings",
-    body: "D1, R2, Queues, Email are passed in — Louise never imports cloudflare:workers itself, and has no opinion about your schema or framework.",
-  },
-  {
-    icon: pkg,
-    title: "Tree-shakeable",
-    body: "One ESM package with granular subpath exports — import only the primitive a route needs.",
-  },
-  {
-    icon: cart,
-    title: "Commerce included",
-    body: "Stripe, Square, and Fourthwall clients — raw fetch + crypto.subtle over a shared signature/money base. No SDKs.",
-  },
-  {
-    icon: shield,
-    title: "Auth & security",
-    body: "Opt-in magic-link + passkey studio sign-in (Better Auth), a rich-text sanitizer, and a KV rate limiter — one fix protects every site.",
-  },
-];
 ---
 
 <!doctype html>
@@ -73,66 +45,21 @@ const features = [
   </head>
   <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
     <main class="mx-auto max-w-4xl px-5">
-      <section class="pt-24 pb-12 text-center">
-        <div
-          class="mx-auto mb-6 h-[68px] w-[68px] drop-shadow-lg [&>svg]:h-full [&>svg]:w-full"
-          aria-hidden="true"
-          set:html={louiseMark}
-        />
-        <h1 class="mb-3 text-5xl leading-none font-black tracking-tight md:text-6xl">
-          Louise CMS
-        </h1>
-        <p class="mx-auto mb-2 max-w-xl text-xl">
-          A V8-native, inline <em class="text-primary not-italic"
-            >edit-on-the-live-page</em
-          > CMS for Cloudflare Workers.
-        </p>
-        <p class="mx-auto mb-8 max-w-lg text-base-content/60">
-          No separate admin app. No JSON forms for prose. Log in, and the live
-          site becomes editable in place.
-        </p>
-        <div class="mb-8 flex flex-wrap justify-center gap-3">
-          <a
-            class="btn btn-primary [&>svg]:h-5 [&>svg]:w-5"
-            href="/docs"
-          >
-            <Fragment set:html={bookOpen} />Read the docs
-          </a>
-          <a
-            class="btn btn-outline [&>svg]:h-5 [&>svg]:w-5"
-            href="https://github.com/bowenlabs/louisecms"
-          >
-            <Fragment set:html={githubLogo} />GitHub
-          </a>
-        </div>
-        <pre
-          class="inline-block rounded-field border border-base-300 bg-primary/10 px-4 py-3 font-mono text-sm"><code>npm install louisecms</code></pre>
-      </section>
-
-      <section
-        class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4 pb-16"
-        aria-label="Features"
+      {/* Editable hero — a structured section rendered by a bespoke component
+          (../sections/Hero.astro). In edit mode the block builder mounts on this
+          wrapper; in view mode it's the pixel-perfect bespoke render. */}
+      <div
+        data-louise-sections={editMode && home ? String(home.id) : undefined}
+        data-louise-sections-initial={editMode && home ? JSON.stringify(sections) : undefined}
       >
-        {
-          features.map((f) => (
-            <article class="card rounded-box border border-base-300 bg-base-100 p-6">
-              <div
-                class="mb-3 text-primary [&>svg]:h-7 [&>svg]:w-7"
-                aria-hidden="true"
-                set:html={f.icon}
-              />
-              <h2 class="mb-2 text-lg font-black">{f.title}</h2>
-              <p class="text-sm text-base-content/60">{f.body}</p>
-            </article>
-          ))
-        }
-      </section>
+        <Sections sections={sections} />
+      </div>
 
       <footer
         class="border-t border-base-300 py-10 text-center text-sm text-base-content/60"
       >
         <p>
-          <a class="link link-hover text-primary" href="/docs">Documentation</a>
+          <a class="link link-hover text-primary" href="https://docs.louisecms.com">Documentation</a>
           · <a
             class="link link-hover text-primary"
             href="https://github.com/bowenlabs/louisecms">Source</a
@@ -140,5 +67,7 @@ const features = [
         </p>
       </footer>
     </main>
+    <SectionsMount />
+    <LouiseEditor />
   </body>
 </html>

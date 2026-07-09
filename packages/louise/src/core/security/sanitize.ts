@@ -79,7 +79,9 @@ export const ATTR_ALLOW: Record<string, Set<string>> = {
   figure: new Set(["class", "data-block"]),
   figcaption: new Set(["class"]),
   hr: new Set(["class", "data-block", "data-size"]),
-  div: new Set(["class"]),
+  // Grid rows/columns: identity + the row's adjustable track list (a validated
+  // `grid-template-columns` — see the style scrub below).
+  div: new Set(["class", "data-block", "style"]),
   blockquote: new Set(["class", "data-block"]),
 };
 const NO_ATTRS: Set<string> = new Set();
@@ -92,9 +94,20 @@ const PB_TOKEN = /^pb(?:-[a-z0-9-]+)?$/;
 /** http(s), mailto, hash, or root-/dot-relative — never javascript:/data:/etc. */
 const SAFE_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
 
-/** A single plain `color:` declaration (hex / rgb(a) / hsl / named). */
-const SAFE_STYLE =
+/** Allowed inline `style` declarations — each a single, value-validated
+ *  property. Two are permitted:
+ *   • `color:` — the ProseKit text-color mark (hex / rgb(a) / hsl / named).
+ *   • `grid-template-columns:` — an adjustable grid row's track list: a
+ *     space-separated run of up to 12 numeric tracks (`%`, `fr`, `px`, or
+ *     `auto`). No functions, urls, `calc`, or `;`-chaining, so there is no
+ *     injection surface — it's a numeric layout value, same spirit as color. */
+const SAFE_COLOR_STYLE =
   /^\s*color:\s*(?:#[0-9a-f]{3,8}|rgba?\([\d,.\s%]+\)|hsl\([\d,.\s%]+\)|[a-z]+)\s*;?\s*$/i;
+const SAFE_GRID_STYLE =
+  /^\s*grid-template-columns:\s*(?:\d+(?:\.\d+)?(?:%|fr|px)|auto)(?:\s+(?:\d+(?:\.\d+)?(?:%|fr|px)|auto)){0,11}\s*;?\s*$/i;
+function isSafeStyle(value: string): boolean {
+  return SAFE_COLOR_STYLE.test(value) || SAFE_GRID_STYLE.test(value);
+}
 
 /** Stray dangerous tokens a malformed-input round-trip can serialize. */
 const DANGEROUS_TOKENS =
@@ -116,7 +129,7 @@ function strictAttributes() {
         if ((name === "href" || name === "src") && !SAFE_URL.test(value.trim())) {
           delete el.attributes[name];
         }
-        if (name === "style" && !SAFE_STYLE.test(value)) {
+        if (name === "style" && !isSafeStyle(value)) {
           delete el.attributes[name];
         }
         if (name === "class") {

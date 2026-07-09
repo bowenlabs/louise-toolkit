@@ -1,0 +1,52 @@
+---
+// Bespoke feature-grid section — site-owned design (Tailwind + daisyUI cards),
+// rendered from a structured `items` array. Editors add/remove cards from the
+// dock; card text (title/body) is edited in place via `data-louise-sfield`
+// markers stamped in edit mode. The markup stays here.
+interface Item {
+  title?: string;
+  body?: string;
+}
+interface Props {
+  heading?: string;
+  items?: Item[];
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const { heading = "", items = [], _editIndex = 0, _editMode: edit = false } = Astro.props;
+const idx = _editIndex;
+---
+
+<section class="px-5 pb-16">
+  {
+    (edit || heading) && (
+      <h2
+        class="mb-6 text-center text-2xl font-black"
+        data-louise-sfield={edit ? `${idx}.heading` : undefined}
+      >
+        {heading}
+      </h2>
+    )
+  }
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4">
+    {
+      items.map((f, j) => (
+        <article class="card rounded-box border border-base-300 bg-base-100 p-6">
+          <h3
+            class="mb-2 text-lg font-black"
+            data-louise-sfield={edit ? `${idx}.items.${j}.title` : undefined}
+          >
+            {f.title}
+          </h3>
+          <p
+            class="text-sm text-base-content/60"
+            data-louise-sfield={edit ? `${idx}.items.${j}.body` : undefined}
+            data-louise-multiline={edit || undefined}
+          >
+            {f.body}
+          </p>
+        </article>
+      ))
+    }
+  </div>
+</section>
