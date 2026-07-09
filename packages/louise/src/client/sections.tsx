@@ -25,6 +25,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { Icon } from "./icons.jsx";
+import { MediaPicker } from "./media-picker.jsx";
 import { injectStyles } from "./styles.js";
 
 // The section schema types live in core (server-safe) so the same catalog object
@@ -190,9 +191,11 @@ function wireInline(
 
 /**
  * Dock control for an `image` section field (e.g. a hero logo): a preview plus
- * upload / clear. Uploads POST to the site's media route (`/api/louise/media`)
- * and set the field to the returned URL. `onSet` routes through the persist +
- * reload path, so the new image shows on the bespoke render immediately.
+ * upload, choose-from-library, and clear. Both the upload and the library pick
+ * resolve to a media-hosted URL (`/api/louise/media`) — an external URL can't
+ * be typed in, so every section image lives in the media collection. `onSet`
+ * routes through the persist + reload path, so the new image shows on the
+ * bespoke render immediately.
  */
 function ImageDockField(props: { label: string; value: string; onSet: (url: string) => void }) {
   const [uploading, setUploading] = createSignal(false);
@@ -237,6 +240,7 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
             disabled={uploading()}
           />
         </label>
+        <MediaPicker onPick={(url) => props.onSet(url)} />
         <Show when={props.value}>
           <button class="louise-btn louise-btn-xs" type="button" onClick={() => props.onSet("")}>
             <Icon name="trash" /> Clear

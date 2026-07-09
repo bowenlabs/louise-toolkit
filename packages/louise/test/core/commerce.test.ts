@@ -74,4 +74,19 @@ describe("verifyStripeSignature", () => {
   it("rejects a malformed header", async () => {
     expect(await verifyStripeSignature(payload, "garbage", secret, t)).toBe(false);
   });
+
+  it("accepts when one of several v1 signatures matches (secret rotation)", async () => {
+    const good = await refHmac(secret, `${t}.${payload}`, "hex");
+    // Stripe dual-signs during a rotation; the matching sig may not be last.
+    expect(await verifyStripeSignature(payload, `t=${t},v1=${good},v1=deadbeef`, secret, t)).toBe(
+      true,
+    );
+    expect(await verifyStripeSignature(payload, `t=${t},v1=deadbeef,v1=${good}`, secret, t)).toBe(
+      true,
+    );
+  });
+
+  it("rejects when no v1 signature matches", async () => {
+    expect(await verifyStripeSignature(payload, `t=${t},v1=aa,v1=bb`, secret, t)).toBe(false);
+  });
 });

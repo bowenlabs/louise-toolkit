@@ -37,10 +37,11 @@ function safeName(name: string): string {
 
 /**
  * Verify and store an uploaded image in R2. The bytes are sniffed for a real
- * image signature (the client MIME is never trusted); the object is stored and
- * served with the *verified* content type and `X-Content-Type-Options: nosniff`
- * semantics via an immutable cache header. Rejects oversize files (413) and
- * non-images (415) without writing anything.
+ * image signature (the client MIME is never trusted); the object is stored with
+ * the *verified* content type and an immutable cache header. The serving route
+ * should set `X-Content-Type-Options: nosniff` on the response (this helper only
+ * writes the object). Rejects oversize files (413) and non-images (415) without
+ * writing anything.
  */
 export async function putMedia(
   bucket: R2Bucket,
@@ -86,6 +87,19 @@ export interface MediaItem {
 /** Join a public media base URL and an object key into an absolute URL. */
 export function mediaUrl(base: string, key: string): string {
   return `${base.replace(/\/$/, "")}/${key}`;
+}
+
+/**
+ * Whether `value` is a URL served from this site's media base (`MEDIA_URL`) — an
+ * asset in the media library rather than an external hotlink. A prefix match on
+ * the normalized base (what {@link mediaUrl} builds is always `base` + `/` +
+ * key). The empty string is NOT media; a caller that treats "unset" as valid
+ * checks that separately. This is the one definition of "media-backed" the
+ * sanitizer, the sections validator, and the settings route all enforce with.
+ */
+export function isMediaUrl(base: string, value: string): boolean {
+  const b = base.replace(/\/$/, "");
+  return b.length > 0 && value.startsWith(`${b}/`);
 }
 
 /**

@@ -184,11 +184,18 @@ editor…), give it a `render: ({ value, onChange }) => JSX.Element` — it pers
 to `key` through the same save flow. `SETTINGS_BASE_GROUPS` exports the default
 framework groups so a site can cherry-pick them into a custom `baseGroups`.
 
-`ImageField` (a URL field with a live preview + the media-library picker) takes
-two opt-ins: `upload` adds an upload-into-slot button (POSTs to the media route,
-refreshes the media list, sets the field to the returned URL), and
-`transform(url)` resizes the preview thumbnail only (e.g. a CDN resizer like
-`cfImage`). Both default off, preserving pick/paste.
+`ImageField` (an image field with a live preview + the media-library picker) is
+**strict by default**: the value comes from an upload or the library, so there's
+no free-form URL box to hotlink an external image
+([strict media](/guide/media/#strict-media-every-image-from-the-library)). Opt-ins:
+`upload` adds an upload-into-slot button (POSTs to the media route, refreshes the
+media list, sets the field to the returned URL); `transform(url)` resizes the
+preview thumbnail only (e.g. a CDN resizer like `cfImage`); and `allowUrl` brings
+back the raw-URL text input for a site that knowingly wants it. All default off.
+
+`MediaPicker` is the query-free variant of `MediaUrlPicker` for surfaces mounted
+outside the drawer's TanStack Query provider (e.g. the sections dock) — it powers
+**Choose from media** on section `image` fields.
 
 ### Data layer
 

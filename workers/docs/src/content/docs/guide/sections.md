@@ -62,8 +62,11 @@ export const SECTIONS: SectionCatalog = {
 
 Field types are `text`, `textarea`, `array` (repeatable, with `itemFields`), and
 `image`. Plain text is edited in place; `array` and `image` are edited in the
-dock (an `image` gets an upload / clear control that POSTs to your media route),
-as is any field you mark `inline: false` (e.g. a link URL with no visible text).
+dock (an `image` gets **Upload** + **Choose from media** + clear controls, so it
+always resolves to a [media asset](/guide/media/#strict-media-every-image-from-the-library),
+never a pasted URL), as is any field you mark `inline: false` (e.g. a link URL
+with no visible text). Pass `mediaBase` to `assertValidSections` and a section
+image that isn't media-hosted is rejected on write (`422`).
 
 ## Rendering + edit markers
 

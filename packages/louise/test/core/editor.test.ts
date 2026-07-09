@@ -16,6 +16,7 @@ import {
   saveRoute,
   seedRoute,
   settingsRoute,
+  validateSettingsImages,
 } from "../../src/core/editor/index.js";
 
 // Fake D1 supporting prepare().bind().all(); records the compiled SQL + binds
@@ -214,6 +215,38 @@ describe("settingsRoute (guard + dispatch)", () => {
       ctx,
     );
     expect(res?.status).toBe(405);
+  });
+});
+
+describe("validateSettingsImages", () => {
+  const keys = ["logoUrl", "faviconUrl", "defaultOgImageUrl"];
+
+  it("passes media-hosted, empty, and non-image patches", () => {
+    expect(
+      validateSettingsImages({ logoUrl: "/media/web/logo.png", siteName: "X" }, keys, "/media"),
+    ).toEqual([]);
+    // Clearing an image (empty string) is allowed.
+    expect(validateSettingsImages({ logoUrl: "" }, keys, "/media")).toEqual([]);
+    // A key not in the image list is ignored here (partition/allowlist owns it).
+    expect(validateSettingsImages({ tagline: "https://x.example" }, keys, "/media")).toEqual([]);
+    // An absent image key isn't validated (partial patch).
+    expect(validateSettingsImages({ siteName: "X" }, keys, "/media")).toEqual([]);
+  });
+
+  it("rejects an external hotlink in any image key", () => {
+    const v = validateSettingsImages({ logoUrl: "https://evil.example/logo.png" }, keys, "/media");
+    expect(v).toHaveLength(1);
+    expect(v[0].path).toBe("logoUrl");
+    expect(v[0].severity).toBe("error");
+  });
+
+  it("reports every offending image key", () => {
+    const v = validateSettingsImages(
+      { logoUrl: "https://a.example/x.png", faviconUrl: "https://b.example/y.png" },
+      keys,
+      "/media",
+    );
+    expect(v.map((x) => x.path).sort()).toEqual(["faviconUrl", "logoUrl"]);
   });
 });
 

@@ -102,6 +102,45 @@ describe("validateSections — field types", () => {
   });
 });
 
+describe("validateSections — image media-origin (mediaBase)", () => {
+  const mediaErrors = async (value: unknown) =>
+    (await validateSections(catalog, value, { operation: "update", mediaBase: "/media" })).filter(
+      (v) => v.severity === "error",
+    );
+
+  it("accepts an image served from the media base", async () => {
+    expect(await mediaErrors([{ _type: "hero", heading: "ok", logo: "/media/web/x.png" }])).toEqual(
+      [],
+    );
+  });
+
+  it("accepts an empty image (unset — the site shows its placeholder)", async () => {
+    expect(await mediaErrors([{ _type: "hero", heading: "ok", logo: "" }])).toEqual([]);
+  });
+
+  it("rejects an external hotlink", async () => {
+    const e = await mediaErrors([
+      { _type: "hero", heading: "ok", logo: "https://evil.example/x.png" },
+    ]);
+    expect(e.some((x) => x.path === "sections[0].logo" && x.message.includes("media asset"))).toBe(
+      true,
+    );
+  });
+
+  it("rejects a URL that merely contains the base but isn't served from it", async () => {
+    const e = await mediaErrors([
+      { _type: "hero", heading: "ok", logo: "https://evil.example/media/x.png" },
+    ]);
+    expect(e.some((x) => x.path === "sections[0].logo")).toBe(true);
+  });
+
+  it("does not check origin when mediaBase is omitted (back-compat)", async () => {
+    expect(
+      await errors([{ _type: "hero", heading: "ok", logo: "https://any.example/x.png" }]),
+    ).toEqual([]);
+  });
+});
+
 describe("validateSections — per-field rules (reuse the cms Rule builder)", () => {
   it("enforces required", async () => {
     expect((await errors([{ _type: "hero", heading: "" }]))[0].path).toBe("sections[0].heading");

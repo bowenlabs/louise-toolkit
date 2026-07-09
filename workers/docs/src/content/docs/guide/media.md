@@ -46,3 +46,32 @@ _your_ auth — all app-specific. Louise deliberately leaves it to you and inste
 guarantees the editor side: uploads go through one endpoint, and the
 [sanitizer](/guide/rich-text/) only lets `<img>` (with `width`/`height`)
 into stored HTML.
+
+## Strict media: every image from the library
+
+By default the editor's image controls only produce a **media-hosted URL** — an
+asset uploaded to R2 (your `MEDIA_URL` base), never an external hotlink. That
+keeps images stable (no link rot, no hotlink breakage) and gives you one library
+as the source of truth. Two things make it strict:
+
+- **Every selector offers the library.** `ImageField` (drawer settings) and the
+  section `image` control both pair an **Upload** button with a **Choose from
+  media** picker over `/api/louise/media`. There's no free-form URL box — opt one
+  back in per field with `ImageField`'s `allowUrl` if a site knowingly wants it.
+- **The API is the enforcement point.** Pass your `MEDIA_URL` base and non-media
+  values are rejected/stripped on write, so a forged request can't slip a hotlink
+  past the UI:
+
+  ```ts
+  // sections — reject an image field that isn't a media asset (422)
+  await assertValidSections(catalog, data.sections, { operation, mediaBase: env.MEDIA_URL });
+
+  // settings — reject an external logo/favicon/share-image (422)
+  settingsRoute({ table, resolveEditor, columns, imageKeys: ["logoUrl", "faviconUrl", "defaultOgImageUrl"], mediaBase: env.MEDIA_URL });
+
+  // rich-text body — drop a pasted remote <img> (keeps media-hosted ones)
+  sanitizeRichHtml(html, { mediaBase: env.MEDIA_URL });
+  ```
+
+Each `mediaBase` knob is optional and back-compatible: omit it and the old
+behavior (any safe `http(s)`/relative image) is unchanged.

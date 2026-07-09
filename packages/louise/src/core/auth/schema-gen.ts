@@ -76,6 +76,15 @@ function sqliteType(field: { type: unknown; bigint?: boolean }): string {
  */
 export function generateAuthSchemaSql(config: AuthSchemaConfig = {}): string {
   const prefix = config.tablePrefix ?? "";
+  // The prefix is interpolated straight into table names + FK targets in the
+  // emitted DDL, so hold it to the same identifier shape the runtime SQL
+  // guards enforce (mirrors editor `ident`) — a stray char can't become a
+  // broken/injected CREATE TABLE.
+  if (prefix && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(prefix)) {
+    throw new Error(
+      `Invalid tablePrefix ${JSON.stringify(prefix)} (must match /^[A-Za-z_][A-Za-z0-9_]*$/)`,
+    );
+  }
   const tables = getAuthTables(authSchemaOptions(config)) as Record<
     string,
     {

@@ -161,7 +161,9 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   framework [`siteSettingsColumns`](/reference/db/)) and merges site-declared
   `customKeys` into the `custom` JSON. A key in neither allowlist is ignored,
   never written — this is what backs the drawer's Settings
-  [extension groups](/guide/drawer/#extending-settings).
+  [extension groups](/guide/drawer/#extending-settings). Declare `imageKeys`
+  (with `mediaBase` = your `MEDIA_URL`) to reject an image setting (logo,
+  favicon, share image…) that isn't a [media asset](/guide/media/#strict-media-every-image-from-the-library) — a `422`.
 - **`blobSettingsRoute`** — the variant for sites that keep all config in a
   single JSON **blob** column (not the structured `siteSettingsColumns`), paired
   with the drawer's `settingsBaseGroups: []` + render fields. `allow` is a

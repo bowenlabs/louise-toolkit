@@ -6,6 +6,7 @@ import {
 } from "../../src/core/cms/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { searchRoute } from "../../src/core/editor/index.js";
+import { parseSearchLimit, SEARCH_LIMIT_MAX } from "../../src/core/editor/search.js";
 
 const config = defineCollection({
   slug: "pages",
@@ -107,5 +108,26 @@ describe("searchRoute — routing", () => {
       ctx,
     );
     expect(res?.status).toBe(405);
+  });
+});
+
+describe("parseSearchLimit", () => {
+  it("caps an oversized limit at the ceiling", () => {
+    expect(parseSearchLimit("99999")).toBe(SEARCH_LIMIT_MAX);
+    expect(parseSearchLimit(String(SEARCH_LIMIT_MAX + 1))).toBe(SEARCH_LIMIT_MAX);
+  });
+
+  it("passes through a valid in-range limit (floored to an integer)", () => {
+    expect(parseSearchLimit("10")).toBe(10);
+    expect(parseSearchLimit("10.9")).toBe(10);
+    expect(parseSearchLimit(String(SEARCH_LIMIT_MAX))).toBe(SEARCH_LIMIT_MAX);
+  });
+
+  it("falls back to the default for missing / non-numeric / non-positive input", () => {
+    expect(parseSearchLimit(null)).toBe(20);
+    expect(parseSearchLimit("")).toBe(20);
+    expect(parseSearchLimit("abc")).toBe(20);
+    expect(parseSearchLimit("0")).toBe(20);
+    expect(parseSearchLimit("-5")).toBe(20);
   });
 });

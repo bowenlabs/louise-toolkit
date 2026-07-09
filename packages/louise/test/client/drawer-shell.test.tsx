@@ -377,11 +377,13 @@ describe("MediaPanel — list", () => {
 
 describe("ImageField — upload + transform", () => {
   it("applies the transform to the preview thumbnail only", () => {
+    // `allowUrl` renders the raw-URL input so we can assert the stored value.
     mount(() => (
       <ImageField
         label="Hero"
         value="https://cdn/x.png"
         transform={(u) => `${u}?w=320`}
+        allowUrl
         onChange={() => {}}
       />
     ));
@@ -390,6 +392,17 @@ describe("ImageField — upload + transform", () => {
     expect(host.querySelector<HTMLInputElement>("input.louise-input")?.value).toBe(
       "https://cdn/x.png",
     );
+  });
+
+  it("hides the free-form URL input by default, showing it only with `allowUrl`", () => {
+    // Strict by default (#47): images come from upload / the media library, not
+    // a pasted external URL.
+    mount(() => <ImageField label="Hero" value="" onChange={() => {}} />);
+    expect(host.querySelector("input.louise-input")).toBeNull();
+    dispose?.();
+
+    mount(() => <ImageField label="Hero" value="" allowUrl onChange={() => {}} />);
+    expect(host.querySelector("input.louise-input")).not.toBeNull();
   });
 
   it("shows the upload control only when `upload` is set", () => {

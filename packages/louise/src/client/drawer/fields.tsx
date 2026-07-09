@@ -195,9 +195,12 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
   );
 }
 
-/** An image URL field: live thumbnail, a URL input, a media-library picker, and
- *  a clear button. Empty = the site shows its placeholder. Opt into
- *  upload-into-slot with `upload`, and a resized preview with `transform`. */
+/** An image field: live thumbnail, an upload button, a media-library picker, and
+ *  a clear button. Empty = the site shows its placeholder. By default the value
+ *  can only come from an upload or the library (a media-hosted URL) — there is
+ *  no free-form URL input, so editors can't hotlink an external image. Opt into
+ *  upload-into-slot with `upload`, a resized preview with `transform`, and the
+ *  legacy raw-URL text input with `allowUrl`. */
 export function ImageField(props: {
   label: string;
   hint?: string;
@@ -205,10 +208,14 @@ export function ImageField(props: {
   onChange: (url: string) => void;
   /** Show an upload-into-slot button: POST the file to the media route, set the
    *  field to the returned URL, and refresh the media list. Off by default (the
-   *  media-library picker + a pasted URL cover the base case). */
+   *  media-library picker covers the base case). */
   upload?: boolean;
   /** Scope (R2 key prefix) sent with the upload. Default `"web"`. */
   uploadScope?: string;
+  /** Show a free-form URL text input, letting an editor paste any (external)
+   *  URL. Off by default — images should come from the media library so they
+   *  can't break or hotlink. An escape hatch for sites that knowingly want it. */
+  allowUrl?: boolean;
   /** Transform the preview thumbnail URL — e.g. a CDN resizer like `cfImage`.
    *  Defaults to the raw URL. Does not affect the stored value. */
   transform?: (url: string) => string;
@@ -258,12 +265,14 @@ export function ImageField(props: {
           style="display:block; width:auto; max-width:100%; max-height:160px; border-radius:8px; margin-bottom:8px;"
         />
       </Show>
-      <input
-        class="louise-input"
-        placeholder="https://… pick or paste a URL"
-        value={props.value}
-        onInput={(e) => props.onChange(e.currentTarget.value)}
-      />
+      <Show when={props.allowUrl}>
+        <input
+          class="louise-input"
+          placeholder="https://… paste a URL"
+          value={props.value}
+          onInput={(e) => props.onChange(e.currentTarget.value)}
+        />
+      </Show>
       <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
         <Show when={props.upload}>
           <label class="louise-btn louise-media-upload">
@@ -388,11 +397,14 @@ export function SettingsField(props: {
         </div>
       </Match>
       <Match when={props.def.type === "image"}>
+        {/* Upload + media-library picker, no free-form URL — settings images
+            (logo, favicon, share image) come from the media collection. */}
         <ImageField
           label={props.def.label}
           hint={props.def.hint}
           value={String(props.value ?? "")}
           onChange={props.onChange}
+          upload
         />
       </Match>
       <Match when={props.def.type === "links"}>

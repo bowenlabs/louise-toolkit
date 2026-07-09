@@ -15,6 +15,7 @@
 // `Rule` machinery (via `validateValue`) for any per-field `validation` chain.
 
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
+import { isMediaUrl } from "../media/storage.js";
 import {
   type ValidationBuilder,
   type ValidationFieldContext,
@@ -64,6 +65,14 @@ export interface SectionItem {
 
 export interface ValidateSectionsOptions {
   operation: "create" | "update";
+  /**
+   * The site's `MEDIA_URL` base. When set, an `image` field whose value is a
+   * non-empty string that isn't served from this base is a violation —
+   * enforcing that section images come from the media library, not an external
+   * hotlink. Omit to skip the origin check (image fields still validate as
+   * strings). See {@link isMediaUrl}.
+   */
+  mediaBase?: string;
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -111,7 +120,7 @@ export async function validateSections(
     }
     for (const [key, field] of Object.entries(def.fields)) {
       violations.push(
-        ...(await validateSectionField(field, item[key], `${at}.${key}`, item, options.operation)),
+        ...(await validateSectionField(field, item[key], `${at}.${key}`, item, options)),
       );
     }
   }
@@ -123,10 +132,10 @@ async function validateSectionField(
   value: unknown,
   path: string,
   document: Record<string, unknown>,
-  operation: "create" | "update",
+  options: ValidateSectionsOptions,
 ): Promise<ValidationViolation[]> {
   const out: ValidationViolation[] = [];
-  const ctx: ValidationFieldContext = { document, path, operation };
+  const ctx: ValidationFieldContext = { document, path, operation: options.operation };
 
   if (field.type === "array") {
     if (value !== undefined && value !== null) {
@@ -147,11 +156,25 @@ async function validateSectionField(
                 sub[subKey],
                 `${subPath}.${subKey}`,
                 sub,
-                operation,
+                options,
               )),
             );
           }
         }
+      }
+    }
+  } else if (field.type === "image") {
+    // A media URL (string). With `mediaBase`, a non-empty value must be served
+    // from the media library — an external hotlink is rejected.
+    if (value !== undefined && value !== null) {
+      if (typeof value !== "string") {
+        out.push({ path, message: `${path} must be a string`, severity: "error" });
+      } else if (value !== "" && options.mediaBase && !isMediaUrl(options.mediaBase, value)) {
+        out.push({
+          path,
+          message: `${path} must be an uploaded media asset, not an external URL`,
+          severity: "error",
+        });
       }
     }
   } else if (value !== undefined && value !== null && typeof value !== "string") {

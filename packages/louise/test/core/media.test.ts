@@ -5,6 +5,7 @@ import {
   cropStyle,
   deleteMedia,
   findMediaReferences,
+  isMediaUrl,
   likePattern,
   listMedia,
   type MediaRefSource,
@@ -175,6 +176,27 @@ describe("mediaUrl / deleteMedia", () => {
     if (!res.ok) throw new Error("setup failed");
     await deleteMedia(bucket, res.key);
     expect(store.size).toBe(0);
+  });
+});
+
+describe("isMediaUrl", () => {
+  it("accepts a URL served from the base (with or without a trailing slash)", () => {
+    expect(isMediaUrl("/media", "/media/web/a.png")).toBe(true);
+    expect(isMediaUrl("/media/", "/media/web/a.png")).toBe(true);
+    expect(isMediaUrl("https://m.example.com", "https://m.example.com/web/a.png")).toBe(true);
+  });
+
+  it("rejects an external URL, the empty string, and a base-less bare match", () => {
+    expect(isMediaUrl("/media", "https://evil.example/a.png")).toBe(false);
+    // Contains the base as a path segment but isn't served from it.
+    expect(isMediaUrl("/media", "https://evil.example/media/a.png")).toBe(false);
+    expect(isMediaUrl("/media", "")).toBe(false);
+    // The base itself is not an asset (no key).
+    expect(isMediaUrl("/media", "/media")).toBe(false);
+    // A non-boundary prefix match must not pass.
+    expect(isMediaUrl("/media", "/mediafoo/a.png")).toBe(false);
+    // An empty base never matches.
+    expect(isMediaUrl("", "/media/web/a.png")).toBe(false);
   });
 });
 

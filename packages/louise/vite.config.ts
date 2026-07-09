@@ -64,7 +64,9 @@ export default {
     ],
     format: ["esm"],
     dts: true,
-    sourcemap: true,
+    // No sourcemaps in the published tarball — they roughly double its size and
+    // just re-ship the (already public, MIT) source. The repo is the reference.
+    sourcemap: false,
     platform: "neutral",
     // The `pack` block IS the tsdown config, so plugins live here (not at the
     // top level, which `vp pack` ignores). `rawLoader` inlines the `?raw` SVGs;

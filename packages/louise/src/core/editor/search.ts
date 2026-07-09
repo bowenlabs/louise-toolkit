@@ -41,6 +41,20 @@ function toFtsQuery(input: string): string {
     .join(" ");
 }
 
+/** Default and hard ceiling for a search request's `?limit=`. */
+export const SEARCH_LIMIT_DEFAULT = 20;
+export const SEARCH_LIMIT_MAX = 100;
+
+/**
+ * Parse `?limit=` into a positive integer clamped to {@link SEARCH_LIMIT_MAX},
+ * falling back to {@link SEARCH_LIMIT_DEFAULT} for a missing / non-numeric /
+ * non-positive value — so a client can't request an unbounded result set.
+ */
+export function parseSearchLimit(raw: string | null): number {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, SEARCH_LIMIT_MAX) : SEARCH_LIMIT_DEFAULT;
+}
+
 /**
  * Build the search route for a collection with a `search` config. Returns
  * `undefined` for any path it doesn't own so `composeWorker` falls through.
@@ -64,7 +78,7 @@ export function searchRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (isSearch && request.method === "GET") {
       const q = url.searchParams.get("q")?.trim() ?? "";
       if (!q) return json({ results: [] });
-      const limit = Number(url.searchParams.get("limit")) || 20;
+      const limit = parseSearchLimit(url.searchParams.get("limit"));
       try {
         const results = await api.search(context, toFtsQuery(q), { limit });
         return json({ results });

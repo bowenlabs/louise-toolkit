@@ -15,6 +15,8 @@
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
+import type { ValidationViolation } from "../errors.js";
+import { isMediaUrl } from "../media/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
@@ -29,10 +31,43 @@ export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
   columns: string[];
   /** Site-specific setting keys, merged into the `custom` JSON object. */
   customKeys?: string[];
+  /** Setting keys whose value must be a media-library URL (e.g. `logoUrl`,
+   *  `defaultOgImageUrl`). A patched value that is a non-empty string not served
+   *  from {@link mediaBase} is rejected `422`, so an external hotlink can't be
+   *  stored. Requires {@link mediaBase}. */
+  imageKeys?: string[];
+  /** The site's `MEDIA_URL` base, used to validate {@link imageKeys}. */
+  mediaBase?: string;
   /** Mount path. Default `/api/louise/settings`. */
   path?: string;
   /** Singleton row id. Default 1. */
   id?: number;
+}
+
+/**
+ * Reject any patched {@link SettingsRouteConfig.imageKeys} value that isn't a
+ * media-library URL — pure so the allowlist enforcement is unit-testable
+ * independently of D1. Empty/absent/non-string values are skipped (clearing a
+ * field is fine; type coercion isn't this check's job).
+ */
+export function validateSettingsImages(
+  patch: Record<string, unknown>,
+  imageKeys: Iterable<string>,
+  mediaBase: string,
+): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+  for (const key of imageKeys) {
+    if (!(key in patch)) continue;
+    const value = patch[key];
+    if (typeof value === "string" && value !== "" && !isMediaUrl(mediaBase, value)) {
+      violations.push({
+        path: key,
+        message: `${key} must be an uploaded media asset, not an external URL`,
+        severity: "error",
+      });
+    }
+  }
+  return violations;
 }
 
 export interface SettingsPartition {
@@ -114,6 +149,15 @@ export function settingsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const patch = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
       return json({ error: "Invalid JSON" }, 400);
+    }
+
+    // Media-strictness: image settings (logo, favicon, share image…) must point
+    // at a media-library URL — an external hotlink is rejected before write.
+    if (config.imageKeys && config.imageKeys.length > 0 && config.mediaBase) {
+      const violations = validateSettingsImages(patch, config.imageKeys, config.mediaBase);
+      if (violations.length > 0) {
+        return json({ error: "Invalid image field(s)", violations }, 422);
+      }
     }
 
     const part = partitionSettingsPatch(patch, config.columns, config.customKeys ?? []);

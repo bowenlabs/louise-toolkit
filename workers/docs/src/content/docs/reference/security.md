@@ -20,10 +20,10 @@ and protects every site. Each helper takes its binding explicitly, so a site
 stays free to name bindings however it likes. No required peers (`ultrahtml` is
 bundled).
 
-## `sanitizeRichHtml(html)`
+## `sanitizeRichHtml(html, options?)`
 
 ```ts
-function sanitizeRichHtml(html: string): string;
+function sanitizeRichHtml(html: string, options?: { mediaBase?: string }): string;
 ```
 
 Parser-based **allowlist** sanitizer for editor-authored rich text. Parses with
@@ -35,6 +35,11 @@ ProseKit editor emits — run it on **write and render**.
 ```ts
 const safe = sanitizeRichHtml(untrustedEditorHtml); // <script>, on*, javascript: … removed
 ```
+
+Pass **`mediaBase`** (your `MEDIA_URL`) to additionally drop any `<img>` whose
+`src` isn't served from that base — a pasted external hotlink is removed, while
+media-hosted images are kept. Omit it to keep any safe `http(s)`/relative `src`
+(the default). See [strict media](/guide/media/#strict-media-every-image-from-the-library).
 
 `ALLOWED_TAGS` and `ATTR_ALLOW` are exported for composing a variant.
 

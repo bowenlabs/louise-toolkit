@@ -89,6 +89,39 @@ describe("sanitizeRichHtml", () => {
     expect(out).toContain('data-cols="4"');
     expect(out).toContain('class="pb-grid"');
   });
+
+  describe("media-strictness (mediaBase)", () => {
+    it("keeps an image served from the media base", () => {
+      const out = sanitizeRichHtml('<p><img src="/media/web/x.png" alt="ok"></p>', {
+        mediaBase: "/media",
+      });
+      expect(out).toContain('src="/media/web/x.png"');
+    });
+
+    it("drops an external (hotlinked) image entirely, keeping surrounding content", () => {
+      const out = sanitizeRichHtml(
+        '<p>before<img src="https://evil.example/x.png" alt="hot">after</p>',
+        { mediaBase: "/media" },
+      );
+      expect(out).not.toContain("evil.example");
+      expect(out).not.toContain("<img");
+      expect(out).toContain("before");
+      expect(out).toContain("after");
+    });
+
+    it("drops a URL that merely contains the base but isn't served from it", () => {
+      const out = sanitizeRichHtml('<p><img src="https://evil.example/media/x.png"></p>', {
+        mediaBase: "/media",
+      });
+      expect(out).not.toContain("<img");
+    });
+
+    it("leaves any safe img src when no mediaBase is given (back-compat)", () => {
+      const out = sanitizeRichHtml('<p><img src="https://cdn.example/x.png" width="10"></p>');
+      expect(out).toContain('src="https://cdn.example/x.png"');
+      expect(out).toContain("<img");
+    });
+  });
 });
 
 describe("rateLimit", () => {
@@ -165,6 +198,15 @@ describe("getSessionSecret", () => {
 
   it("fails closed (re-throws) on a deployed host", async () => {
     await expect(getSessionSecret(boom, new URL("https://prod.com"))).rejects.toThrow();
+  });
+
+  it("treats an empty stored secret as a failure (fails closed on a deployed host)", async () => {
+    const empty = { get: async () => "" };
+    await expect(getSessionSecret(empty, new URL("https://prod.com"))).rejects.toThrow();
+    // …but still usable in dev via the fallback.
+    expect(await getSessionSecret(empty, new URL("http://localhost:4321"))).toBe(
+      "louise-dev-secret",
+    );
   });
 });
 

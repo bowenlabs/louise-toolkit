@@ -9,6 +9,11 @@
 import { defineCollection } from "louisecms/cms";
 import { sanitizeRichHtml } from "louisecms/security";
 
+// The site's media base — matches `vars.MEDIA_URL` in wrangler.jsonc. Passed to
+// the sanitizer so a pasted body `<img>` pointing at an external origin (a
+// hotlink) is dropped: body images must be uploaded into the media library (#47).
+const MEDIA_BASE = "/media";
+
 export const pagesCollection = defineCollection({
   slug: "pages",
   // Sanitize the rich-text `body` on every write (draft save, publish, direct
@@ -18,7 +23,9 @@ export const pagesCollection = defineCollection({
   hooks: {
     beforeChange: [
       ({ data }) =>
-        typeof data.body === "string" ? { ...data, body: sanitizeRichHtml(data.body) } : data,
+        typeof data.body === "string"
+          ? { ...data, body: sanitizeRichHtml(data.body, { mediaBase: MEDIA_BASE }) }
+          : data,
     ],
   },
   fields: {

@@ -111,18 +111,23 @@ export async function verifyStripeSignature(
   nowSeconds: number,
   toleranceSeconds = 300,
 ): Promise<boolean> {
-  const parts = Object.fromEntries(
-    header.split(",").map((kv) => {
-      const [k, ...v] = kv.split("=");
-      return [k.trim(), v.join("=")];
-    }),
-  );
-  const t = Number(parts.t);
-  const v1 = parts.v1;
-  if (!Number.isFinite(t) || !v1) return false;
+  // Stripe can send MULTIPLE `v1=` signatures in one header (both the old and
+  // new endpoint secret during a rotation), so collect them all and accept if
+  // ANY matches — a last-wins parse would reject a validly-signed event.
+  let t: number | undefined;
+  const v1s: string[] = [];
+  for (const part of header.split(",")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const k = part.slice(0, eq).trim();
+    const v = part.slice(eq + 1);
+    if (k === "t") t = Number(v);
+    else if (k === "v1") v1s.push(v);
+  }
+  if (t === undefined || !Number.isFinite(t) || v1s.length === 0) return false;
   if (Math.abs(nowSeconds - t) > toleranceSeconds) return false;
   const expected = await hmacSha256Hex(secret, `${t}.${payload}`);
-  return safeEqual(expected, v1);
+  return v1s.some((v1) => safeEqual(expected, v1));
 }
 
 export interface StripeAddress {

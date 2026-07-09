@@ -113,8 +113,34 @@ function isSafeStyle(value: string): boolean {
 const DANGEROUS_TOKENS =
   /<\/?(?:script|style|iframe|object|embed|form|meta|link|base|svg|math)\b[^>]*>/gi;
 
-/** Strict attribute + URL/style scrub, applied after element allowlisting. */
-function strictAttributes() {
+/** An `<img>` with no `src=` attribute — what a non-media `src` becomes after
+ *  the strict scrub deletes it, so we drop the now-empty element entirely. */
+const SRCLESS_IMG = /<img\b(?![^>]*\bsrc=)[^>]*>/gi;
+
+/** Whether `src` is served from `base` (the site's `MEDIA_URL`) — mirrors
+ *  `isMediaUrl` in louisecms/media, inlined so this base-security module stays
+ *  dependency-free. */
+function isFromMediaBase(base: string, src: string): boolean {
+  const b = base.replace(/\/$/, "");
+  return b.length > 0 && src.startsWith(`${b}/`);
+}
+
+/** Options for {@link sanitizeRichHtml}. */
+export interface SanitizeOptions {
+  /**
+   * When set, an `<img>` whose `src` is not served from this base (the site's
+   * `MEDIA_URL`) is dropped — enforcing that editor images live in the media
+   * library, never hotlinked from an external origin (pasted HTML, etc.). Omit
+   * to keep any safe http(s)/relative `src` (the default, back-compatible
+   * behavior).
+   */
+  mediaBase?: string;
+}
+
+/** Strict attribute + URL/style scrub, applied after element allowlisting.
+ *  With `mediaBase`, an `<img src>` that isn't media-hosted has its `src`
+ *  stripped (the element is then removed by {@link SRCLESS_IMG}). */
+function strictAttributes(mediaBase?: string) {
   return (doc: UhNode) => {
     walkSync(doc as never, (node: unknown) => {
       const el = node as UhNode;
@@ -127,6 +153,16 @@ function strictAttributes() {
           continue;
         }
         if ((name === "href" || name === "src") && !SAFE_URL.test(value.trim())) {
+          delete el.attributes[name];
+        }
+        // Media-strictness: an image src that isn't from the media base is a
+        // hotlink — drop it (the src-less img is then removed on serialize).
+        if (
+          name === "src" &&
+          el.name === "img" &&
+          mediaBase &&
+          !isFromMediaBase(mediaBase, value.trim())
+        ) {
           delete el.attributes[name];
         }
         if (name === "style" && !isSafeStyle(value)) {
@@ -149,12 +185,17 @@ function strictAttributes() {
 
 /**
  * Sanitize editor-authored HTML down to a safe formatting subset. Synchronous
- * (ultrahtml's *Sync variants) so callers don't need to await.
+ * (ultrahtml's *Sync variants) so callers don't need to await. Pass
+ * `{ mediaBase }` to additionally drop `<img>` that isn't hosted in the media
+ * library (see {@link SanitizeOptions.mediaBase}).
  */
-export function sanitizeRichHtml(html: string): string {
+export function sanitizeRichHtml(html: string, options: SanitizeOptions = {}): string {
   const transformers = [
     sanitizeElements({ allowElements: ALLOWED_TAGS, allowComments: false }),
-    strictAttributes(),
+    strictAttributes(options.mediaBase),
   ] as Parameters<typeof transformSync>[1];
-  return transformSync(html, transformers).replace(DANGEROUS_TOKENS, "");
+  const out = transformSync(html, transformers).replace(DANGEROUS_TOKENS, "");
+  // With media-strictness on, a non-media image had its src stripped above;
+  // remove the resulting src-less <img> so nothing broken persists.
+  return options.mediaBase ? out.replace(SRCLESS_IMG, "") : out;
 }

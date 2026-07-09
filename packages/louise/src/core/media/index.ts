@@ -13,6 +13,7 @@ export {
   DEFAULT_MAX_BYTES,
   deleteMedia,
   findMediaReferences,
+  isMediaUrl,
   likePattern,
   listMedia,
   type MediaItem,

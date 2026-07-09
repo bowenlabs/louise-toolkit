@@ -39,6 +39,16 @@ describe("generateAuthSchemaSql", () => {
     expect(sql).toContain("CREATE TABLE `account`");
     expect(sql).toContain("CREATE TABLE `user`");
   });
+
+  it("rejects a tablePrefix that isn't a safe SQL identifier", () => {
+    expect(() => generateAuthSchemaSql({ tablePrefix: "auth_; DROP TABLE user; --" })).toThrow(
+      /Invalid tablePrefix/,
+    );
+    expect(() => generateAuthSchemaSql({ tablePrefix: "auth-" })).toThrow(/Invalid tablePrefix/);
+    expect(() => generateAuthSchemaSql({ tablePrefix: "1abc" })).toThrow(/Invalid tablePrefix/);
+    // A valid prefix (letters/digits/underscore, non-digit start) still works.
+    expect(generateAuthSchemaSql({ tablePrefix: "auth_" })).toContain("CREATE TABLE `auth_user`");
+  });
 });
 
 describe("authSchemaOptions", () => {
