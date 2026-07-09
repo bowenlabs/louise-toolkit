@@ -35,4 +35,43 @@ export const SECTIONS: SectionCatalog = {
       },
     },
   },
+  banner: {
+    label: "Banner",
+    icon: "ph ph-megaphone",
+    fields: {
+      heading: { type: "text", label: "Heading", placeholder: "Add a heading" },
+      body: { type: "textarea", label: "Body", placeholder: "Add supporting text" },
+      ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
+      // Edited in the dock — a link target has no visible text to click on.
+      ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
+    },
+  },
+  testimonial: {
+    label: "Testimonials",
+    icon: "ph ph-quotes",
+    fields: {
+      heading: { type: "text", label: "Heading (optional)", placeholder: "Section heading" },
+      items: {
+        type: "array",
+        label: "Quotes",
+        itemLabel: "Quote",
+        itemFields: {
+          quote: { type: "textarea", label: "Quote", placeholder: "What they said" },
+          author: { type: "text", label: "Author", placeholder: "Name" },
+          role: { type: "text", label: "Role", placeholder: "Title, Company" },
+        },
+      },
+    },
+  },
+  media: {
+    label: "Media",
+    icon: "ph ph-image",
+    fields: {
+      // Uploaded via the dock upload/clear control; renders a placeholder until set.
+      image: { type: "image", label: "Image" },
+      // Edited in the dock — alt text has no visible node to edit in place.
+      alt: { type: "text", label: "Alt text", placeholder: "Describe the image", inline: false },
+      caption: { type: "text", label: "Caption", placeholder: "Add a caption" },
+    },
+  },
 };
