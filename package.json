@@ -10,7 +10,7 @@
     "build": "sh ./scripts/ci-build.sh",
     "typecheck": "vp run louisecms#typecheck",
     "check": "vp run louisecms#check",
-    "test": "vp test",
+    "test": "vp run louisecms#test",
     "dev": "vp run site#dev",
     "changeset": "changeset",
     "release": "changeset publish"

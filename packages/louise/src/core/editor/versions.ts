@@ -13,7 +13,7 @@
 // authoritative "is live" signal, maintained by publish()/unpublish() — the site
 // filters on it, so no separate status column write is needed here.
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { createVersionedLocalApi } from "../cms/localApi.js";
 import { type CollectionConfig, flattenFields } from "../cms/types.js";
@@ -65,7 +65,13 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // `${base}/<id>/<action>` — anything else isn't ours.
     const [idStr, action, ...extra] = path.slice(base.length + 1).split("/");
     if (extra.length > 0 || !action) return undefined;
-    if (action !== "versions" && action !== "publish" && action !== "unpublish") return undefined;
+    if (
+      action !== "versions" &&
+      action !== "publish" &&
+      action !== "unpublish" &&
+      action !== "discard"
+    )
+      return undefined;
 
     const id = Number(idStr);
     if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
@@ -79,10 +85,17 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const database = db(env.DB);
     const api = createVersionedLocalApi(database, cfg.table, cfg.versionsTable, cfg.config);
 
-    // GET /:id/versions — history, newest first.
+    // GET /:id/versions — history, newest first, plus the live pointer so the
+    // editor can flag which version is currently published. Publishing never
+    // demotes a prior version's `status`, so several rows can read "published"
+    // over time; `published_version_id` on the live row is the only authoritative
+    // "this one is live" signal.
     if (action === "versions" && method === "GET") {
       const versions = await api.findVersions(context, id);
-      return json({ versions });
+      const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
+      const publishedVersionId =
+        ((row as Record<string, unknown> | undefined)?.publishedVersionId as number | null) ?? null;
+      return json({ versions, publishedVersionId });
     }
 
     // POST /:id/versions — save a draft. Merge the edit over the current live
@@ -135,6 +148,24 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (action === "unpublish" && method === "POST") {
       const page = await api.unpublish(context, id);
       return json({ page });
+    }
+
+    // POST /:id/discard — delete a draft version from history. Body: { versionId }.
+    // Scoped to drafts (never the live version) so history stays a safe cleanup.
+    if (action === "discard" && method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { versionId?: number };
+      const versionId = body.versionId;
+      if (!Number.isInteger(versionId)) return json({ error: "Missing versionId" }, 400);
+      const versions = await api.findVersions(context, id);
+      const target = versions.find((v) => (v as Record<string, unknown>).id === versionId) as
+        | Record<string, unknown>
+        | undefined;
+      if (!target) return json({ error: "Version not found" }, 404);
+      if (target.status !== "draft") {
+        return json({ error: "Only draft versions can be discarded" }, 400);
+      }
+      await api.discardVersion(context, versionId as number);
+      return json({ ok: true });
     }
 
     return json({ error: "Method not allowed" }, 405);

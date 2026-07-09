@@ -74,6 +74,8 @@ interface VersionRow {
   id: number;
   status: "draft" | "published";
   createdAt?: string | number | null;
+  /** The full snapshot stored for this version — used to resume ("Edit") a draft. */
+  versionData?: { sections?: SectionItem[] } | null;
 }
 
 /** Parse a `data-louise-sfield` path ("1.items.2.title") into store-write args,
@@ -212,6 +214,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [errorDetail, setErrorDetail] = createSignal("");
 
   const [versions, setVersions] = createSignal<VersionRow[]>([]);
+  // The id of the version that is currently LIVE (page's `published_version_id`),
+  // or null if the page is unpublished. Used to flag the live row in history —
+  // status alone can't, since multiple versions read "published" over time.
+  const [liveVersionId, setLiveVersionId] = createSignal<number | null>(null);
   const [showHistory, setShowHistory] = createSignal(false);
   const hasDraft = () => versions().some((v) => v.status === "draft");
 
@@ -223,10 +229,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const loadVersions = async () => {
     try {
       const res = await fetch(`/api/louise/pages/${props.pageId}/versions`);
-      const body = (await res.json().catch(() => null)) as { versions?: VersionRow[] } | null;
+      const body = (await res.json().catch(() => null)) as {
+        versions?: VersionRow[];
+        publishedVersionId?: number | null;
+      } | null;
       setVersions(body?.versions ?? []);
+      setLiveVersionId(body?.publishedVersionId ?? null);
     } catch {
       setVersions([]);
+      setLiveVersionId(null);
     }
   };
 
@@ -316,6 +327,28 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // Discard a draft version from history. Doesn't touch the live render (a draft
+  // is never live), so just re-fetch the list — no reload.
+  const discardDraft = async (versionId: number) => {
+    setErrorDetail("");
+    try {
+      const res = await fetch(`/api/louise/pages/${props.pageId}/discard`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (body?.error) setErrorDetail(body.error);
+        throw new Error(`discard failed: ${res.status}`);
+      }
+      void loadVersions();
+    } catch (err) {
+      console.error("[louise] discard draft failed", err);
+      setStatus("error");
+    }
+  };
+
   // Structural change: mutate, save a draft, then reload so the server
   // re-renders the new shape (edit mode resumes the draft).
   const structural = async (mutate: () => void) => {
@@ -323,6 +356,16 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     setStatus("saving");
     if ((await saveDraft()) !== null) location.reload();
     else setStatus("error");
+  };
+
+  // Resume editing a draft from history: load its snapshot as the working copy,
+  // then persist + reload so the server re-renders it (the newest draft is what
+  // edit mode resumes) and it comes back inline-editable. Unlike publish, this
+  // never touches the live page.
+  const editDraft = (versionId: number) => {
+    const sections = versions().find((v) => v.id === versionId)?.versionData?.sections;
+    if (!Array.isArray(sections)) return;
+    void structural(() => set("items", structuredClone(sections)));
   };
 
   const addSection = (type: string) => {
@@ -525,22 +568,51 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             <Show when={showHistory()}>
               <div class="louise-sections-versions">
                 <For each={versions()} fallback={<p class="louise-muted">No versions yet.</p>}>
-                  {(v) => (
-                    <div class="louise-arr-row">
-                      <span>
-                        {v.status === "published" ? "Published" : "Draft"}
-                        {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
-                      </span>
-                      <button
-                        class="louise-btn louise-btn-xs"
-                        type="button"
-                        disabled={status() === "publishing"}
-                        onClick={() => void publish(v.id)}
-                      >
-                        {v.status === "published" ? "Restore" : "Publish"}
-                      </button>
-                    </div>
-                  )}
+                  {(v) => {
+                    const isLive = () => v.id === liveVersionId();
+                    return (
+                      <div class="louise-arr-row" data-live={isLive() ? "1" : undefined}>
+                        <span>
+                          {isLive() ? "Live" : v.status === "published" ? "Published" : "Draft"}
+                          {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
+                        </span>
+                        <div class="louise-arr-ops">
+                          {/* Drafts resume for editing (never publish straight from
+                              history) + can be deleted; published versions restore live. */}
+                          <Show
+                            when={v.status === "draft"}
+                            fallback={
+                              <button
+                                class="louise-btn louise-btn-xs"
+                                type="button"
+                                disabled={status() === "publishing" || isLive()}
+                                onClick={() => void publish(v.id)}
+                              >
+                                {isLive() ? "Current" : "Restore"}
+                              </button>
+                            }
+                          >
+                            <button
+                              class="louise-btn louise-btn-xs"
+                              type="button"
+                              title="Resume editing this draft"
+                              onClick={() => editDraft(v.id)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              class="louise-btn louise-btn-xs louise-btn-danger"
+                              type="button"
+                              title="Delete draft"
+                              onClick={() => void discardDraft(v.id)}
+                            >
+                              <Icon name="trash" />
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    );
+                  }}
                 </For>
               </div>
             </Show>

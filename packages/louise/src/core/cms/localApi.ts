@@ -674,6 +674,13 @@ export interface VersionedLocalApi<
   /** Clears the main row's published pointer; the row's data is untouched. */
   unpublish(context: TContext, id: number): Promise<InferSelectModel<TTable>>;
   /**
+   * Delete a single version row from the history (e.g. discarding a draft).
+   * Refuses to delete the currently-live version — its snapshot backs the live
+   * row — throwing {@link LouiseCmsError}; unpublish first if that's intended.
+   * Access: `update` (same gate as saving a draft).
+   */
+  discardVersion(context: TContext, versionId: number): Promise<void>;
+  /**
    * Field-level diff (issue #14) between two version snapshots' `versionData`
    * — the per-field added/removed/changed list a version-history UI renders.
    * Both versions must belong to the same parent. Bookkeeping keys
@@ -834,6 +841,25 @@ export function createVersionedLocalApi<
         .returning();
       if (!row) notFound(config, id);
       return row as InferSelectModel<TTable>;
+    },
+
+    async discardVersion(context, versionId) {
+      await checkAccess(config, "update", context);
+      const [version] = await db
+        .select()
+        .from(versionsTable)
+        .where(eq(versionsIdColumn, versionId));
+      if (!version) notFoundVersion(config, versionId);
+      const parentId = (version as Record<string, unknown>).parentId as number;
+      const [parent] = await db.select().from(table).where(eq(idColumn, parentId));
+      // The live row renders from the published version's snapshot, so deleting
+      // it would orphan the pointer — refuse and let the caller unpublish first.
+      if (parent && (parent as Record<string, unknown>).publishedVersionId === versionId) {
+        throw new LouiseCmsError(
+          `Cannot discard the live "${config.slug}" version ${versionId}; unpublish it first`,
+        );
+      }
+      await db.delete(versionsTable).where(eq(versionsIdColumn, versionId));
     },
 
     async diffVersions(context, fromVersionId, toVersionId) {

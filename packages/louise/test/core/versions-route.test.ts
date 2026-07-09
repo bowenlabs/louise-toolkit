@@ -68,4 +68,34 @@ describe("versionsRoute — routing", () => {
     );
     expect(res?.status).toBe(405);
   });
+
+  it("owns the discard action (doesn't fall through)", async () => {
+    // GET on discard is unsupported → 405, but it must not fall through (undefined).
+    const res = await route(() => editor)(
+      req("GET", "/api/louise/pages/5/discard"),
+      { DB: noopD1 },
+      ctx,
+    );
+    expect(res?.status).toBe(405);
+  });
+
+  it("discard 400s a missing versionId before any DB access", async () => {
+    // No request body → versionId undefined → 400, short-circuiting the delete.
+    const res = await route(() => editor)(
+      req("POST", "/api/louise/pages/5/discard"),
+      { DB: noopD1 },
+      ctx,
+    );
+    expect(res?.status).toBe(400);
+  });
+
+  it("discard denies an unauthenticated request", async () => {
+    const res = await route(() => null)(
+      req("POST", "/api/louise/pages/5/discard"),
+      { DB: noopD1 },
+      ctx,
+    );
+    expect(res?.status).toBeGreaterThanOrEqual(401);
+    expect(res?.status).toBeLessThan(404);
+  });
 });
