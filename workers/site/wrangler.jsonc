@@ -26,7 +26,7 @@
     {
       "binding": "DB",
       "database_name": "louisecms-dogfood",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "aaceeda7-a70b-48aa-a0d5-ca7e3b02eb4a",
       "migrations_dir": "migrations",
     },
   ],
@@ -34,7 +34,7 @@
   // (see src/worker.ts) so no public bucket URL is needed for the dogfood.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "louisecms-dogfood-media" }],
   // KV for the security rate limiter.
-  "kv_namespaces": [{ "binding": "RL", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  "kv_namespaces": [{ "binding": "RL", "id": "9c8f07a3f4bf4a55af014c70197b856c" }],
   "vars": {
     // Public base for media URLs; same-origin /media/* keeps the dogfood
     // self-contained (no external R2 domain). SESSION secret + editor password
