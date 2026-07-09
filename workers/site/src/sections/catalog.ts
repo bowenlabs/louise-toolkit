@@ -10,24 +10,25 @@ export const SECTIONS: SectionCatalog = {
     label: "Hero",
     icon: "ph ph-rocket",
     fields: {
-      heading: { type: "text", label: "Heading" },
-      tagline: { type: "textarea", label: "Tagline" },
-      ctaLabel: { type: "text", label: "Button label", placeholder: "Read the docs" },
-      ctaHref: { type: "text", label: "Button link", placeholder: "https://…" },
+      heading: { type: "text", label: "Heading", placeholder: "Add a heading" },
+      tagline: { type: "textarea", label: "Tagline", placeholder: "Add a tagline" },
+      ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
+      // Edited in the dock — a link target has no visible text to click on.
+      ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
     },
   },
   featureGrid: {
     label: "Feature grid",
     icon: "ph ph-squares-four",
     fields: {
-      heading: { type: "text", label: "Heading (optional)" },
+      heading: { type: "text", label: "Heading (optional)", placeholder: "Section heading" },
       items: {
         type: "array",
         label: "Features",
         itemLabel: "Feature",
         itemFields: {
-          title: { type: "text", label: "Title" },
-          body: { type: "textarea", label: "Body" },
+          title: { type: "text", label: "Title", placeholder: "Feature title" },
+          body: { type: "textarea", label: "Body", placeholder: "Feature description" },
         },
       },
     },

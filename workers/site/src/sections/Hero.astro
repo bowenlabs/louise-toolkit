@@ -4,6 +4,11 @@
 // markup or classes, only its fields (heading/tagline/cta). This is how a
 // preconfigured block keeps a pixel-perfect bespoke design while staying
 // editor-controlled.
+//
+// In edit mode it stamps `data-louise-sfield` markers on the visible text nodes
+// so the client can make them editable in place, and always renders those nodes
+// (even when empty) so there's something to click into. `ctaHref` has no visible
+// text, so it's edited in the dock, not here.
 import louiseMark from "../assets/louise-mark.svg?raw";
 
 interface Props {
@@ -11,8 +16,18 @@ interface Props {
   tagline?: string;
   ctaLabel?: string;
   ctaHref?: string;
+  _editIndex?: number;
+  _editMode?: boolean;
 }
-const { heading = "Louise CMS", tagline = "", ctaLabel, ctaHref } = Astro.props;
+const {
+  heading = "",
+  tagline = "",
+  ctaLabel = "",
+  ctaHref = "",
+  _editIndex = 0,
+  _editMode: edit = false,
+} = Astro.props;
+const idx = _editIndex;
 ---
 
 <section class="louise-type px-5 pt-24 pb-12 text-center">
@@ -21,11 +36,30 @@ const { heading = "Louise CMS", tagline = "", ctaLabel, ctaHref } = Astro.props;
     aria-hidden="true"
     set:html={louiseMark}
   />
-  <h1 class="mb-3 text-5xl leading-none font-black tracking-tight md:text-6xl">{heading}</h1>
-  {tagline && <p class="mx-auto mb-8 max-w-xl text-xl text-base-content/70">{tagline}</p>}
+  <h1
+    class="mb-3 text-5xl leading-none font-black tracking-tight md:text-6xl"
+    data-louise-sfield={edit ? `${idx}.heading` : undefined}
+  >
+    {heading || (edit ? "" : "Louise CMS")}
+  </h1>
   {
-    ctaLabel && ctaHref && (
-      <a class="btn btn-primary" href={ctaHref}>
+    (edit || tagline) && (
+      <p
+        class="mx-auto mb-8 max-w-xl text-xl text-base-content/70"
+        data-louise-sfield={edit ? `${idx}.tagline` : undefined}
+        data-louise-multiline={edit || undefined}
+      >
+        {tagline}
+      </p>
+    )
+  }
+  {
+    (edit || (ctaLabel && ctaHref)) && (
+      <a
+        class="btn btn-primary"
+        href={ctaHref || "#"}
+        data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
+      >
         {ctaLabel}
       </a>
     )

@@ -3,20 +3,25 @@
 //
 // A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`.
 // The SITE owns rendering (bespoke Astro components, any design); this owns
-// EDITING only — a per-section field form plus add/reorder/remove — and saves the
-// array back to the page's `sections` column (PATCH /api/louise/pages/:id). No
-// HTML/markup is ever authored here, so the design stays 100% site-owned.
+// EDITING only, and saves the array back to `sections` (PATCH /api/louise/pages/:id).
+// No HTML/markup is ever authored here, so the design stays 100% site-owned.
 //
-// State is a `createStore` (not a signal of a new array): field edits are
-// fine-grained path writes (`setState("items", i, key, value)`), so a keystroke
-// updates only that leaf. Using a signal + object-replacement would give each
-// row a new reference and make `<For>` tear down and rebuild the card's DOM on
-// every keystroke — dropping focus and shifting the page. The store avoids that.
+// The UX is HYBRID:
+//  • TEXT is edited IN PLACE on the live bespoke render. Each editable text node
+//    carries a `data-louise-sfield="<idx>.<key>[.<j>.<subKey>]"` marker; we make
+//    it contenteditable and write keystrokes straight into the store. No panel,
+//    no reload — you type on the real design. Saved on demand via the dock.
+//  • STRUCTURE (which sections exist, their order, array-item membership) and any
+//    non-visible field (e.g. a button's link URL) live in a compact floating
+//    "dock" — the things you can't point at on the page. Because the bespoke
+//    components are server-rendered, a structural change persists then reloads so
+//    the server re-renders the new shape (which then becomes inline-editable).
 //
-// Fields are a deliberately small subset for the first slice (text/textarea +
-// a repeatable `array`); this converges onto the full cms `FieldConfig` later.
+// State is a single `createStore` shared by the inline wiring and the dock, so a
+// keystroke is a fine-grained path write (`set("items", i, key, value)`) that
+// updates only that leaf — no row teardown, no focus loss.
 
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { render } from "solid-js/web";
 import { injectStyles } from "./styles.js";
@@ -27,10 +32,19 @@ export interface SectionField {
   type: SectionFieldType;
   label?: string;
   placeholder?: string;
+  /** Whether this field is edited in place on the bespoke render (a visible text
+   *  node) vs. in the dock (a value you can't point at, e.g. a link URL).
+   *  Defaults to `true` for text/textarea, `false` for `array`. */
+  inline?: boolean;
   /** `array` only — label for each repeated item (e.g. "Feature"). */
   itemLabel?: string;
   /** `array` only — the fields of each repeated item. */
   itemFields?: Record<string, SectionField>;
+}
+
+/** Whether a field is edited in place (default: text/textarea yes, array no). */
+function isInline(field: SectionField): boolean {
+  return field.inline ?? field.type !== "array";
 }
 
 export interface SectionDef {
@@ -72,45 +86,87 @@ function blankRecord(fields: Record<string, SectionField>): Record<string, unkno
   return out;
 }
 
-export function SectionsEditor(props: SectionsEditorProps) {
-  // Deep-clone the initial data into a store so edits are fine-grained.
+type StoreSetter = (...args: unknown[]) => void;
+type Status = "idle" | "saving" | "saved" | "error";
+
+/** Parse a `data-louise-sfield` path ("1.items.2.title") into store-write args,
+ *  coercing the numeric segments (section index, array index) to numbers. */
+function pathToArgs(path: string): (string | number)[] {
+  return path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p));
+}
+
+/** Resolve the placeholder/label text for a marker path, for empty-field hints. */
+function placeholderFor(catalog: SectionCatalog, path: string, items: SectionItem[]): string {
+  const parts = path.split(".");
+  const item = items[Number(parts[0])];
+  const def = item ? catalog[item._type] : undefined;
+  let field = def?.fields[parts[1]];
+  // Array subfield path: <idx>.<key>.<j>.<subKey>
+  if (field?.type === "array" && parts.length >= 4) field = field.itemFields?.[parts[3]];
+  return (
+    field?.placeholder ?? field?.label ?? (parts.at(-1) ? humanize(parts.at(-1) as string) : "")
+  );
+}
+
+/**
+ * Wire in-place editing over the bespoke render: every `[data-louise-sfield]`
+ * text node becomes contenteditable and writes into the shared store. Runs once
+ * on mount (the nodes are server-rendered and stable until a structural reload).
+ */
+function wireInline(
+  host: HTMLElement,
+  catalog: SectionCatalog,
+  items: SectionItem[],
+  set: StoreSetter,
+  onEdit: () => void,
+): void {
+  const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
+  for (const node of Array.from(nodes)) {
+    const path = node.dataset.louiseSfield;
+    if (!path) continue;
+    const hint = placeholderFor(catalog, path, items);
+    if (hint) node.dataset.louisePlaceholder = hint;
+    node.classList.add("louise-editable", "louise-sfield");
+    node.setAttribute("contenteditable", "plaintext-only");
+    node.setAttribute("spellcheck", "false");
+    // Single-line fields swallow Enter; multiline (textarea-backed) keeps it.
+    if (!node.hasAttribute("data-louise-multiline")) {
+      node.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") e.preventDefault();
+      });
+    }
+    node.addEventListener("input", () => {
+      set("items", ...pathToArgs(path), node.textContent ?? "");
+      onEdit();
+    });
+  }
+}
+
+/**
+ * The hybrid sections editor: it takes over `host` (the bespoke render) with
+ * in-place text editing and mounts its own control dock. `mountSections` renders
+ * this into a body-level container so the page's own layout is untouched.
+ */
+function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [state, setState] = createStore<{ items: SectionItem[] }>({
     items: structuredClone(props.initial),
   });
   // Loosely-typed setter for dynamic deep paths (the SectionItem index signature
   // makes the strict overloads resolve to `never`).
-  const set = setState as unknown as (...args: unknown[]) => void;
-  const [status, setStatus] = createSignal<"idle" | "saving" | "saved" | "error">("idle");
+  const set = setState as unknown as StoreSetter;
+  const [status, setStatus] = createSignal<Status>("idle");
+  const [dirty, setDirty] = createSignal(false);
   const [adding, setAdding] = createSignal(false);
+  const [collapsed, setCollapsed] = createSignal(false);
 
   const touched = () => {
+    setDirty(true);
     if (status() !== "idle") setStatus("idle");
   };
 
-  const addSection = (type: string) => {
-    const def = props.catalog[type];
-    if (!def) return;
-    set("items", (a: SectionItem[]) => [...a, { _type: type, ...blankRecord(def.fields) }]);
-    setAdding(false);
-    touched();
-  };
-  const removeSection = (i: number) => {
-    set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i));
-    touched();
-  };
-  const moveSection = (i: number, delta: number) => {
-    set("items", (a: SectionItem[]) => {
-      const j = i + delta;
-      if (j < 0 || j >= a.length) return a;
-      const next = a.slice();
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-    touched();
-  };
+  onMount(() => wireInline(props.host, props.catalog, state.items, set, touched));
 
-  const save = async () => {
-    setStatus("saving");
+  const persist = async (): Promise<boolean> => {
     try {
       const res = await fetch(`/api/louise/pages/${props.pageId}`, {
         method: "PATCH",
@@ -118,239 +174,251 @@ export function SectionsEditor(props: SectionsEditorProps) {
         body: JSON.stringify({ sections: unwrap(state.items) }),
       });
       if (!res.ok) throw new Error(`save failed: ${res.status}`);
-      setStatus("saved");
+      return true;
     } catch (err) {
       console.error("[louise] sections save failed", err);
+      return false;
+    }
+  };
+
+  // Text/field save: persist in place, no reload (the DOM already shows it).
+  const save = async () => {
+    setStatus("saving");
+    if (await persist()) {
+      setDirty(false);
+      setStatus("saved");
+    } else {
       setStatus("error");
     }
   };
 
+  // Structural change: mutate, persist (also flushing any pending text edits),
+  // then reload so the server re-renders the new shape as bespoke, inline-ready.
+  const structural = async (mutate: () => void) => {
+    mutate();
+    setStatus("saving");
+    if (await persist()) location.reload();
+    else setStatus("error");
+  };
+
+  const addSection = (type: string) => {
+    const def = props.catalog[type];
+    if (!def) return;
+    setAdding(false);
+    void structural(() =>
+      set("items", (a: SectionItem[]) => [...a, { _type: type, ...blankRecord(def.fields) }]),
+    );
+  };
+  const removeSection = (i: number) =>
+    void structural(() => set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i)));
+  const moveSection = (i: number, delta: number) =>
+    void structural(() =>
+      set("items", (a: SectionItem[]) => {
+        const j = i + delta;
+        if (j < 0 || j >= a.length) return a;
+        const next = a.slice();
+        [next[i], next[j]] = [next[j], next[i]];
+        return next;
+      }),
+    );
+  const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
+    void structural(() =>
+      set("items", i, key, (arr: unknown) => [
+        ...(Array.isArray(arr) ? arr : []),
+        blankRecord(itemFields),
+      ]),
+    );
+  const removeItem = (i: number, key: string, k: number) =>
+    void structural(() =>
+      set("items", i, key, (arr: Record<string, unknown>[]) => arr.filter((_, z) => z !== k)),
+    );
+
+  /** Fields edited in the dock (not visible text you can point at). */
+  const dockFields = (item: SectionItem): [string, SectionField][] =>
+    Object.entries(props.catalog[item._type]?.fields ?? {}).filter(
+      ([, f]) => f.type !== "array" && !isInline(f),
+    );
+  const arrayFields = (item: SectionItem): [string, SectionField][] =>
+    Object.entries(props.catalog[item._type]?.fields ?? {}).filter(([, f]) => f.type === "array");
+
   return (
-    <div class="louise-sections" data-theme="louise">
+    <div
+      class="louise-sections-dock"
+      data-theme="louise"
+      data-collapsed={collapsed() ? "1" : undefined}
+    >
       <div class="louise-sections-head">
+        <button
+          class="louise-sections-toggle"
+          type="button"
+          title={collapsed() ? "Expand" : "Collapse"}
+          onClick={() => setCollapsed((v) => !v)}
+        >
+          {collapsed() ? "▸" : "▾"}
+        </button>
         <span class="louise-sections-title">Page sections</span>
         <span class="louise-sections-status" data-status={status()}>
           {status() === "saving"
             ? "Saving…"
             : status() === "saved"
-              ? "Saved · leave edit mode to preview"
+              ? "Saved"
               : status() === "error"
                 ? "Couldn’t save"
-                : ""}
+                : dirty()
+                  ? "Unsaved"
+                  : ""}
         </span>
       </div>
 
-      <For
-        each={state.items}
-        fallback={<p class="louise-muted">No sections yet — add one below.</p>}
-      >
-        {(item, i) => (
-          <div class="louise-section-card">
-            <div class="louise-section-card-head">
-              <span class="louise-section-type">
-                {props.catalog[item._type]?.label ?? item._type}
-              </span>
-              <div class="louise-section-ops">
-                <button
-                  class="louise-btn louise-btn-xs"
-                  type="button"
-                  title="Move up"
-                  disabled={i() === 0}
-                  onClick={() => moveSection(i(), -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  class="louise-btn louise-btn-xs"
-                  type="button"
-                  title="Move down"
-                  disabled={i() === state.items.length - 1}
-                  onClick={() => moveSection(i(), 1)}
-                >
-                  ↓
-                </button>
-                <button
-                  class="louise-btn louise-btn-xs louise-btn-danger"
-                  type="button"
-                  title="Remove"
-                  onClick={() => removeSection(i())}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div class="louise-section-fields">
-              <For each={Object.entries(props.catalog[item._type]?.fields ?? {})}>
-                {([key, field]) => (
-                  <div class="louise-field">
-                    <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                    <Show
-                      when={field.type === "array"}
-                      fallback={
-                        <Show
-                          when={field.type === "textarea"}
-                          fallback={
-                            <input
-                              class="louise-input"
-                              value={String(item[key] ?? "")}
-                              placeholder={field.placeholder}
-                              onInput={(e) => {
-                                set("items", i(), key, e.currentTarget.value);
-                                touched();
-                              }}
-                            />
-                          }
-                        >
-                          <textarea
-                            class="louise-input"
-                            rows={2}
-                            value={String(item[key] ?? "")}
-                            placeholder={field.placeholder}
-                            onInput={(e) => {
-                              set("items", i(), key, e.currentTarget.value);
-                              touched();
-                            }}
-                          />
-                        </Show>
-                      }
+      <Show when={!collapsed()}>
+        <div class="louise-sections-body">
+          <For
+            each={state.items}
+            fallback={<p class="louise-muted">No sections yet — add one below.</p>}
+          >
+            {(item, i) => (
+              <div class="louise-section-row">
+                <div class="louise-section-row-head">
+                  <span class="louise-section-type">
+                    {props.catalog[item._type]?.label ?? item._type}
+                  </span>
+                  <div class="louise-section-ops">
+                    <button
+                      class="louise-btn louise-btn-xs"
+                      type="button"
+                      title="Move up"
+                      disabled={i() === 0}
+                      onClick={() => moveSection(i(), -1)}
                     >
-                      <div class="louise-arr">
-                        <For each={(item[key] as Record<string, unknown>[]) ?? []}>
-                          {(sub, k) => (
-                            <div class="louise-arr-item">
-                              <div class="louise-arr-item-head">
-                                <span>
-                                  {field.itemLabel ?? "Item"} {k() + 1}
-                                </span>
-                                <button
-                                  class="louise-btn louise-btn-xs louise-btn-danger"
-                                  type="button"
-                                  onClick={() => {
-                                    set("items", i(), key, (arr: Record<string, unknown>[]) =>
-                                      arr.filter((_, z) => z !== k()),
-                                    );
-                                    touched();
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              <For each={Object.entries(field.itemFields ?? {})}>
-                                {([subKey, subField]) => (
-                                  <div class="louise-field">
-                                    <span class="louise-field-label">
-                                      {subField.label ?? humanize(subKey)}
-                                    </span>
-                                    <Show
-                                      when={subField.type === "textarea"}
-                                      fallback={
-                                        <input
-                                          class="louise-input"
-                                          value={String(sub[subKey] ?? "")}
-                                          placeholder={subField.placeholder}
-                                          onInput={(e) => {
-                                            set(
-                                              "items",
-                                              i(),
-                                              key,
-                                              k(),
-                                              subKey,
-                                              e.currentTarget.value,
-                                            );
-                                            touched();
-                                          }}
-                                        />
-                                      }
-                                    >
-                                      <textarea
-                                        class="louise-input"
-                                        rows={2}
-                                        value={String(sub[subKey] ?? "")}
-                                        placeholder={subField.placeholder}
-                                        onInput={(e) => {
-                                          set(
-                                            "items",
-                                            i(),
-                                            key,
-                                            k(),
-                                            subKey,
-                                            e.currentTarget.value,
-                                          );
-                                          touched();
-                                        }}
-                                      />
-                                    </Show>
-                                  </div>
-                                )}
-                              </For>
-                            </div>
-                          )}
-                        </For>
-                        <button
-                          class="louise-btn louise-btn-xs"
-                          type="button"
-                          onClick={() => {
-                            set("items", i(), key, (arr: unknown) => [
-                              ...(Array.isArray(arr) ? arr : []),
-                              blankRecord(field.itemFields ?? {}),
-                            ]);
-                            touched();
-                          }}
-                        >
-                          + {field.itemLabel ?? "item"}
-                        </button>
-                      </div>
-                    </Show>
+                      ↑
+                    </button>
+                    <button
+                      class="louise-btn louise-btn-xs"
+                      type="button"
+                      title="Move down"
+                      disabled={i() === state.items.length - 1}
+                      onClick={() => moveSection(i(), 1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      class="louise-btn louise-btn-xs louise-btn-danger"
+                      type="button"
+                      title="Remove section"
+                      onClick={() => removeSection(i())}
+                    >
+                      ✕
+                    </button>
                   </div>
-                )}
-              </For>
-            </div>
-          </div>
-        )}
-      </For>
+                </div>
 
-      <div class="louise-sections-add">
-        <button class="louise-btn" type="button" onClick={() => setAdding((v) => !v)}>
-          + Add section
-        </button>
-        <Show when={adding()}>
-          <div class="louise-sections-palette" role="menu">
-            <For each={Object.entries(props.catalog)}>
-              {([type, def]) => (
-                <button
-                  class="louise-slash-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => addSection(type)}
-                >
-                  {def.label}
-                </button>
-              )}
-            </For>
-          </div>
-        </Show>
-      </div>
+                {/* Non-visible fields (edited here, not on the page). */}
+                <For each={dockFields(item)}>
+                  {([key, field]) => (
+                    <label class="louise-field">
+                      <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                      <input
+                        class="louise-input"
+                        value={String(item[key] ?? "")}
+                        placeholder={field.placeholder}
+                        onInput={(e) => {
+                          set("items", i(), key, e.currentTarget.value);
+                          touched();
+                        }}
+                      />
+                    </label>
+                  )}
+                </For>
 
-      <div class="louise-form-actions">
-        <button
-          class="louise-btn louise-btn-primary"
-          type="button"
-          disabled={status() === "saving"}
-          onClick={() => void save()}
-        >
-          {status() === "saving" ? "Saving…" : "Save layout"}
-        </button>
-      </div>
+                {/* Array membership — the text of each item is edited in place. */}
+                <For each={arrayFields(item)}>
+                  {([key, field]) => (
+                    <div class="louise-arr">
+                      <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                      <For each={(item[key] as unknown[]) ?? []}>
+                        {(_, k) => (
+                          <div class="louise-arr-row">
+                            <span>
+                              {field.itemLabel ?? "Item"} {k() + 1}
+                            </span>
+                            <button
+                              class="louise-btn louise-btn-xs louise-btn-danger"
+                              type="button"
+                              title="Remove"
+                              onClick={() => removeItem(i(), key, k())}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+                      </For>
+                      <button
+                        class="louise-btn louise-btn-xs"
+                        type="button"
+                        onClick={() => addItem(i(), key, field.itemFields ?? {})}
+                      >
+                        + {field.itemLabel ?? "item"}
+                      </button>
+                    </div>
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
+
+          <div class="louise-sections-add">
+            <button class="louise-btn" type="button" onClick={() => setAdding((v) => !v)}>
+              + Add section
+            </button>
+            <Show when={adding()}>
+              <div class="louise-sections-palette" role="menu">
+                <For each={Object.entries(props.catalog)}>
+                  {([type, def]) => (
+                    <button
+                      class="louise-slash-item"
+                      type="button"
+                      role="menuitem"
+                      onClick={() => addSection(type)}
+                    >
+                      {def.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+
+          <div class="louise-form-actions">
+            <button
+              class="louise-btn louise-btn-primary"
+              type="button"
+              disabled={status() === "saving" || !dirty()}
+              onClick={() => void save()}
+            >
+              {status() === "saving" ? "Saving…" : "Save"}
+            </button>
+            <span class="louise-muted louise-sections-hint">
+              Click any text on the page to edit it.
+            </span>
+          </div>
+        </div>
+      </Show>
     </div>
   );
 }
 
 /**
- * Vanilla-DOM adapter: take over `el` (which server-rendered the bespoke
- * sections) with the editor, in edit mode. Returns the disposer.
+ * Vanilla-DOM adapter: enable in-place editing over `el` (the server-rendered
+ * bespoke sections) and mount the control dock, in edit mode. The bespoke render
+ * is left in place — only made editable. Returns the disposer.
  */
 export function mountSections(el: HTMLElement, opts: SectionsEditorProps): () => void {
   injectStyles();
-  el.innerHTML = "";
-  return render(() => <SectionsEditor {...opts} />, el);
+  const dock = document.createElement("div");
+  document.body.appendChild(dock);
+  const dispose = render(() => <SectionsRoot {...opts} host={el} />, dock);
+  return () => {
+    dispose();
+    dock.remove();
+  };
 }

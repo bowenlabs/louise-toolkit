@@ -643,62 +643,89 @@ const CSS = `
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-/* Structured sections editor (visual block builder for bespoke pages). */
-.louise-sections {
-  max-width: 720px;
-  margin: 24px auto;
-  padding: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
-  background: #fff;
+/* Structured sections — in-place text editing on the bespoke render, plus a
+   floating control dock for structure (add/reorder/remove, array items, and
+   any field with no visible text on the page, like a link URL). */
+
+/* An inline section field on the live design: it reuses the .louise-editable
+   affordance; when empty it surfaces its placeholder so an empty node is still
+   discoverable and clickable. */
+.louise-sfield:empty::before {
+  content: attr(data-louise-placeholder);
+  color: rgba(15, 23, 42, 0.35);
+  pointer-events: none;
+}
+
+/* Control dock — bottom-left, clearing the center save bar and right drawer. */
+.louise-sections-dock {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2147483000;
+  width: 300px;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
   font-family: var(--louise-font-body);
   color: #0f172a;
 }
+.louise-sections-dock[data-collapsed="1"] { width: auto; }
 .louise-sections-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.louise-sections-title { font-weight: 700; font-size: 14px; }
-.louise-sections-status { font-size: 12px; color: #64748b; }
-.louise-sections-status[data-status="error"] { color: #dc2626; }
-.louise-sections-status[data-status="saved"] { color: #16a34a; }
-.louise-section-card {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 10px;
-  padding: 12px;
+  gap: 8px;
   margin-bottom: 10px;
 }
-.louise-section-card-head {
+.louise-sections-toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #475569;
+  padding: 0 2px;
+}
+.louise-sections-title { font-weight: 700; font-size: 14px; }
+.louise-sections-status { margin-left: auto; font-size: 12px; color: #64748b; }
+.louise-sections-status[data-status="error"] { color: #dc2626; }
+.louise-sections-status[data-status="saved"] { color: #16a34a; }
+.louise-sections-body { overflow-y: auto; }
+.louise-section-row {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 8px;
+}
+.louise-section-row-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
 }
 .louise-section-type { font-weight: 600; font-size: 13px; }
 .louise-section-ops { display: flex; gap: 4px; }
-.louise-section-fields { display: grid; gap: 10px; }
-.louise-sections-add { position: relative; margin: 6px 0 14px; }
-.louise-arr { display: grid; gap: 8px; }
-.louise-arr-item {
-  display: grid;
-  gap: 8px;
-  padding: 8px;
-  border: 1px dashed rgba(15, 23, 42, 0.15);
-  border-radius: 8px;
-}
-.louise-arr-item-head {
+.louise-arr { display: grid; gap: 6px; }
+.louise-arr-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  font-weight: 600;
   color: #475569;
+  padding: 4px 6px;
+  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border-radius: 8px;
 }
+.louise-sections-add { position: relative; margin: 4px 0 10px; }
+.louise-sections-hint { font-size: 11px; }
 .louise-sections-palette {
   position: absolute;
-  top: calc(100% + 4px);
+  bottom: calc(100% + 4px);
   left: 0;
   z-index: 5;
   min-width: 180px;

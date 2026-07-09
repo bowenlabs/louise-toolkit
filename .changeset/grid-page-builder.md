@@ -14,12 +14,18 @@ Grid page-builder + editor packaging fixes.
   column switch.
 - **Page templates**: `PageTemplate` + a `pageTemplates` option on the drawer
   config surfaces "start from a template" starter layouts in the Pages panel.
-- **Structured sections** (`louisecms/client`): `mountSections`/`SectionsEditor` —
-  a visual block builder for bespoke, component-rendered pages. Pages store an
-  ordered array of typed section items (`{ _type, ...fields }`); the site renders
-  each with its own component, so the design stays bespoke while editors add /
-  reorder / remove sections and edit typed fields (text/textarea/array). Fine-
-  grained `createStore` state so typing never rebuilds a row.
+- **Structured sections** (`louisecms/client`): `mountSections` — a visual block
+  builder for bespoke, component-rendered pages. Pages store an ordered array of
+  typed section items (`{ _type, ...fields }`); the site renders each with its own
+  component, so the design stays bespoke. Editing is **hybrid**: text is edited
+  **in place on the live render** — components stamp `data-louise-sfield` markers
+  on their text nodes and `mountSections` makes them contenteditable, writing
+  straight into a fine-grained `createStore` (so typing never rebuilds a row) — and
+  a floating **control dock** handles what you can't point at: add / reorder /
+  remove sections, array-item add/remove, and non-visible fields (a field can opt
+  out of inline editing with `SectionField.inline: false`, e.g. a link URL). Text
+  saves in place; structural changes persist then reload so the server re-renders
+  the new shape.
 - **Type**: brand type is now **Roboto Flex** throughout (`theme/fonts.css` +
   client chrome); headings are the same family at a heavier weight (no Hepta Slab).
 - **Sanitizer** (`louisecms/security`): the inline-`style` allowlist now accepts a
