@@ -25,11 +25,13 @@ import {
   saveRoute,
   seedRoute,
   settingsRoute,
+  versionsRoute,
 } from "louisecms/editor";
 import { assertValidSections } from "louisecms/cms";
 import { composeWorker, type WorkerRoute } from "louisecms/worker";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
-import { inquiries, media, pages, siteSettings } from "./schema.js";
+import { pagesCollection } from "./pages-collection.js";
+import { inquiries, media, pages, pagesVersions, siteSettings } from "./schema.js";
 import { SECTIONS } from "./sections/catalog.js";
 
 type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
@@ -146,6 +148,22 @@ const SETTINGS_COLUMNS = [
 ];
 
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
+  // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
+  // publish,unpublish}. Saves stage drafts (live row untouched); publish promotes
+  // a draft and sets published_version_id. Same sections validation on drafts.
+  // MUST precede pagesRoute — pagesRoute's `/:id` matcher would otherwise claim
+  // `/pages/:id/versions` and 400 on the non-integer id.
+  versionsRoute({
+    table: pages,
+    versionsTable: pagesVersions,
+    config: pagesCollection,
+    resolveEditor,
+    validate: async (data) => {
+      if ("sections" in data) {
+        await assertValidSections(SECTIONS, data.sections, { operation: "update" });
+      }
+    },
+  }),
   // `sections` (structured page-builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is

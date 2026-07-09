@@ -11,6 +11,7 @@ import {
   settingsRoute,
   blobSettingsRoute,
   pagesRoute,
+  versionsRoute,
   mediaRoute,
   listMediaRoute,
   inquiriesRoute,
@@ -116,6 +117,7 @@ export const ALL: APIRoute = (ctx) =>
 | Factory             | Endpoint                       | Methods                                                       |
 | ------------------- | ------------------------------ | ------------------------------------------------------------- |
 | `pagesRoute`        | `/api/louise/pages` (+ `/:id`) | GET list · POST create · GET/PATCH/DELETE one                 |
+| `versionsRoute`     | `/api/louise/pages/:id/…`      | GET/POST `versions` · POST `publish` · POST `unpublish`       |
 | `mediaRoute`        | `/api/louise/media`            | GET list · POST upload · DELETE (reference-scanned)           |
 | `listMediaRoute`    | `/api/louise/media`            | registry-less variant: lists R2 directly, per-request `scope` |
 | `settingsRoute`     | `/api/louise/settings`         | GET · POST/PATCH (structured base + `custom`)                 |
@@ -130,6 +132,14 @@ export const ALL: APIRoute = (ctx) =>
   runs after allowlisting and before the write — throw `LouiseValidationError`
   (e.g. via [`assertValidSections`](/guide/sections/#validation)) to reject with a
   `422` carrying the per-field `violations`.
+- **`versionsRoute`** — the [draft/publish + version history](/guide/drafts/)
+  surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
+  (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest
+  draft), `POST …/:id/unpublish`. A save merges the edit over the current row and
+  stores a full snapshot in `${slug}_versions`; publish promotes it onto the live
+  row and sets `published_version_id`. Takes `{ table, versionsTable, config,
+resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
+  `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher.
 - **`mediaRoute`** — wraps [`louisecms/media`](/guide/media/): magic-byte-
   sniffed uploads, the registry list, and a delete-safety reference scan (a
   `409 in_use` unless `?force=1`). Its env widens `EditorRouteEnv` with the R2

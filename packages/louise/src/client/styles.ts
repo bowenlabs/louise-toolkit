@@ -732,6 +732,20 @@ const CSS = `
 }
 .louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .louise-sections-img-error { font-size: 11px; color: #dc2626; }
+.louise-sections-history { margin: 4px 0 8px; }
+.louise-sections-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  padding: 2px 0;
+}
+.louise-sections-versions { display: grid; gap: 6px; margin-top: 6px; }
 .louise-sections-palette {
   position: absolute;
   bottom: calc(100% + 4px);
@@ -1023,6 +1037,7 @@ const CSS = `
 .louise-crop-controls .louise-btn { align-self: flex-start; }
 .louise-form-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding-top: 4px;
   border-top: 1px solid rgba(15, 23, 42, 0.08);

@@ -2,7 +2,7 @@
 title: Auth & edit mode
 description: How editing is gated — and why writes trust the session, not the page.
 sidebar:
-  order: 9
+  order: 10
 ---
 
 Louise ships the editor and the field contract; **you own authentication**. Any

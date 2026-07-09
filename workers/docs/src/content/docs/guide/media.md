@@ -2,7 +2,7 @@
 title: Media
 description: Uploading images to R2 safely.
 sidebar:
-  order: 8
+  order: 9
 ---
 
 Louise's editor uploads images (paste, drop, or the toolbar button) to a media

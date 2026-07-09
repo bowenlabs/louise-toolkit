@@ -2,7 +2,7 @@
 title: Theme
 description: The daisyUI "louise" editor theme.
 sidebar:
-  order: 11
+  order: 12
 ---
 
 Louise's editor chrome — the drawer, inline-edit affordances, panels — is styled

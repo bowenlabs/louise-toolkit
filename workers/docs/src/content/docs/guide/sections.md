@@ -98,13 +98,20 @@ mountSections(el, { catalog: SECTIONS, pageId, initial });
 
 ## The save contract
 
-- **Text edits** are dirty until **Save**, which `PATCH`es the whole `sections`
-  array to your pages route — no reload (the DOM already shows the change).
-- **Structural changes** persist and then reload, so the server re-renders the
-  new shape (which comes back inline-editable).
+When the page is wired for [drafts & publishing](/guide/drafts/) (a `versions`
+collection), the dock's **Save draft** stages a version without touching the live
+page, and **Publish** promotes it. Otherwise **Save** writes straight to the page
+via `PATCH /api/louise/pages/:id`.
 
-Add `sections` to your [`pagesRoute`](/reference/editor/) `fields` allowlist so
-the `PATCH` is accepted, and store it as a JSON column on your `pages` table.
+- **Text edits** are dirty until **Save draft** — no reload (the DOM already
+  shows the change); the live page is unchanged until you **Publish**.
+- **Structural changes** save a draft and then reload, so the server re-renders
+  the new shape (which comes back inline-editable). In edit mode the page resumes
+  your latest draft; view mode always shows the published version.
+
+Store `sections` as a JSON column on your `pages` table and add it to your
+[`pagesRoute`](/reference/editor/) `fields` allowlist (metadata/create/delete) —
+the draft/publish surface is [`versionsRoute`](/reference/editor/).
 
 ## Validation
 

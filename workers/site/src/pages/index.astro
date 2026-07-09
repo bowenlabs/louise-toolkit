@@ -13,6 +13,7 @@ import "../styles/louise.css";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import Sections from "../components/Sections.astro";
 import SectionsMount from "../components/SectionsMount.astro";
+import { latestDraftSections } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 
 // SSR: the marketing app is `output: server` for Louise, and a prerendered
@@ -26,7 +27,11 @@ export const prerender = false;
 const DB = (env as unknown as CloudflareEnv).DB;
 const [home] = await db(DB).select().from(pages).where(eq(pages.slug, "home")).limit(1);
 const editMode = Astro.locals.editMode;
-const sections = (home?.sections ?? []) as Record<string, unknown>[];
+// View mode renders the published main row; edit mode resumes the latest draft
+// (saved via the sections dock) so work-in-progress is visible until published.
+const published = (home?.sections ?? []) as Record<string, unknown>[];
+const draft = editMode && home ? await latestDraftSections(DB, home.id) : null;
+const sections = draft ?? published;
 
 const year = new Date().getFullYear();
 ---

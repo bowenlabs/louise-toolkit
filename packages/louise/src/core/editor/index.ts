@@ -37,6 +37,7 @@ export {
   saveRoute,
 } from "./save.js";
 export { DEFAULT_PAGE_FIELDS, type PagesRouteConfig, pagesRoute, pickFields } from "./pages.js";
+export { type VersionsRouteConfig, versionsRoute } from "./versions.js";
 export { type MediaRouteConfig, type MediaRouteEnv, mediaRoute } from "./media.js";
 export { type ListMediaRouteConfig, listMediaRoute } from "./media-list.js";
 export { type SeedRouteConfig, seedRoute } from "./seed.js";

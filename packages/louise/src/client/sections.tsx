@@ -67,7 +67,14 @@ function blankRecord(fields: Record<string, SectionField>): Record<string, unkno
 }
 
 type StoreSetter = (...args: unknown[]) => void;
-type Status = "idle" | "saving" | "saved" | "error";
+type Status = "idle" | "saving" | "saved" | "publishing" | "published" | "error";
+
+/** A row from `GET /api/louise/pages/:id/versions`. */
+interface VersionRow {
+  id: number;
+  status: "draft" | "published";
+  createdAt?: string | number | null;
+}
 
 /** Parse a `data-louise-sfield` path ("1.items.2.title") into store-write args,
  *  coercing the numeric segments (section index, array index) to numbers. */
@@ -204,55 +211,117 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
 
+  const [versions, setVersions] = createSignal<VersionRow[]>([]);
+  const [showHistory, setShowHistory] = createSignal(false);
+  const hasDraft = () => versions().some((v) => v.status === "draft");
+
   const touched = () => {
     setDirty(true);
     if (status() !== "idle") setStatus("idle");
   };
 
-  onMount(() => wireInline(props.host, props.catalog, state.items, set, touched));
-
-  const persist = async (): Promise<boolean> => {
-    setErrorDetail("");
+  const loadVersions = async () => {
     try {
-      const res = await fetch(`/api/louise/pages/${props.pageId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sections: unwrap(state.items) }),
-      });
-      if (!res.ok) {
-        // A 422 from the pages route carries per-field validation violations.
-        const body = (await res.json().catch(() => null)) as {
-          error?: string;
-          violations?: { message: string }[];
-        } | null;
-        const detail = body?.violations?.[0]?.message ?? body?.error;
-        if (detail) setErrorDetail(detail);
-        throw new Error(`save failed: ${res.status}`);
-      }
-      return true;
-    } catch (err) {
-      console.error("[louise] sections save failed", err);
-      return false;
+      const res = await fetch(`/api/louise/pages/${props.pageId}/versions`);
+      const body = (await res.json().catch(() => null)) as { versions?: VersionRow[] } | null;
+      setVersions(body?.versions ?? []);
+    } catch {
+      setVersions([]);
     }
   };
 
-  // Text/field save: persist in place, no reload (the DOM already shows it).
+  onMount(() => {
+    wireInline(props.host, props.catalog, state.items, set, touched);
+    void loadVersions();
+  });
+
+  // Parse a `{ error, violations }` body into a display detail (validation reason).
+  const detailFrom = (body: { error?: string; violations?: { message: string }[] } | null) =>
+    body?.violations?.[0]?.message ?? body?.error;
+
+  // Save the current sections as a DRAFT (the live page is untouched until
+  // publish). Returns the new version id, or null on failure.
+  const saveDraft = async (): Promise<number | null> => {
+    setErrorDetail("");
+    try {
+      const res = await fetch(`/api/louise/pages/${props.pageId}/versions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sections: unwrap(state.items) }),
+      });
+      const body = (await res.json().catch(() => null)) as {
+        version?: { id: number };
+        error?: string;
+        violations?: { message: string }[];
+      } | null;
+      if (!res.ok) {
+        const detail = detailFrom(body);
+        if (detail) setErrorDetail(detail);
+        throw new Error(`draft failed: ${res.status}`);
+      }
+      return body?.version?.id ?? null;
+    } catch (err) {
+      console.error("[louise] save draft failed", err);
+      return null;
+    }
+  };
+
+  // Save button: stage a draft (no reload; the DOM already shows the edit).
   const save = async () => {
     setStatus("saving");
-    if (await persist()) {
+    if ((await saveDraft()) !== null) {
       setDirty(false);
       setStatus("saved");
+      void loadVersions();
     } else {
       setStatus("error");
     }
   };
 
-  // Structural change: mutate, persist (also flushing any pending text edits),
-  // then reload so the server re-renders the new shape as bespoke, inline-ready.
+  // Publish: promote a version to live. With no `versionId`, flush pending edits
+  // to a draft first, then publish it. Reload so the published render is
+  // authoritative and edit mode stops resuming the (now published) draft.
+  const publish = async (versionId?: number) => {
+    setErrorDetail("");
+    setStatus("publishing");
+    let vid = versionId;
+    if (vid === undefined && dirty()) {
+      const saved = await saveDraft();
+      if (saved === null) {
+        setStatus("error");
+        return;
+      }
+      vid = saved;
+      setDirty(false);
+    }
+    try {
+      const res = await fetch(`/api/louise/pages/${props.pageId}/publish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(vid !== undefined ? { versionId: vid } : {}),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          violations?: { message: string }[];
+        } | null;
+        const detail = detailFrom(body);
+        if (detail) setErrorDetail(detail);
+        throw new Error(`publish failed: ${res.status}`);
+      }
+      location.reload();
+    } catch (err) {
+      console.error("[louise] publish failed", err);
+      setStatus("error");
+    }
+  };
+
+  // Structural change: mutate, save a draft, then reload so the server
+  // re-renders the new shape (edit mode resumes the draft).
   const structural = async (mutate: () => void) => {
     mutate();
     setStatus("saving");
-    if (await persist()) location.reload();
+    if ((await saveDraft()) !== null) location.reload();
     else setStatus("error");
   };
 
@@ -320,12 +389,16 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           {status() === "saving"
             ? "Saving…"
             : status() === "saved"
-              ? "Saved"
-              : status() === "error"
-                ? errorDetail() || "Couldn’t save"
-                : dirty()
-                  ? "Unsaved"
-                  : ""}
+              ? "Draft saved"
+              : status() === "publishing"
+                ? "Publishing…"
+                : status() === "error"
+                  ? errorDetail() || "Couldn’t save"
+                  : dirty()
+                    ? "Unsaved"
+                    : hasDraft()
+                      ? "Draft"
+                      : ""}
         </span>
       </div>
 
@@ -436,14 +509,59 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             )}
           </For>
 
+          {/* Version history — publish (restore) any version to make it live. */}
+          <div class="louise-sections-history">
+            <button
+              class="louise-sections-history-toggle"
+              type="button"
+              onClick={() => {
+                const next = !showHistory();
+                setShowHistory(next);
+                if (next) void loadVersions();
+              }}
+            >
+              <Icon name={showHistory() ? "caretDown" : "caretRight"} /> Version history
+            </button>
+            <Show when={showHistory()}>
+              <div class="louise-sections-versions">
+                <For each={versions()} fallback={<p class="louise-muted">No versions yet.</p>}>
+                  {(v) => (
+                    <div class="louise-arr-row">
+                      <span>
+                        {v.status === "published" ? "Published" : "Draft"}
+                        {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
+                      </span>
+                      <button
+                        class="louise-btn louise-btn-xs"
+                        type="button"
+                        disabled={status() === "publishing"}
+                        onClick={() => void publish(v.id)}
+                      >
+                        {v.status === "published" ? "Restore" : "Publish"}
+                      </button>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+
           <div class="louise-form-actions">
             <button
               class="louise-btn louise-btn-primary"
               type="button"
-              disabled={status() === "saving" || !dirty()}
+              disabled={status() === "saving" || status() === "publishing" || !dirty()}
               onClick={() => void save()}
             >
-              {status() === "saving" ? "Saving…" : "Save"}
+              {status() === "saving" ? "Saving…" : "Save draft"}
+            </button>
+            <button
+              class="louise-btn"
+              type="button"
+              disabled={status() === "publishing" || (!dirty() && !hasDraft())}
+              onClick={() => void publish()}
+            >
+              {status() === "publishing" ? "Publishing…" : "Publish"}
             </button>
             <div class="louise-sections-add">
               <button class="louise-btn" type="button" onClick={() => setAdding((v) => !v)}>

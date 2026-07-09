@@ -2,7 +2,7 @@
 title: The drawer
 description: The package-provided, registry-driven back-office drawer for structured editing.
 sidebar:
-  order: 7
+  order: 8
 ---
 
 Inline editing covers text on the page. For structured, back-office work — lists
