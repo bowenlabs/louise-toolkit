@@ -24,6 +24,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { render } from "solid-js/web";
+import { Icon } from "./icons.jsx";
 import { injectStyles } from "./styles.js";
 
 export type SectionFieldType = "text" | "textarea" | "array";
@@ -254,7 +255,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           title={collapsed() ? "Expand" : "Collapse"}
           onClick={() => setCollapsed((v) => !v)}
         >
-          {collapsed() ? "▸" : "▾"}
+          <Icon name={collapsed() ? "caretRight" : "caretDown"} />
         </button>
         <span class="louise-sections-title">Page sections</span>
         <span class="louise-sections-status" data-status={status()}>
@@ -290,7 +291,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       disabled={i() === 0}
                       onClick={() => moveSection(i(), -1)}
                     >
-                      ↑
+                      <Icon name="caretUp" />
                     </button>
                     <button
                       class="louise-btn louise-btn-xs"
@@ -299,7 +300,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       disabled={i() === state.items.length - 1}
                       onClick={() => moveSection(i(), 1)}
                     >
-                      ↓
+                      <Icon name="caretDown" />
                     </button>
                     <button
                       class="louise-btn louise-btn-xs louise-btn-danger"
@@ -307,7 +308,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       title="Remove section"
                       onClick={() => removeSection(i())}
                     >
-                      ✕
+                      <Icon name="trash" />
                     </button>
                   </div>
                 </div>
@@ -347,7 +348,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                               title="Remove"
                               onClick={() => removeItem(i(), key, k())}
                             >
-                              ✕
+                              <Icon name="trash" />
                             </button>
                           </div>
                         )}
@@ -357,7 +358,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                         type="button"
                         onClick={() => addItem(i(), key, field.itemFields ?? {})}
                       >
-                        + {field.itemLabel ?? "item"}
+                        <Icon name="plus" /> {field.itemLabel ?? "item"}
                       </button>
                     </div>
                   )}
@@ -368,7 +369,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
           <div class="louise-sections-add">
             <button class="louise-btn" type="button" onClick={() => setAdding((v) => !v)}>
-              + Add section
+              <Icon name="plus" /> Add section
             </button>
             <Show when={adding()}>
               <div class="louise-sections-palette" role="menu">

@@ -16,11 +16,13 @@ import list from "@phosphor-icons/core/assets/regular/list.svg?raw";
 import x from "@phosphor-icons/core/assets/regular/x.svg?raw";
 import caretUp from "@phosphor-icons/core/assets/regular/caret-up.svg?raw";
 import caretDown from "@phosphor-icons/core/assets/regular/caret-down.svg?raw";
+import caretRight from "@phosphor-icons/core/assets/regular/caret-right.svg?raw";
 import dragHandle from "@phosphor-icons/core/assets/regular/dots-six-vertical.svg?raw";
 import pencil from "@phosphor-icons/core/assets/regular/pencil-simple.svg?raw";
 import check from "@phosphor-icons/core/assets/regular/check.svg?raw";
 import trash from "@phosphor-icons/core/assets/regular/trash.svg?raw";
 import plus from "@phosphor-icons/core/assets/regular/plus.svg?raw";
+import minus from "@phosphor-icons/core/assets/regular/minus.svg?raw";
 import signOut from "@phosphor-icons/core/assets/regular/sign-out.svg?raw";
 import gear from "@phosphor-icons/core/assets/regular/gear.svg?raw";
 import fileText from "@phosphor-icons/core/assets/regular/file-text.svg?raw";
@@ -43,11 +45,13 @@ export const icons = {
   x,
   caretUp,
   caretDown,
+  caretRight,
   dragHandle,
   pencil,
   check,
   trash,
   plus,
+  minus,
   signOut,
   gear,
   fileText,

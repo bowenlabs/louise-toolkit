@@ -12,6 +12,9 @@ Grid page-builder + editor packaging fixes.
   two-column block still parses for back-compat.
 - **Gallery block**: a responsive image grid (`data-block="grid"`) with a 2/3/4
   column switch.
+- **Consistent iconography**: the grid row controls and the sections dock now use
+  the shared Phosphor `Icon` set instead of ad-hoc text glyphs; two new names
+  (`caretRight`, `minus`) are added to the exported `icons`/`IconName`.
 - **Page templates**: `PageTemplate` + a `pageTemplates` option on the drawer
   config surfaces "start from a template" starter layouts in the Pages panel.
 - **Structured sections** (`louisecms/client`): `mountSections` — a visual block

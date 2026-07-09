@@ -30,6 +30,7 @@ import {
   AutocompleteRoot,
 } from "prosekit/solid/autocomplete";
 import { createSignal, For, onMount, Show } from "solid-js";
+import { Icon } from "./icons.jsx";
 
 export interface BlockAttrSpec {
   default: string;
@@ -315,7 +316,7 @@ const RowView: SolidNodeViewComponent = (props) => {
                   aria-label={`Narrow column ${i() + 1}`}
                   onClick={() => run(setColWeightCommand(props.getPos, i(), -1))}
                 >
-                  –
+                  <Icon name="minus" />
                 </button>
                 <span class="louise-col-w">{w}</span>
                 <button
@@ -324,7 +325,7 @@ const RowView: SolidNodeViewComponent = (props) => {
                   aria-label={`Widen column ${i() + 1}`}
                   onClick={() => run(setColWeightCommand(props.getPos, i(), 1))}
                 >
-                  +
+                  <Icon name="plus" />
                 </button>
               </span>
             )}
@@ -333,25 +334,28 @@ const RowView: SolidNodeViewComponent = (props) => {
           <button
             type="button"
             class="louise-btn louise-btn-xs"
+            aria-label="Remove column"
             disabled={weights().length <= 1}
             onClick={() => run(changeColumnsCommand(props.getPos, -1))}
           >
-            – col
+            <Icon name="minus" /> col
           </button>
           <button
             type="button"
             class="louise-btn louise-btn-xs"
+            aria-label="Add column"
             disabled={weights().length >= MAX_COLUMNS}
             onClick={() => run(changeColumnsCommand(props.getPos, 1))}
           >
-            + col
+            <Icon name="plus" /> col
           </button>
           <button
             type="button"
             class="louise-btn louise-btn-xs"
+            aria-label="Add row"
             onClick={() => run(addRowBelowCommand(props.getPos))}
           >
-            + row
+            <Icon name="plus" /> row
           </button>
         </div>
       </div>
@@ -751,7 +755,7 @@ export function BlockInserterButton() {
   return (
     <div class="louise-block-add">
       <button class="louise-btn" type="button" onClick={() => setOpen(!open())}>
-        + Block
+        <Icon name="plus" /> Block
       </button>
       <Show when={open()}>
         <div class="louise-block-add-menu" role="menu">
