@@ -15,6 +15,7 @@ import {
   BLOCKS,
   BlockInserter,
   defineBlock,
+  mountSections,
   injectStyles,
 } from "louisecms/client";
 ```
@@ -62,7 +63,7 @@ The Phosphor icon set the toolbar and panels share, inlined as raw SVG (CSP-safe
 ```tsx
 import { Icon, type IconName } from "louisecms/client";
 
-<Icon name="pencil-simple" />;
+<Icon name="pencil" />;
 ```
 
 `icons` is the registry; `IconName` is the union of available names.
@@ -91,6 +92,24 @@ import {
 - `BLOCKS` — the registry that drives the `/` slash menu.
 - `defineBlock` / `defineBlocksExtension` — author blocks outside the core set.
 - `BlockInserter` / `BlockInserterButton` — the inserter UI.
+
+## `mountSections()`
+
+```ts
+function mountSections(
+  el: HTMLElement,
+  opts: { catalog: SectionCatalog; pageId: number; initial: SectionItem[] },
+): () => void;
+```
+
+The editor for [structured sections](/guide/sections/) — component-rendered pages
+whose content is stored as typed JSON, not HTML. Takes over `el` (the wrapper
+around the server-rendered sections): visible text nodes marked with
+`data-louise-sfield` become editable in place, and a floating control dock adds /
+reorders / removes sections and edits non-visible fields. Text saves `PATCH` the
+whole `sections` array to the pages route; structural changes persist and reload.
+Returns a disposer. Exported types: `SectionCatalog`, `SectionDef`,
+`SectionField`, `SectionItem`, `SectionsEditorProps`.
 
 ## `injectStyles()`
 

@@ -2,7 +2,7 @@
 title: Commerce
 description: Stripe invoices, Fourthwall storefront, and the Square /v2 client — no SDKs.
 sidebar:
-  order: 9
+  order: 10
 ---
 
 Louise's commerce primitives are thin, V8-native glue over three external
