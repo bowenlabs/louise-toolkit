@@ -74,6 +74,8 @@ interface VersionRow {
   id: number;
   status: "draft" | "published";
   createdAt?: string | number | null;
+  /** The full snapshot stored for this version — used to resume ("Edit") a draft. */
+  versionData?: { sections?: SectionItem[] } | null;
 }
 
 /** Parse a `data-louise-sfield` path ("1.items.2.title") into store-write args,
@@ -356,6 +358,16 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     else setStatus("error");
   };
 
+  // Resume editing a draft from history: load its snapshot as the working copy,
+  // then persist + reload so the server re-renders it (the newest draft is what
+  // edit mode resumes) and it comes back inline-editable. Unlike publish, this
+  // never touches the live page.
+  const editDraft = (versionId: number) => {
+    const sections = versions().find((v) => v.id === versionId)?.versionData?.sections;
+    if (!Array.isArray(sections)) return;
+    void structural(() => set("items", structuredClone(sections)));
+  };
+
   const addSection = (type: string) => {
     const def = props.catalog[type];
     if (!def) return;
@@ -565,16 +577,29 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
                         </span>
                         <div class="louise-arr-ops">
-                          <button
-                            class="louise-btn louise-btn-xs"
-                            type="button"
-                            disabled={status() === "publishing" || isLive()}
-                            onClick={() => void publish(v.id)}
+                          {/* Drafts resume for editing (never publish straight from
+                              history) + can be deleted; published versions restore live. */}
+                          <Show
+                            when={v.status === "draft"}
+                            fallback={
+                              <button
+                                class="louise-btn louise-btn-xs"
+                                type="button"
+                                disabled={status() === "publishing" || isLive()}
+                                onClick={() => void publish(v.id)}
+                              >
+                                {isLive() ? "Current" : "Restore"}
+                              </button>
+                            }
                           >
-                            {isLive() ? "Current" : v.status === "published" ? "Restore" : "Publish"}
-                          </button>
-                          {/* Drafts can be deleted from history (never the live version). */}
-                          <Show when={v.status === "draft"}>
+                            <button
+                              class="louise-btn louise-btn-xs"
+                              type="button"
+                              title="Resume editing this draft"
+                              onClick={() => editDraft(v.id)}
+                            >
+                              Edit
+                            </button>
                             <button
                               class="louise-btn louise-btn-xs louise-btn-danger"
                               type="button"

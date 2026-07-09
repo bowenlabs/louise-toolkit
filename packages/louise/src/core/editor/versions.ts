@@ -13,7 +13,7 @@
 // authoritative "is live" signal, maintained by publish()/unpublish() — the site
 // filters on it, so no separate status column write is needed here.
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { createVersionedLocalApi } from "../cms/localApi.js";
 import { type CollectionConfig, flattenFields } from "../cms/types.js";
