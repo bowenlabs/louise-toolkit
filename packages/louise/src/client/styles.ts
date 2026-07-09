@@ -722,6 +722,7 @@ const CSS = `
   border: 1px dashed rgba(15, 23, 42, 0.15);
   border-radius: 8px;
 }
+.louise-arr-ops { display: inline-flex; gap: 4px; align-items: center; }
 /* The currently-live version in history — a solid success-green accent so it
    stands out from the other (also "published") rows. */
 .louise-arr-row[data-live] {

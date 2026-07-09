@@ -325,6 +325,28 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // Discard a draft version from history. Doesn't touch the live render (a draft
+  // is never live), so just re-fetch the list — no reload.
+  const discardDraft = async (versionId: number) => {
+    setErrorDetail("");
+    try {
+      const res = await fetch(`/api/louise/pages/${props.pageId}/discard`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (body?.error) setErrorDetail(body.error);
+        throw new Error(`discard failed: ${res.status}`);
+      }
+      void loadVersions();
+    } catch (err) {
+      console.error("[louise] discard draft failed", err);
+      setStatus("error");
+    }
+  };
+
   // Structural change: mutate, save a draft, then reload so the server
   // re-renders the new shape (edit mode resumes the draft).
   const structural = async (mutate: () => void) => {
@@ -542,14 +564,27 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           {isLive() ? "Live" : v.status === "published" ? "Published" : "Draft"}
                           {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
                         </span>
-                        <button
-                          class="louise-btn louise-btn-xs"
-                          type="button"
-                          disabled={status() === "publishing" || isLive()}
-                          onClick={() => void publish(v.id)}
-                        >
-                          {isLive() ? "Current" : v.status === "published" ? "Restore" : "Publish"}
-                        </button>
+                        <div class="louise-arr-ops">
+                          <button
+                            class="louise-btn louise-btn-xs"
+                            type="button"
+                            disabled={status() === "publishing" || isLive()}
+                            onClick={() => void publish(v.id)}
+                          >
+                            {isLive() ? "Current" : v.status === "published" ? "Restore" : "Publish"}
+                          </button>
+                          {/* Drafts can be deleted from history (never the live version). */}
+                          <Show when={v.status === "draft"}>
+                            <button
+                              class="louise-btn louise-btn-xs louise-btn-danger"
+                              type="button"
+                              title="Delete draft"
+                              onClick={() => void discardDraft(v.id)}
+                            >
+                              <Icon name="trash" />
+                            </button>
+                          </Show>
+                        </div>
                       </div>
                     );
                   }}

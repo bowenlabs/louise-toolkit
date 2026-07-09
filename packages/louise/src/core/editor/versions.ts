@@ -65,7 +65,13 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // `${base}/<id>/<action>` — anything else isn't ours.
     const [idStr, action, ...extra] = path.slice(base.length + 1).split("/");
     if (extra.length > 0 || !action) return undefined;
-    if (action !== "versions" && action !== "publish" && action !== "unpublish") return undefined;
+    if (
+      action !== "versions" &&
+      action !== "publish" &&
+      action !== "unpublish" &&
+      action !== "discard"
+    )
+      return undefined;
 
     const id = Number(idStr);
     if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
@@ -142,6 +148,24 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (action === "unpublish" && method === "POST") {
       const page = await api.unpublish(context, id);
       return json({ page });
+    }
+
+    // POST /:id/discard — delete a draft version from history. Body: { versionId }.
+    // Scoped to drafts (never the live version) so history stays a safe cleanup.
+    if (action === "discard" && method === "POST") {
+      const body = (await request.json().catch(() => ({}))) as { versionId?: number };
+      const versionId = body.versionId;
+      if (!Number.isInteger(versionId)) return json({ error: "Missing versionId" }, 400);
+      const versions = await api.findVersions(context, id);
+      const target = versions.find((v) => (v as Record<string, unknown>).id === versionId) as
+        | Record<string, unknown>
+        | undefined;
+      if (!target) return json({ error: "Version not found" }, 404);
+      if (target.status !== "draft") {
+        return json({ error: "Only draft versions can be discarded" }, 400);
+      }
+      await api.discardVersion(context, versionId as number);
+      return json({ ok: true });
     }
 
     return json({ error: "Method not allowed" }, 405);
