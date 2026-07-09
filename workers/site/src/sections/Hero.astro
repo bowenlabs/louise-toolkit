@@ -16,6 +16,8 @@ interface Props {
   tagline?: string;
   ctaLabel?: string;
   ctaHref?: string;
+  /** Optional uploaded logo (media URL). Falls back to the built-in Louise mark. */
+  logo?: string;
   _editIndex?: number;
   _editMode?: boolean;
 }
@@ -24,6 +26,7 @@ const {
   tagline = "",
   ctaLabel = "",
   ctaHref = "",
+  logo = "",
   _editIndex = 0,
   _editMode: edit = false,
 } = Astro.props;
@@ -31,11 +34,21 @@ const idx = _editIndex;
 ---
 
 <section class="louise-type px-5 pt-24 pb-12 text-center">
-  <div
-    class="mx-auto mb-6 h-[68px] w-[68px] drop-shadow-lg [&>svg]:h-full [&>svg]:w-full"
-    aria-hidden="true"
-    set:html={louiseMark}
-  />
+  {
+    logo ? (
+      <img
+        src={logo}
+        alt=""
+        class="mx-auto mb-6 h-[68px] w-[68px] object-contain drop-shadow-lg"
+      />
+    ) : (
+      <div
+        class="mx-auto mb-6 h-[68px] w-[68px] drop-shadow-lg [&>svg]:h-full [&>svg]:w-full"
+        aria-hidden="true"
+        set:html={louiseMark}
+      />
+    )
+  }
   <h1
     class="mb-3 text-5xl leading-none font-black tracking-tight md:text-6xl"
     data-louise-sfield={edit ? `${idx}.heading` : undefined}

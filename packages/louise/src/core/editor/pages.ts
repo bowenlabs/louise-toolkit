@@ -13,9 +13,41 @@
 import { asc, eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
+import { LouiseValidationError } from "../errors.js";
 import { sanitizeRichHtml } from "../security/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
+
+/** Context passed to a {@link PagesRouteConfig.validate} hook. */
+export interface PagesValidateContext {
+  operation: "create" | "update";
+  /** Row id on update. */
+  id?: number;
+}
+
+/** A server-side write validator. Throw {@link LouiseValidationError} to reject. */
+export type PagesValidator = (
+  data: Record<string, unknown>,
+  ctx: PagesValidateContext,
+) => void | Promise<void>;
+
+/** Run a validator, turning a {@link LouiseValidationError} into a 422 response
+ *  (with the per-field violations) and re-throwing anything else. */
+async function runValidate(
+  validate: PagesValidator,
+  data: Record<string, unknown>,
+  ctx: PagesValidateContext,
+): Promise<Response | null> {
+  try {
+    await validate(data, ctx);
+    return null;
+  } catch (err) {
+    if (err instanceof LouiseValidationError) {
+      return json({ error: err.message, violations: err.violations }, 422);
+    }
+    throw err;
+  }
+}
 
 /** The editable `pages` fields (Drizzle property keys) exposed by default. */
 export const DEFAULT_PAGE_FIELDS = [
@@ -43,6 +75,14 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   sanitize?: (html: string) => string;
   /** Mount path (collection). Default `/api/louise/pages`. */
   path?: string;
+  /**
+   * Optional server-side validation, run after field-allowlisting and before
+   * the insert/update. Throw {@link LouiseValidationError} — e.g. via
+   * `assertValidSections(catalog, data.sections, ctx)` — to reject the write
+   * with a 422 carrying the per-field violations. Only the allowlisted `data`
+   * is passed, so absent fields (partial update) aren't spuriously validated.
+   */
+  validate?: PagesValidator;
 }
 
 /** Keep only allowlisted fields from `input`, sanitizing the rich ones. Pure. */
@@ -101,6 +141,10 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
         if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
         const data = pickFields(input, fields, richFields, sanitize);
+        if (config.validate) {
+          const rejected = await runValidate(config.validate, data, { operation: "create" });
+          if (rejected) return rejected;
+        }
         try {
           const [created] = await database
             .insert(table)
@@ -128,6 +172,10 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
       const data = pickFields(input, fields, richFields, sanitize);
       if (Object.keys(data).length === 0) return json({ error: "Nothing to update" }, 400);
+      if (config.validate) {
+        const rejected = await runValidate(config.validate, data, { operation: "update", id });
+        if (rejected) return rejected;
+      }
       if (hasUpdatedAt) data.updatedAt = new Date();
       try {
         const [updated] = await database

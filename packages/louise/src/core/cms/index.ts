@@ -9,6 +9,7 @@ export * from "./migrate.js";
 export * from "./patch.js";
 export * from "./richtext.js";
 export * from "./schema-gen.js";
+export * from "./sections.js";
 export * from "./structure.js";
 // types.ts now ships real value exports too (flattenFields/flattenDoc/
 // nestDoc, added alongside the group/json field types) — a plain `export *`

@@ -26,9 +26,11 @@ import {
   seedRoute,
   settingsRoute,
 } from "louisecms/editor";
+import { assertValidSections } from "louisecms/cms";
 import { composeWorker, type WorkerRoute } from "louisecms/worker";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { inquiries, media, pages, siteSettings } from "./schema.js";
+import { SECTIONS } from "./sections/catalog.js";
 
 type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
 
@@ -145,8 +147,19 @@ const SETTINGS_COLUMNS = [
 
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // `sections` (structured page-builder blocks JSON) is editable alongside the
-  // framework page fields.
-  pagesRoute({ table: pages, resolveEditor, fields: [...DEFAULT_PAGE_FIELDS, "sections"] }),
+  // framework page fields, and validated against the catalog before write — a
+  // malformed sections payload (unknown block type, wrong field shape) is
+  // rejected with a 422 rather than persisted.
+  pagesRoute({
+    table: pages,
+    resolveEditor,
+    fields: [...DEFAULT_PAGE_FIELDS, "sections"],
+    validate: async (data, ctx) => {
+      if ("sections" in data) {
+        await assertValidSections(SECTIONS, data.sections, { operation: ctx.operation });
+      }
+    },
+  }),
   saveRoute({
     resolveEditor,
     collections: {

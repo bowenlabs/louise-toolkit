@@ -721,8 +721,17 @@ const CSS = `
   border: 1px dashed rgba(15, 23, 42, 0.15);
   border-radius: 8px;
 }
-.louise-sections-add { position: relative; margin: 4px 0 10px; }
-.louise-sections-hint { font-size: 11px; }
+.louise-sections-add { position: relative; margin-left: auto; }
+.louise-sections-img {
+  display: block;
+  max-width: 100%;
+  max-height: 84px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.03);
+}
+.louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.louise-sections-img-error { font-size: 11px; color: #dc2626; }
 .louise-sections-palette {
   position: absolute;
   bottom: calc(100% + 4px);

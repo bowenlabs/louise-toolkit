@@ -15,6 +15,8 @@ export const SECTIONS: SectionCatalog = {
       ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
       // Edited in the dock — a link target has no visible text to click on.
       ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
+      // Uploadable logo image (dock upload/clear); falls back to the Louise mark.
+      logo: { type: "image", label: "Logo" },
     },
   },
   featureGrid: {
