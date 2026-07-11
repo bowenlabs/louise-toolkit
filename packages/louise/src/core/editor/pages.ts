@@ -15,6 +15,7 @@ import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm
 import { db } from "../db/index.js";
 import { LouiseValidationError } from "../errors.js";
 import { sanitizeRichHtml } from "../security/index.js";
+import type { EditorSession } from "../auth/types.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
 
@@ -83,6 +84,27 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * is passed, so absent fields (partial update) aren't spuriously validated.
    */
   validate?: PagesValidator;
+  /**
+   * Transform the allowlisted write data before validation + store — clamp
+   * lengths, coerce enums, normalize the slug, strict-media checks (a site's
+   * `cleanPagePatch`). Runs after field-allowlisting, before {@link validate}.
+   */
+  transform?: (
+    data: Record<string, unknown>,
+    ctx: PagesValidateContext,
+  ) => Record<string, unknown> | Promise<Record<string, unknown>>;
+  /**
+   * Slugs rejected on create/update with a 422 — e.g. reserved file-route paths
+   * the catch-all can never serve (so a page can't be saved and then be
+   * silently unreachable). Compared after {@link transform}.
+   */
+  reservedSlugs?: Iterable<string>;
+  /**
+   * Best-effort hook after a successful create/update/delete — e.g. rebuild the
+   * search (FTS) index, which plain CRUD writes don't touch. A throw is
+   * swallowed so search staleness can never fail the write itself.
+   */
+  afterWrite?: (editor: EditorSession) => void | Promise<void>;
 }
 
 /** Keep only allowlisted fields from `input`, sanitizing the rich ones. Pure. */
@@ -119,6 +141,25 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   const pkCol = columns.find((c) => c.primary) as SQLiteColumn;
   const orderCol = (columns.find((c) => c.name === "sort_order") ?? pkCol) as SQLiteColumn;
   const hasUpdatedAt = columns.some((c) => c.name === "updated_at");
+  const reserved = new Set(config.reservedSlugs ?? []);
+
+  /** Reject a write whose (transformed) slug is a reserved path. */
+  const reservedSlugRejection = (data: Record<string, unknown>): Response | null => {
+    if ("slug" in data && reserved.has(String(data.slug ?? ""))) {
+      return json({ error: `“${String(data.slug)}” is a reserved path.` }, 422);
+    }
+    return null;
+  };
+
+  /** Fire the best-effort post-write hook, swallowing any error. */
+  const fireAfterWrite = async (editor: EditorSession): Promise<void> => {
+    if (!config.afterWrite) return;
+    try {
+      await config.afterWrite(editor);
+    } catch {
+      // Best-effort — a post-write hook (e.g. search reindex) must never fail the write.
+    }
+  };
 
   return async (request, env) => {
     const path = new URL(request.url).pathname;
@@ -140,7 +181,10 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (method === "POST") {
         const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
         if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
-        const data = pickFields(input, fields, richFields, sanitize);
+        let data = pickFields(input, fields, richFields, sanitize);
+        if (config.transform) data = await config.transform(data, { operation: "create" });
+        const reservedRejection = reservedSlugRejection(data);
+        if (reservedRejection) return reservedRejection;
         if (config.validate) {
           const rejected = await runValidate(config.validate, data, { operation: "create" });
           if (rejected) return rejected;
@@ -150,6 +194,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
             .insert(table)
             .values(data as never)
             .returning();
+          await fireAfterWrite(g.editor);
           return json({ page: created }, 201);
         } catch {
           return json({ error: "Create failed (missing required field or duplicate slug)" }, 400);
@@ -170,8 +215,11 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (method === "PATCH") {
       const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
-      const data = pickFields(input, fields, richFields, sanitize);
+      let data = pickFields(input, fields, richFields, sanitize);
+      if (config.transform) data = await config.transform(data, { operation: "update", id });
       if (Object.keys(data).length === 0) return json({ error: "Nothing to update" }, 400);
+      const reservedRejection = reservedSlugRejection(data);
+      if (reservedRejection) return reservedRejection;
       if (config.validate) {
         const rejected = await runValidate(config.validate, data, { operation: "update", id });
         if (rejected) return rejected;
@@ -184,6 +232,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           .where(eq(pkCol, id))
           .returning();
         if (!updated) return json({ error: "Not found" }, 404);
+        await fireAfterWrite(g.editor);
         return json({ page: updated });
       } catch {
         return json({ error: "Update failed (duplicate slug?)" }, 400);
@@ -192,6 +241,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (method === "DELETE") {
       const [deleted] = await database.delete(table).where(eq(pkCol, id)).returning();
       if (!deleted) return json({ error: "Not found" }, 404);
+      await fireAfterWrite(g.editor);
       return json({ ok: true });
     }
     return json({ error: "Method not allowed" }, 405);

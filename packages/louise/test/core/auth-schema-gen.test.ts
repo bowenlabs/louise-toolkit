@@ -24,6 +24,15 @@ describe("generateAuthSchemaSql", () => {
     expect(sql).not.toMatch(/"squareCustomerId" text not null/);
   });
 
+  it("generates Louise's standard first/last name columns on every site (nullable)", () => {
+    const sql = generateAuthSchemaSql();
+    expect(sql).toContain('"firstName" text');
+    expect(sql).toContain('"lastName" text');
+    // Standard editor fields are optional → never NOT NULL.
+    expect(sql).not.toMatch(/"firstName" text not null/);
+    expect(sql).not.toMatch(/"lastName" text not null/);
+  });
+
   it("namespaces every table and its foreign keys under tablePrefix (Option B)", () => {
     const sql = generateAuthSchemaSql({ tablePrefix: "auth_" });
     expect(sql).toContain("CREATE TABLE `auth_user`");
@@ -59,6 +68,12 @@ describe("authSchemaOptions", () => {
     expect(opts.plugins).toHaveLength(3); // magic-link + admin + passkey
     expect(opts.user?.additionalFields).toHaveProperty("squareCustomerId");
     expect(opts.emailAndPassword).toBeUndefined();
+  });
+
+  it("always includes Louise's standard first/last name fields", () => {
+    const opts = authSchemaOptions({});
+    expect(opts.user?.additionalFields).toHaveProperty("firstName");
+    expect(opts.user?.additionalFields).toHaveProperty("lastName");
   });
 
   it("enables emailAndPassword only when customers is set", () => {

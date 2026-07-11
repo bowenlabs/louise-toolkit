@@ -26,6 +26,7 @@ import minus from "@phosphor-icons/core/assets/regular/minus.svg?raw";
 import signOut from "@phosphor-icons/core/assets/regular/sign-out.svg?raw";
 import gear from "@phosphor-icons/core/assets/regular/gear.svg?raw";
 import fileText from "@phosphor-icons/core/assets/regular/file-text.svg?raw";
+import user from "@phosphor-icons/core/assets/regular/user.svg?raw";
 import star from "@phosphor-icons/core/assets/regular/star.svg?raw";
 import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw";
 
@@ -55,6 +56,7 @@ export const icons = {
   signOut,
   gear,
   fileText,
+  user,
   star,
   starFill,
 } as const;

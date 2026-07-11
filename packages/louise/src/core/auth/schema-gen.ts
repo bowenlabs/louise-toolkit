@@ -19,6 +19,7 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { getAuthTables } from "better-auth/db";
 import { admin, magicLink } from "better-auth/plugins";
+import { LOUISE_USER_FIELDS } from "./fields.js";
 
 type BetterAuthOptions = Parameters<typeof betterAuth>[0];
 type AdditionalFields = NonNullable<NonNullable<BetterAuthOptions["user"]>["additionalFields"]>;
@@ -45,7 +46,9 @@ export interface AuthSchemaConfig {
 export function authSchemaOptions(config: AuthSchemaConfig): BetterAuthOptions {
   return {
     ...(config.customers ? { emailAndPassword: { enabled: true } } : {}),
-    ...(config.additionalFields ? { user: { additionalFields: config.additionalFields } } : {}),
+    // Louise's standard first/last name fields, ahead of the site's own extras —
+    // mirrors auth.ts so the generated schema matches the runtime user table.
+    user: { additionalFields: { ...LOUISE_USER_FIELDS, ...(config.additionalFields ?? {}) } },
     plugins: [magicLink({ sendMagicLink: async () => {} }), admin(), passkey()],
   };
 }

@@ -16,6 +16,7 @@ export {
   runEditorRoute,
   tableMeta,
 } from "./shared.js";
+export { type EditorsRouteConfig, editorsRoute } from "./editors.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export {
   partitionSettingsPatch,

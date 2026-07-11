@@ -18,6 +18,7 @@ import { admin, captcha, magicLink } from "better-auth/plugins";
 import { sendEmail } from "../email/index.js";
 import { getSessionSecret, type KVLike } from "../security/index.js";
 import { defaultResolveAdmins } from "./admins.js";
+import { LOUISE_USER_FIELDS } from "./fields.js";
 import { activeCaptchaSecret, turnstileSecret } from "./turnstile.js";
 import type { LouiseAuthEnv } from "./types.js";
 
@@ -131,7 +132,8 @@ export async function getLouiseAuth(
   const prefix = config.tablePrefix ?? "";
   const userOptions = {
     ...(prefix ? { modelName: `${prefix}user` } : {}),
-    ...(config.additionalFields ? { additionalFields: config.additionalFields } : {}),
+    // Louise's standard first/last name fields, ahead of the site's own extras.
+    additionalFields: { ...LOUISE_USER_FIELDS, ...(config.additionalFields ?? {}) },
   };
 
   return betterAuth({

@@ -28,6 +28,7 @@ import { MediaPanel } from "./media-panel.jsx";
 import { type BuiltInPageRef, type PageTemplate, PagesPanel } from "./pages-panel.jsx";
 import { createDrawerQueryClient } from "./query.js";
 import { SettingsPanel } from "./settings-panel.jsx";
+import { UsersPanel } from "./users-panel.jsx";
 
 /** Event the edit-bar's Settings action fires to open the drawer. */
 export const OPEN_DRAWER_EVENT = "louise:open-drawer";
@@ -62,14 +63,20 @@ export interface DrawerConfig {
   settingsExtension?: SettingsFieldGroup[];
   /** Bespoke Settings sections (e.g. passkey enrollment) that self-persist. */
   settingsExtras?: () => JSX.Element;
+  /** Show the Users panel (louise editor/admin management) in the top strip.
+   *  Opt-in: wire `editorsRoute` server-side for it to talk to. */
+  users?: boolean;
+  /** Override the Users panel editors endpoint. Default `/api/louise/editors`. */
+  usersEndpoint?: string;
 }
 
-/** The three fixed framework panels, keyed by their top-strip icon. */
-type FrameworkPanel = "media" | "pages" | "settings";
-const FRAMEWORK_BUTTONS: {
+/** The framework panels, keyed by their top-strip icon. Media/Pages/Settings
+ *  are always present; `users` is opt-in (config.users + a wired editorsRoute). */
+type FrameworkPanel = "users" | "media" | "pages" | "settings";
+const BASE_FRAMEWORK_BUTTONS: {
   id: FrameworkPanel;
   label: string;
-  icon: "image" | "fileText" | "gear";
+  icon: "user" | "image" | "fileText" | "gear";
 }[] = [
   { id: "media", label: "Media", icon: "image" },
   { id: "pages", label: "Pages", icon: "fileText" },
@@ -78,6 +85,11 @@ const FRAMEWORK_BUTTONS: {
 
 export function Drawer(props: DrawerConfig) {
   const tabs = () => props.tabs ?? [];
+  // The top strip: Media/Pages/Settings always, Users first when opted in.
+  const frameworkButtons = () =>
+    props.users
+      ? [{ id: "users" as const, label: "Users", icon: "user" as const }, ...BASE_FRAMEWORK_BUTTONS]
+      : BASE_FRAMEWORK_BUTTONS;
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<string | undefined>(tabs()[0]?.id);
   // Framework panels aren't tabs — they open over the tabs via the top strip.
@@ -107,7 +119,7 @@ export function Drawer(props: DrawerConfig) {
               <span class="louise-who-name">{props.userName}</span>
             </span>
             <div class="louise-drawer-head-actions">
-              <For each={FRAMEWORK_BUTTONS}>
+              <For each={frameworkButtons()}>
                 {(b) => (
                   <button
                     class="louise-drawer-close louise-frame-btn"
@@ -150,6 +162,9 @@ export function Drawer(props: DrawerConfig) {
           </Show>
 
           <div class="louise-drawer-body">
+            <Show when={overlay() === "users"}>
+              <UsersPanel endpoint={props.usersEndpoint} />
+            </Show>
             <Show when={overlay() === "media"}>
               <MediaPanel />
             </Show>

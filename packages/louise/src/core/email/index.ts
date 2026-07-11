@@ -9,6 +9,10 @@
 
 import { LouiseEmailError } from "../errors.js";
 
+// Transactional-email templating (the brand-agnostic frame + helpers). Sites
+// supply a MailTheme and compose each email from these; sending stays below.
+export * from "./template.js";
+
 /** Modern Email Sending binding shape (kept local so the module doesn't
  * depend on a specific @cloudflare/workers-types version's `SendEmail`). */
 export interface EmailSender {

@@ -34,6 +34,7 @@ export {
 } from "./pages-panel.jsx";
 export { SETTINGS_BASE_GROUPS, SettingsPanel, type SettingsPanelProps } from "./settings-panel.jsx";
 export { InquiriesPanel, type InquiriesPanelProps, type InquiryRow } from "./inquiries-panel.jsx";
+export { type EditorRow, UsersPanel, type UsersPanelProps } from "./users-panel.jsx";
 
 // Shared form primitives + the declarative settings-field types, so sites can
 // build extension groups and reuse the same field editors.

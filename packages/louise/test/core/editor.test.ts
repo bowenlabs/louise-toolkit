@@ -511,6 +511,43 @@ describe("pagesRoute (guard + dispatch)", () => {
     );
     expect(res?.status).toBe(400);
   });
+
+  it("422s a create whose slug is reserved, before any DB write", async () => {
+    const { db, calls } = makeD1(() => []);
+    const route = pagesRoute({ table: pages, resolveEditor: () => editor, reservedSlugs: ["login"] });
+    const res = await route(
+      new Request(base, {
+        method: "POST",
+        headers: { origin: "https://site.example" },
+        body: JSON.stringify({ slug: "login", title: "X" }),
+      }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(422);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("runs transform before the reserved-slug check", async () => {
+    const { db } = makeD1(() => []);
+    const route = pagesRoute({
+      table: pages,
+      resolveEditor: () => editor,
+      transform: (d) => ({ ...d, slug: String(d.slug ?? "").toLowerCase() }),
+      reservedSlugs: ["login"],
+    });
+    const res = await route(
+      new Request(base, {
+        method: "POST",
+        headers: { origin: "https://site.example" },
+        body: JSON.stringify({ slug: "LOGIN", title: "X" }),
+      }),
+      { DB: db },
+      ctx,
+    );
+    // transform lowercased LOGIN → login, which the reserved set then rejects.
+    expect(res?.status).toBe(422);
+  });
 });
 
 // PNG magic bytes, padded so the sniffer's 32-byte window is populated.

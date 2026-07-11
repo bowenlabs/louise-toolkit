@@ -181,3 +181,104 @@ export async function verifyFourthwallSignature(
   const expected = await hmacSha256Base64(secret, payload);
   return safeEqual(expected, header.trim());
 }
+
+// ── order webhook mapping ─────────────────────────────────────────────────────
+// Fourthwall order.* webhooks are verified (above) then enqueued; the consumer
+// maps the event to a normalized, storage-ready order and upserts it into the
+// site's own `orders` table. The mapping is framework-agnostic and defensive
+// (Fourthwall payload shapes vary across order/offer aliases), so it lives here;
+// the D1 write stays in the site (its own `orders` schema).
+
+/** A Fourthwall `order.*` webhook event, thinned to what the mapper reads. */
+export interface FourthwallOrderEvent {
+  id?: string;
+  type?: string;
+  testMode?: boolean;
+  data?: Record<string, unknown>;
+}
+
+/** One line item on a normalized Fourthwall order. */
+export interface FourthwallOrderItem {
+  slug: string | null;
+  name: string;
+  qty: number;
+  /** Unit price in cents, or null when the payload omits it. */
+  unitPrice: number | null;
+}
+
+/** A coarse order lifecycle state derived from Fourthwall's status string. */
+export type FourthwallOrderStatus = "paid" | "fulfilled" | "canceled";
+
+/** A Fourthwall order mapped to a normalized, storage-ready shape. The site
+ *  upserts this into its own `orders` table (idempotent on `fourthwallOrderId`). */
+export interface FourthwallOrder {
+  fourthwallOrderId: string;
+  orderNumber: string | null;
+  email: string | null;
+  /** Order total in cents. */
+  amount: number | null;
+  currency: string | null;
+  items: FourthwallOrderItem[];
+  shippingAddress: unknown;
+  orderStatus: FourthwallOrderStatus;
+}
+
+const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+const asObj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+/** Fourthwall money is `{ value, currency }` in major units (or a bare number);
+ *  normalize to integer cents. */
+export function fourthwallMoneyToCents(m: unknown): number | null {
+  const value = (asObj(m).value ?? (typeof m === "number" ? m : undefined)) as unknown;
+  return typeof value === "number" ? Math.round(value * 100) : null;
+}
+
+/** Map a Fourthwall status string to a coarse lifecycle state. */
+export function mapFourthwallOrderStatus(status: string | null): FourthwallOrderStatus {
+  const v = (status ?? "").toLowerCase();
+  if (v.includes("cancel") || v.includes("refund")) return "canceled";
+  if (v.includes("fulfil") || v.includes("ship") || v.includes("deliver")) return "fulfilled";
+  return "paid";
+}
+
+/** Extract line items from a Fourthwall order payload, tolerating the
+ *  offers/items/lineItems aliases and nested variant names. */
+function mapFourthwallItems(data: Record<string, unknown>): FourthwallOrderItem[] {
+  const raw = (data.offers ?? data.items ?? data.lineItems ?? []) as unknown[];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((it) => {
+    const o = asObj(it);
+    return {
+      slug: str(o.slug) ?? str(o.productSlug),
+      name: str(o.name) ?? str(asObj(o.variant).name) ?? str(o.productName) ?? "Item",
+      qty: typeof o.quantity === "number" ? o.quantity : 1,
+      unitPrice: fourthwallMoneyToCents(o.price ?? o.unitPrice),
+    };
+  });
+}
+
+/**
+ * Parse a Fourthwall `order.*` webhook event into a normalized {@link
+ * FourthwallOrder}, or `null` when it carries no order id (nothing to record).
+ * Defensive: Fourthwall payload shapes vary, so it reads several field aliases
+ * (`id`/`orderId`, `friendlyId`/`number`, `total`/`amounts.total`/`amount`,
+ * top-level or nested `customer.email`). The site upserts the result into its
+ * own `orders` table, adding any site-schema columns (e.g. `raw`, `fulfillment`).
+ */
+export function mapFourthwallOrder(event: FourthwallOrderEvent): FourthwallOrder | null {
+  const data = asObj(event.data);
+  const fourthwallOrderId = str(data.id) ?? str(data.orderId);
+  if (!fourthwallOrderId) return null;
+  const total = data.total ?? asObj(data.amounts).total ?? data.amount;
+  return {
+    fourthwallOrderId,
+    orderNumber: str(data.friendlyId) ?? str(data.number) ?? str(data.orderNumber),
+    email: str(data.email) ?? str(asObj(data.customer).email),
+    amount: fourthwallMoneyToCents(total),
+    currency: str(asObj(total).currency) ?? str(data.currency),
+    items: mapFourthwallItems(data),
+    shippingAddress: asObj(data.shipping).address ?? data.shippingAddress ?? null,
+    orderStatus: mapFourthwallOrderStatus(str(data.status)),
+  };
+}

@@ -47,6 +47,26 @@ export function requireEditor(ctx: EditorRequest, mutation = true): Response | n
   return null;
 }
 
+/** The framework-`context`-shaped slice the editor guard needs: the request
+ *  plus the middleware-resolved editor on `locals`. Structural on purpose, so a
+ *  site passes its Astro `APIContext` straight through — no `astro` type
+ *  dependency here. */
+export interface EditorContext {
+  request: Request;
+  locals: { editor?: EditorSession | null };
+}
+
+/**
+ * Context adapter over {@link requireEditor}: bridges a framework `context`
+ * (`{ request, locals.editor }`) to the package's `{ request, editor }` shape,
+ * so an editor-gated Astro `APIRoute` is a one-liner —
+ * `const denied = requireEditorFromContext(context); if (denied) return denied;`
+ * — instead of each site re-declaring the same bridge in its own `lib/guard`.
+ */
+export function requireEditorFromContext(ctx: EditorContext, mutation = true): Response | null {
+  return requireEditor({ request: ctx.request, editor: ctx.locals.editor ?? null }, mutation);
+}
+
 /** Copy only allowlisted keys from a payload. */
 export function pick(input: Record<string, unknown>, allow: Set<string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
