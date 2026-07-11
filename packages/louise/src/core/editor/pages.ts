@@ -105,6 +105,13 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * swallowed so search staleness can never fail the write itself.
    */
   afterWrite?: (editor: EditorSession) => void | Promise<void>;
+  /**
+   * The collection's version-snapshot table (`collectionVersionsTable(...)`),
+   * when the page uses the draft/publish workflow. DELETE then cascades to it
+   * (`WHERE parent_id = :id`) — those snapshots have no FK to the page row, so
+   * without this they orphan. Omit for an unversioned collection.
+   */
+  versionsTable?: SQLiteTable;
 }
 
 /** Keep only allowlisted fields from `input`, sanitizing the rich ones. Pure. */
@@ -142,6 +149,14 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   const orderCol = (columns.find((c) => c.name === "sort_order") ?? pkCol) as SQLiteColumn;
   const hasUpdatedAt = columns.some((c) => c.name === "updated_at");
   const reserved = new Set(config.reservedSlugs ?? []);
+  // Version-snapshot table (draft/publish workflow) + its parent-id column, so
+  // DELETE can cascade to it — the snapshots have no FK to the page row.
+  const versionsTable = config.versionsTable;
+  const versionsParentCol = versionsTable
+    ? (getTableConfig(versionsTable).columns.find((c) => c.name === "parent_id") as
+        | SQLiteColumn
+        | undefined)
+    : undefined;
 
   /** Reject a write whose (transformed) slug is a reserved path. */
   const reservedSlugRejection = (data: Record<string, unknown>): Response | null => {
@@ -241,6 +256,10 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (method === "DELETE") {
       const [deleted] = await database.delete(table).where(eq(pkCol, id)).returning();
       if (!deleted) return json({ error: "Not found" }, 404);
+      // Cascade to the version snapshots (no FK — they'd orphan otherwise).
+      if (versionsTable && versionsParentCol) {
+        await database.delete(versionsTable).where(eq(versionsParentCol, id));
+      }
       await fireAfterWrite(g.editor);
       return json({ ok: true });
     }
