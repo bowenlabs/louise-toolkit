@@ -5,6 +5,7 @@
 // core), so `astro` is an OPTIONAL peer, pulled in only by sites that import
 // this subpath. First inhabitant: the shared middleware factory.
 
+export { type CatalogLoaderConfig, defineCatalogLoader } from "./catalog.js";
 export {
   createLouiseMiddleware,
   type LouiseMiddlewareConfig,
