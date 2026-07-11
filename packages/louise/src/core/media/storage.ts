@@ -167,23 +167,44 @@ export interface MediaMeta {
 /**
  * Load asset-level metadata (alt/caption/dimensions) from the `media` registry,
  * keyed by public URL, so a render pass can fill an image's `alt` from its asset
- * default when a per-usage override isn't set. One query over the small registry
- * table; `tableName` is the site's `media` table name, `base` its `MEDIA_URL`.
+ * default when a per-usage override isn't set. `tableName` is the site's `media`
+ * table name, `base` its `MEDIA_URL`.
+ *
+ * Pass `urls` (the specific public URLs a render actually needs) to scope the
+ * query to just those rows — a bounded `IN (…)` lookup instead of a full-table
+ * scan, so this stays cheap even on a large library. Omit `urls` to load the
+ * whole registry (only sensible for a small table).
  */
 export async function mediaMetaByUrl(
   db: D1Database,
   tableName: string,
   base: string,
+  urls?: readonly string[],
 ): Promise<Map<string, MediaMeta>> {
-  const stmt = `SELECT "key","alt","caption","width","height" FROM ${ident(tableName)}`;
-  const { results } = await db.prepare(stmt).all<{
+  const map = new Map<string, MediaMeta>();
+  let stmt = `SELECT "key","alt","caption","width","height" FROM ${ident(tableName)}`;
+  let binds: string[] = [];
+
+  if (urls) {
+    // Derive object keys from the public URLs (strip the media base); a URL not
+    // served from this base can't be a registry asset, so it's dropped.
+    const b = base.replace(/\/$/, "");
+    const keys = [...new Set(urls)]
+      .map((u) => (b.length > 0 && u.startsWith(`${b}/`) ? u.slice(b.length + 1) : null))
+      .filter((k): k is string => k !== null && k.length > 0);
+    if (keys.length === 0) return map; // nothing scoped in → no query
+    stmt += ` WHERE "key" IN (${keys.map((_, i) => `?${i + 1}`).join(",")})`;
+    binds = keys;
+  }
+
+  const prepared = binds.length > 0 ? db.prepare(stmt).bind(...binds) : db.prepare(stmt);
+  const { results } = await prepared.all<{
     key: string;
     alt: string | null;
     caption: string | null;
     width: number | null;
     height: number | null;
   }>();
-  const map = new Map<string, MediaMeta>();
   for (const row of results) {
     const url = mediaUrl(base, row.key);
     map.set(url, {

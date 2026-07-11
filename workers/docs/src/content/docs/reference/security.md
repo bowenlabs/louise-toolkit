@@ -87,6 +87,16 @@ Reads the session-signing secret from a Cloudflare Secrets Store binding. On
 `localhost` it returns `devSecret` (default `"louise-dev-secret"`) so the
 sign-in → session loop works locally; any deployed hostname **fails closed**.
 
+:::caution[Deployment assumption]
+The `localhost` dev fallback keys off `url.hostname`. On a routed Cloudflare
+Worker this is safe — Cloudflare routes by the real hostname, so `url.hostname`
+is never attacker-controlled and is `localhost`/`127.0.0.1` only under
+`wrangler dev`. If you run Louise **behind a proxy that forwards a client-set
+`Host`**, don't rely on this: provision a real `SESSION_SECRET` for every
+non-local environment (the fallback only triggers when the secret is
+missing/empty *and* the hostname is local), or wire your own dev gate.
+:::
+
 ## `louiseSecurityHeaders(response, opts)` · `rewriteCspStyleSrc(response, styleSrc)`
 
 Applies the baseline transport/scope headers (HSTS, `X-Content-Type-Options`,

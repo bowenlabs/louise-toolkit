@@ -9,6 +9,7 @@ import {
   isMediaUrl,
   likePattern,
   listMedia,
+  mediaMetaByUrl,
   type MediaRefSource,
   mediaUrl,
   putMedia,
@@ -306,6 +307,60 @@ describe("likePattern", () => {
   it("wraps in wildcards and escapes LIKE metacharacters", () => {
     expect(likePattern("a_b%c")).toBe("%a\\_b\\%c%");
     expect(likePattern("plain")).toBe("%plain%");
+  });
+});
+
+// --- mediaMetaByUrl --------------------------------------------------------
+
+/** Fake D1 supporting both `.prepare().all()` and `.prepare().bind().all()`. */
+function makeMetaD1(rows: Record<string, unknown>[]) {
+  const calls: { sql: string; binds: unknown[] }[] = [];
+  const res = (sql: string, binds: unknown[]) => ({
+    async all() {
+      calls.push({ sql, binds });
+      return { results: rows };
+    },
+  });
+  const db = {
+    prepare(sql: string) {
+      return { bind: (...b: unknown[]) => res(sql, b), all: () => res(sql, []).all() };
+    },
+  };
+  return { db: db as unknown as D1Database, calls };
+}
+
+describe("mediaMetaByUrl", () => {
+  it("scopes to the given urls with an IN query, deriving keys from the base", async () => {
+    const { db, calls } = makeMetaD1([
+      { key: "web/a.png", alt: "A blue mug", caption: null, width: 10, height: 20 },
+    ]);
+    const map = await mediaMetaByUrl(db, "media", "/media", [
+      "/media/web/a.png",
+      "https://evil.example/x.png", // not media-hosted → dropped
+    ]);
+    expect(calls[0]?.sql).toContain('WHERE "key" IN (?1)');
+    expect(calls[0]?.binds).toEqual(["web/a.png"]);
+    expect(map.get("/media/web/a.png")).toMatchObject({
+      key: "web/a.png",
+      alt: "A blue mug",
+      width: 10,
+    });
+  });
+
+  it("issues no query and returns empty when no url matches the base", async () => {
+    const { db, calls } = makeMetaD1([]);
+    const map = await mediaMetaByUrl(db, "media", "/media", ["https://evil.example/x.png"]);
+    expect(map.size).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("loads the whole table when no urls are given", async () => {
+    const { db, calls } = makeMetaD1([
+      { key: "web/a.png", alt: null, caption: null, width: null, height: null },
+    ]);
+    const map = await mediaMetaByUrl(db, "media", "/media");
+    expect(calls[0]?.sql).not.toContain("WHERE");
+    expect(map.has("/media/web/a.png")).toBe(true);
   });
 });
 

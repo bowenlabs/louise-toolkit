@@ -38,11 +38,12 @@ This is a [pnpm](https://pnpm.io) workspace driven by the
 ```
 packages/
   louise/          # louisecms — the published library
-    src/core/      # cms, db, media, auth, security, worker, editor, commerce, email, queues, browser, errors
+    src/core/      # cms, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
     src/client/    # the inline edit client + ProseKit editor + the registry-driven editor drawer
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
 workers/
-  site/            # louisecms.com — Astro on Cloudflare Workers: marketing (/) + Starlight docs (/docs)
+  site/            # louisecms.com — Astro on Cloudflare Workers: marketing + the Louise CMS dogfood
+  docs/            # docs.louisecms.com — standalone Starlight; served by the same worker by Host
 ```
 
 ## Develop
