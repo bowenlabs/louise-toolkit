@@ -62,6 +62,40 @@ export interface SubmissionResult {
 }
 
 /**
+ * Validate one already-coerced field value: the `required` flag, the per-type
+ * built-in checks (email/url format, select allowlist, number), and the field's
+ * `validation` chain (via {@link validateValue}). `data` is the whole submission
+ * (for cross-field custom validators). Shared by {@link validateSubmission} and
+ * the TanStack Form adapter, so both run identical rules.
+ */
+export async function validateField(
+  key: string,
+  field: FormField,
+  value: unknown,
+  data: Record<string, unknown> = {},
+): Promise<ValidationViolation[]> {
+  if (field.required && isEmpty(value)) {
+    return [{ path: key, message: `${field.label} is required`, severity: "error" }];
+  }
+  if (field.type === "number" && typeof value === "string" && value !== "") {
+    return [{ path: key, message: `${field.label} must be a number`, severity: "error" }];
+  }
+  if (
+    field.type === "select" &&
+    !isEmpty(value) &&
+    field.options &&
+    !field.options.includes(String(value))
+  ) {
+    return [{ path: key, message: `${field.label} is not a valid choice`, severity: "error" }];
+  }
+  return validateValue(fieldValidation(field), value, {
+    document: data,
+    path: key,
+    operation: "create",
+  });
+}
+
+/**
  * Validate + coerce a raw submission (`data`) against a form's fields. Runs the
  * `required` flag, the per-type built-in checks, the select allowlist, and each
  * field's `validation` chain (via {@link validateValue}). Unknown keys in `data`
@@ -77,37 +111,7 @@ export async function validateSubmission(
   for (const [key, field] of Object.entries(config.fields)) {
     const value = coerceFormValue(field, data[key]);
     values[key] = value;
-
-    if (field.required && isEmpty(value)) {
-      violations.push({ path: key, message: `${field.label} is required`, severity: "error" });
-      continue; // a required-empty field: skip the format checks (they'd be noise)
-    }
-
-    if (field.type === "number" && typeof value === "string" && value !== "") {
-      violations.push({ path: key, message: `${field.label} must be a number`, severity: "error" });
-      continue;
-    }
-
-    if (
-      field.type === "select" &&
-      !isEmpty(value) &&
-      field.options &&
-      !field.options.includes(String(value))
-    ) {
-      violations.push({
-        path: key,
-        message: `${field.label} is not a valid choice`,
-        severity: "error",
-      });
-      continue;
-    }
-
-    const vs = await validateValue(fieldValidation(field), value, {
-      document: data,
-      path: key,
-      operation: "create",
-    });
-    violations.push(...vs);
+    violations.push(...(await validateField(key, field, value, data)));
   }
 
   return { values, violations };

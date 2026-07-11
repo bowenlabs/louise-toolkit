@@ -1181,6 +1181,42 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) {
   .louise-drawer, .louise-bar { animation: none !important; }
 }
+
+/* ── Headless <Form> (#46) ────────────────────────────────────────────── */
+/* Minimal, neutral defaults — a site typically brings its own form styles; the
+   class hooks are here so the unstyled helper is still legible out of the box. */
+.louise-form { display: grid; gap: 14px; font-family: var(--louise-font-body); }
+.louise-form-row { display: grid; gap: 4px; }
+.louise-form-label { font-size: 13px; font-weight: 600; color: #334155; }
+.louise-form-req { color: #dc2626; }
+.louise-form-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+  color: #0f172a;
+}
+.louise-form-input:focus { outline: 2px solid var(--louise-blue); outline-offset: 0; }
+.louise-form-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.louise-form-hint { font-size: 12px; color: #64748b; }
+.louise-form-error { font-size: 12px; color: #dc2626; }
+.louise-form-submit {
+  justify-self: start;
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--louise-blue);
+}
+.louise-form-submit:disabled { opacity: 0.5; cursor: default; }
+.louise-form-status { font-size: 14px; }
+.louise-form-status[data-status="success"] { color: var(--louise-green); }
+.louise-form-status[data-status="error"] { color: #dc2626; }
 `;
 
 /** Google Fonts request for the brand type — Roboto Flex (variable). */

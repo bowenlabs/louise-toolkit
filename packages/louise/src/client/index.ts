@@ -43,6 +43,9 @@ export {
   type SectionItem,
   type SectionsEditorProps,
 } from "./sections.jsx";
+// Headless <Form> render helper (#46, Tier 2) — renders a `defineForm` catalog
+// with the SAME validation the server runs, and posts to its `formRoute`.
+export { Form, type FormProps, mountForm } from "./forms.jsx";
 
 interface FieldRef {
   collection: string;

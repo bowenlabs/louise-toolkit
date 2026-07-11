@@ -25,7 +25,10 @@ export type FormFieldType =
   | "number"
   | "select"
   | "checkbox"
-  | "date";
+  | "date"
+  // A file upload — stored as the uploaded media asset's URL (text). The render
+  // helper uploads through the `media` route; the column is a plain text URL.
+  | "file";
 
 /** One declared form field. */
 export interface FormField {

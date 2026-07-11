@@ -6,6 +6,7 @@ import {
   coerceFormValue,
   columnName,
   defineForm,
+  tanstackFormValidators,
   validateSubmission,
   verifyTurnstileToken,
 } from "../../src/core/forms/index.js";
@@ -134,6 +135,27 @@ describe("validateSubmission", () => {
   it("reports a missing required field", async () => {
     const { violations } = await validateSubmission(form, { message: "hi" });
     expect(violations.some((v) => v.path === "email" && /required/.test(v.message))).toBe(true);
+  });
+});
+
+// --- tanstack adapter ------------------------------------------------------
+
+describe("tanstackFormValidators", () => {
+  it("returns per-field validators backed by the shared engine (one error string)", async () => {
+    const form = defineForm({
+      name: "contact",
+      fields: {
+        email: { type: "email", label: "Email", required: true },
+        note: { type: "textarea", label: "Note", validation: (r) => r.max(3) },
+      },
+    });
+    const validators = tanstackFormValidators(form);
+    // TanStack shape: ({ value }) => errorMessage | undefined.
+    expect(await validators.email({ value: "" })).toMatch(/required/);
+    expect(await validators.email({ value: "bad" })).toMatch(/valid email/);
+    expect(await validators.email({ value: "a@b.co" })).toBeUndefined();
+    expect(await validators.note({ value: "toolong" })).toMatch(/at most 3/);
+    expect(await validators.note({ value: "ok" })).toBeUndefined();
   });
 });
 

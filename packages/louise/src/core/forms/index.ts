@@ -6,6 +6,11 @@
 
 export { columnName, deriveFormColumns } from "./columns.js";
 export { defineForm } from "./defineForm.js";
+export {
+  type TanstackFieldValidator,
+  tanstackFieldValidator,
+  tanstackFormValidators,
+} from "./tanstack.js";
 export { verifyTurnstileToken } from "./turnstile.js";
 export type {
   AnyFormTable,
@@ -18,4 +23,9 @@ export type {
   FormReviewColumn,
   FormSpamConfig,
 } from "./types.js";
-export { coerceFormValue, type SubmissionResult, validateSubmission } from "./validate.js";
+export {
+  coerceFormValue,
+  type SubmissionResult,
+  validateField,
+  validateSubmission,
+} from "./validate.js";

@@ -74,6 +74,47 @@ are ignored — only declared fields are read and stored.
 A plain HTML `<form method="POST">` works out of the box (it sends `Referer`, so
 the same-origin check passes); a `fetch` with a JSON body works too.
 
+## Render (headless `<Form>`)
+
+`louisecms/client` ships a headless `<Form>` that renders accessible inputs from
+the catalog and **mirrors the exact server validation client-side** (it reuses
+`validateSubmission` — the same `Rule` engine, no second definition), then POSTs
+to the form's `formRoute`. It's unstyled by default (every element has a
+`louise-form*` class hook), so a site keeps its own look.
+
+```tsx
+import { Form } from "louisecms/client";
+import { contact } from "./forms"; // a client-safe { name, fields } config
+
+<Form form={contact} />; // POSTs to /api/louise/forms/inquiries
+```
+
+Pass a plain `{ name, fields }` config to the client (not the `defineForm`
+*result*, which carries the Drizzle table — keep that server-side). For a
+non-Solid site, `mountForm(hostEl, { form })` renders into a DOM node and returns
+a disposer. A `file` field uploads through the media route and stores the
+returned URL. On a `422` the server's per-field messages are painted back onto
+the inputs.
+
+## Complex forms: TanStack Form (optional)
+
+The base `<Form>` covers flat, generated forms with no dependency. For a
+multi-step form, field arrays, or async cross-field rules, reach for
+[`@tanstack/solid-form`](https://tanstack.com/form) — and still validate with
+Louise's one `Rule` engine via the dependency-free adapter:
+
+```tsx
+import { tanstackFormValidators } from "louisecms/forms";
+const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | undefined }
+
+// wire each into a TanStack field:
+<form.Field name="email" validators={{ onChange: v.email }}>{/* … */}</form.Field>
+```
+
+`tanstackFormValidators` (and per-field `tanstackFieldValidator`) return
+functions in TanStack Form's validator shape, backed by `validateField` — so a
+complex hand-built form runs the same checks as `<Form>` and the server.
+
 ## Review
 
 The submissions review route (`inquiriesRoute`) and the drawer's Inquiries tab
