@@ -9,6 +9,8 @@ coverage/
 .turbo/
 .vite/
 *.tsbuildinfo
+# npm/vp pack tarballs (build artifacts, never committed)
+*.tgz
 # Static docs bundle folded into the marketing Worker's assets at build time
 # (scripts/ci-build.sh copies workers/docs/dist here).
 workers/site/public/_docs/
