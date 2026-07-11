@@ -44,6 +44,7 @@ export default {
   pack: {
     entry: [
       "src/core/auth/index.ts",
+      "src/astro/index.ts",
       "src/client/index.ts",
       "src/client/drawer/index.ts",
       "src/core/cms/index.ts",
@@ -83,6 +84,7 @@ export default {
         /^@tanstack\/solid-query(\/|$)/,
         /^@vercel\/stega(\/|$)/,
         /^@cloudflare\/puppeteer(\/|$)/,
+        /^astro(\/|$)/,
       ],
     },
   },
