@@ -27,5 +27,13 @@ export {
   type PutMediaOptions,
   type PutMediaResult,
 } from "./storage.js";
-export { cfImage, type CfImageOptions, circleImage, type Crop, cropStyle } from "./transform.js";
+export {
+  cfImage,
+  type CfImageOptions,
+  cfImageSrcset,
+  type CfImageSrcsetOptions,
+  circleImage,
+  type Crop,
+  cropStyle,
+} from "./transform.js";
 export type { LouiseMediaEnv } from "./types.js";

@@ -63,6 +63,40 @@ export function circleImage(url: string, size: number): { src: string; srcset: s
   return { src: at(1), srcset: `${at(1)} 1x, ${at(2)} 2x` };
 }
 
+/** Options for {@link cfImageSrcset}: the largest 1× display width plus the
+ *  usual cover-crop knobs. `ratio` (e.g. `"16/10"`) derives each derivative's
+ *  height so the crop matches what CSS `object-fit` shows (no wasted pixels);
+ *  omit it for a width-only resize. `steps` are DPR multipliers of `width`. */
+export interface CfImageSrcsetOptions {
+  width: number;
+  ratio?: string;
+  steps?: readonly number[];
+  fit?: CfImageOptions["fit"];
+  gravity?: CfImageOptions["gravity"];
+  quality?: number;
+}
+
+/**
+ * A width-descriptor `srcset` (+ a default `src`) for a rectangular render. The
+ * browser picks the smallest derivative that covers the rendered width at the
+ * device's DPR — retina included — so a huge master ships as a right-sized
+ * AVIF/WebP. Pair the returned `srcset` with a `sizes` attribute describing the
+ * rendered width. Mirrors {@link circleImage} for non-square frames. Pure (no
+ * binding); a non-URL `url` passes through {@link cfImage} untouched.
+ */
+export function cfImageSrcset(
+  url: string,
+  opts: CfImageSrcsetOptions,
+): { src: string; srcset: string } {
+  const { width, ratio, steps = [0.5, 0.75, 1, 1.5, 2], fit = "cover", gravity = "auto", quality = 82 } = opts;
+  const [rw, rh] = ratio ? ratio.split("/").map((n) => Number.parseFloat(n.trim())) : [];
+  const heightFor = (w: number) => (rw && rh ? Math.round((w * rh) / rw) : undefined);
+  const at = (w: number) =>
+    cfImage(url, { width: w, height: heightFor(w), fit, gravity, format: "auto", quality });
+  const widths = [...new Set(steps.map((s) => Math.round(width * s)))].sort((a, b) => a - b);
+  return { src: at(width), srcset: widths.map((w) => `${at(w)} ${w}w`).join(", ") };
+}
+
 /** A per-usage crop: focal position (0–100, as a %) plus zoom (`scale` ≥ 1). */
 export interface Crop {
   x: number;
