@@ -170,13 +170,13 @@ export function mapCatalogItem(
 /**
  * List every non-deleted catalog ITEM with its variations and primary image.
  * Walks the search cursor (coffee catalogs are small; a safety cap bounds it).
- * POST /v2/catalog/search-catalog-objects.
+ * POST /v2/catalog/search.
  */
 export async function listCatalogItems(config: SquareConfig): Promise<SquareCatalogItem[]> {
   const items: SquareCatalogItem[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 50; page++) {
-    const res = await sqPost<CatalogSearchResponse>(config, "/v2/catalog/search-catalog-objects", {
+    const res = await sqPost<CatalogSearchResponse>(config, "/v2/catalog/search", {
       object_types: ["ITEM"],
       include_related_objects: true,
       include_deleted_objects: false,

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   centsToMajor,
+  listCatalogItems,
   mapCatalogItem,
   verifySquareSignature,
 } from "../../src/core/commerce/square.js";
@@ -103,5 +104,54 @@ describe("centsToMajor", () => {
   it("converts minor units to whole currency", () => {
     expect(centsToMajor(2500)).toBe(25);
     expect(centsToMajor(0)).toBe(0);
+  });
+});
+
+describe("listCatalogItems", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Regression for #58: the SearchCatalogObjects endpoint is `/v2/catalog/search`,
+  // not `/v2/catalog/search-catalog-objects` (which 404s "Resource not found").
+  it("POSTs to /v2/catalog/search and walks the cursor", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const pages: Record<string, unknown> = {
+      first: {
+        objects: [
+          { id: "item-1", type: "ITEM", item_data: { name: "Harbor Blend" } },
+          { id: "cat-x", type: "CATEGORY" }, // non-ITEM: ignored
+        ],
+        cursor: "PAGE2",
+      },
+      PAGE2: {
+        objects: [
+          { id: "item-2", type: "ITEM", is_deleted: true, item_data: { name: "Retired" } }, // deleted: ignored
+          { id: "item-3", type: "ITEM", item_data: { name: "Night Roast" } },
+        ],
+      },
+    };
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { cursor?: string };
+      calls.push({ url, body });
+      const page = body.cursor ?? "first";
+      return new Response(JSON.stringify(pages[page]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const items = await listCatalogItems({ accessToken: "tok", environment: "sandbox" });
+
+    // Every request hit the real SearchCatalogObjects path on the sandbox host.
+    expect(calls).toHaveLength(2);
+    for (const c of calls) {
+      expect(c.url).toBe("https://connect.squareupsandbox.com/v2/catalog/search");
+    }
+    // Cursor from page 1 was forwarded to page 2.
+    expect(calls[1]?.body).toMatchObject({ cursor: "PAGE2" });
+    // Only non-deleted ITEMs are mapped, across both pages.
+    expect(items.map((i) => i.id)).toEqual(["item-1", "item-3"]);
   });
 });
