@@ -215,5 +215,8 @@
     "solid-js": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -34,11 +34,15 @@ const COMPONENTS = {
 // uploaded image is still described. Skipped in edit mode so the dock keeps
 // showing the true per-usage value (empty until the editor sets it). One small
 // query, and only when a media section actually needs it.
-const needsAlt =
-  !editMode &&
-  sections.some((s) => s._type === "media" && !s.alt && typeof s.image === "string" && s.image);
-const mediaMeta = needsAlt
-  ? await mediaMetaByUrl(env.DB, "media", env.MEDIA_URL ?? "/media")
+const needAltUrls = editMode
+  ? []
+  : sections
+      .filter((s) => s._type === "media" && !s.alt && typeof s.image === "string" && s.image)
+      .map((s) => s.image as string);
+// Scope the lookup to just the images this page needs (bounded IN query), not
+// the whole media table.
+const mediaMeta = needAltUrls.length
+  ? await mediaMetaByUrl(env.DB, "media", env.MEDIA_URL ?? "/media", needAltUrls)
   : null;
 const withAssetAlt = (s: Item): Item => {
   if (mediaMeta && s._type === "media" && !s.alt && typeof s.image === "string") {
