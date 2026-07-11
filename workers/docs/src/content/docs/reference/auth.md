@@ -55,6 +55,7 @@ passed straight to `database` (no adapter).
 | `resolveAdmins?`       | admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
 | `customers?`           | enable customer email/password (omit for an admin-only studio)                                                                |
 | `additionalFields?`    | extra Better Auth user columns (e.g. `squareCustomerId`)                                                                      |
+| `tablePrefix?`         | namespace the auth tables in the same D1 (e.g. `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
 | `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                    |
 | `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                        |
 | `extraPlugins?`        | additional Better Auth plugins                                                                                                |
@@ -115,6 +116,59 @@ resolved editor session. Returns an error `Response`, or null to proceed.
 - `defaultResolveAdmins(env)` — `OWNER_EMAIL` + optional `ENGINEER_EMAIL`, lowercased.
 - `isAllowedSignInEmail(admins, email)` — case-insensitive membership test.
 - `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)` — the both-halves-real captcha activation gate.
+
+## Generating the auth schema
+
+Better Auth doesn't ship hand-written table DDL — it *derives* its tables (user,
+session, account, verification, passkey, the admin `role`/ban columns, plus any
+`additionalFields`) from the config. So Louise **always generates** the auth
+migration rather than hand-rolling it, from the *same* plugin set the runtime
+factory uses — the committed schema can't drift from what `getLouiseAuth`
+expects. One command:
+
+```sh
+# print to stdout, or write with --out
+npx louise gen-auth-schema --out drizzle/0002_auth.sql
+```
+
+`gen-auth-schema` takes an optional `--config <path>` (a module default-exporting
+an `AuthSchemaConfig` — `{ customers?, additionalFields?, tablePrefix? }`) so the
+generated columns match your runtime `LouiseAuthConfig`. Point it at the site's
+auth config (or a small module re-exporting its `additionalFields`/`customers`)
+and the base tables come from Louise, the extra columns from your config:
+
+```sh
+louise gen-auth-schema --config ./src/lib/auth-schema.config.ts --out drizzle/0002_auth.sql
+```
+
+Then apply it like any Drizzle/D1 migration (`wrangler d1 migrations apply`).
+Re-run the command whenever the auth config changes — never hand-edit the output.
+The programmatic generator is also exported as
+`generateAuthSchemaSql(config): string`.
+
+### Where the auth tables live
+
+Two supported layouts, chosen per deployment. Both keep one database and one
+migration stream — the difference is only a table-name namespace:
+
+| Option                                  | Isolation | user↔content joins | Best for                                                                 |
+| --------------------------------------- | --------- | ------------------ | ------------------------------------------------------------------------ |
+| **A. Same D1, default names** (default) | low       | native SQL joins   | sites that join user↔content (customer↔order, `squareCustomerId`) — one owner, one stream |
+| **B. Same D1, `auth_` prefix**          | medium    | still native joins | a visible auth boundary in one database, without a second DB             |
+
+**Default to A.** The sites have real user↔content joins, one owner, and one
+migration history; a second boundary adds friction for little gain. Choose **B**
+only when you want an explicit auth namespace cheaply:
+
+```sh
+louise gen-auth-schema --table-prefix auth_ --out drizzle/0002_auth.sql
+```
+
+The prefix must be a bare SQL identifier (`/^[A-Za-z_][A-Za-z0-9_]*$/`), and the
+**same** prefix must be set on [`LouiseAuthConfig.tablePrefix`](#louiseauthconfig)
+so the runtime queries the namespaced tables. The optional KV session cache
+([`sessionCacheKv`](#louiseauthconfig)) is orthogonal and works under either
+option.
 
 ## `LouiseAuthEnv`
 
