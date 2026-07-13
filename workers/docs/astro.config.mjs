@@ -35,7 +35,7 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "reference" } }],
         },
       ],
-      customCss: ["louise/theme/fonts.css", "./src/styles/docs.css"],
+      customCss: ["louise-toolkit/theme/fonts.css", "./src/styles/docs.css"],
     }),
   ],
 });
