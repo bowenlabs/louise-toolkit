@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SectionCatalog } from "../../src/core/cms/sections.js";
-import { assertValidSections, validateSections } from "../../src/core/cms/sections.js";
+import type { SectionCatalog } from "../../src/core/content/sections.js";
+import { assertValidSections, validateSections } from "../../src/core/content/sections.js";
 import { LouiseValidationError } from "../../src/core/errors.js";
 
 const catalog: SectionCatalog = {
@@ -141,7 +141,7 @@ describe("validateSections — image media-origin (mediaBase)", () => {
   });
 });
 
-describe("validateSections — per-field rules (reuse the cms Rule builder)", () => {
+describe("validateSections — per-field rules (reuse the content Rule builder)", () => {
   it("enforces required", async () => {
     expect((await errors([{ _type: "hero", heading: "" }]))[0].path).toBe("sections[0].heading");
   });

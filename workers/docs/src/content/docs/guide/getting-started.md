@@ -11,21 +11,21 @@ Louise is a library, not a scaffold — you add it to a Cloudflare Workers app
 ## Install
 
 ```sh
-npm install louise
+npm install louise-toolkit
 ```
 
 Louise's heavier dependencies are **optional peers**, so a route that only uses
-`louise/errors` pulls in nothing extra. Install the peers for the
+`louise-toolkit/errors` pulls in nothing extra. Install the peers for the
 exports you actually use:
 
 | If you import…                              | Also install                     |
 | ------------------------------------------- | -------------------------------- |
-| `louise/db`, `/cms`                      | `drizzle-orm`                    |
-| `louise/client`                          | `solid-js prosekit @prosekit/pm` |
+| `louise-toolkit/db`, `/content`                      | `drizzle-orm`                    |
+| `louise-toolkit/client`                          | `solid-js prosekit @prosekit/pm` |
 | `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_                     |
 
 ```sh
-npm install drizzle-orm            # for /db and /cms
+npm install drizzle-orm            # for /db and /content
 npm install solid-js prosekit @prosekit/pm   # for the /client editor
 ```
 
@@ -38,8 +38,8 @@ and in a unit test with a fake binding.
 
 ```ts
 // A bare Cloudflare Worker endpoint.
-import { db } from "louise/db";
-import { sendEmail } from "louise/email";
+import { db } from "louise-toolkit/db";
+import { sendEmail } from "louise-toolkit/email";
 
 export default {
   async fetch(_req: Request, env: Env) {
@@ -71,7 +71,7 @@ wasn't rendered in edit mode) `mountLouise` does nothing, so you can lazy-import
 it safely.
 
 ```ts
-import { mountLouise } from "louise/client";
+import { mountLouise } from "louise-toolkit/client";
 mountLouise();
 ```
 

@@ -17,9 +17,9 @@
 //      parser's serialization of malformed input (e.g. `<scr<script>ipt>`).
 //
 // The allowlist matches exactly the formatting Louise's ProseKit client emits
-// (see `../cms/richtext`): block + inline formatting, resizable images
+// (see `../content/richtext`): block + inline formatting, resizable images
 // (`<img width height>`), the text-color mark (`<span style="color:…"
-// data-text-color="…">`), and the page-builder block containers. Keep this in
+// data-text-color="…">`), and the builder block containers. Keep this in
 // sync with the client — that coupling is why the sanitizer lives in the
 // package alongside the richtext it guards.
 
@@ -60,7 +60,7 @@ export const ALLOWED_TAGS = [
   "code",
   "pre",
   "div",
-  // Page-builder block containers — serialized by the blocks framework as
+  // Builder block containers — serialized by the blocks framework as
   // `<tag data-block="…" class="pb-…">`.
   "section",
   "figure",
@@ -118,7 +118,7 @@ const DANGEROUS_TOKENS =
 const SRCLESS_IMG = /<img\b(?![^>]*\bsrc=)[^>]*>/gi;
 
 /** Whether `src` is served from `base` (the site's `MEDIA_URL`) — mirrors
- *  `isMediaUrl` in louise/media, inlined so this base-security module stays
+ *  `isMediaUrl` in louise-toolkit/media, inlined so this base-security module stays
  *  dependency-free. */
 function isFromMediaBase(base: string, src: string): boolean {
   const b = base.replace(/\/$/, "");

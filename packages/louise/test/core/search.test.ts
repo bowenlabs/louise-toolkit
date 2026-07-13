@@ -3,7 +3,7 @@ import {
   collectionSearchTableSQL,
   defineCollection,
   extractSearchText,
-} from "../../src/core/cms/index.js";
+} from "../../src/core/content/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { searchRoute } from "../../src/core/editor/index.js";
 import { parseSearchLimit, SEARCH_LIMIT_MAX } from "../../src/core/editor/search.js";

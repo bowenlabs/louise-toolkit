@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/forms — the `defineForm` entry point. One definition is the single
+// louise-toolkit/forms — the `defineForm` entry point. One definition is the single
 // source of truth: it derives the submission table, the review columns, and
-// (via `formRoute` in louise/editor) the public capture route + validation.
+// (via `formRoute` in louise-toolkit/editor) the public capture route + validation.
 
 import { sqliteTable } from "drizzle-orm/sqlite-core";
 import { deriveFormColumns } from "./columns.js";

@@ -1,6 +1,6 @@
 ---
 title: security
-description: "louise/security — editor-HTML sanitizer, KV rate limiter, session-secret helper, and security headers."
+description: "louise-toolkit/security — editor-HTML sanitizer, KV rate limiter, session-secret helper, and security headers."
 sidebar:
   order: 10
 ---
@@ -12,7 +12,7 @@ import {
   matchRateRule,
   getSessionSecret,
   louiseSecurityHeaders,
-} from "louise/security";
+} from "louise-toolkit/security";
 ```
 
 The security-critical primitives every Louise site shares — so a fix lands once

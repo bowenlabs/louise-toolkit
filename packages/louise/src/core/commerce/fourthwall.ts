@@ -1,4 +1,4 @@
-// louise/commerce/fourthwall — Fourthwall Storefront API client (Cycle 6).
+// louise-toolkit/commerce/fourthwall — Fourthwall Storefront API client (Cycle 6).
 //
 // Fourthwall owns the merch catalog, cart, and hosted checkout. This is the
 // read side: list collections + their products so the site can mirror them

@@ -5,8 +5,8 @@ import {
   stegaClean,
   stegaDecode,
   stegaEncode,
-} from "../../src/core/cms/stega.js";
-import type { JsonValue } from "../../src/core/cms/types.js";
+} from "../../src/core/content/stega.js";
+import type { JsonValue } from "../../src/core/content/types.js";
 
 const ref = { collection: "pages", id: 7, field: "title" };
 

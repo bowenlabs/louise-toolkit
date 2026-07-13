@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
-import { collectionVersionsTable, defineCollection } from "../../src/core/cms/index.js";
+import { collectionVersionsTable, defineCollection } from "../../src/core/content/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { latestPendingDraft, versionsRoute } from "../../src/core/editor/index.js";
 

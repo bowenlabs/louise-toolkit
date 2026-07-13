@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the generic `editors` route: manage who can edit the CMS.
+// louise-toolkit/editor — the generic `editors` route: manage who can edit the content.
 // Editors are the DB-managed admin allowlist — rows in the Better Auth user
 // table with role 'admin'. A row here IS an editor: they can request a magic
 // link at /louise and edit the live site (pair with getLouiseAuth's

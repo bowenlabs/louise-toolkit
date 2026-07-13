@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/cms — the structured "sections" schema + its server-side validator.
+// louise-toolkit/content — the structured "sections" schema + its server-side validator.
 //
 // A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`
 // — a discriminated block that the SITE renders with its own bespoke component.
@@ -11,7 +11,7 @@
 //
 // The catalog is the sections analogue of an `ArrayFieldConfig.discriminator`:
 // `_type` selects a variant, each variant is a field map. `validateSections`
-// checks the array shape and each variant's field types, and reuses the cms
+// checks the array shape and each variant's field types, and reuses the content
 // `Rule` machinery (via `validateValue`) for any per-field `validation` chain.
 
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
@@ -38,7 +38,7 @@ export interface SectionField {
   itemLabel?: string;
   /** `array` only — the fields of each repeated item. */
   itemFields?: Record<string, SectionField>;
-  /** Optional per-field validation, reusing the cms `Rule` builder — e.g.
+  /** Optional per-field validation, reusing the content `Rule` builder — e.g.
    *  `validation: (r) => r.required().max(120)`. Enforced server-side by
    *  {@link validateSections}. */
   validation?: ValidationBuilder;
@@ -86,7 +86,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  - each item is an object with a `_type` present in the catalog;
  *  - each declared field's value has the right primitive shape (text/textarea →
  *    string, array → array of objects whose `itemFields` are validated in turn);
- *  - any field's `validation` Rule chain (reused from the cms validator).
+ *  - any field's `validation` Rule chain (reused from the content validator).
  * Absent/`undefined` (the field wasn't part of a partial update) is a no-op —
  * presence is the route allowlist's job, not this validator's.
  */
@@ -182,7 +182,7 @@ async function validateSectionField(
     out.push({ path, message: `${path} must be a string`, severity: "error" });
   }
 
-  // Per-field declared rules (required/min/max/custom…), reusing the cms Rule
+  // Per-field declared rules (required/min/max/custom…), reusing the content Rule
   // evaluator so sections and collection fields validate identically.
   out.push(...(await validateValue(field.validation, value, ctx)));
   return out;

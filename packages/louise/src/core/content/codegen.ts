@@ -7,9 +7,9 @@ import {
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
-import { LouiseCmsError } from "../errors.js";
+import { LouiseContentError } from "../errors.js";
 import {
-  type CmsConfig,
+  type ContentConfig,
   type CollectionConfig,
   type FieldConfig,
   flattenFields,
@@ -123,8 +123,8 @@ function fieldToColumn(key: string, field: FieldConfig): SQLiteColumnBuilderBase
       return column;
     }
     default:
-      throw new LouiseCmsError(
-        `Field type "${(field as FieldConfig).type}" is not yet supported by louise/cms codegen`,
+      throw new LouiseContentError(
+        `Field type "${(field as FieldConfig).type}" is not yet supported by louise-toolkit/content codegen`,
       );
   }
 }
@@ -265,8 +265,8 @@ export function extractSearchText(
   });
 }
 
-export function cmsConfigToSchema(
-  config: CmsConfig,
+export function contentConfigToSchema(
+  config: ContentConfig,
 ): Record<
   string,
   ReturnType<typeof collectionToTable> | ReturnType<typeof collectionVersionsTable>

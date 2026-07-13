@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the draft/publish/versions route. Exposes a collection's
-// `createVersionedLocalApi` (louise/cms) over HTTP, so the editor can stage
+// louise-toolkit/editor — the draft/publish/versions route. Exposes a collection's
+// `createVersionedLocalApi` (louise-toolkit/content) over HTTP, so the editor can stage
 // edits as drafts and promote them on publish without the change going live:
 //   GET  /api/louise/pages/:id/versions   list versions (newest first)
 //   POST /api/louise/pages/:id/versions   save a draft (merged over the live row)
@@ -15,8 +15,8 @@
 
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
-import { createVersionedLocalApi } from "../cms/localApi.js";
-import { type CollectionConfig, flattenFields } from "../cms/types.js";
+import { createVersionedLocalApi } from "../content/localApi.js";
+import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { db } from "../db/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
@@ -24,7 +24,7 @@ import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./sh
 export interface VersionsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** The main content table (e.g. the composed `pages`). */
   table: SQLiteTable;
-  /** The `${slug}_versions` companion table (see cms codegen's `collectionVersionsTable`). */
+  /** The `${slug}_versions` companion table (see content codegen's `collectionVersionsTable`). */
   versionsTable: SQLiteTable;
   /** The collection config — its `fields` drive the draft snapshot + publish validation. */
   config: CollectionConfig;

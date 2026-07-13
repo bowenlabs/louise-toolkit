@@ -5,7 +5,7 @@
 // production sites already built on the toolkit (noted per card) — distil those
 // into first-party demos here rather than importing client source.
 import SiteChrome from "../../components/SiteChrome.astro";
-import "louise/theme/fonts.css";
+import "louise-toolkit/theme/fonts.css";
 import "../../styles/louise.css";
 
 export const prerender = false;
@@ -22,7 +22,7 @@ interface Ex {
 
 const EXAMPLES: Ex[] = [
   {
-    primitive: "louise/forms",
+    primitive: "louise-toolkit/forms",
     title: "Validated contact form",
     blurb: "One definition → the table, validation, and capture route.",
     icon: "ph ph-envelope-simple",
@@ -30,14 +30,14 @@ const EXAMPLES: Ex[] = [
     status: "live",
   },
   {
-    primitive: "louise/client",
+    primitive: "louise-toolkit/client",
     title: "Edit the live page",
     blurb: "Toggle a sandboxed guest edit mode and type in a real ProseKit field.",
     icon: "ph ph-cursor-text",
     status: "soon",
   },
   {
-    primitive: "louise/commerce/square",
+    primitive: "louise-toolkit/commerce/square",
     title: "Checkout on Workers",
     blurb: "Tokenize a card, price it server-side, charge with Square — in sandbox.",
     icon: "ph ph-shopping-cart",
@@ -45,21 +45,21 @@ const EXAMPLES: Ex[] = [
     status: "live",
   },
   {
-    primitive: "louise/media",
+    primitive: "louise-toolkit/media",
     title: "Upload + transform",
     blurb: "Drag an image to R2, get a resized, alt-tracked URL back.",
     icon: "ph ph-image",
     status: "soon",
   },
   {
-    primitive: "louise/queues",
+    primitive: "louise-toolkit/queues",
     title: "Track a job live",
     blurb: "Fire an event and watch it move through queue-driven stages.",
     icon: "ph ph-flow-arrow",
     status: "soon",
   },
   {
-    primitive: "louise/auth",
+    primitive: "louise-toolkit/auth",
     title: "Login + edit gate",
     blurb: "The session flow that turns a viewer into an in-place editor.",
     icon: "ph ph-lock-key",

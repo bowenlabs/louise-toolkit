@@ -26,7 +26,7 @@
   // TODO(provision): `wrangler kv namespace create RL` → paste id.
   "kv_namespaces": [{ "binding": "RL", "id": "REPLACE_WITH_KV_ID" }],
 
-  // Cloudflare Email Sending binding (louise/email → env.EMAIL.send()).
+  // Cloudflare Email Sending binding (louise-toolkit/email → env.EMAIL.send()).
   // TODO(provision): `wrangler email sending enable louisetoolkit.com` (or the
   // subdomain you send from) so `from` is an onboarded domain. No API key needed.
   "send_email": [{ "name": "EMAIL" }],

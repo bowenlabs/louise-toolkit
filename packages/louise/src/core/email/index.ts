@@ -1,4 +1,4 @@
-// louise/email — Cloudflare Email Service (transactional Email Sending).
+// louise-toolkit/email — Cloudflare Email Service (transactional Email Sending).
 //
 // Uses the modern object-form binding API — env.EMAIL.send({to, from,
 // subject, html, text}) → {messageId} — NOT the legacy cloudflare:email

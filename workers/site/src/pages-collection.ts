@@ -1,4 +1,4 @@
-// The `pages` collection modeled for louise/cms — the source of truth for the
+// The `pages` collection modeled for louise-toolkit/content — the source of truth for the
 // draft/publish + version-history workflow. `versions.drafts` opts the collection
 // into a `pages_versions` snapshot table (see schema.ts) and the versioned Local
 // API; `versionsRoute` (worker.ts) exposes it. The `fields` here mirror the
@@ -6,8 +6,8 @@
 // so publish's `.set()` maps straight onto columns) — bookkeeping columns
 // (`id`, `status`, `publishedVersionId`, timestamps) are deliberately absent, so
 // a draft snapshot never carries them.
-import { defineCollection } from "louise/cms";
-import { sanitizeRichHtml } from "louise/security";
+import { defineCollection } from "louise-toolkit/content";
+import { sanitizeRichHtml } from "louise-toolkit/security";
 
 // The site's media base — matches `vars.MEDIA_URL` in wrangler.jsonc. Passed to
 // the sanitizer so a pasted body `<img>` pointing at an external origin (a
@@ -37,7 +37,7 @@ export const pagesCollection = defineCollection({
     ogImage: { type: "text" },
     noindex: { type: "checkbox" },
     sortOrder: { type: "number" },
-    // The structured sections array (deep-validated separately by
+    // The Louise Sections array (deep-validated separately by
     // assertValidSections on the draft-save path).
     sections: { type: "json" },
   },

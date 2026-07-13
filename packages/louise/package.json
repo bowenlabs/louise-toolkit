@@ -1,11 +1,12 @@
 {
-  "name": "louise",
-  "version": "0.11.0",
-  "description": "Louise Toolkit — a V8-native toolkit for building editable sites on Cloudflare Workers. Framework-agnostic core primitives (cms, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
+  "name": "louise-toolkit",
+  "version": "0.12.0",
+  "description": "Louise Toolkit — a V8-native toolkit for building editable sites on Cloudflare Workers. Framework-agnostic core primitives (content, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
   "keywords": [
     "astro",
     "cloudflare-workers",
     "cms",
+    "content",
     "d1",
     "edge",
     "inline-editing",
@@ -61,10 +62,10 @@
       "import": "./dist/client/settings/index.js",
       "default": "./dist/client/settings/index.js"
     },
-    "./cms": {
-      "types": "./dist/core/cms/index.d.ts",
-      "import": "./dist/core/cms/index.js",
-      "default": "./dist/core/cms/index.js"
+    "./content": {
+      "types": "./dist/core/content/index.d.ts",
+      "import": "./dist/core/content/index.js",
+      "default": "./dist/core/content/index.js"
     },
     "./editor": {
       "types": "./dist/core/editor/index.d.ts",
@@ -132,9 +133,9 @@
       "default": "./dist/core/errors.js"
     },
     "./stega": {
-      "types": "./dist/core/cms/stega.d.ts",
-      "import": "./dist/core/cms/stega.js",
-      "default": "./dist/core/cms/stega.js"
+      "types": "./dist/core/content/stega.d.ts",
+      "import": "./dist/core/content/stega.js",
+      "default": "./dist/core/content/stega.js"
     },
     "./theme/louise.css": "./src/theme/louise.css",
     "./theme/fonts.css": "./src/theme/fonts.css",

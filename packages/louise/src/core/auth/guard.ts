@@ -84,7 +84,7 @@ export interface RoleRequest {
  * a membership test of the session's `role` against `allowed`. Returns 401 when
  * unauthenticated, 403 on a wrong role or bad origin, or null to proceed.
  * Generic and unopinionated — it works with any site's roles and any auth
- * instance; the CMS editor gate is the binary {@link requireEditor}.
+ * instance; the content editor gate is the binary {@link requireEditor}.
  */
 export function requireRole(
   ctx: RoleRequest,

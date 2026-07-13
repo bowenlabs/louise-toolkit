@@ -1,7 +1,7 @@
 // Slice-2 Settings shell — happy-dom Solid component tests. Covers the two-group
 // registry split (framework panels on top, site collections as bottom tabs),
 // tab switching, and each framework/default panel wiring against the generic
-// louise/editor endpoints.
+// louise-toolkit/editor endpoints.
 
 import { QueryClientProvider } from "@tanstack/solid-query";
 import type { JSX } from "solid-js";
@@ -341,7 +341,7 @@ describe("InquiriesPanel — list + delete", () => {
 });
 
 describe("PagesPanel — list + built-in pages", () => {
-  it("lists CMS pages and any code-defined built-in pages", async () => {
+  it("lists content pages and any code-defined built-in pages", async () => {
     stubFetch((url, method) => {
       if (url.endsWith("/api/louise/pages") && method === "GET") {
         return jsonResponse({

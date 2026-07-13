@@ -1,19 +1,19 @@
 ---
 title: forms
-description: "louise/forms — declarative form definitions: derive the table, capture route, validation, and review columns from one definition."
+description: "louise-toolkit/forms — declarative form definitions: derive the table, capture route, validation, and review columns from one definition."
 sidebar:
   order: 12
 ---
 
 ```ts
-import { defineForm, validateSubmission, tanstackFormValidators } from "louise/forms";
+import { defineForm, validateSubmission, tanstackFormValidators } from "louise-toolkit/forms";
 ```
 
 Define a form's fields **once**; derive the submission table, the public capture
 route ([`formRoute`](/reference/editor/)), server + client validation, and the
 review columns from that single definition. `inquiries` is the built-in default
-form ([`louise/db`](/reference/db/)). Validation reuses the shared `Rule`
-engine ([`cms`](/reference/cms/#validation)) — one definition, both sides. Peer:
+form ([`louise-toolkit/db`](/reference/db/)). Validation reuses the shared `Rule`
+engine ([`content`](/reference/content/#validation)) — one definition, both sides. Peer:
 `drizzle-orm`. See the [forms guide](/guide/forms/) for the full walk-through.
 
 ## `defineForm(config)`
@@ -101,5 +101,5 @@ consumer brings the peer.
 ## Catalog without new tables
 
 For one-off forms (RSVP/waitlist/booking), store into the shared `submissions`
-table ([`louise/db`](/reference/db/)) via `formRoute`'s `genericTable` and
+table ([`louise-toolkit/db`](/reference/db/)) via `formRoute`'s `genericTable` and
 review each with [`submissionsRoute`](/reference/editor/) — no migration per form.

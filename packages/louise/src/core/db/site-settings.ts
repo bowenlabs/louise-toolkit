@@ -12,7 +12,7 @@
 
 import { sql } from "drizzle-orm";
 import { check, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { JsonValue } from "../cms/index.js";
+import type { JsonValue } from "../content/index.js";
 
 /**
  * The framework-generic `site_settings` columns. Spread these into your own
@@ -79,7 +79,7 @@ export const siteSettingsColumns = {
   // Site-specific settings extension. The framework columns above are the
   // common base every Louise site shares; a site's own settings fields (that
   // don't map to a framework column) live here as a JSON object. The generic
-  // settings handler (louise/editor) patches known framework columns for the
+  // settings handler (louise-toolkit/editor) patches known framework columns for the
   // base and merges a site's declared extra keys into `custom` — so a site adds
   // its own settings without a package schema change. Keys are allowlisted by
   // the site's handler config, never written wholesale.

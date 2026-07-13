@@ -19,13 +19,13 @@
     { "pattern": "louisetoolkit.com", "custom_domain": true },
     { "pattern": "docs.louisetoolkit.com", "custom_domain": true },
   ],
-  // Browser Run (louise/browser, #5): OG-image rendering + link-checking.
+  // Browser Run (louise-toolkit/browser, #5): OG-image rendering + link-checking.
   "browser": {
     "binding": "BROWSER",
   },
   // --- Louise Toolkit bindings -----------------------------------------------
   // D1 holds pages/site_settings/media/inquiries (schema composed from
-  // louise/db, migrations in ./migrations). For local dev miniflare provides an
+  // louise-toolkit/db, migrations in ./migrations). For local dev miniflare provides an
   // emulated DB; database_id below is the real remote DB (run migrations with
   // `wrangler d1 migrations apply DB --remote` before first deploy).
   "d1_databases": [

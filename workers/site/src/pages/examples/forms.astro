@@ -9,7 +9,7 @@ import FormsDemoSource from "../../components/example/demos/FormsDemo.astro?raw"
 import SiteChrome from "../../components/SiteChrome.astro";
 import { extractRegion } from "../../lib/examples/region.js";
 import workerSource from "../../worker.ts?raw";
-import "louise/theme/fonts.css";
+import "louise-toolkit/theme/fonts.css";
 import "../../styles/louise.css";
 
 export const prerender = false;
@@ -29,7 +29,7 @@ const demoCode = extractRegion(FormsDemoSource, "example:demo");
     <title>Forms — Louise Toolkit examples</title>
     <meta
       name="description"
-      content="Build a validated contact form on Cloudflare Workers with louise/forms — one definition derives the table, validation, and capture route. Live demo plus real source."
+      content="Build a validated contact form on Cloudflare Workers with louise-toolkit/forms — one definition derives the table, validation, and capture route. Live demo plus real source."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
@@ -37,9 +37,9 @@ const demoCode = extractRegion(FormsDemoSource, "example:demo");
     <SiteChrome>
       <Example
         title="A validated contact form, one definition"
-        blurb="louise/forms turns a single field definition into the D1 table, the server + client validation, and the public capture route — no hand-rolled handler. The form on the left runs the same email + required checks the toolkit ships."
+        blurb="louise-toolkit/forms turns a single field definition into the D1 table, the server + client validation, and the public capture route — no hand-rolled handler. The form on the left runs the same email + required checks the toolkit ships."
         route="/examples/forms"
-        primitive="louise/forms"
+        primitive="louise-toolkit/forms"
         testMode={true}
         docHref="https://docs.louisetoolkit.com/guide/forms"
         sourceHref="https://github.com/bowenlabs/louise-toolkit/blob/main/packages/louise/src/core/forms/defineForm.ts"

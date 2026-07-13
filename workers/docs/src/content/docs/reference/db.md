@@ -1,12 +1,12 @@
 ---
 title: db
-description: "louise/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
+description: "louise-toolkit/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
 sidebar:
   order: 1
 ---
 
 ```ts
-import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louise/db";
+import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louise-toolkit/db";
 ```
 
 A thin wrapper around Drizzle's D1 driver. **Raw binding in, Drizzle instance
@@ -27,7 +27,7 @@ Returns a Drizzle instance bound to your D1 database. Pass your own schema objec
 for typed relational queries; omit it for a schema-less handle.
 
 ```ts
-import { db } from "louise/db";
+import { db } from "louise-toolkit/db";
 import * as schema from "./schema"; // your Drizzle tables
 
 export async function GET({ locals, request }, env: Env) {
@@ -46,7 +46,7 @@ A framework-owned **singleton config table** you can compose into your schema or
 use as-is, so a generic "site settings" row doesn't drift between projects.
 
 ```ts
-import { siteSettings } from "louise/db";
+import { siteSettings } from "louise-toolkit/db";
 
 const [settings] = await db(env.DB).select().from(siteSettings).limit(1);
 ```
@@ -56,7 +56,7 @@ variant when you need to extend it.
 
 ## `pages` / `inquiries`
 
-The two other framework-generic CMS tables, offered on the same
+The two other framework-generic content tables, offered on the same
 compose-or-use-as-is pattern:
 
 - **`pages`** (`pagesColumns`, `Page`, `NewPage`) — slug, title, sanitized rich
@@ -66,7 +66,7 @@ compose-or-use-as-is pattern:
 
 ```ts
 import { sqliteTable, integer } from "drizzle-orm/sqlite-core";
-import { pagesColumns } from "louise/db";
+import { pagesColumns } from "louise-toolkit/db";
 
 // Use as-is, or spread the columns to add site-specific fields:
 export const pages = sqliteTable("pages", {
@@ -80,10 +80,10 @@ sharing the column set costs no flexibility.
 
 :::tip
 `db()` stays schema-agnostic — the tables above are **opt-in building blocks**,
-not a schema Louise imposes. They exist so the core CMS tables (`pages`,
+not a schema Louise imposes. They exist so the core content tables (`pages`,
 `inquiries`, `site_settings`) don't drift between projects; everything else —
 products, artworks, your content model — is yours. The
-[`cms`](/reference/cms/) module generates Drizzle schema from a collection
+[`content`](/reference/content/) module generates Drizzle schema from a collection
 config if you want that.
 :::
 

@@ -29,7 +29,7 @@ List items are patched by index with a dotted field: `aboutParagraphs.2`.
 ## Mounting the client
 
 ```ts
-import { mountLouise } from "louise/client";
+import { mountLouise } from "louise-toolkit/client";
 
 // Safe to call on every page: if there are no markers (the page wasn't rendered
 // in edit mode), mountLouise does nothing — so you can lazy-import it.
@@ -45,7 +45,7 @@ The client also re-exports the pieces a host app's own panels reuse, so the
 Settings renders the same editor and icon set as inline editing:
 
 ```ts
-import { RichText, mountRichText, Icon } from "louise/client";
+import { RichText, mountRichText, Icon } from "louise-toolkit/client";
 ```
 
 See the [client reference](/reference/client/) for the full export list.
@@ -107,5 +107,5 @@ The pattern, generalised:
 2. Render it with the marker (plain or `data-louise-type="richtext"`).
 3. Allowlist it in the save endpoint (and in your rich-field set if it's HTML).
 
-That's the whole loop — no schema migration on the CMS side, because the schema
+That's the whole loop — no schema migration on the content side, because the schema
 is yours.

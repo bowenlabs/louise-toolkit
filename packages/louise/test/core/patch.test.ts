@@ -5,8 +5,8 @@ import {
   diffDocuments,
   type FieldChange,
   formatPath,
-} from "../../src/core/cms/index.js";
-import type { JsonValue } from "../../src/core/cms/types.js";
+} from "../../src/core/content/index.js";
+import type { JsonValue } from "../../src/core/content/types.js";
 
 type Doc = Record<string, JsonValue>;
 
@@ -15,7 +15,7 @@ const block = (key: string, fields: Record<string, JsonValue>): JsonValue => ({
   ...fields,
 });
 
-// A two-block page-builder document, the shape the deep diff exists for.
+// A two-block builder document, the shape the deep diff exists for.
 const base = (): Doc => ({
   title: "Home",
   blocks: [

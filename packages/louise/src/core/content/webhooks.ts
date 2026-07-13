@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/cms — afterChange-style outbound webhooks. The
-// `afterChange` hook itself only enqueues (via `louise/queues`'
+// louise-toolkit/content — afterChange-style outbound webhooks. The
+// `afterChange` hook itself only enqueues (via `louise-toolkit/queues`'
 // `enqueue`) — it never calls `fetch()` directly, so a slow or down
 // receiving endpoint can't add latency to a write request or get lost on
 // a single failed attempt. `deliverWebhookMessage` is the consumer-side

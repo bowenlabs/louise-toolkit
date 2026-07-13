@@ -44,7 +44,7 @@ export interface FieldAdminConfig {
   /**
    * Create-form only (issue #98). **Array fields only.** When creating a new
    * row and `when(values)` holds, append `item(values)` to this array before
-   * submit — lets a "template" create-flow auto-insert a page-builder block
+   * submit — lets a "template" create-flow auto-insert a builder block
    * bound to another field (e.g. push a `portfolioGallery` block bound to the
    * chosen `category` into `blocks`). Runs once at submit; never on edit.
    */
@@ -171,7 +171,7 @@ export interface ArrayFieldConfig extends BaseFieldConfig {
    */
   fields: Record<string, FieldConfig>;
   /**
-   * Lets one array field model a union of item shapes (e.g. page-builder
+   * Lets one array field model a union of item shapes (e.g. builder
    * blocks: image vs hero vs richText vs...) instead of one fixed field
    * set for every item. `key` names a field already present in `fields`
    * (rendered as the item's type switcher); `variants` maps each of that
@@ -207,7 +207,7 @@ export interface UploadFieldConfig extends BaseFieldConfig {
  * `richText`/`array` (one `.$type<JsonValue>()` text column, see
  * codegen.ts's `fieldToColumn`) but with no TipTap/array-item connotation —
  * use this for genuinely unstructured data (webhook audit payloads, CRM
- * activity metadata), not page-builder content.
+ * activity metadata), not builder content.
  */
 export interface JsonFieldConfig extends BaseFieldConfig {
   type: "json";
@@ -365,7 +365,7 @@ export interface CollectionHooks<TDoc = Record<string, unknown>> {
    * `operation` distinguishes a freshly-inserted doc from an edited one —
    * `publish()` (versioned collections) counts as `"update"`, since it
    * writes to an already-existing row rather than creating one. Lets
-   * webhook config (see `cms/webhooks.ts`) filter which events it fires
+   * webhook config (see `content/webhooks.ts`) filter which events it fires
    * on without the hook itself tracking state.
    */
   afterChange?: Array<
@@ -462,7 +462,7 @@ export interface CollectionConfig {
   /**
    * Opts this collection into full-text search (issue #29). `fields` names
    * which of this collection's own `text`/`richText`/`upload` fields are
-   * indexed — `defineCmsConfig`/`defineCollection` reject any other field
+   * indexed — `defineContentConfig`/`defineCollection` reject any other field
    * type or an unknown key. When set, codegen (see codegen.ts's
    * `collectionSearchTableSQL`) describes a companion `${slug}_fts` SQLite
    * FTS5 virtual table, and `createLocalApi` both becomes able to run
@@ -484,10 +484,10 @@ export interface CollectionConfig {
 }
 
 /**
- * A Louise plugin — a synchronous transform over the whole CMS config,
+ * A Louise plugin — a synchronous transform over the whole content config,
  * modeled on Payload's `plugins: [(config) => config]` shape. A plugin may
  * add or modify collections, inject fields, or register lifecycle hooks.
- * `defineCmsConfig` runs plugins in array order, each receiving the output
+ * `defineContentConfig` runs plugins in array order, each receiving the output
  * of the previous one, *before* validation — so a plugin's output is held
  * to the same rules as a hand-written config.
  *
@@ -495,12 +495,12 @@ export interface CollectionConfig {
  * schema codegen and runtime config loading, both of which are sync. An
  * async variant is a deliberate later extension, not an oversight.
  */
-export type LouisePlugin = (config: CmsConfig) => CmsConfig;
+export type LouisePlugin = (config: ContentConfig) => ContentConfig;
 
-export interface CmsConfig {
+export interface ContentConfig {
   collections: CollectionConfig[];
   /**
-   * Config transforms run in order by `defineCmsConfig` before validation.
+   * Config transforms run in order by `defineContentConfig` before validation.
    * See {@link LouisePlugin}. Omit for a plain, plugin-free config.
    */
   plugins?: LouisePlugin[];

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-import type { CmsConfig, CollectionAdminConfig, CollectionConfig } from "./types.js";
+import type { ContentConfig, CollectionAdminConfig, CollectionConfig } from "./types.js";
 
 /**
  * Louise's Structure Builder — the framework half of issue #12.
@@ -81,7 +81,7 @@ function resolveAdmin(
 }
 
 /**
- * Build the editor sidebar structure from a resolved CMS config.
+ * Build the editor sidebar structure from a resolved content config.
  *
  * - Hidden collections (`admin.hidden`) are dropped entirely.
  * - Each remaining collection is placed in its `admin.group` (or
@@ -96,7 +96,7 @@ function resolveAdmin(
  * that's what carries plugin-injected collections like `products`.
  */
 export function buildEditorStructure(
-  config: CmsConfig,
+  config: ContentConfig,
   options: BuildEditorStructureOptions = {},
 ): EditorStructureGroup[] {
   const basePath = options.basePath ?? "/admin";

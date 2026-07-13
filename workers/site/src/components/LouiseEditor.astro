@@ -25,7 +25,7 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
 }
 <script>
   if (document.body.dataset.louiseEdit === "1") {
-    Promise.all([import("louise/client"), import("louise/client/settings")])
+    Promise.all([import("louise-toolkit/client"), import("louise-toolkit/client/settings")])
       .then(([client, settings]) => {
         settings.mountSettings({ userName: document.body.dataset.louiseUser || "Editor" });
         const versioned = document.body.dataset.louiseVersionedPage;

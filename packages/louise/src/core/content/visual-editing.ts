@@ -184,7 +184,7 @@ export interface VisualEditingOptions {
   highlightColor?: string;
   /**
    * Resolve a stega-encoded {@link EditRef} from a text run (pass `stegaDecode`
-   * from `louise/stega`). When provided, the overlay ALSO hit-tests text
+   * from `louise-toolkit/stega`). When provided, the overlay ALSO hit-tests text
    * nodes: prose tagged invisibly via stega becomes a click target with no
    * wrapper element — in addition to the `data-louise-edit` element targets.
    * Kept as an injected callback so this module stays free of the optional

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/media — image transforms.
+// louise-toolkit/media — image transforms.
 //
 // Two orthogonal, pure (no-binding) concerns:
 //   1. Cloudflare Image Resizing URL rewriting — request a resized derivative

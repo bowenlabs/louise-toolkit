@@ -1,6 +1,6 @@
 ---
 title: auth
-description: "louise/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
+description: "louise-toolkit/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
 sidebar:
   order: 9
 ---
@@ -12,7 +12,7 @@ import {
   handleAuthRequest,
   requireEditor,
   defaultResolveAdmins,
-} from "louise/auth";
+} from "louise-toolkit/auth";
 ```
 
 The shared Better Auth setup for a Louise site: magic-link + passkey editor
@@ -52,7 +52,7 @@ passed straight to `database` (no adapter).
 | `rpName`               | passkey relying-party display name                                                                                            |
 | `mailFrom`             | `from` for the magic-link email                                                                                               |
 | `renderMagicLinkEmail` | render the email body (site branding)                                                                                         |
-| `resolveAdmins?`       | admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
+| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
 | `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                |
 | `additionalFields?`    | extra Better Auth user columns (e.g. `squareCustomerId`)                                                                      |
 | `tablePrefix?`         | namespace the auth tables in the same D1 (e.g. `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
@@ -62,7 +62,7 @@ passed straight to `database` (no adapter).
 
 ```ts
 // src/lib/auth.ts
-import { getLouiseAuth } from "louise/auth";
+import { getLouiseAuth } from "louise-toolkit/auth";
 import { magicLinkEmail } from "./emails";
 
 export const getAuth = (env: Env, baseURL: string) =>

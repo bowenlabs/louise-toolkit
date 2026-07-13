@@ -1,12 +1,12 @@
 ---
 title: errors
-description: "louise/errors — LouiseError and its typed subclasses."
+description: "louise-toolkit/errors — LouiseError and its typed subclasses."
 sidebar:
   order: 7
 ---
 
 ```ts
-import { LouiseError, LouiseValidationError } from "louise/errors";
+import { LouiseError, LouiseValidationError } from "louise-toolkit/errors";
 ```
 
 Every Louise primitive throws `LouiseError` or a typed subclass — never a raw
@@ -50,13 +50,13 @@ try {
 | `LouiseEmailError`   | `EMAIL_ERROR`   | [`/email`](/reference/email/)   |
 | `LouiseSessionError` | `SESSION_ERROR` | session primitives              |
 | `LouiseQueueError`   | `QUEUE_ERROR`   | [`/queues`](/reference/queues/) |
-| `LouiseCmsError`     | `CMS_ERROR`     | [`/cms`](/reference/cms/)       |
+| `LouiseContentError`     | `CONTENT_ERROR`     | [`/content`](/reference/content/)       |
 
-Two CMS subclasses carry extra structure so a routing layer can map them by
+Two content subclasses carry extra structure so a routing layer can map them by
 `instanceof` instead of matching message text:
 
-- **`LouiseAccessDeniedError`** (extends `LouiseCmsError`) → map to **403**.
-- **`LouiseValidationError`** (extends `LouiseCmsError`) → map to **422**; carries
+- **`LouiseAccessDeniedError`** (extends `LouiseContentError`) → map to **403**.
+- **`LouiseValidationError`** (extends `LouiseContentError`) → map to **422**; carries
   `violations: ValidationViolation[]` (each `{ path, message, severity }`). Only
   `"error"`-severity violations are ever thrown; warnings are returned.
 
@@ -67,7 +67,7 @@ And for HTTP clients:
   re-parsing `{ error }` bodies.
 
 ```ts
-import { LouiseValidationError } from "louise/errors";
+import { LouiseValidationError } from "louise-toolkit/errors";
 
 try {
   await api.create(doc, ctx);

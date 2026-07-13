@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LouiseValidationError } from "../../src/core/errors.js";
-import type { CollectionConfig } from "../../src/core/cms/types.js";
-import { assertValid, rule, validateDocument } from "../../src/core/cms/validation.js";
+import type { CollectionConfig } from "../../src/core/content/types.js";
+import { assertValid, rule, validateDocument } from "../../src/core/content/validation.js";
 
 const posts: CollectionConfig = {
   slug: "posts",

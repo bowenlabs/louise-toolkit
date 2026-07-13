@@ -4,7 +4,7 @@
 // Privacy, and anything the owner creates), served publicly by the site's
 // catch-all route. List ⇄ detail via an `editing` signal; the body is the
 // shared RichText editor and stores sanitized HTML like every other rich field.
-// Talks to the generic louise/editor `pages` route. Opened from the
+// Talks to the generic louise-toolkit/editor `pages` route. Opened from the
 // file-text icon in the Settings' top framework strip.
 //
 // A site may pass `builtInPages` — its code-defined routes (Home, About, …)
@@ -17,7 +17,7 @@ import { Icon } from "../icons.jsx";
 import { MediaUrlPicker } from "./fields.jsx";
 import { apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
 
-/** A code-defined route listed alongside the CMS pages. */
+/** A code-defined route listed alongside the content pages. */
 export interface BuiltInPageRef {
   key: string;
   title: string;
@@ -33,7 +33,7 @@ export interface PageTemplate {
   label: string;
   /** Prefilled page title (defaults to `label`). */
   title?: string;
-  /** Prefilled page-builder body (HTML). */
+  /** Prefilled builder body (HTML). */
   body: string;
 }
 

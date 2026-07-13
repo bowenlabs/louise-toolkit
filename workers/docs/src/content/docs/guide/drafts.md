@@ -34,7 +34,7 @@ the same config:
 
 ```ts
 // pages-collection.ts
-import { defineCollection } from "louise/cms";
+import { defineCollection } from "louise-toolkit/content";
 export const pagesCollection = defineCollection({
   slug: "pages",
   fields: {
@@ -46,7 +46,7 @@ export const pagesCollection = defineCollection({
 });
 
 // schema.ts — the snapshot table, plus the pointer column on `pages`
-import { collectionVersionsTable } from "louise/cms";
+import { collectionVersionsTable } from "louise-toolkit/content";
 export const pagesVersions = collectionVersionsTable(pagesCollection);
 // pages: { …pagesColumns, publishedVersionId: integer("published_version_id") }
 ```
@@ -84,7 +84,7 @@ body **and** a sections dock for the same page id — is not the supported model
   rather than the live row, so concurrent surfaces no longer revert each other —
   but keeping **one** versioned surface per page is still the clearer model.
 
-If a page needs both an inline body and structured sections, prefer a single
+If a page needs both an inline body and Louise Sections, prefer a single
 surface (put the body in the sections catalog, or vice versa) so one **Save
 draft** / **Publish** governs the whole page.
 

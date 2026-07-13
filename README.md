@@ -5,11 +5,12 @@
 **A V8-native toolkit for building editable sites on Cloudflare Workers.**
 
 No separate admin app. No JSON forms for prose. Log in, and the live site
-becomes editable in place — text where the text is, structured work in Louise Settings.
+becomes editable in place — text where the text is, structured sections through
+your own components, and back-office work in Louise Settings.
 
 [Documentation](https://louisetoolkit.com/docs) ·
 [Getting started](https://louisetoolkit.com/docs/guide/getting-started) ·
-[`louise`](packages/louise)
+[`louise-toolkit`](packages/louise)
 
 </div>
 
@@ -38,8 +39,8 @@ This is a [pnpm](https://pnpm.io) workspace driven by the
 
 ```
 packages/
-  louise/          # louise — the published library
-    src/core/      # cms, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
+  louise/          # louise-toolkit — the published library
+    src/core/      # content, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
 workers/

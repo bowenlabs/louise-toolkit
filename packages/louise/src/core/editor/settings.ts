@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the generic `settings` route. The `site_settings` singleton
+// louise-toolkit/editor — the generic `settings` route. The `site_settings` singleton
 // holds a Louise site's config. Storage model (issues #10/#11): a **structured
 // base** (the framework `siteSettingsColumns`) plus a JSON **`custom`** column
 // for site-specific settings. GET returns the merged config (custom flattened

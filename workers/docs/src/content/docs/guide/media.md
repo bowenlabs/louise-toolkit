@@ -11,7 +11,7 @@ does the validation Louise can't do from the client.
 
 ## The endpoint's job
 
-A media endpoint should be **admin-gated** and enforce, at minimum:
+A media endpoint should be **editor-gated** and enforce, at minimum:
 
 - **A size cap** (e.g. 10 MB).
 - **Content sniffing over trust.** Validate the _actual_ image bytes with a
@@ -78,7 +78,7 @@ behavior (any safe `http(s)`/relative image) is unchanged.
 
 ## Asset-level alt, caption, and dimensions
 
-The `media` registry table (`mediaColumns` in `louise/db`) makes uploads a
+The `media` registry table (`mediaColumns` in `louise-toolkit/db`) makes uploads a
 real library rather than a bare file list. Each row carries an **asset-level
 `alt`** and `caption` you set once and reuse wherever the asset appears, plus its
 pixel `width`/`height`.

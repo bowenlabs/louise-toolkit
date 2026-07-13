@@ -14,10 +14,10 @@ concrete, secure approach as a baseline.
 Edit mode is a **sticky cookie** the host app resolves per request (toggled by a
 query param):
 
-- `?louise` → enter edit mode (admins only) and set the cookie
+- `?louise` → enter edit mode (Site Admins only) and set the cookie
 - `?louise=off` → clear it
 
-When an admin is in edit mode, middleware exposes two _separate_ facts to the
+When a Site Admin is in edit mode, middleware exposes two _separate_ facts to the
 request:
 
 - **`locals.editMode`** — the page renders edit affordances (markers, the bar).

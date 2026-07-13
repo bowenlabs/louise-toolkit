@@ -1,12 +1,12 @@
 ---
 title: queues
-description: "louise/queues — Cloudflare Queues producer and batch consumer."
+description: "louise-toolkit/queues — Cloudflare Queues producer and batch consumer."
 sidebar:
   order: 6
 ---
 
 ```ts
-import { enqueue, processBatch, type QueueMessageHandler } from "louise/queues";
+import { enqueue, processBatch, type QueueMessageHandler } from "louise-toolkit/queues";
 ```
 
 A thin wrapper over Cloudflare Queues. No peers.

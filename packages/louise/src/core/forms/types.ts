@@ -1,22 +1,22 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/forms — declarative form definitions (issue #46). Define a form's
+// louise-toolkit/forms — declarative form definitions (issue #46). Define a form's
 // fields once; the same definition derives the submission table, the public
 // capture route (`formRoute`), server + client validation, and the review
-// columns. `inquiries` is just the built-in default form (see `louise/db`).
+// columns. `inquiries` is just the built-in default form (see `louise-toolkit/db`).
 //
 // Field validation reuses the shared `Rule`/`validateValue` engine
-// (`louise/cms`) — there is one validation definition, run on both sides.
+// (`louise-toolkit/content`) — there is one validation definition, run on both sides.
 
 import type {
   SQLiteColumn,
   SQLiteColumnBuilderBase,
   SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core";
-import type { ValidationBuilder } from "../cms/validation.js";
+import type { ValidationBuilder } from "../content/validation.js";
 
 /**
- * Input semantics a public form needs, on top of the CMS field vocabulary. Each
+ * Input semantics a public form needs, on top of the content field vocabulary. Each
  * maps to a stored column type and a rendered input; `email`/`url`/`select`/
  * `number` also carry a built-in format/coercion check.
  */
@@ -81,7 +81,7 @@ export interface FormSpamConfig {
 
 /** A minimal mailer the site provides so `formRoute` can send an email
  *  notification without coupling to any one email binding. Wrap your `EMAIL`
- *  binding + `louise/email` templates here. */
+ *  binding + `louise-toolkit/email` templates here. */
 export type FormMailer = (message: {
   to: string;
   subject: string;

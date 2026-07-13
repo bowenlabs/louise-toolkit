@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LouiseApiError,
   LouiseAccessDeniedError,
-  LouiseCmsError,
+  LouiseContentError,
   LouiseEmailError,
   LouiseError,
   LouiseQueueError,
@@ -36,18 +36,18 @@ describe("typed subclasses", () => {
     expect(e.code).toBe("EMAIL_ERROR");
   });
 
-  it("LouiseAccessDeniedError is a LouiseCmsError (so 403 mapping works by instanceof)", () => {
+  it("LouiseAccessDeniedError is a LouiseContentError (so 403 mapping works by instanceof)", () => {
     const denied = new LouiseAccessDeniedError("nope");
-    expect(denied).toBeInstanceOf(LouiseCmsError);
+    expect(denied).toBeInstanceOf(LouiseContentError);
     expect(denied).toBeInstanceOf(LouiseError);
-    expect(denied.code).toBe("CMS_ERROR");
+    expect(denied.code).toBe("CONTENT_ERROR");
   });
 
   it("LouiseValidationError carries structured violations", () => {
     const v = new LouiseValidationError("bad", [
       { path: "slug", message: "is required", severity: "error" },
     ]);
-    expect(v).toBeInstanceOf(LouiseCmsError);
+    expect(v).toBeInstanceOf(LouiseContentError);
     expect(v.violations).toHaveLength(1);
     expect(v.violations[0]?.path).toBe("slug");
   });

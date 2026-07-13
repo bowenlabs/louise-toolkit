@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The framework Users panel (top strip) — manage who can edit the CMS. Editors
+// The framework Users panel (top strip) — manage who can edit the content. Editors
 // are the DB-managed admin allowlist (rows in the Better Auth user table):
 // anyone listed here can sign in at /louise with a magic link and edit the live
 // site. Talks to the site-wired `editorsRoute` (GET/POST/DELETE
-// /api/louise/editors). This panel is scoped to CMS editors only — a site's
+// /api/louise/editors). This panel is scoped to content editors only — a site's
 // own customers/staff accounts are application data, not managed here.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";

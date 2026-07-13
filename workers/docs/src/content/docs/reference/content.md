@@ -1,6 +1,6 @@
 ---
-title: cms
-description: "louise/cms — collections, codegen, the Local API, validation, patches, webhooks."
+title: content
+description: "louise-toolkit/content — collections, codegen, the Local API, validation, patches, webhooks."
 sidebar:
   order: 2
 ---
@@ -8,21 +8,21 @@ sidebar:
 ```ts
 import {
   defineCollection,
-  defineCmsConfig,
+  defineContentConfig,
   createLocalApi,
   renderRichText,
   rule,
-} from "louise/cms";
+} from "louise-toolkit/content";
 ```
 
-The `cms` subpath is the structured content engine: define collections, generate
+The `content` subpath is the structured content engine: define collections, generate
 Drizzle schema from them, and read/write documents through an access-controlled,
 validated **Local API**. Peer dependency: `drizzle-orm`.
 
 ## Defining collections
 
 ```ts
-import { defineCollection, defineCmsConfig } from "louise/cms";
+import { defineCollection, defineContentConfig } from "louise-toolkit/content";
 
 const artworks = defineCollection({
   slug: "artworks",
@@ -34,20 +34,20 @@ const artworks = defineCollection({
   },
 });
 
-export const cms = defineCmsConfig({ collections: { artworks } });
+export const content = defineContentConfig({ collections: { artworks } });
 ```
 
-`defineCollection` / `defineCmsConfig` are identity helpers (Sanity's
+`defineCollection` / `defineContentConfig` are identity helpers (Sanity's
 `defineType` analogue) — they return the config unchanged but give you
 autocomplete and a single greppable call site.
 
 ## Codegen — schema from config
 
 ```ts
-import { cmsConfigToSchema, generateSchemaSource } from "louise/cms";
+import { contentConfigToSchema, generateSchemaSource } from "louise-toolkit/content";
 ```
 
-- `cmsConfigToSchema(config)` builds Drizzle table objects from a `CmsConfig` at
+- `contentConfigToSchema(config)` builds Drizzle table objects from a `ContentConfig` at
   runtime.
 - `generateSchemaSource(config)` emits `.ts` source for a committed schema file
   (import-sorted so your formatter never flags it).
@@ -59,7 +59,7 @@ Related builders: `collectionToTable`, `collectionVersionsTable`,
 ## The Local API
 
 ```ts
-import { createLocalApi, createVersionedLocalApi } from "louise/cms";
+import { createLocalApi, createVersionedLocalApi } from "louise-toolkit/content";
 
 const api = createLocalApi(collectionConfig, table, { registry });
 await api.create(doc, context); // runs access + validation, then inserts
@@ -80,7 +80,7 @@ with `versions`. `can(...)` evaluates access without performing the operation.
 A chainable, immutable, Sanity-style rule builder:
 
 ```ts
-import { rule } from "louise/cms";
+import { rule } from "louise-toolkit/content";
 
 rule().required().min(2).max(80);
 rule().slug().unique();
@@ -111,7 +111,7 @@ while returning warnings.
   click-to-edit references.
 
 :::note
-`cms` is a large surface — this page is a map, not an exhaustive signature list.
+`content` is a large surface — this page is a map, not an exhaustive signature list.
 Every symbol is fully typed; lean on your editor's autocomplete against the
-`louise/cms` types.
+`louise-toolkit/content` types.
 :::

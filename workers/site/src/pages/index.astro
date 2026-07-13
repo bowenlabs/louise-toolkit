@@ -2,13 +2,13 @@
 // louisetoolkit.com landing page.
 // Public site theme: Tailwind v4 + daisyUI, with the `louise` theme defined in
 // src/styles/louise.css (auto light/dark via prefers-color-scheme). Brand type
-// comes from the package (`louise/theme/fonts.css`, applied via `.louise-type`)
+// comes from the package (`louise-toolkit/theme/fonts.css`, applied via `.louise-type`)
 // and the hero mark is the real `louise-mark.svg`. Icons are Phosphor, inlined
 // raw so they inherit `currentColor` — no icon font, no runtime fetch.
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { db } from "louise/db";
-import "louise/theme/fonts.css";
+import { db } from "louise-toolkit/db";
+import "louise-toolkit/theme/fonts.css";
 import "../styles/louise.css";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import Sections from "../components/Sections.astro";
@@ -50,7 +50,7 @@ const year = new Date().getFullYear();
   </head>
   <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
     <main class="mx-auto max-w-4xl px-5">
-      {/* Editable hero — a structured section rendered by a bespoke component
+      {/* Editable hero — a section rendered by a bespoke component
           (../sections/Hero.astro). In edit mode the block builder mounts on this
           wrapper; in view mode it's the pixel-perfect bespoke render. */}
       <div

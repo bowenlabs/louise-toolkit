@@ -14,7 +14,7 @@ the **built-in default form**.
 ## Define a form
 
 ```ts
-import { defineForm } from "louise/forms";
+import { defineForm } from "louise-toolkit/forms";
 
 export const contact = defineForm({
   name: "inquiries", // form + table name (a bare SQL identifier)
@@ -31,8 +31,8 @@ export const contact = defineForm({
 
 Field `type` is `text | email | tel | url | textarea | number | select |
 checkbox | date`. `required` makes the column `NOT NULL` **and** adds a required
-check. `validation` reuses the shared [`Rule`](/reference/cms/#validation) builder
-— the *same* engine the CMS collections use, so there's one validation definition.
+check. `validation` reuses the shared [`Rule`](/reference/content/#validation) builder
+— the *same* engine the content collections use, so there's one validation definition.
 
 The result carries everything derived from the fields:
 
@@ -48,8 +48,8 @@ same-origin-guarded (CSRF) but **not** session-gated — anyone may submit —
 validates + coerces against the fields, applies the spam guard, and inserts:
 
 ```ts
-import { formRoute } from "louise/editor";
-import { composeWorker } from "louise/worker";
+import { formRoute } from "louise-toolkit/editor";
+import { composeWorker } from "louise-toolkit/worker";
 import { contact } from "./forms";
 
 export default composeWorker({
@@ -76,14 +76,14 @@ the same-origin check passes); a `fetch` with a JSON body works too.
 
 ## Render (headless `<Form>`)
 
-`louise/client` ships a headless `<Form>` that renders accessible inputs from
+`louise-toolkit/client` ships a headless `<Form>` that renders accessible inputs from
 the catalog and **mirrors the exact server validation client-side** (it reuses
 `validateSubmission` — the same `Rule` engine, no second definition), then POSTs
 to the form's `formRoute`. It's unstyled by default (every element has a
 `louise-form*` class hook), so a site keeps its own look.
 
 ```tsx
-import { Form } from "louise/client";
+import { Form } from "louise-toolkit/client";
 import { contact } from "./forms"; // a client-safe { name, fields } config
 
 <Form form={contact} />; // POSTs to /api/louise/forms/inquiries
@@ -104,7 +104,7 @@ multi-step form, field arrays, or async cross-field rules, reach for
 Louise's one `Rule` engine via the dependency-free adapter:
 
 ```tsx
-import { tanstackFormValidators } from "louise/forms";
+import { tanstackFormValidators } from "louise-toolkit/forms";
 const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | undefined }
 
 // wire each into a TanStack field:
@@ -158,7 +158,7 @@ defineForm({
 ```
 
 `webhook` POSTs `{ form, values }`. `email` uses a **`mailer`** you pass to
-`formRoute` (wrap your `EMAIL` binding + `louise/email` templates), so Louise
+`formRoute` (wrap your `EMAIL` binding + `louise-toolkit/email` templates), so Louise
 stays decoupled from any one mail transport. A notification failure never fails
 the submission.
 
@@ -166,7 +166,7 @@ the submission.
 
 A first-class form like `inquiries` gets its own typed table. For one-off forms —
 RSVP, waitlist, booking — write to the shared **`submissions`** table
-(`louise/db`) instead, so a new form needs **no migration**:
+(`louise-toolkit/db`) instead, so a new form needs **no migration**:
 
 ```ts
 formRoute({ form: rsvp, genericTable: "submissions" });     // capture → { form, data }

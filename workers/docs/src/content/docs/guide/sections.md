@@ -1,14 +1,14 @@
 ---
-title: Structured sections
+title: Louise Sections
 description: Component-rendered pages under editor control — the preconfigured-blocks model.
 sidebar:
   order: 6
 ---
 
-Structured **sections** are the preconfigured-blocks model: a page is an ordered
+**Louise Sections** are the preconfigured-blocks model: a page is an ordered
 list of typed items that _your own components_ render, so a bespoke design stays
 pixel-perfect while editors still add, reorder, and edit it. Where the
-[page builder](/guide/page-builder/) stores sanitized HTML and
+[Louise Builder](/guide/builder/) stores sanitized HTML and
 [inline fields](/guide/inline-editing/) edit one value at a time, sections store
 **structured JSON** and render through **your** components.
 
@@ -34,7 +34,7 @@ A `SectionCatalog` describes each type's editable fields — schema only, no
 markup:
 
 ```ts
-import type { SectionCatalog } from "louise/client";
+import type { SectionCatalog } from "louise-toolkit/client";
 
 export const SECTIONS: SectionCatalog = {
   hero: {
@@ -86,7 +86,7 @@ Render empty fields too (in edit mode) so there's something to click into;
 ## Editing: `mountSections`
 
 ```ts
-import { mountSections } from "louise/client";
+import { mountSections } from "louise-toolkit/client";
 
 mountSections(el, { catalog: SECTIONS, pageId, initial });
 // Auto-save is on by default; opt out with:
@@ -127,7 +127,7 @@ The stored JSON is validated server-side before every write. Give `pagesRoute` a
 `validate` hook that runs `assertValidSections` against your catalog:
 
 ```ts
-import { assertValidSections } from "louise/cms";
+import { assertValidSections } from "louise-toolkit/content";
 import { SECTIONS } from "./sections/catalog";
 
 pagesRoute({
@@ -144,7 +144,7 @@ pagesRoute({
 every item's `_type` is a known catalog entry, and that each field matches its
 declared shape (text/textarea → string; array → objects whose `itemFields` are
 validated in turn). A field can also carry a `validation` chain — the same
-[`Rule`](/reference/cms/) builder collection fields use, e.g.
+[`Rule`](/reference/content/) builder collection fields use, e.g.
 `heading: { type: "text", validation: (r) => r.required().max(80) }`.
 
 `assertValidSections` throws `LouiseValidationError` on any error-severity

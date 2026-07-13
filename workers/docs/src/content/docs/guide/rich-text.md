@@ -6,7 +6,7 @@ sidebar:
 ---
 
 Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid) —
-`louise/client`'s `RichText` — used identically by inline fields and
+`louise-toolkit/client`'s `RichText` — used identically by inline fields and
 by any Settings form a host app builds.
 
 ## HTML in, HTML out
@@ -38,7 +38,7 @@ boundary. Sanitize with a **parser-based allowlist**, not a regex stripper
   domain rendering arbitrary SVG/HTML is a hosted-content risk.
 - Block containers (`section`/`figure`/`figcaption`/`hr`, plus `div`/
   `blockquote` with a filtered `class` allowlist) are permitted for the
-  [page builder](/guide/page-builder/); iframes stay banned.
+  [Louise Builder](/guide/builder/); iframes stay banned.
 
 ## The toolbar
 
@@ -59,12 +59,12 @@ resizable node view lets an editor drag the corner; the size persists as
 ## Using it directly
 
 ```tsx
-import { RichText } from "louise/client";
+import { RichText } from "louise-toolkit/client";
 
 <RichText
   value={html}
   onChange={(next) => save(next)}
-  // `blocks` enables the page-builder slash menu; omit for plain prose fields.
+  // `blocks` enables the builder slash menu; omit for plain prose fields.
 />;
 ```
 

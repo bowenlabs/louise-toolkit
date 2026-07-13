@@ -50,8 +50,12 @@ jobs:
         run: vp test
         working-directory: packages/louise
 
-      - name: Pack the library
-        run: vp run "louise#pack"
+      # Build directly (not `vp run louise#pack`): the task-runner form can serve
+      # a cache hit without restoring dist/, leaving the site build unable to
+      # resolve the `louise-toolkit/*` subpaths.
+      - name: Build the library (dist/)
+        run: NODE_PATH=node_modules vp pack
+        working-directory: packages/louise
 
       - name: Build the site
         run: vp run "site#build"

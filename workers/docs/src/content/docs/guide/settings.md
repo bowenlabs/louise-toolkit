@@ -13,7 +13,7 @@ site under the editor theme.
 As of `louise@0.3.0` Louise Settings is a **package-provided shell**, not a pattern
 you hand-assemble. You call [`mountSettings`](/reference/client/#louiseclientsettings)
 with a config, and the shell renders the chrome, the fixed framework panels, and
-your registered collection tabs. It pairs with the [`louise/editor`](/reference/editor/)
+your registered collection tabs. It pairs with the [`louise-toolkit/editor`](/reference/editor/)
 handlers on the server, which back the framework panels.
 
 ## Mounting
@@ -23,10 +23,10 @@ Louise Settings opens from the edit bar's **Settings** button, which dispatches 
 entry point:
 
 ```tsx
-import { mountLouise } from "louise/client";
-import { mountSettings, OPEN_SETTINGS_EVENT } from "louise/client/settings";
+import { mountLouise } from "louise-toolkit/client";
+import { mountSettings, OPEN_SETTINGS_EVENT } from "louise-toolkit/client/settings";
 import { ProductsPanel } from "./products-panel";
-import { InquiriesPanel } from "louise/client/settings";
+import { InquiriesPanel } from "louise-toolkit/client/settings";
 
 export function mountEditMode(userName: string) {
   mountSettings({
@@ -55,7 +55,7 @@ can't collapse it:
 - **Top strip — fixed framework panels.** **Pages**, **Media**, and **Settings**,
   rendered as icon buttons. These are near-identical on every Louise site, so the
   shell owns them; you don't register or reorder them. They talk to the generic
-  [`louise/editor`](/reference/editor/) endpoints (`/api/louise/pages`,
+  [`louise-toolkit/editor`](/reference/editor/) endpoints (`/api/louise/pages`,
   `/api/louise/media`, `/api/louise/settings`).
 - **Bottom tabs — your collections.** Everything whose shape and display vary per
   site: your bespoke record types, registered as `CollectionTab`s via `tabs`.
@@ -121,8 +121,8 @@ primitives so your panels match the framework ones:
 
 ```tsx
 import { useQuery } from "@tanstack/solid-query";
-import { apiGet, louiseQueryKey, Section } from "louise/client/settings";
-import { Icon, RichText } from "louise/client";
+import { apiGet, louiseQueryKey, Section } from "louise-toolkit/client/settings";
+import { Icon, RichText } from "louise-toolkit/client";
 
 function ProductsPanel() {
   const query = useQuery(() => ({

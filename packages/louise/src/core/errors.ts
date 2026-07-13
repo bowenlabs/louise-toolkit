@@ -102,21 +102,21 @@ export class LouiseQueueError extends LouiseError {
   }
 }
 
-/** For CMS (collection / Local API) failures. */
-export class LouiseCmsError extends LouiseError {
+/** For content (collection / Local API) failures. */
+export class LouiseContentError extends LouiseError {
   constructor(message: string, cause?: unknown) {
-    super(message, "CMS_ERROR", cause);
-    this.name = "LouiseCmsError";
+    super(message, "CONTENT_ERROR", cause);
+    this.name = "LouiseContentError";
   }
 }
 
 /**
- * Thrown by the CMS `createLocalApi` when a collection's `access` function
+ * Thrown by the content `createLocalApi` when a collection's `access` function
  * rejects an operation. A distinct subclass (rather than a plain
- * LouiseCmsError) so a routing layer can map it to **403** by `instanceof`,
+ * LouiseContentError) so a routing layer can map it to **403** by `instanceof`,
  * not by matching on message text.
  */
-export class LouiseAccessDeniedError extends LouiseCmsError {
+export class LouiseAccessDeniedError extends LouiseContentError {
   constructor(message: string, cause?: unknown) {
     super(message, cause);
     this.name = "LouiseAccessDeniedError";
@@ -138,14 +138,14 @@ export interface ValidationViolation {
 
 /**
  * Thrown by `createLocalApi` when a collection's field-validation rules
- * (Sanity-style chainable `Rule` API — see cms/validation.ts) reject a
+ * (Sanity-style chainable `Rule` API — see content/validation.ts) reject a
  * create/update. Carries the structured `violations` so a UI can surface
  * per-field messages and a routing layer can map it to **422** by `instanceof`
- * rather than message matching. A subclass of LouiseCmsError, so existing
- * `instanceof LouiseCmsError` handling still catches it. Only `"error"`-severity
+ * rather than message matching. A subclass of LouiseContentError, so existing
+ * `instanceof LouiseContentError` handling still catches it. Only `"error"`-severity
  * violations are ever thrown.
  */
-export class LouiseValidationError extends LouiseCmsError {
+export class LouiseValidationError extends LouiseContentError {
   constructor(
     message: string,
     public readonly violations: ValidationViolation[],

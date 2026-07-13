@@ -1,12 +1,12 @@
-// A minimal Square checkout on Cloudflare Workers, built on louise/commerce/square.
+// A minimal Square checkout on Cloudflare Workers, built on louise-toolkit/commerce/square.
 // This is the real handler pattern a shop route uses: price the item from the live
 // catalog, then charge the card token the browser tokenized. It targets the current
-// louise/commerce/square API. It isn't mounted on this marketing site — a live charge
+// louise-toolkit/commerce/square API. It isn't mounted on this marketing site — a live charge
 // needs your Square secret + location — so /examples/commerce simulates the same flow.
 // The code below is sliced verbatim into that page's "checkout.ts" tab.
 
 // #region example:square-server
-import { createPayment, listCatalogItems, type SquareConfig } from "louise/commerce/square";
+import { createPayment, listCatalogItems, type SquareConfig } from "louise-toolkit/commerce/square";
 
 interface CheckoutEnv {
   SQUARE_TOKEN: string; // server-only access token (secret)

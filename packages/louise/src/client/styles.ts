@@ -570,7 +570,7 @@ const CSS = `
 .louise-rt:focus-within { border-color: var(--louise-blue); box-shadow: 0 0 0 3px rgba(20, 129, 239, 0.12); }
 .louise-rt .ProseMirror:focus { outline: none; }
 .louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: 14px; }
-/* ── Page-builder blocks (#16): editing chrome ─────────────────────────
+/* ── Builder blocks (#16): editing chrome ─────────────────────────
    Matches the editor look — no background fill, a border-only outline on
    the hovered/selected block. Controls are editor-only affordances. */
 .louise-block { position: relative; border: 1px solid transparent; border-radius: 6px; }
@@ -697,7 +697,7 @@ const CSS = `
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-/* Structured sections — in-place text editing on the bespoke render, plus a
+/* Louise Sections — in-place text editing on the bespoke render, plus a
    floating control dock for structure (add/reorder/remove, array items, and
    any field with no visible text on the page, like a link URL). */
 

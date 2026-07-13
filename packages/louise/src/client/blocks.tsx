@@ -1,4 +1,4 @@
-// Block node-view framework for the page builder (#16 + grid follow-up).
+// Block node-view framework for the Louise Builder (#16 + grid follow-up).
 //
 // A "block" is a ProseKit custom node that serializes to semantic, classed
 // HTML (`<section data-block="hero" class="pb-hero">…`) so the existing
@@ -9,7 +9,7 @@
 // outline and per-block controls, never markup of record.
 //
 // Class names on serialized blocks use the `pb-` prefix exclusively: the
-// package sanitizer (louise/security) strips any other class token, so
+// package sanitizer (louise-toolkit/security) strips any other class token, so
 // editor-authored HTML can never borrow arbitrary site classes.
 //
 // The grid (rowBlock → columnBlock) is the adjustable layout primitive: a row
@@ -69,7 +69,7 @@ function dataAttrs(def: BlockDef, attrs: Attrs): Record<string, string> {
 }
 
 /**
- * Define a page-builder block: node spec (persistence) + Solid node view
+ * Define a builder block: node spec (persistence) + Solid node view
  * (editing chrome), mirroring how the resizable image is wired in RichText.
  */
 export function defineBlock(def: BlockDef): Extension {
@@ -500,7 +500,7 @@ function defineGalleryBlock(): Extension {
 // Page list for the link picker, fetched once per session and shared.
 let pagesCache: { slug: string; title: string }[] | null = null;
 
-/** Link editor: a page picker (pulled from the louise/editor `pages` list)
+/** Link editor: a page picker (pulled from the louise-toolkit/editor `pages` list)
  *  plus a free URL field, so a link can target an internal page or any URL.
  *  Commits on change/blur (not per keystroke) to avoid remounting the node view
  *  mid-type. */

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/forms — derive the submission table from a form's fields, so the
+// louise-toolkit/forms — derive the submission table from a form's fields, so the
 // columns can never drift from the form definition. The mapping is deliberately
 // small: text-like inputs → text, checkbox → boolean integer, number → real,
 // plus the framework `id` primary key and a `created_at` timestamp.

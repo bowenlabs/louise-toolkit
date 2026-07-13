@@ -3,7 +3,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import type { BaseSQLiteDatabase, SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
-import type { CmsRegistry } from "./localApi.js";
+import type { ContentRegistry } from "./localApi.js";
 import type { CollectionConfig, FieldConfig } from "./types.js";
 import { flattenDoc, flattenFields } from "./types.js";
 
@@ -252,7 +252,7 @@ export interface ValidateDocumentOptions {
   /** This collection's own table (for `unique`). */
   table?: AnyTable;
   /** Registry of tables by slug (for `reference` target lookups). */
-  registry?: CmsRegistry;
+  registry?: ContentRegistry;
 }
 
 /**

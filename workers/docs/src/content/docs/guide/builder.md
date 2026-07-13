@@ -1,5 +1,5 @@
 ---
-title: Page builder
+title: Louise Builder
 description: Blocks, the slash menu, and defineBlock.
 sidebar:
   order: 5
@@ -7,7 +7,7 @@ sidebar:
 
 The rich-text editor has an optional **blocks** mode — the `blocks` prop on
 `RichText`, on for freeform content pages and off for inline prose fields.
-`louise/client`'s `blocks` module holds the framework.
+`louise-toolkit/client`'s `blocks` module holds the framework.
 
 ## Blocks are serialized HTML
 
@@ -28,7 +28,7 @@ registry. The reference block set is **hero**, **two columns** (`pbCol`
 children), **full-bleed**, **pull quote**, **CTA**, and **divider**.
 
 ```ts
-import { BLOCKS, BlockInserter } from "louise/client";
+import { BLOCKS, BlockInserter } from "louise-toolkit/client";
 ```
 
 ## Defining a block
@@ -37,7 +37,7 @@ import { BLOCKS, BlockInserter } from "louise/client";
 be authored outside the core module:
 
 ```ts
-import { defineBlock } from "louise/client";
+import { defineBlock } from "louise-toolkit/client";
 
 export const callout = defineBlock({
   name: "callout",

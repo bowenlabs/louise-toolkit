@@ -1,4 +1,4 @@
-// louise/commerce/square — Square API client (V8-native). Raw fetch +
+// louise-toolkit/commerce/square — Square API client (V8-native). Raw fetch +
 // crypto.subtle only, no `square` Node SDK (it assumes Node and won't run on
 // Workers). Square exposes a single versioned REST surface — everything lives
 // under the /v2/* namespace and the release is pinned with the `Square-Version`
@@ -84,8 +84,8 @@ async function sqPost<T>(config: SquareConfig, path: string, body: unknown): Pro
  *  the shared {@link Money} shape. */
 export type SquareMoney = Money;
 
-// `centsToMajor` is a shared commerce helper (louise/commerce); re-exported
-// so `louise/commerce/square` keeps exposing it.
+// `centsToMajor` is a shared commerce helper (louise-toolkit/commerce); re-exported
+// so `louise-toolkit/commerce/square` keeps exposing it.
 export { centsToMajor };
 
 // ── Catalog ──────────────────────────────────────────────────────────────────

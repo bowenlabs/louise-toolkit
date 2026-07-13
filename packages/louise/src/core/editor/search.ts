@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — full-text search for a collection with a `search` config.
+// louise-toolkit/editor — full-text search for a collection with a `search` config.
 // Exposes the Local API's FTS5-backed `search()` (and a one-shot `reindex`) over
 // HTTP:
 //   GET  /api/louise/pages/search?q=…&limit=…   ranked matches (published rows)
@@ -10,8 +10,8 @@
 // non-integer path segments that pagesRoute's `/:id` matcher would else 400 on.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import { createLocalApi } from "../cms/localApi.js";
-import type { CollectionConfig } from "../cms/types.js";
+import { createLocalApi } from "../content/localApi.js";
+import type { CollectionConfig } from "../content/types.js";
 import { db } from "../db/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";

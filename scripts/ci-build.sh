@@ -14,7 +14,11 @@ if ! command -v vp >/dev/null 2>&1; then
   export PATH="$HOME/.vite-plus/bin:$PATH"
 fi
 
-vp run "louise#pack"
+# Build the library to dist/ (consumed by the docs + site builds below). Run the
+# pack directly rather than `vp run louise#pack`: the task-runner form can serve a
+# cache hit without restoring dist/ (its outputs aren't declared in a pipeline),
+# leaving the site build unable to resolve the `louise-toolkit/*` subpaths.
+(cd packages/louise && NODE_PATH=node_modules vp pack)
 
 # Build the standalone static docs app (workers/docs) and fold its output into
 # the marketing Worker's static assets at public/_docs. Astro copies public/
