@@ -1,23 +1,24 @@
 <div align="center">
 
-# Louise CMS
+# Louise Toolkit
 
-**A V8-native, inline "edit-on-the-live-page" CMS for Cloudflare Workers.**
+**A V8-native toolkit for building editable sites on Cloudflare Workers.**
 
 No separate admin app. No JSON forms for prose. Log in, and the live site
-becomes editable in place — text where the text is, structured work in a drawer.
+becomes editable in place — text where the text is, structured work in Louise Settings.
 
-[Documentation](https://louisecms.com/docs) ·
-[Getting started](https://louisecms.com/docs/guide/getting-started) ·
-[`louisecms`](packages/louise)
+[Documentation](https://louisetoolkit.com/docs) ·
+[Getting started](https://louisetoolkit.com/docs/guide/getting-started) ·
+[`louise`](packages/louise)
 
 </div>
 
 ---
 
-Louise is a standalone CMS engine for Cloudflare Workers: framework-agnostic core
-primitives, a SolidJS + ProseKit inline-edit client, and the editor theme — everything
-you need to make a live site editable in place, published as one package.
+Louise is a standalone toolkit for Cloudflare Workers: framework-agnostic core
+primitives — content, db, media, forms, commerce, email, queues, auth — a SolidJS +
+ProseKit inline-edit client, and the editor theme. Everything you need to make a live
+site editable in place, published as one package.
 
 ## Why Louise
 
@@ -37,13 +38,13 @@ This is a [pnpm](https://pnpm.io) workspace driven by the
 
 ```
 packages/
-  louise/          # louisecms — the published library
+  louise/          # louise — the published library
     src/core/      # cms, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
-    src/client/    # the inline edit client + ProseKit editor + the registry-driven editor drawer
+    src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
 workers/
-  site/            # louisecms.com — Astro on Cloudflare Workers: marketing + the Louise CMS dogfood
-  docs/            # docs.louisecms.com — standalone Starlight; served by the same worker by Host
+  site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
+  docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
 ```
 
 ## Develop
@@ -62,12 +63,12 @@ pnpm build          # pack the library (vp pack) + build the site (astro build)
 pnpm test           # run the library's Vitest suite
 pnpm check          # Oxlint + Oxfmt over the library
 pnpm typecheck      # tsc over the library
-pnpm dev            # run louisecms.com locally (marketing + Starlight docs)
+pnpm dev            # run louisetoolkit.com locally (marketing + Starlight docs)
 ```
 
 The library is packaged with `vp pack` (tsdown/Rolldown under the hood: multi-entry
 `.d.ts` generation, tree-shaking). See [`packages/louise`](packages/louise) for the package
-readme and [louisecms.com/docs](https://louisecms.com/docs) for the full guide and API
+readme and [louisetoolkit.com/docs](https://louisetoolkit.com/docs) for the full guide and API
 reference.
 
 ## License

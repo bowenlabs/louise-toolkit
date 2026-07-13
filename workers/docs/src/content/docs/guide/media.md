@@ -54,7 +54,7 @@ asset uploaded to R2 (your `MEDIA_URL` base), never an external hotlink. That
 keeps images stable (no link rot, no hotlink breakage) and gives you one library
 as the source of truth. Two things make it strict:
 
-- **Every selector offers the library.** `ImageField` (drawer settings) and the
+- **Every selector offers the library.** `ImageField` (in Louise Settings) and the
   section `image` control both pair an **Upload** button with a **Choose from
   media** picker over `/api/louise/media`. There's no free-form URL box — opt one
   back in per field with `ImageField`'s `allowUrl` if a site knowingly wants it.
@@ -78,7 +78,7 @@ behavior (any safe `http(s)`/relative image) is unchanged.
 
 ## Asset-level alt, caption, and dimensions
 
-The `media` registry table (`mediaColumns` in `louisecms/db`) makes uploads a
+The `media` registry table (`mediaColumns` in `louise/db`) makes uploads a
 real library rather than a bare file list. Each row carries an **asset-level
 `alt`** and `caption` you set once and reuse wherever the asset appears, plus its
 pixel `width`/`height`.

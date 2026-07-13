@@ -1,6 +1,6 @@
 ---
 title: auth
-description: "louisecms/auth — Better Auth setup: magic-link + passkey studio sign-in, behind one request-scoped factory."
+description: "louise/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
 sidebar:
   order: 9
 ---
@@ -12,10 +12,10 @@ import {
   handleAuthRequest,
   requireEditor,
   defaultResolveAdmins,
-} from "louisecms/auth";
+} from "louise/auth";
 ```
 
-The shared Better Auth setup for a Louise site: magic-link + passkey studio
+The shared Better Auth setup for a Louise site: magic-link + passkey editor
 sign-in (allowlist-gated), optional customer email/password, and captcha, behind
 one **request-scoped** factory. Framework-agnostic — you wire the helpers into
 your Astro middleware and routes.
@@ -53,7 +53,7 @@ passed straight to `database` (no adapter).
 | `mailFrom`             | `from` for the magic-link email                                                                                               |
 | `renderMagicLinkEmail` | render the email body (site branding)                                                                                         |
 | `resolveAdmins?`       | admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
-| `customers?`           | enable customer email/password (omit for an admin-only studio)                                                                |
+| `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                |
 | `additionalFields?`    | extra Better Auth user columns (e.g. `squareCustomerId`)                                                                      |
 | `tablePrefix?`         | namespace the auth tables in the same D1 (e.g. `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
 | `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                    |
@@ -62,7 +62,7 @@ passed straight to `database` (no adapter).
 
 ```ts
 // src/lib/auth.ts
-import { getLouiseAuth } from "louisecms/auth";
+import { getLouiseAuth } from "louise/auth";
 import { magicLinkEmail } from "./emails";
 
 export const getAuth = (env: Env, baseURL: string) =>
@@ -93,7 +93,7 @@ Astro middleware.
 
 ## `handleAuthRequest(auth, request, admins)`
 
-The Better Auth catch-all with the studio magic-link allowlist gate. A non-admin
+The Better Auth catch-all with the editor magic-link allowlist gate. A non-admin
 magic-link request is rejected **before** Better Auth runs — no token, no mail,
 no user row — and returns the same enumeration-safe response a real send does.
 Use it in your `/api/auth/[...all]` route. `admins` is the resolved allowlist
@@ -180,5 +180,5 @@ Extends [`LouiseEnv`](/reference/security/) with the auth bindings your
 Sessions default to **D1**. The KV cache (`sessionCacheKv`) is opt-in: it keeps
 D1 authoritative (`storeSessionInDatabase: true`) so a KV TTL lapse recovers
 instead of logging users out — worth it at multi-tenant scale, unnecessary for a
-single studio.
+single editor.
 :::

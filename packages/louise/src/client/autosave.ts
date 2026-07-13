@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/client — the auto-save scheduler shared by both on-page editing
+// louise/client — the auto-save scheduler shared by both on-page editing
 // surfaces (inline fields in `index.ts` and the sections dock in `sections.tsx`).
 //
 // It is deliberately framework-agnostic (no Solid, no DOM): give it the surface's

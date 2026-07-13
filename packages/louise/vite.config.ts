@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import solid from "vite-plugin-solid";
 
-// Library packaging for `louisecms`, read by `vp pack` — Vite+'s library
+// Library packaging for `louise`, read by `vp pack` — Vite+'s library
 // build, which forwards the `pack` block to tsdown (Rolldown) internally.
 //
 // Authored as a plain object rather than `defineConfig(...)`: Vite+'s config
@@ -46,7 +46,7 @@ export default {
       "src/core/auth/index.ts",
       "src/astro/index.ts",
       "src/client/index.ts",
-      "src/client/drawer/index.ts",
+      "src/client/settings/index.ts",
       "src/core/cms/index.ts",
       "src/core/cms/stega.ts",
       "src/core/db/index.ts",

@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Per-page OG image generation on Cloudflare Browser Run (issue #5). The value
 // is in the cache discipline: an OG card is deterministic for a given page +

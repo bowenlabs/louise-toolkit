@@ -2,10 +2,10 @@
 @plugin "daisyui";
 
 /*
- * "louise" — the public louisecms.com site theme (BowenLabs brand system).
+ * "louise" — the public louisetoolkit.com site theme (BowenLabs brand system).
  *
- * Distinct from the package's `louisecms/theme/louise.css`: that one dresses the
- * Louise *editor* chrome (drawer, inline affordances). This one is the *site*
+ * Distinct from the package's `louise/theme/louise.css`: that one dresses the
+ * Louise *editor* chrome (Louise Settings, inline affordances). This one is the *site*
  * theme for the marketing landing — same brand tokens, site-appropriate bases.
  *   blue #1481ef primary · gold #f3ae29 accent · greens for success ·
  *   orange #db6327 error. Auto light/dark via prefers-color-scheme (no JS).
@@ -89,7 +89,7 @@
   --noise: 0;
 }
 
-/* ── Site chrome (header/nav + footer) — settings-driven, drawer-only ─────── */
+/* ── Site chrome (header/nav + footer) — settings-driven, edited via Louise Settings ─── */
 .site-header {
   display: flex;
   align-items: center;
@@ -155,11 +155,11 @@
   color: var(--color-primary);
 }
 
-/* ── Louise CMS page rendering ────────────────────────────────────────────
- * Published `pages` bodies: the drawer's rich-text editor serializes
+/* ── Louise Toolkit page rendering ────────────────────────────────────────────
+ * Published `pages` bodies: the Louise Settings rich-text editor serializes
  * page-builder blocks to semantic, `pb-`-classed HTML, and these styles render
  * that markup on the public site. Column widths for `.pb-row` come from a
- * sanitizer-validated inline `grid-template-columns` (louisecms/security), so
+ * sanitizer-validated inline `grid-template-columns` (louise/security), so
  * there's no per-layout CSS — any percentage split just works.
  */
 .louise-page {

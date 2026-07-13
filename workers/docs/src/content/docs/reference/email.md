@@ -1,12 +1,12 @@
 ---
 title: email
-description: "louisecms/email — Cloudflare Email Sending."
+description: "louise/email — Cloudflare Email Sending."
 sidebar:
   order: 5
 ---
 
 ```ts
-import { sendEmail, type EmailSender, type SendEmailInput } from "louisecms/email";
+import { sendEmail, type EmailSender, type SendEmailInput } from "louise/email";
 ```
 
 A tiny wrapper over the modern **Cloudflare Email Sending** binding
@@ -39,7 +39,7 @@ Sends a transactional email and returns the provider `messageId`. If you omit
 in [`LouiseEmailError`](/reference/errors/) with the original as `cause`.
 
 ```ts
-import { sendEmail } from "louisecms/email";
+import { sendEmail } from "louise/email";
 
 await sendEmail(env.EMAIL, {
   from: { email: "studio@example.com", name: "The Studio" },

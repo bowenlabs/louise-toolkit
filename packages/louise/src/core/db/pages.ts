@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework-owned `pages` — the generic CMS page table every Louise site has
 // (slug, title, sanitized rich body, publish status, SEO/OG, ordering,
@@ -19,7 +19,7 @@ export const pagesColumns = {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
-  /** Sanitized rich HTML — run `sanitizeRichHtml` (louisecms/security) on write
+  /** Sanitized rich HTML — run `sanitizeRichHtml` (louise/security) on write
    *  and render. */
   body: text("body"),
   status: text("status", { enum: ["draft", "published"] })

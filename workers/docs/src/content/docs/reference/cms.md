@@ -1,6 +1,6 @@
 ---
 title: cms
-description: "louisecms/cms — collections, codegen, the Local API, validation, patches, webhooks."
+description: "louise/cms — collections, codegen, the Local API, validation, patches, webhooks."
 sidebar:
   order: 2
 ---
@@ -12,7 +12,7 @@ import {
   createLocalApi,
   renderRichText,
   rule,
-} from "louisecms/cms";
+} from "louise/cms";
 ```
 
 The `cms` subpath is the structured content engine: define collections, generate
@@ -22,7 +22,7 @@ validated **Local API**. Peer dependency: `drizzle-orm`.
 ## Defining collections
 
 ```ts
-import { defineCollection, defineCmsConfig } from "louisecms/cms";
+import { defineCollection, defineCmsConfig } from "louise/cms";
 
 const artworks = defineCollection({
   slug: "artworks",
@@ -44,7 +44,7 @@ autocomplete and a single greppable call site.
 ## Codegen — schema from config
 
 ```ts
-import { cmsConfigToSchema, generateSchemaSource } from "louisecms/cms";
+import { cmsConfigToSchema, generateSchemaSource } from "louise/cms";
 ```
 
 - `cmsConfigToSchema(config)` builds Drizzle table objects from a `CmsConfig` at
@@ -59,7 +59,7 @@ Related builders: `collectionToTable`, `collectionVersionsTable`,
 ## The Local API
 
 ```ts
-import { createLocalApi, createVersionedLocalApi } from "louisecms/cms";
+import { createLocalApi, createVersionedLocalApi } from "louise/cms";
 
 const api = createLocalApi(collectionConfig, table, { registry });
 await api.create(doc, context); // runs access + validation, then inserts
@@ -80,7 +80,7 @@ with `versions`. `can(...)` evaluates access without performing the operation.
 A chainable, immutable, Sanity-style rule builder:
 
 ```ts
-import { rule } from "louisecms/cms";
+import { rule } from "louise/cms";
 
 rule().required().min(2).max(80);
 rule().slug().unique();
@@ -106,12 +106,12 @@ while returning warnings.
 - `createWebhookHook` / `deliverWebhookMessage` — afterChange-style outbound
   webhooks.
 - `defineMigration` / `runMigration` — content migrations over collections.
-- `buildStudioStructure`, `getCollectionsMeta` — drive a studio UI.
+- `buildEditorStructure`, `getCollectionsMeta` — drive the Louise Editor UI.
 - `mountVisualEditing` / `mountPreviewSync` / `editAttr` — live preview and
   click-to-edit references.
 
 :::note
 `cms` is a large surface — this page is a map, not an exhaustive signature list.
 Every symbol is fully typed; lean on your editor's autocomplete against the
-`louisecms/cms` types.
+`louise/cms` types.
 :::

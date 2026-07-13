@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the registry-less `media` route. The default `mediaRoute`
+// louise/editor — the registry-less `media` route. The default `mediaRoute`
 // (see ./media) tracks uploads in a `media` D1 table. This variant lists the R2
 // bucket directly via `listMedia` — for sites with no media registry table —
 // and accepts a per-request upload `scope` (allowlisted) instead of a fixed one:

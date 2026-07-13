@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — derive the submission table from a form's fields, so the
+// louise/forms — derive the submission table from a form's fields, so the
 // columns can never drift from the form definition. The mapping is deliberately
 // small: text-like inputs → text, checkbox → boolean integer, number → real,
 // plus the framework `id` primary key and a `created_at` timestamp.

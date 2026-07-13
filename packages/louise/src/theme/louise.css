@@ -1,5 +1,5 @@
 /*
- * Louise CMS editor theme — BowenLabs brand system.
+ * Louise Toolkit editor theme — BowenLabs brand system.
  *
  * Two daisyUI 5 themes (Tailwind v4 `@plugin` syntax — this file must be
  * imported from a stylesheet that Tailwind processes, after `@plugin "daisyui"`):
@@ -12,7 +12,7 @@
  *   light green #8ebe59 · yellow #f3ae29 · orange #db6327 · white
  *
  * Your public site theme is separate; this file styles Louise editor surfaces
- * only (drawer, inline chrome, panels).
+ * only (Settings, inline chrome, panels).
  */
 
 @plugin "daisyui/theme" {
@@ -103,8 +103,8 @@
 }
 
 /*
- * Louise chrome variables — consumed by louisecms/client (inline-edit
- * affordances, drawer, action bar). Defined per-theme so the chrome follows
+ * Louise chrome variables — consumed by louise/client (inline-edit
+ * affordances, Settings, action bar). Defined per-theme so the chrome follows
  * the editor theme, never the site theme.
  */
 [data-theme="louise"],

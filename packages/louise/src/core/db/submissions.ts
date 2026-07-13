@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework-owned `submissions` — a SHARED, generic store for ad-hoc forms
 // (issue #46, Tier 3). A first-class form like `inquiries` gets its own typed

@@ -1,12 +1,12 @@
-// Louise CMS tables for the dogfood. `media`, `inquiries`, and `site_settings`
+// Louise Toolkit tables for the marketing site. `media`, `inquiries`, and `site_settings`
 // use the ready-made framework tables; `pages` is composed from the framework
 // `pagesColumns` plus a site-specific `sections` JSON column — an ordered array
 // of structured section items (`{ _type, ...fields }`) rendered by the site's
 // own bespoke components (the preconfigured-blocks model). drizzle-kit reads this
 // to generate migrations; the Worker's editor routes import the composed `pages`.
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { collectionVersionsTable } from "louisecms/cms";
-import { inquiries, media, pagesColumns, siteSettings } from "louisecms/db";
+import { collectionVersionsTable } from "louise/cms";
+import { inquiries, media, pagesColumns, siteSettings } from "louise/db";
 import { pagesCollection } from "./pages-collection.js";
 
 export const pages = sqliteTable("pages", {

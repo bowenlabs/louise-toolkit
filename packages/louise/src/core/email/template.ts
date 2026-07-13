@@ -8,7 +8,7 @@
 // couple of layout tokens) and composes each email from these primitives:
 // {@link renderEmailShell} (the frame), {@link mailButton}, and
 // {@link mailFallbackLink}. Per-email COPY stays in the site — this module owns
-// only the brand-agnostic structure both louisecms sites were duplicating.
+// only the brand-agnostic structure both louise sites were duplicating.
 
 /** Semantic colour slots, flattened to hex for mail clients. A site maps its
  *  brand palette onto these; `accent` is the eyebrow + link colour, `onDark`

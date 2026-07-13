@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // The framework Users panel (top strip) — manage who can edit the CMS. Editors
 // are the DB-managed admin allowlist (rows in the Better Auth user table):

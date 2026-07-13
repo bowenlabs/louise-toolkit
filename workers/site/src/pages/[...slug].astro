@@ -1,15 +1,15 @@
 ---
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { db } from "louisecms/db";
+import { db } from "louise/db";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import SiteChrome from "../components/SiteChrome.astro";
 import { latestDraftBody } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
-import "louisecms/theme/fonts.css";
+import "louise/theme/fonts.css";
 import "../styles/louise.css";
 
-// Renders published Louise CMS pages (drafts are visible only in edit mode).
+// Renders published Louise Toolkit pages (drafts are visible only in edit mode).
 // The body is sanitized page-builder HTML, rendered straight back via set:html.
 export const prerender = false;
 

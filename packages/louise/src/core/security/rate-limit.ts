@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Lightweight KV-backed fixed-window rate limiter for a site's public POST
 // surfaces (magic-link sign-in, contact/inquiry actions, checkout, …). No
@@ -68,7 +68,7 @@ export interface RateRule {
 /**
  * First matching rule for a request, or null. The site owns the `rules` array
  * (its own routes + budgets); pass it in. Editor endpoints are usually
- * session-gated and omitted so the studio can never lock itself out.
+ * session-gated and omitted so the editor can never lock itself out.
  */
 export function matchRateRule(
   rules: readonly RateRule[],

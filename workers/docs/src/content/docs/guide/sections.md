@@ -19,7 +19,7 @@ plus its field values:
 
 ```json
 [
-  { "_type": "hero", "heading": "Louise CMS", "tagline": "…", "ctaHref": "/docs" },
+  { "_type": "hero", "heading": "Louise Toolkit", "tagline": "…", "ctaHref": "/docs" },
   { "_type": "featureGrid", "items": [{ "title": "…", "body": "…" }] }
 ]
 ```
@@ -34,7 +34,7 @@ A `SectionCatalog` describes each type's editable fields — schema only, no
 markup:
 
 ```ts
-import type { SectionCatalog } from "louisecms/client";
+import type { SectionCatalog } from "louise/client";
 
 export const SECTIONS: SectionCatalog = {
   hero: {
@@ -86,7 +86,7 @@ Render empty fields too (in edit mode) so there's something to click into;
 ## Editing: `mountSections`
 
 ```ts
-import { mountSections } from "louisecms/client";
+import { mountSections } from "louise/client";
 
 mountSections(el, { catalog: SECTIONS, pageId, initial });
 // Auto-save is on by default; opt out with:
@@ -127,7 +127,7 @@ The stored JSON is validated server-side before every write. Give `pagesRoute` a
 `validate` hook that runs `assertValidSections` against your catalog:
 
 ```ts
-import { assertValidSections } from "louisecms/cms";
+import { assertValidSections } from "louise/cms";
 import { SECTIONS } from "./sections/catalog";
 
 pagesRoute({
@@ -156,6 +156,6 @@ on-page dock surfaces the first violation as the save-failure reason.
 Because `sections` is a `json` field, its content is full-text searchable: list
 it in the collection's `search.fields` and the FTS index flattens every string
 leaf (headings, feature text…) into the index. Mount
-[`searchRoute`](/reference/editor/) and the drawer's Pages panel gains a search
+[`searchRoute`](/reference/editor/) and the Settings' Pages panel gains a search
 box. Only published content is indexed; run `POST /api/louise/pages/reindex` once
 after adding the FTS table to backfill existing rows.

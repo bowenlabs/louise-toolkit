@@ -1,11 +1,11 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import type { ValidationBuilder } from "./validation.js";
 
 /**
  * Editor-only presentation hints for a single field (issue #16 follow-on) —
  * the field-level counterpart to {@link CollectionAdminConfig}. Purely about
- * how the studio renders the field; absent → sensible defaults (a humanized
+ * how the editor renders the field; absent → sensible defaults (a humanized
  * key for the label, no help text, full width, always shown, editable). None
  * of this touches the DB schema or the Local API.
  */
@@ -23,7 +23,7 @@ export interface FieldAdminConfig {
   /**
    * Show the field only when this predicate — given the whole in-progress
    * form value — returns true (Payload's `admin.condition`). A function, so
-   * it's evaluated by the studio directly from the imported config, not from
+   * it's evaluated by the editor directly from the imported config, not from
    * a serialized meta payload.
    */
   condition?: (values: Record<string, unknown>) => boolean;
@@ -68,7 +68,7 @@ export interface BaseFieldConfig {
    * Chainable validation rules (issue #16), Sanity's `defineField`
    * `validation` analogue: `validation: (rule) => rule.required().min(2)`.
    * Evaluated server-side by createLocalApi on every create/update (and by
-   * the studio for client-side feedback). Independent of the `required`/
+   * the editor for client-side feedback). Independent of the `required`/
    * `unique` flags above — those still drive the DB schema; these drive
    * value-level checks with clear, per-field error messages. See
    * {@link ValidationBuilder} and `validation.ts`.
@@ -188,9 +188,9 @@ export interface ArrayFieldConfig extends BaseFieldConfig {
     key: string;
     variants: Record<string, Record<string, FieldConfig>>;
     /**
-     * Optional per-variant presentation for the studio's "Add block" picker
+     * Optional per-variant presentation for the editor's "Add block" picker
      * (the visual block builder). `label` defaults to a humanized variant
-     * name; `icon` is an opaque CSS class the studio applies to an `<i>`
+     * name; `icon` is an opaque CSS class the editor applies to an `<i>`
      * (e.g. a Phosphor `"ph ph-image"`), keeping louise-admin(legacy) icon-library-agnostic.
      */
     variantsAdmin?: Record<string, { label?: string; icon?: string }>;
@@ -378,14 +378,14 @@ export interface CollectionHooks<TDoc = Record<string, unknown>> {
 }
 
 /**
- * Studio-presentation hints for a collection, modeled on Sanity's Structure
+ * Editor-presentation hints for a collection, modeled on Sanity's Structure
  * Builder (`sanity/structure`). Purely about how the admin sidebar/editor
  * *presents* a collection — never affects the DB schema, the Local API, or
- * access control. Consumed by {@link buildStudioStructure} (see
+ * access control. Consumed by {@link buildEditorStructure} (see
  * `structure.ts`); a collection with no `admin` block falls back to sensible
  * defaults (visible, editable, listed, grouped under the default group,
  * label = capitalized slug). Plugin-injected collections can't carry an
- * `admin` block in hand-written config, so `buildStudioStructure` also
+ * `admin` block in hand-written config, so `buildEditorStructure` also
  * accepts per-slug overrides at the call site — see its `overrides` option.
  */
 export interface CollectionAdminConfig {
@@ -408,7 +408,7 @@ export interface CollectionAdminConfig {
    */
   hidden?: boolean;
   /**
-   * Mark as read-only in the studio — still navigable/viewable, but the UI
+   * Mark as read-only in the editor — still navigable/viewable, but the UI
    * suppresses create/edit/delete affordances. For machine-written tables a
    * human should inspect but never edit (e.g. `payments`).
    */
@@ -475,8 +475,8 @@ export interface CollectionConfig {
     fields: readonly string[];
   };
   /**
-   * Studio-presentation hints — grouping, ordering, hidden/read-only,
-   * singleton, label, icon. Consumed only by {@link buildStudioStructure}
+   * Editor-presentation hints — grouping, ordering, hidden/read-only,
+   * singleton, label, icon. Consumed only by {@link buildEditorStructure}
    * (the Structure Builder); never affects schema, Local API, or access.
    * See {@link CollectionAdminConfig}.
    */

@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/browser
+// louise/browser
 //
 // Edge browser-automation helpers on Cloudflare Browser Run, shared across all
 // Louise sites (issue #5): per-page OG image generation with a content-hashed

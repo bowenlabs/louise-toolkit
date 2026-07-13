@@ -1,16 +1,16 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louisecms/client/drawer` — the Louise editor drawer: a registry-driven
+// `louise/client/settings` — the Louise editor Settings: a registry-driven
 // SolidJS shell with a fixed top strip of framework panels (Pages/Media/
 // Settings) and a bottom group of site-registered collection tabs. Sites call
-// `mountDrawer(config)` in edit mode and register their own collections;
+// `mountSettings(config)` in edit mode and register their own collections;
 // everything shares one TanStack Query cache (the data layer below).
 
 // Data layer — the shared QueryClient, query keys, and typed fetch helpers.
 export {
   apiGet,
   apiSend,
-  createDrawerQueryClient,
+  createSettingsQueryClient,
   louiseQueryKey,
   louiseQueryKeys,
 } from "./query.js";
@@ -18,10 +18,10 @@ export {
 // Shell + registry API.
 export {
   type CollectionTab,
-  Drawer,
-  type DrawerConfig,
-  mountDrawer,
-  OPEN_DRAWER_EVENT,
+  Settings,
+  type SettingsConfig,
+  mountSettings,
+  OPEN_SETTINGS_EVENT,
 } from "./shell.jsx";
 
 // Framework panels (top strip) + the default Inquiries panel (a bottom tab).

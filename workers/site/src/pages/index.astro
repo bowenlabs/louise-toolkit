@@ -1,14 +1,14 @@
 ---
-// louisecms.com landing page.
+// louisetoolkit.com landing page.
 // Public site theme: Tailwind v4 + daisyUI, with the `louise` theme defined in
 // src/styles/louise.css (auto light/dark via prefers-color-scheme). Brand type
-// comes from the package (`louisecms/theme/fonts.css`, applied via `.louise-type`)
+// comes from the package (`louise/theme/fonts.css`, applied via `.louise-type`)
 // and the hero mark is the real `louise-mark.svg`. Icons are Phosphor, inlined
 // raw so they inherit `currentColor` — no icon font, no runtime fetch.
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { db } from "louisecms/db";
-import "louisecms/theme/fonts.css";
+import { db } from "louise/db";
+import "louise/theme/fonts.css";
 import "../styles/louise.css";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import Sections from "../components/Sections.astro";
@@ -17,7 +17,7 @@ import { latestDraftSections } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 
 // SSR: the marketing app is `output: server` for Louise, and a prerendered
-// `/index.html` asset would shadow the docs root on docs.louisecms.com (both map
+// `/index.html` asset would shadow the docs root on docs.louisetoolkit.com (both map
 // to `/`). The homepage is now built entirely from structured "sections" (hero +
 // feature grid), edited on the page and rendered by bespoke components
 // (../sections/*.astro) — so the whole landing is editor-controlled while the
@@ -41,10 +41,10 @@ const year = new Date().getFullYear();
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Louise CMS — edit the live page</title>
+    <title>Louise Toolkit — edit the live page</title>
     <meta
       name="description"
-      content="A V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers."
+      content="A V8-native toolkit for building editable sites on Cloudflare Workers."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
@@ -64,10 +64,10 @@ const year = new Date().getFullYear();
         class="border-t border-base-300 py-10 text-center text-sm text-base-content/60"
       >
         <p>
-          <a class="link link-hover text-primary" href="https://docs.louisecms.com">Documentation</a>
+          <a class="link link-hover text-primary" href="https://docs.louisetoolkit.com">Documentation</a>
           · <a
             class="link link-hover text-primary"
-            href="https://github.com/bowenlabs/louisecms">Source</a
+            href="https://github.com/bowenlabs/louise-toolkit">Source</a
           > · MIT © {year} BowenLabs
         </p>
       </footer>

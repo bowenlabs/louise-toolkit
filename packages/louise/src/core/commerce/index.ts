@@ -1,9 +1,9 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // louise/commerce — shared primitives for the provider clients: money helpers
 // and webhook-signature crypto (HMAC-SHA256 + a constant-time compare). The
 // provider glue lives in the sibling subpaths:
-//   louisecms/commerce/stripe · /square · /fourthwall
+//   louise/commerce/stripe · /square · /fourthwall
 // All three verify webhooks with these helpers, so the crypto lives here once.
 
 /** A money amount, expressed in a currency's minor unit (e.g. cents). */

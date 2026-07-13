@@ -1,4 +1,4 @@
-// louisecms/client — structured "sections" editor: the visual block builder for
+// louise/client — structured "sections" editor: the visual block builder for
 // bespoke, component-rendered pages (the Sanity-style preconfigured-blocks model).
 //
 // A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`.
@@ -30,7 +30,7 @@ import { MediaPicker } from "./media-picker.jsx";
 import { injectStyles } from "./styles.js";
 
 // The section schema types live in core (server-safe) so the same catalog object
-// drives both this on-page editor and the write-time validator (louisecms/cms's
+// drives both this on-page editor and the write-time validator (louise/cms's
 // validateSections). Type-only import — no server/validation code enters the
 // client bundle.
 import type {

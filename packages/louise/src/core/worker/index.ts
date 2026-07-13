@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/worker — the Worker entrypoint compose helper (issue #10, Tier 2).
+// louise/worker — the Worker entrypoint compose helper (issue #10, Tier 2).
 //
 // Every Louise site's `worker.ts` is the same shape: try a few Louise-owned
 // routes (the generic `api/louise/*` handlers, an OG-image endpoint, …), fall

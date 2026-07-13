@@ -1,12 +1,12 @@
 ---
 title: db
-description: "louisecms/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
+description: "louise/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
 sidebar:
   order: 1
 ---
 
 ```ts
-import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louisecms/db";
+import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louise/db";
 ```
 
 A thin wrapper around Drizzle's D1 driver. **Raw binding in, Drizzle instance
@@ -27,7 +27,7 @@ Returns a Drizzle instance bound to your D1 database. Pass your own schema objec
 for typed relational queries; omit it for a schema-less handle.
 
 ```ts
-import { db } from "louisecms/db";
+import { db } from "louise/db";
 import * as schema from "./schema"; // your Drizzle tables
 
 export async function GET({ locals, request }, env: Env) {
@@ -46,7 +46,7 @@ A framework-owned **singleton config table** you can compose into your schema or
 use as-is, so a generic "site settings" row doesn't drift between projects.
 
 ```ts
-import { siteSettings } from "louisecms/db";
+import { siteSettings } from "louise/db";
 
 const [settings] = await db(env.DB).select().from(siteSettings).limit(1);
 ```
@@ -66,7 +66,7 @@ compose-or-use-as-is pattern:
 
 ```ts
 import { sqliteTable, integer } from "drizzle-orm/sqlite-core";
-import { pagesColumns } from "louisecms/db";
+import { pagesColumns } from "louise/db";
 
 // Use as-is, or spread the columns to add site-specific fields:
 export const pages = sqliteTable("pages", {

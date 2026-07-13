@@ -1,6 +1,6 @@
 ---
 title: client
-description: "louisecms/client — the inline-edit client, ProseKit editor, icons, and blocks."
+description: "louise/client — the inline-edit client, ProseKit editor, icons, and blocks."
 sidebar:
   order: 3
 ---
@@ -17,7 +17,7 @@ import {
   defineBlock,
   mountSections,
   injectStyles,
-} from "louisecms/client";
+} from "louise/client";
 ```
 
 The browser-side editor. This is the only subpath that touches the DOM and Solid;
@@ -27,7 +27,7 @@ peer dependencies: `solid-js`, `prosekit`, `@prosekit/pm`.
 
 ```ts
 function mountLouise(opts?: {
-  onOpenDrawer?: () => void;
+  onOpenSettings?: () => void;
   versionedPageId?: number;
   autoSave?: boolean | { debounceMs?: number };
 }): void;
@@ -51,10 +51,10 @@ so it's safe to lazy-import and call on any page. See
 ## `RichText` / `mountRichText`
 
 The ProseKit (Solid) editor used identically by inline fields and by any
-drawer form you build.
+Settings form you build.
 
 ```tsx
-import { RichText, type RichTextProps } from "louisecms/client";
+import { RichText, type RichTextProps } from "louise/client";
 
 <RichText
   value={html}
@@ -74,7 +74,7 @@ The Phosphor icon set the toolbar and panels share, inlined as raw SVG (CSP-safe
 — no external requests).
 
 ```tsx
-import { Icon, type IconName } from "louisecms/client";
+import { Icon, type IconName } from "louise/client";
 
 <Icon name="pencil" />;
 ```
@@ -99,7 +99,7 @@ import {
   defineBlocksExtension,
   type BlockDef,
   type BlockEntry,
-} from "louisecms/client";
+} from "louise/client";
 ```
 
 - `BLOCKS` — the registry that drives the `/` slash menu.
@@ -141,37 +141,37 @@ function injectStyles(): void;
 ```
 
 Ensures the shared Louise stylesheet (and edit-mode fonts) is present, even on a
-page that has no inline fields — call it before opening a drawer on a bare page.
+page that has no inline fields — call it before opening Louise Settings on a bare page.
 
-## `louisecms/client/drawer`
+## `louise/client/settings`
 
-The **editor drawer** — a registry-driven SolidJS shell with a fixed top strip of
+The **Louise Settings** — a registry-driven SolidJS shell with a fixed top strip of
 framework panels (Pages/Media/Settings) and a bottom group of site-registered
 collection tabs. Optional peer: `@tanstack/solid-query`. See
-[The drawer](/guide/drawer/) for the full walkthrough; it pairs with the
-[`louisecms/editor`](/reference/editor/) handlers on the server.
+[Louise Settings](/guide/settings/) for the full walkthrough; it pairs with the
+[`louise/editor`](/reference/editor/) handlers on the server.
 
 ### Shell
 
 ```ts
-import { mountDrawer, OPEN_DRAWER_EVENT } from "louisecms/client/drawer";
-import type { DrawerConfig, CollectionTab } from "louisecms/client/drawer";
+import { mountSettings, OPEN_SETTINGS_EVENT } from "louise/client/settings";
+import type { SettingsConfig, CollectionTab } from "louise/client/settings";
 ```
 
-- `mountDrawer(config)` — inject the stylesheet, create the shared `QueryClient`,
-  and render the drawer into a body-appended root. Idempotent. Opens on
-  `OPEN_DRAWER_EVENT` (`"louise:open-drawer"`).
-- `DrawerConfig` — `{ userName, tabs?, builtInPages?, settingsBaseGroups?, settingsExtension?, settingsExtras? }`.
+- `mountSettings(config)` — inject the stylesheet, create the shared `QueryClient`,
+  and render Louise Settings into a body-appended root. Idempotent. Opens on
+  `OPEN_SETTINGS_EVENT` (`"louise:open-settings"`).
+- `SettingsConfig` — `{ userName, tabs?, builtInPages?, settingsBaseGroups?, settingsExtension?, settingsExtras? }`.
   `tabs` is the bottom group (site collections); the top strip is fixed and can't
   be registered into. `settingsBaseGroups` overrides which framework Settings
   groups render (pass `[]` for a site that keeps its own settings shape).
 - `CollectionTab` — `{ id, label, panel: () => JSX.Element }`.
-- `Drawer` — the underlying component, if you provide your own `QueryClientProvider`.
+- `Settings` — the underlying component, if you provide your own `QueryClientProvider`.
 
 ### Panels
 
 ```ts
-import { PagesPanel, MediaPanel, SettingsPanel, InquiriesPanel } from "louisecms/client/drawer";
+import { PagesPanel, MediaPanel, SettingsPanel, InquiriesPanel } from "louise/client/settings";
 ```
 
 - `PagesPanel` / `MediaPanel` / `SettingsPanel` — the fixed framework panels the
@@ -190,12 +190,12 @@ import {
   ImageField,
   MediaUrlPicker,
   SettingsField,
-} from "louisecms/client/drawer";
+} from "louise/client/settings";
 import type {
   SettingsFieldGroup,
   SettingsFieldDef,
   SettingsFieldType,
-} from "louisecms/client/drawer";
+} from "louise/client/settings";
 ```
 
 The primitives the framework panels are built from — reuse them so your own tabs
@@ -217,22 +217,22 @@ preview thumbnail only (e.g. a CDN resizer like `cfImage`); and `allowUrl` bring
 back the raw-URL text input for a site that knowingly wants it. All default off.
 
 `MediaPicker` is the query-free variant of `MediaUrlPicker` for surfaces mounted
-outside the drawer's TanStack Query provider (e.g. the sections dock) — it powers
+outside the Settings' TanStack Query provider (e.g. the sections dock) — it powers
 **Choose from media** on section `image` fields.
 
 ### Data layer
 
 ```ts
 import {
-  createDrawerQueryClient,
+  createSettingsQueryClient,
   apiGet,
   apiSend,
   louiseQueryKey,
   louiseQueryKeys,
-} from "louisecms/client/drawer";
+} from "louise/client/settings";
 ```
 
-- `createDrawerQueryClient()` — a `QueryClient` tuned for the editor-only drawer
+- `createSettingsQueryClient()` — a `QueryClient` tuned for the editor-only Settings
   (no window-focus refetch, 30s stale, one retry).
 - `apiGet<T>(url)` / `apiSend<T>(method, url, body?)` — typed JSON fetch that
   throws on a non-2xx status.

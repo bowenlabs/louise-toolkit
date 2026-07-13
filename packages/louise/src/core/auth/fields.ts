@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Standard Louise user name fields. Generated on every getLouiseAuth site (and
 // merged ahead of a site's own `additionalFields`) so the Users panel + the

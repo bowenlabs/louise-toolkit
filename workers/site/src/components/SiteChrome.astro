@@ -1,11 +1,11 @@
 ---
 import { env } from "cloudflare:workers";
-import { db } from "louisecms/db";
+import { db } from "louise/db";
 import { siteSettings } from "../schema.js";
 
 // The shared, site-wide chrome — header/nav + footer — rendered around every
 // page's editable canvas. It's sourced entirely from `site_settings` (siteName,
-// logo, navLinks, socialLinks), so it is edited ONLY through the drawer
+// logo, navLinks, socialLinks), so it is edited ONLY through the Settings
 // (Settings), never inline. This is the "everything is editable except
 // header/footer/nav" boundary: content lives on the canvas, chrome lives here.
 type Link = { label: string; href: string };

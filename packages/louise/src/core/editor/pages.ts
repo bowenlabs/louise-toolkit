@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `pages` route. Framework CMS pages CRUD:
+// louise/editor — the generic `pages` route. Framework CMS pages CRUD:
 //   GET    /api/louise/pages        list
 //   POST   /api/louise/pages        create
 //   GET    /api/louise/pages/:id    read one
@@ -8,7 +8,7 @@
 //   DELETE /api/louise/pages/:id    delete
 // One `WorkerRoute` handles both the collection path and the `/:id` item path.
 // Writes are allowlisted (only configured fields) and rich fields sanitized
-// (louisecms/security) before store; the table is the site's own `pages`.
+// (louise/security) before store; the table is the site's own `pages`.
 
 import { asc, eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -72,7 +72,7 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   fields?: readonly string[];
   /** Rich-HTML fields sanitized on write. Default `["body"]`. */
   richFields?: readonly string[];
-  /** Rich-HTML sanitizer; defaults to louisecms/security's `sanitizeRichHtml`. */
+  /** Rich-HTML sanitizer; defaults to louise/security's `sanitizeRichHtml`. */
   sanitize?: (html: string) => string;
   /** Mount path (collection). Default `/api/louise/pages`. */
   path?: string;

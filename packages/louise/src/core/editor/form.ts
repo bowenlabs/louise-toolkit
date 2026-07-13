@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `form` capture route (issue #46). The PUBLIC
+// louise/editor — the generic `form` capture route (issue #46). The PUBLIC
 // companion to the editor-gated submissions review route: a same-origin-guarded
 // POST that validates a visitor's submission against a `defineForm` definition,
 // applies the spam guard (rate limit + optional Turnstile), and inserts a row.

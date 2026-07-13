@@ -1,14 +1,14 @@
-// Minimal pre-prod editor gate for the louisecms.com dogfood.
+// Minimal pre-prod editor gate for the louisetoolkit.com site.
 //
 // This is NOT Better Auth — it's the smallest thing that can answer "is this
 // request an editor?" for a single-editor, pre-production testbed, sitting
-// behind the SAME `resolveEditor(request, env)` seam the louisecms/editor routes
+// behind the SAME `resolveEditor(request, env)` seam the louise/editor routes
 // expect. A signed (HMAC-SHA256) cookie carries the editor identity; the login
 // (/louise) checks one shared password. Swapping in getLouiseAuth
-// (louisecms/auth) later is a drop-in — the routes and middleware don't change,
+// (louise/auth) later is a drop-in — the routes and middleware don't change,
 // only this module does.
 
-import type { EditorSession } from "louisecms/auth";
+import type { EditorSession } from "louise/auth";
 
 /** Secrets the gate reads off the Worker/runtime env. */
 export interface EditorGateEnv {
@@ -107,7 +107,7 @@ function readCookie(request: Request, name: string): string | undefined {
 }
 
 /**
- * `resolveEditor` for the louisecms/editor routes AND the Astro middleware:
+ * `resolveEditor` for the louise/editor routes AND the Astro middleware:
  * read + verify the session cookie off the request. Env-injected so it runs
  * identically in the Worker (editor routes) and in SSR (middleware).
  */
@@ -122,7 +122,7 @@ export function resolveEditorFromCookie(
 export function gateEditor(env: EditorGateEnv): EditorSession {
   return {
     userId: "owner",
-    email: env.OWNER_EMAIL ?? "editor@louisecms.com",
+    email: env.OWNER_EMAIL ?? "editor@louisetoolkit.com",
     name: "Editor",
     role: "owner",
   };

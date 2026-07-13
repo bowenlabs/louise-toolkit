@@ -1,9 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Must match the Cloudflare Workers Builds service that serves louisecms.com
-  // (`louisecmscom`). A mismatch here sends local `wrangler` commands (secret
+  // Must match the Cloudflare Workers Builds service that serves louisetoolkit.com
+  // (`louisetoolkitcom`). A mismatch here sends local `wrangler` commands (secret
   // put, deployments, d1 execute) to a different/auto-created worker.
-  "name": "louisecmscom",
+  "name": "louisetoolkitcom",
+  // BowenLabs account — pinned so deploys don't prompt for account selection.
+  "account_id": "c3e97bc9169c1a57894dae15e6b39304",
   "compatibility_date": "2026-06-20",
   "compatibility_flags": ["nodejs_compat"],
   // @astrojs/cloudflare v14 dropped `workerEntryPoint`, so `main` points at the
@@ -14,32 +16,33 @@
   // docs subdomain serves the static Starlight bundle (workers/docs, folded into
   // this Worker's assets at /_docs) — the split is done by Host in worker.ts.
   "routes": [
-    { "pattern": "louisecms.com", "custom_domain": true },
-    { "pattern": "docs.louisecms.com", "custom_domain": true },
+    { "pattern": "louisetoolkit.com", "custom_domain": true },
+    { "pattern": "docs.louisetoolkit.com", "custom_domain": true },
   ],
-  // Browser Run (louisecms/browser, #5): OG-image rendering + link-checking.
+  // Browser Run (louise/browser, #5): OG-image rendering + link-checking.
   "browser": {
     "binding": "BROWSER",
   },
-  // --- Louise CMS dogfood bindings ---------------------------------------
+  // --- Louise Toolkit bindings -----------------------------------------------
   // D1 holds pages/site_settings/media/inquiries (schema composed from
-  // louisecms/db, migrations in ./migrations). For local dev miniflare provides
-  // an emulated DB; replace database_id with the real one to deploy pre-prod.
+  // louise/db, migrations in ./migrations). For local dev miniflare provides an
+  // emulated DB; database_id below is the real remote DB (run migrations with
+  // `wrangler d1 migrations apply DB --remote` before first deploy).
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "louisecms-dogfood",
-      "database_id": "aaceeda7-a70b-48aa-a0d5-ca7e3b02eb4a",
+      "database_name": "louisetoolkit",
+      "database_id": "556a0774-0b62-4b49-8e31-f2328d7eb774",
       "migrations_dir": "migrations",
     },
   ],
   // R2 bucket for uploaded media; served back through the Worker at /media/*
-  // (see src/worker.ts) so no public bucket URL is needed for the dogfood.
-  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "louisecms-dogfood-media" }],
+  // (see src/worker.ts) so no public bucket URL is needed.
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "louisetoolkit-media" }],
   // KV for the security rate limiter.
-  "kv_namespaces": [{ "binding": "RL", "id": "9c8f07a3f4bf4a55af014c70197b856c" }],
+  "kv_namespaces": [{ "binding": "RL", "id": "647f7c7b690c41229fea208fdef346a6" }],
   "vars": {
-    // Public base for media URLs; same-origin /media/* keeps the dogfood
+    // Public base for media URLs; same-origin /media/* keeps media
     // self-contained (no external R2 domain). SESSION secret + editor password
     // are secrets (see .dev.vars locally / `wrangler secret put` in prod).
     "MEDIA_URL": "/media",

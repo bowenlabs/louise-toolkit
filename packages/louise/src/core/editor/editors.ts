@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `editors` route: manage who can edit the CMS.
+// louise/editor — the generic `editors` route: manage who can edit the CMS.
 // Editors are the DB-managed admin allowlist — rows in the Better Auth user
 // table with role 'admin'. A row here IS an editor: they can request a magic
 // link at /louise and edit the live site (pair with getLouiseAuth's
@@ -120,7 +120,7 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if ("response" in g) return g.response;
       const id = new URL(request.url).searchParams.get("id");
       if (!id) return json({ error: "Missing editor id." }, 400);
-      // Never orphan the studio — refuse to remove the last editor.
+      // Never orphan the editor — refuse to remove the last editor.
       const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{
         n: number;
       }>();

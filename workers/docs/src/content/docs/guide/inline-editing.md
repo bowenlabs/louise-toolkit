@@ -29,7 +29,7 @@ List items are patched by index with a dotted field: `aboutParagraphs.2`.
 ## Mounting the client
 
 ```ts
-import { mountLouise } from "louisecms/client";
+import { mountLouise } from "louise/client";
 
 // Safe to call on every page: if there are no markers (the page wasn't rendered
 // in edit mode), mountLouise does nothing — so you can lazy-import it.
@@ -38,14 +38,14 @@ mountLouise();
 
 `mountLouise` finds the markers, attaches the right editor to each, and mounts
 the **edit bar** for the page: a live-status line, **Settings** (dispatches a
-`louise:open-drawer` event), and **Done** (leaves edit mode). Edits **auto-save**
+`louise:open-settings` event), and **Done** (leaves edit mode). Edits **auto-save**
 by default (see below), so there is no manual Save button unless you opt out.
 
 The client also re-exports the pieces a host app's own panels reuse, so the
-drawer renders the same editor and icon set as inline editing:
+Settings renders the same editor and icon set as inline editing:
 
 ```ts
-import { RichText, mountRichText, Icon } from "louisecms/client";
+import { RichText, mountRichText, Icon } from "louise/client";
 ```
 
 See the [client reference](/reference/client/) for the full export list.

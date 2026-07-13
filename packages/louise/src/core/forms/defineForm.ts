@@ -1,8 +1,8 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — the `defineForm` entry point. One definition is the single
+// louise/forms — the `defineForm` entry point. One definition is the single
 // source of truth: it derives the submission table, the review columns, and
-// (via `formRoute` in louisecms/editor) the public capture route + validation.
+// (via `formRoute` in louise/editor) the public capture route + validation.
 
 import { sqliteTable } from "drizzle-orm/sqlite-core";
 import { deriveFormColumns } from "./columns.js";
@@ -12,7 +12,7 @@ const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Define a form. Returns the config plus everything derived from it — the
- * Drizzle `columns`/`table` and the `reviewColumns` the drawer renders. Pass the
+ * Drizzle `columns`/`table` and the `reviewColumns` the Settings renders. Pass the
  * result's `table` to `formRoute` (capture) and to the submissions review route.
  *
  * ```ts

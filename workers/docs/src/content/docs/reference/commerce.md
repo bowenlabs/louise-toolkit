@@ -1,6 +1,6 @@
 ---
 title: commerce
-description: "louisecms/commerce (shared base) + /commerce/stripe, /commerce/square, /commerce/fourthwall — Stripe, Square, and Fourthwall clients."
+description: "louise/commerce (shared base) + /commerce/stripe, /commerce/square, /commerce/fourthwall — Stripe, Square, and Fourthwall clients."
 sidebar:
   order: 4
 ---
@@ -8,7 +8,7 @@ sidebar:
 A shared base plus three provider clients, all raw `fetch` + `crypto.subtle` — no
 SDKs, no peers. See the [Commerce guide](/guide/commerce/) for the how and why.
 
-## `louisecms/commerce` (shared base)
+## `louise/commerce` (shared base)
 
 The primitives every provider client shares: a money shape and the webhook
 signature crypto. Import them directly if you verify a custom provider's webhook.
@@ -20,7 +20,7 @@ import {
   hmacSha256Base64,
   safeEqual,
   type Money,
-} from "louisecms/commerce";
+} from "louise/commerce";
 ```
 
 | Export                               | Purpose                                                                                  |
@@ -30,7 +30,7 @@ import {
 | `hmacSha256Hex` / `hmacSha256Base64` | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
 | `safeEqual(a, b)`                    | Constant-time-ish compare — use it to check a computed signature against a header value. |
 
-## `louisecms/commerce/stripe`
+## `louise/commerce/stripe`
 
 ```ts
 import {
@@ -43,7 +43,7 @@ import {
   type CartItem,
   type InvoiceLineItem,
   type StripeAddress,
-} from "louisecms/commerce/stripe";
+} from "louise/commerce/stripe";
 ```
 
 | Export                                                     | Purpose                                                                               |
@@ -57,7 +57,7 @@ import {
 The Stripe API version is pinned in the module so an account-default upgrade
 can't silently change response shapes — bump it deliberately.
 
-## `louisecms/commerce/fourthwall`
+## `louise/commerce/fourthwall`
 
 ```ts
 import {
@@ -71,7 +71,7 @@ import {
   type FwProduct,
   type FwVariant,
   type FwCartItem,
-} from "louisecms/commerce/fourthwall";
+} from "louise/commerce/fourthwall";
 ```
 
 | Export                                                  | Purpose                                                |
@@ -92,7 +92,7 @@ the HMAC at the edge, `enqueue` the event, and upsert idempotently in the
 consumer so a retry can't double-apply.
 :::
 
-## `louisecms/commerce/square`
+## `louise/commerce/square`
 
 Square exposes a single versioned REST surface (`/v2/*`). The whole client is
 injected through a `SquareConfig` and pins `Square-Version`.
@@ -124,7 +124,7 @@ import {
   type SquarePayment,
   type SquareCustomer,
   type SquareSubscription,
-} from "louisecms/commerce/square";
+} from "louise/commerce/square";
 ```
 
 | Area                      | Exports                                                                                    |
@@ -143,8 +143,8 @@ The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
 `SquareSubscription`, `SquareMoney`, …) type the normalized, camelCase shapes the
 client returns. `SquareMoney` is an alias of the shared `Money`, and
-`centsToMajor` is re-exported from the [shared base](#louisecmscommerce-shared-base)
-— both still import from `louisecms/commerce/square`.
+`centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)
+— both still import from `louise/commerce/square`.
 
 :::note[Verify prices before charging]
 `createOrder` takes catalog variation ids, not prices — Square computes the total.

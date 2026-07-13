@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/astro — the shared Louise Astro middleware, as a factory. Every
+// louise/astro — the shared Louise Astro middleware, as a factory. Every
 // Louise site's `middleware.ts` runs the same flow; only the auth wiring, rate
 // rules, and CSP allow-list vary. `createLouiseMiddleware` owns the flow and
 // takes those as config, so a site's middleware collapses to:
@@ -13,7 +13,7 @@
 //   });
 //
 // This subpath is the ONE place Louise touches Astro's types — `astro` is an
-// optional peer, pulled in only by sites that import `louisecms/astro`.
+// optional peer, pulled in only by sites that import `louise/astro`.
 
 import type { APIContext, MiddlewareHandler } from "astro";
 import {
@@ -142,7 +142,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
 
     const response = await next();
 
-    // CMS freshness: cached HTML would hide studio edits. Edit-mode pages are
+    // CMS freshness: cached HTML would hide editor edits. Edit-mode pages are
     // per-editor and must be live (`no-store`); public HTML `no-cache` so edits
     // appear without a manual purge. Only HTML — hashed `/_astro/*` assets keep
     // their immutable caching (set via `_headers`).

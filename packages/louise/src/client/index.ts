@@ -1,4 +1,4 @@
-// Louise CMS — inline edit-on-the-live-page client (slice 1).
+// Louise Toolkit — inline edit-on-the-live-page client (slice 1).
 //
 // Progressive enhancement, not hydration: the page is server-rendered
 // normally, and in edit mode each editable region carries a
@@ -14,10 +14,10 @@ import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } f
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
-// Re-exported so the drawer's artwork form reuses the exact same ProseKit
+// Re-exported so the Settings artwork form reuses the exact same ProseKit
 // rich-text editor as slice-1 inline editing (same ProseMirror JSON storage).
 export { mountRichText, RichText, type RichTextField, type RichTextProps } from "./RichText.jsx";
-// Re-exported so drawer panels render the same Phosphor icon set as the
+// Re-exported so Settings panels render the same Phosphor icon set as the
 // rich-text toolbar (no per-panel glyph literals).
 export { Icon, icons, type IconName } from "./icons.jsx";
 // Page-builder blocks (#16): the registry drives the inserter; defineBlock
@@ -31,7 +31,7 @@ export {
   type BlockDef,
   type BlockEntry,
 } from "./blocks.jsx";
-// Re-exported so the site-local explorer drawer (slice 2) can ensure the
+// Re-exported so the site-local Louise Settings (slice 2) can ensure the
 // shared Louise stylesheet is present even on pages with no inline fields.
 export { injectStyles } from "./styles.js";
 // The auto-save option shape, re-exported so consumers can type a shared config
@@ -88,8 +88,8 @@ interface ChromeOptions {
   onSave: () => void;
   /** Versioned pages only: promote the current/latest draft to live. */
   onPublish: () => void;
-  /** Opens the explorer/settings drawer (the bar's Settings action). */
-  onOpenDrawer: () => void;
+  /** Opens Louise Settings (the bar's Settings action). */
+  onOpenSettings: () => void;
   /** Whether this page has inline `data-louise-field`s. When false there's
    *  nothing for the bar to save (e.g. a sections-only page, which owns its own
    *  Save/Publish in the sections dock), so no save control is shown. */
@@ -103,7 +103,7 @@ interface ChromeOptions {
 }
 
 /**
- * The unified edit bar: Settings (opens the drawer) and Done (leaves edit mode),
+ * The unified edit bar: Settings (opens Louise Settings) and Done (leaves edit mode),
  * plus its save controls. A versioned page shows **Save draft** (green) +
  * **Publish** (yellow); a plain collection page shows a single live **Save**; a
  * page with no inline fields shows neither (its surface — e.g. the sections dock
@@ -148,7 +148,7 @@ function createChrome(opts: ChromeOptions): Chrome {
   settings.type = "button";
   settings.className = "louise-settings";
   settings.textContent = "Settings";
-  settings.addEventListener("click", opts.onOpenDrawer);
+  settings.addEventListener("click", opts.onOpenSettings);
 
   const exit = document.createElement("a");
   exit.className = "louise-exit";
@@ -206,8 +206,8 @@ function createChrome(opts: ChromeOptions): Chrome {
 }
 
 export interface MountLouiseOptions {
-  /** Opens the explorer/settings drawer (wired to the bar's Settings action). */
-  onOpenDrawer: () => void;
+  /** Opens Louise Settings (wired to the bar's Settings action). */
+  onOpenSettings: () => void;
   /** When set, this page uses the versioned draft workflow: inline saves stage a
    *  draft on this page id (`POST …/pages/:id/versions`) merging every changed
    *  field, and a Publish button promotes it (`POST …/publish`) — instead of
@@ -355,7 +355,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       void (versioned ? saveDraft() : saveLive());
     },
     onPublish: () => void publish(),
-    onOpenDrawer: opts.onOpenDrawer,
+    onOpenSettings: opts.onOpenSettings,
     hasFields: fieldEls.length > 0,
     versioned,
     autoSave: autoSaveOn,
@@ -388,7 +388,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // stega isn't in use.
       // `data-louise-blocks` opts the field into the full page-builder block set
       // (rows/columns, gallery, hero, …) — so a page body can be built in place
-      // on the live page, not just in the drawer.
+      // on the live page, not just in Louise Settings.
       const blocks = el.dataset.louiseBlocks === "1";
       // Isolate + surface editor-init failures: mountRichText clears el and
       // Solid-renders the editor, so a throw here (e.g. a ProseKit error during

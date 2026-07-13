@@ -84,8 +84,8 @@ async function sqPost<T>(config: SquareConfig, path: string, body: unknown): Pro
  *  the shared {@link Money} shape. */
 export type SquareMoney = Money;
 
-// `centsToMajor` is a shared commerce helper (louisecms/commerce); re-exported
-// so `louisecms/commerce/square` keeps exposing it.
+// `centsToMajor` is a shared commerce helper (louise/commerce); re-exported
+// so `louise/commerce/square` keeps exposing it.
 export { centsToMajor };
 
 // ── Catalog ──────────────────────────────────────────────────────────────────

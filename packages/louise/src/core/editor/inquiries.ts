@@ -1,7 +1,7 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `inquiries` route. Contact-form submissions
-// are created by the public site; the drawer's Inquiries tab only reviews and
+// louise/editor — the generic `inquiries` route. Contact-form submissions
+// are created by the public site; the Settings' Inquiries tab only reviews and
 // clears them, so this is read-mostly: GET lists newest-first, DELETE removes
 // one by id. The table is the site's own (composed from `inquiriesColumns` or
 // the ready-made `inquiries`), passed in so site-specific columns come along.

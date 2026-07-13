@@ -9,7 +9,7 @@
 // outline and per-block controls, never markup of record.
 //
 // Class names on serialized blocks use the `pb-` prefix exclusively: the
-// package sanitizer (louisecms/security) strips any other class token, so
+// package sanitizer (louise/security) strips any other class token, so
 // editor-authored HTML can never borrow arbitrary site classes.
 //
 // The grid (rowBlock → columnBlock) is the adjustable layout primitive: a row
@@ -500,7 +500,7 @@ function defineGalleryBlock(): Extension {
 // Page list for the link picker, fetched once per session and shared.
 let pagesCache: { slug: string; title: string }[] | null = null;
 
-/** Link editor: a page picker (pulled from the louisecms/editor `pages` list)
+/** Link editor: a page picker (pulled from the louise/editor `pages` list)
  *  plus a free URL field, so a link can target an internal page or any URL.
  *  Commits on change/blur (not per keystroke) to avoid remounting the node view
  *  mid-type. */

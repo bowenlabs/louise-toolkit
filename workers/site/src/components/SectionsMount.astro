@@ -16,7 +16,7 @@
       } catch {
         initial = [];
       }
-      Promise.all([import("louisecms/client"), import("../sections/catalog")]).then(
+      Promise.all([import("louise/client"), import("../sections/catalog")]).then(
         ([client, cat]) => {
           client.mountSections(el, { catalog: cat.SECTIONS, pageId, initial });
         },

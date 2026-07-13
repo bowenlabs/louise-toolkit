@@ -14,11 +14,11 @@ if ! command -v vp >/dev/null 2>&1; then
   export PATH="$HOME/.vite-plus/bin:$PATH"
 fi
 
-vp run "louisecms#pack"
+vp run "louise#pack"
 
 # Build the standalone static docs app (workers/docs) and fold its output into
 # the marketing Worker's static assets at public/_docs. Astro copies public/
-# verbatim into the build, so the one Worker serves docs.louisecms.com from
+# verbatim into the build, so the one Worker serves docs.louisetoolkit.com from
 # /_docs (see workers/site/src/worker.ts). Must happen before the site build.
 vp run "docs#build"
 rm -rf workers/site/public/_docs

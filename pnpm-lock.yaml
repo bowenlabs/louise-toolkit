@@ -40,7 +40,7 @@ importers:
         version: 1.1.0
       astro:
         specifier: ^7.0.6
-        version: 7.0.6(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.2)(@types/node@24.13.2)(jiti@2.7.0)(rollup@4.62.2)(tsx@4.23.0)
+        version: 7.0.6(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(rollup@4.62.2)(tsx@4.23.0)
       better-auth:
         specifier: ^1.6.23
         version: 1.6.23(@cloudflare/workers-types@5.20260705.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260705.1)(kysely@0.29.3))(solid-js@1.9.14)(vitest@3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(happy-dom@17.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0))
@@ -77,7 +77,7 @@ importers:
       astro:
         specifier: ^7.0.6
         version: 7.0.6(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(rollup@4.62.2)(tsx@4.23.0)
-      louisecms:
+      louise:
         specifier: workspace:*
         version: link:../../packages/louise
       sharp:
@@ -107,7 +107,7 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@cloudflare/workers-types@4.20260702.1)(kysely@0.29.3)
-      louisecms:
+      louise:
         specifier: workspace:*
         version: link:../../packages/louise
       prosekit:

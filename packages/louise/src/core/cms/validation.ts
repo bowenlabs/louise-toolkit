@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import { and, eq, ne } from "drizzle-orm";
 import type { BaseSQLiteDatabase, SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
@@ -16,7 +16,7 @@ type AnyTable = SQLiteTableWithColumns<any>;
  * `defineField`/`Rule` validation API (pattern, not code). A field declares
  * `validation: (rule) => rule.required().min(2).custom(...)`; this module
  * turns that chain into a list of declarative checks and evaluates them at
- * write time (server-side, in createLocalApi) as well as anywhere the studio
+ * write time (server-side, in createLocalApi) as well as anywhere the editor
  * wants synchronous feedback.
  *
  * Design notes:

@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Shared drawer form primitives — the collapsible <details> Section, the
+// Shared Settings form primitives — the collapsible <details> Section, the
 // label/href LinkListEditor, the media-library picker, and a declarative
 // SettingsField renderer. The framework Settings panel and site extension
 // groups render through the same field renderer, so a site's extra settings

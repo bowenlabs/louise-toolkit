@@ -3,7 +3,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 // Bindings this Worker exposes (wrangler.jsonc). BROWSER comes from
-// louisecms/browser's LouiseBrowserEnv, so it's intentionally omitted here to
+// louise/browser's LouiseBrowserEnv, so it's intentionally omitted here to
 // avoid a duplicate/conflicting declaration.
 type CloudflareEnv = {
   DB: D1Database;
@@ -21,7 +21,7 @@ type CloudflareEnv = {
 declare namespace App {
   interface Locals {
     /** Resolved editor session (authorizes writes). Null when not signed in. */
-    editor: import("louisecms/auth").EditorSession | null;
+    editor: import("louise/auth").EditorSession | null;
     /** Whether the page should render edit affordances. */
     editMode: boolean;
   }

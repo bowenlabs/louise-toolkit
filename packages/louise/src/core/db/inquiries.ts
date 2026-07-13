@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework-owned `inquiries` — contact-form submissions. `inquiries` is now the
 // **built-in default form** (issue #46): its table is derived from a

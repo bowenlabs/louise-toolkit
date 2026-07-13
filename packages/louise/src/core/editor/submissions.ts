@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — review route for the shared generic `submissions` table
+// louise/editor — review route for the shared generic `submissions` table
 // (issue #46, Tier 3). The read/delete companion to a generic `formRoute`
 // (`genericTable`): GET lists a form's submissions newest-first (parsing the
 // JSON `data` back to a flat row), DELETE removes one by id. Scoped to one
@@ -32,7 +32,7 @@ export interface SubmissionsRouteConfig<Env extends EditorRouteEnv> {
 /**
  * Build the review route for one form's rows in the shared `submissions` table.
  * GET (read) returns each row's `id`/`createdAt` plus its parsed `data` fields
- * flattened onto the row (so the drawer panel renders columns as it does for a
+ * flattened onto the row (so the Settings panel renders columns as it does for a
  * typed table); DELETE (mutation, same-origin-guarded) removes one by `?id=`.
  */
 export function submissionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(

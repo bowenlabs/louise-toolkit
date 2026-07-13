@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Stega (steganographic) auto-tagging (issue #23) — a companion to the manual
 // `editAttr()` path in `visual-editing.ts`. `editAttr` tags an *element*; stega
@@ -11,7 +11,7 @@
 //
 // Hybrid, not a replacement: keep `editAttr` for text-less targets (images,
 // whole blocks, buttons); use stega for prose. Reuses the existing `EditRef` /
-// `encodeEditRef` / `decodeEditRef` contract, so the studio side is unchanged.
+// `encodeEditRef` / `decodeEditRef` contract, so the editor side is unchanged.
 //
 // ⚠️ Preview-only. Never encode production HTML — zero-width chars would leak
 // into <title>, meta/OG tags and search indexes. Gate `encodeDocument` behind
@@ -113,7 +113,7 @@ function encodeField(
  * Return a copy of `doc` with every eligible display string stega-encoded so a
  * preview render carries per-field source pointers. Recurses into nested
  * objects and `_key`-keyed arrays (blocks), building the dotted `field` path
- * (`blocks.<_key>.heading`) the studio routes on. PREVIEW DATA PATH ONLY.
+ * (`blocks.<_key>.heading`) the editor routes on. PREVIEW DATA PATH ONLY.
  */
 export function encodeDocument(
   collection: string,

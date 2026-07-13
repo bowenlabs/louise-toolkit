@@ -1,10 +1,10 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // louise/commerce/stripe — Stripe glue. Raw fetch + crypto.subtle only, no Node
 // SDKs: an embedded Payment Element over a multi-item cart (PaymentIntent)
 // rather than single-item hosted Checkout Sessions, plus invoice + webhook-
 // signature helpers. For merch fulfillment, pair it with
-// louisecms/commerce/fourthwall.
+// louise/commerce/fourthwall.
 
 // Stripe: PaymentIntents/Invoices are not yet in Stripe's /v2 namespace
 // (v2 covers core accounts, event destinations, billing meters, money

@@ -1,8 +1,8 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — framework-generic `api/louise/*` route handlers (issue
+// louise/editor — framework-generic `api/louise/*` route handlers (issue
 // #10, Tier 2 slice 3). Each factory returns a `WorkerRoute` for
-// `composeWorker` (louisecms/worker); a site wires the ones it needs, passing
+// `composeWorker` (louise/worker); a site wires the ones it needs, passing
 // its own Drizzle tables + a `resolveEditor` that bridges its auth, and keeps
 // bespoke resource routes (products/artworks/…) per-site.
 

@@ -1,6 +1,6 @@
 ---
 title: editor
-description: "louisecms/editor — framework-generic api/louise/* route handlers for the drawer."
+description: "louise/editor — framework-generic api/louise/* route handlers for Louise Settings."
 sidebar:
   order: 11
 ---
@@ -19,29 +19,29 @@ import {
   inquiriesRoute,
   seedRoute,
   runEditorRoute,
-} from "louisecms/editor";
+} from "louise/editor";
 ```
 
-The server-side counterpart to the [drawer](/guide/drawer/): framework-generic
+The server-side counterpart to the [Louise Settings](/guide/settings/): framework-generic
 `api/louise/*` request→response handlers. Each factory returns a
 [`WorkerRoute`](/reference/client/) — `(request, env, ctx) => Response | undefined`
 — that [`composeWorker`](/reference/client/) composes, so a site wires the ones
 it needs, passes its own Drizzle tables, and keeps bespoke resource routes
 (products, artworks…) per-site. Sites not on `composeWorker` (Astro, Nitro…) run
 the same handlers with [`runEditorRoute`](#adapting-to-astro-or-any-non-worker-host).
-The framework drawer panels (Pages/Media/Settings) and the default Inquiries panel
+The framework panels (Pages/Media/Settings) and the default Inquiries panel
 call these endpoints. Peer: `drizzle-orm`.
 
 ## Composing the routes
 
 ```ts
-import { composeWorker } from "louisecms/worker";
-import { pagesRoute, mediaRoute, settingsRoute, saveRoute, inquiriesRoute } from "louisecms/editor";
-import { getLouiseAuth, resolveEditorSession } from "louisecms/auth";
+import { composeWorker } from "louise/worker";
+import { pagesRoute, mediaRoute, settingsRoute, saveRoute, inquiriesRoute } from "louise/editor";
+import { getLouiseAuth, resolveEditorSession } from "louise/auth";
 import { pages, media, siteSettings, inquiries } from "./db/schema";
 
 // Bridge the site's auth once; every route reuses it. `getLouiseAuth` and
-// `resolveEditorSession` come from louisecms/auth — see the auth reference.
+// `resolveEditorSession` come from louise/auth — see the auth reference.
 const resolveEditor = async (request: Request, env: Env) =>
   resolveEditorSession(await getLouiseAuth(env, request.url, authConfig), request);
 
@@ -100,7 +100,7 @@ second auth path:
 
 ```ts
 // Astro: src/pages/api/louise/inquiries.ts
-import { inquiriesRoute, runEditorRoute } from "louisecms/editor";
+import { inquiriesRoute, runEditorRoute } from "louise/editor";
 import { inquiries } from "../../../db/schema";
 import { env } from "cloudflare:workers";
 
@@ -150,7 +150,7 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
   `search.fields` is indexed by flattening every string leaf, so structured
   `sections` content is searchable. Also **mount before `pagesRoute`**.
-- **`mediaRoute`** — wraps [`louisecms/media`](/guide/media/): magic-byte-
+- **`mediaRoute`** — wraps [`louise/media`](/guide/media/): magic-byte-
   sniffed uploads (recording intrinsic `width`/`height`), the registry list,
   `PATCH` to set an asset's [`alt`/`caption`](/guide/media/#asset-level-alt-caption-and-dimensions)
   (only those two columns are writable), and a delete-safety reference scan (a
@@ -178,13 +178,13 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   not a closed set:** it patches an allowlisted structured base (`columns`, the
   framework [`siteSettingsColumns`](/reference/db/)) and merges site-declared
   `customKeys` into the `custom` JSON. A key in neither allowlist is ignored,
-  never written — this is what backs the drawer's Settings
-  [extension groups](/guide/drawer/#extending-settings). Declare `imageKeys`
+  never written — this is what backs the **Settings** panel's
+  [extension groups](/guide/settings/#extending-settings). Declare `imageKeys`
   (with `mediaBase` = your `MEDIA_URL`) to reject an image setting (logo,
   favicon, share image…) that isn't a [media asset](/guide/media/#strict-media-every-image-from-the-library) — a `422`.
 - **`blobSettingsRoute`** — the variant for sites that keep all config in a
   single JSON **blob** column (not the structured `siteSettingsColumns`), paired
-  with the drawer's `settingsBaseGroups: []` + render fields. `allow` is a
+  with the Settings' `settingsBaseGroups: []` + render fields. `allow` is a
   `{ key: sanitize }` map (only listed top-level keys are merged into the blob,
   each through its sanitizer; anything else is ignored); an optional `read`
   transforms the blob on GET (e.g. seed-merge). GET returns `{ settings: <blob> }`.

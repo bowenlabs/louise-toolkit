@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // The `louise` CLI. Today it hosts one command:
 //
@@ -59,7 +59,7 @@ async function main() {
       break;
     default:
       process.stderr.write(
-        "louise — Louise CMS CLI\n\nUsage:\n  louise gen-auth-schema [--config <path>] [--table-prefix <p>] [--out <file>]\n",
+        "louise — Louise Toolkit CLI\n\nUsage:\n  louise gen-auth-schema [--config <path>] [--table-prefix <p>] [--out <file>]\n",
       );
       process.exit(command ? 1 : 0);
   }

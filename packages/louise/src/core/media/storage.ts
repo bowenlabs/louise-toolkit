@@ -1,13 +1,13 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/media — R2 storage helpers.
+// louise/media — R2 storage helpers.
 //
 // Transport-agnostic building blocks for a Louise media library: verified
 // uploads, paged listing, deletion, and a delete-safety reference scan. Each
 // takes its binding explicitly (the R2 bucket, and for the scan a raw
 // `D1Database`), so a site names its bindings whatever it likes — Louise pins
 // the *shape*, not the wiring. The HTTP route that guards these with an editor
-// session lives in the generic editor surface (louisecms/worker), not here.
+// session lives in the generic editor surface (louise/worker), not here.
 
 import { imageDimensions } from "./dimensions.js";
 import { sniffImageType } from "./sniff.js";

@@ -1,28 +1,28 @@
-// Slice-2 drawer shell — happy-dom Solid component tests. Covers the two-group
+// Slice-2 Settings shell — happy-dom Solid component tests. Covers the two-group
 // registry split (framework panels on top, site collections as bottom tabs),
 // tab switching, and each framework/default panel wiring against the generic
-// louisecms/editor endpoints.
+// louise/editor endpoints.
 
 import { QueryClientProvider } from "@tanstack/solid-query";
 import type { JSX } from "solid-js";
 import { render } from "solid-js/web";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  createDrawerQueryClient,
-  Drawer,
+  createSettingsQueryClient,
+  Settings,
   ImageField,
   InquiriesPanel,
   MediaPanel,
-  OPEN_DRAWER_EVENT,
+  OPEN_SETTINGS_EVENT,
   PagesPanel,
   SettingsPanel,
-} from "../../src/client/drawer/index.js";
+} from "../../src/client/settings/index.js";
 
 let host: HTMLElement;
 let dispose: (() => void) | undefined;
 
 function mount(ui: () => JSX.Element) {
-  const qc = createDrawerQueryClient();
+  const qc = createSettingsQueryClient();
   host = document.createElement("div");
   document.body.appendChild(host);
   dispose = render(() => <QueryClientProvider client={qc}>{ui()}</QueryClientProvider>, host);
@@ -66,7 +66,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const openDrawer = () => window.dispatchEvent(new CustomEvent(OPEN_DRAWER_EVENT));
+const openDrawer = () => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT));
 const frameLabels = () =>
   Array.from(host.querySelectorAll<HTMLElement>(".louise-drawer-head .louise-frame-btn")).map((b) =>
     b.getAttribute("aria-label"),
@@ -84,11 +84,11 @@ const frameButton = (label: string) =>
     host.querySelectorAll<HTMLButtonElement>(".louise-drawer-head .louise-frame-btn"),
   ).find((b) => b.getAttribute("aria-label") === label);
 
-describe("Drawer shell — two-group registry split", () => {
+describe("Settings shell — two-group registry split", () => {
   it("puts Pages/Media/Settings in the top strip and site collections in the bottom tabs", () => {
     stubFetch(() => jsonResponse({}));
     mount(() => (
-      <Drawer
+      <Settings
         userName="Baylee"
         tabs={[
           { id: "inquiries", label: "Inquiries", panel: () => <div>inq-body</div> },
@@ -112,7 +112,7 @@ describe("Drawer shell — two-group registry split", () => {
   it("shows the first tab by default and switches on tab click", () => {
     stubFetch(() => jsonResponse({}));
     mount(() => (
-      <Drawer
+      <Settings
         userName="Baylee"
         tabs={[
           { id: "inquiries", label: "Inquiries", panel: () => <div>inq-body</div> },
@@ -135,7 +135,7 @@ describe("Drawer shell — two-group registry split", () => {
       url.includes("/api/louise/settings") ? jsonResponse({ settings: {} }) : jsonResponse({}),
     );
     mount(() => (
-      <Drawer
+      <Settings
         userName="Baylee"
         tabs={[{ id: "inquiries", label: "Inquiries", panel: () => <div>inq-body</div> }]}
       />
@@ -150,7 +150,7 @@ describe("Drawer shell — two-group registry split", () => {
 
   it("defaults to the Pages panel when a site registers no tabs", async () => {
     stubFetch(() => jsonResponse({ pages: [] }));
-    mount(() => <Drawer userName="Baylee" />);
+    mount(() => <Settings userName="Baylee" />);
     openDrawer();
     expect(host.querySelector(".louise-drawer-tabs")).toBeNull();
     await vi.waitFor(() => expect(host.textContent).toContain("New page"));
@@ -161,7 +161,7 @@ describe("Drawer shell — two-group registry split", () => {
       url.includes("/api/louise/settings") ? jsonResponse({ settings: {} }) : jsonResponse({}),
     );
     mount(() => (
-      <Drawer
+      <Settings
         userName="Baylee"
         tabs={[{ id: "x", label: "X", panel: () => <div>x-body</div> }]}
         settingsBaseGroups={[

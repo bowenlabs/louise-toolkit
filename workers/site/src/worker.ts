@@ -1,8 +1,8 @@
 // Worker entrypoint (composeWorker). One Worker, many concerns, dispatched in
 // order over the Astro SSR fallback:
 //
-//   docs.louisecms.com/*  → static Starlight bundle folded into /_docs (serveDocs)
-//   /api/louise/*         → louisecms/editor routes (pages/save/settings/media/
+//   docs.louisetoolkit.com/*  → static Starlight bundle folded into /_docs (serveDocs)
+//   /api/louise/*         → louise/editor routes (pages/save/settings/media/
 //                           inquiries/seed), guarded by the cookie editor gate
 //   /media/*              → uploaded R2 objects (self-hosted media, no public bucket)
 //   /og.png?slug=&title=  → Browser-Run OG card, content-hash cached
@@ -16,7 +16,7 @@ import {
   type OgImageCache,
   ogCacheKey,
   ogImage,
-} from "louisecms/browser";
+} from "louise/browser";
 import {
   DEFAULT_PAGE_FIELDS,
   formRoute,
@@ -28,11 +28,11 @@ import {
   seedRoute,
   settingsRoute,
   versionsRoute,
-} from "louisecms/editor";
-import { assertValidSections } from "louisecms/cms";
-import { inquiriesForm } from "louisecms/db";
-import { defineForm } from "louisecms/forms";
-import { composeWorker, type WorkerRoute } from "louisecms/worker";
+} from "louise/editor";
+import { assertValidSections } from "louise/cms";
+import { inquiriesForm } from "louise/db";
+import { defineForm } from "louise/forms";
+import { composeWorker, type WorkerRoute } from "louise/worker";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesCollection } from "./pages-collection.js";
 import { inquiries, media, pages, pagesVersions, siteSettings } from "./schema.js";
@@ -40,10 +40,10 @@ import { SECTIONS } from "./sections/catalog.js";
 
 type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
 
-const SITE_ORIGIN = "https://louisecms.com";
-const DOCS_ORIGIN = "https://docs.louisecms.com";
+const SITE_ORIGIN = "https://louisetoolkit.com";
+const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
-/* ── OG image (louisecms/browser, #5) ─────────────────────────────────── */
+/* ── OG image (louise/browser, #5) ─────────────────────────────────── */
 
 /** The OG card markup screenshotted into a share image. Self-contained (inline
  *  styles, system fonts) so no network fetch is needed during rendering. */
@@ -58,7 +58,7 @@ function ogCardHtml(title: string): string {
     h1{font-size:76px;font-weight:800;line-height:1.05;margin-top:24px;max-width:1000px}
     .u{margin-top:auto;font-size:24px;color:#94a3b8}
   </style></head><body>
-    <div class="brand">louisecms</div><h1>${safe}</h1><div class="u">louisecms.com</div>
+    <div class="brand">louise</div><h1>${safe}</h1><div class="u">louisetoolkit.com</div>
   </body></html>`;
 }
 
@@ -87,7 +87,7 @@ function ogCacheStore(): OgImageCache {
 
 async function handleOgImage(url: URL, env: WorkerEnv): Promise<Response> {
   const slug = url.searchParams.get("slug") ?? "/";
-  const title = url.searchParams.get("title") ?? "The V8-native CMS for Cloudflare Workers";
+  const title = url.searchParams.get("title") ?? "The V8-native toolkit for Cloudflare Workers";
   const cacheKey = await ogCacheKey(slug, title);
   const { bytes, cached } = await ogImage({
     cacheKey,
@@ -128,7 +128,7 @@ async function serveDocs(url: URL, request: Request, env: WorkerEnv): Promise<Re
   return res;
 }
 
-/* ── Louise CMS editor routes ─────────────────────────────────────────── */
+/* ── Louise Toolkit editor routes ─────────────────────────────────────────── */
 
 const resolveEditor = (request: Request, env: WorkerEnv) => resolveEditorFromCookie(request, env);
 
@@ -140,7 +140,7 @@ const MEDIA_BASE = "/media";
 /** Setting keys that hold an image URL and must resolve to a media asset. */
 const SETTINGS_IMAGE_KEYS = ["logoUrl", "faviconUrl", "defaultOgImageUrl"];
 
-/** Base `site_settings` columns the drawer Settings panel may write. */
+/** Base `site_settings` columns the Settings panel may write. */
 const SETTINGS_COLUMNS = [
   "siteName",
   "tagline",
@@ -161,7 +161,7 @@ const SETTINGS_COLUMNS = [
 
 // The public contact form: the built-in inquiries fields + Tier-3 silent spam
 // heuristics (a `website` honeypot + a 2s minimum since render). Same `inquiries`
-// table, so the drawer's Inquiries tab reviews it unchanged.
+// table, so the Louise Settings Inquiries tab reviews it unchanged.
 const contactForm = defineForm({
   name: "inquiries",
   fields: inquiriesForm.fields,
@@ -237,11 +237,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     ],
   }),
   // Public capture (contact form) + editor-gated review, both from the one
-  // built-in `inquiries` form (louisecms/forms) — #46. The dogfood adds the
+  // built-in `inquiries` form (louise/forms) — #46. The site adds the
   // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),
-  seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise dogfood" } }),
+  seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise Toolkit" } }),
 ];
 
 /* ── Non-editor routes ────────────────────────────────────────────────── */

@@ -1,11 +1,11 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/media
+// louise/media
 //
 // A site's media library: verified R2 uploads (magic-byte sniffed), paged
 // listing, delete-with-reference-scan, and Cloudflare Image-Resizing URL
 // transforms + a per-usage CSS crop. The `media` table these track lives in
-// `louisecms/db` (`mediaColumns` / `media`). Bindings contract: `MEDIA` (R2) +
+// `louise/db` (`mediaColumns` / `media`). Bindings contract: `MEDIA` (R2) +
 // `MEDIA_URL` — see {@link LouiseMediaEnv}.
 
 export { type ImageDimensions, imageDimensions } from "./dimensions.js";

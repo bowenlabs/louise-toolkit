@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — Cloudflare Turnstile server-side verification. A form's
+// louise/forms — Cloudflare Turnstile server-side verification. A form's
 // public capture route calls this to check the `cf-turnstile-response` token
 // against Turnstile's siteverify endpoint before accepting a submission. The
 // secret is the site's (server-only); Louise just owns the request shape.

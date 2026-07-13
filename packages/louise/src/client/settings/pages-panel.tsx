@@ -1,11 +1,11 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework Pages panel — CRUD over Louise-managed content pages (Terms,
 // Privacy, and anything the owner creates), served publicly by the site's
 // catch-all route. List ⇄ detail via an `editing` signal; the body is the
 // shared RichText editor and stores sanitized HTML like every other rich field.
-// Talks to the generic louisecms/editor `pages` route. Opened from the
-// file-text icon in the drawer's top framework strip.
+// Talks to the generic louise/editor `pages` route. Opened from the
+// file-text icon in the Settings' top framework strip.
 //
 // A site may pass `builtInPages` — its code-defined routes (Home, About, …)
 // that aren't `pages` rows but belong in the same list, each with an
@@ -87,7 +87,7 @@ export function PagesPanel(props: {
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.pages });
       // Jump straight to the new page's canvas — content is built in place, not
-      // in the drawer.
+      // in the Settings.
       window.location.href = `/${data.page.slug}?louise`;
     },
     onError: (err) => console.error("[louise]", err),

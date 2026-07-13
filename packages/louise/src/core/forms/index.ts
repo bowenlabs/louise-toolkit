@@ -1,7 +1,7 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — declarative form builder (issue #46). Define a form's fields
-// once; derive the table, capture route (`formRoute`, in louisecms/editor),
+// louise/forms — declarative form builder (issue #46). Define a form's fields
+// once; derive the table, capture route (`formRoute`, in louise/editor),
 // validation, and review columns from that single definition.
 
 export { columnName, deriveFormColumns } from "./columns.js";

@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Dependency-free stega stripping. Split out from `stega.ts` on purpose: the
 // client save path must ALWAYS strip any steganographic payload before it

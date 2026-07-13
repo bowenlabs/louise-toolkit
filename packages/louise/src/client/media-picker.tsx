@@ -1,8 +1,8 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// A query-free media-library picker for surfaces mounted OUTSIDE the drawer's
+// A query-free media-library picker for surfaces mounted OUTSIDE the Settings'
 // TanStack Query provider — chiefly the sections dock (`mountSections` renders
-// its own Solid root with no QueryClient, so the drawer's `MediaUrlPicker`,
+// its own Solid root with no QueryClient, so the Settings' `MediaUrlPicker`,
 // which uses `useQuery`, can't be reused there). Lazily fetches the same
 // `/api/louise/media` list the Media panel uses and calls `onPick` with the
 // chosen asset's public URL, so every image control offers the library, not

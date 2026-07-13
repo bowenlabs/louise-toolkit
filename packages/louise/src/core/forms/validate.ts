@@ -1,7 +1,7 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — validate + coerce a submission against a form's fields.
-// Reuses the shared `Rule`/`validateValue` engine (louisecms/cms) so the client
+// louise/forms — validate + coerce a submission against a form's fields.
+// Reuses the shared `Rule`/`validateValue` engine (louise/cms) so the client
 // mirror and the server run exactly the same checks — plus per-type built-ins
 // (email/url format, select allowlist, number coercion) and the `required` flag.
 

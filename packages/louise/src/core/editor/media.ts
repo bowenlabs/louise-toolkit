@@ -1,11 +1,11 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `media` route: the site's media library.
+// louise/editor — the generic `media` route: the site's media library.
 //   GET    /api/louise/media          list tracked assets (the `media` table)
 //   POST   /api/louise/media          upload a verified image + register it
 //   PATCH  /api/louise/media          set an asset's alt/caption by key
 //   DELETE /api/louise/media?key=…     delete after a delete-safety reference scan
-// Wraps louisecms/media's R2 helpers (magic-byte-sniffed uploads, the LIKE
+// Wraps louise/media's R2 helpers (magic-byte-sniffed uploads, the LIKE
 // reference scan); the `media` table + bindings (MEDIA, MEDIA_URL) are the
 // site's. The table is all-scalar, so the registry rows use raw D1.
 

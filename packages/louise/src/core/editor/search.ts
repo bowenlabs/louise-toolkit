@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — full-text search for a collection with a `search` config.
+// louise/editor — full-text search for a collection with a `search` config.
 // Exposes the Local API's FTS5-backed `search()` (and a one-shot `reindex`) over
 // HTTP:
 //   GET  /api/louise/pages/search?q=…&limit=…   ranked matches (published rows)

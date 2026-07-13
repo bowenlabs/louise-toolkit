@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Request-scoped Better Auth factory for Louise sites. Built PER REQUEST — the
 // D1 binding and Secrets-Store secret only exist at request time on Workers, so
@@ -6,7 +6,7 @@
 // natively: pass the binding straight to `database` (it uses D1's batch() for
 // atomicity; D1 has no interactive transactions).
 //
-// Plugins, always on: magic-link (studio sign-in, allowlist-gated in the route
+// Plugins, always on: magic-link (editor sign-in, allowlist-gated in the route
 // handler), admin (owner/editor roles), passkey (WebAuthn — rpID is derived
 // per request from `baseURL`, so passkeys bind to the site's own origin, dev
 // and prod alike). Captcha (Turnstile) mounts only when configured. Customer
@@ -47,7 +47,7 @@ export interface LouiseAuthConfig {
   /** Resolve the admin allowlist. Defaults to `OWNER_EMAIL`/`ENGINEER_EMAIL`
    *  from env; override to source it elsewhere (e.g. a DB lookup). */
   resolveAdmins?: (env: LouiseAuthEnv) => string[] | Promise<string[]>;
-  /** Enable customer email/password sign-in/up. Omit for an admin-only studio. */
+  /** Enable customer email/password sign-in/up. Omit for an admin-only editor. */
   customers?: { minPasswordLength?: number; requireEmailVerification?: boolean };
   /** Extra Better Auth user columns (e.g. `squareCustomerId`). */
   additionalFields?: AdditionalFields;

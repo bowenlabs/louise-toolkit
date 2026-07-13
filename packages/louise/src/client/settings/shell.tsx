@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The Louise drawer shell — a SolidJS overlay summoned in edit mode: the
+// The Louise Settings shell — a SolidJS overlay summoned in edit mode: the
 // command centre for structured/back-office work the inline surface can't do.
 // Rendered over the live page, not a separate admin app.
 //
@@ -15,7 +15,7 @@
 //     display, so it ships as a registerable tab (InquiriesPanel), not a fixed
 //     panel.
 //
-// The root carries data-theme="louise" so the drawer runs under the Louise
+// The root carries data-theme="louise" so Louise Settings runs under the Louise
 // theme while the page around it stays on the site's own theme.
 
 import { QueryClientProvider } from "@tanstack/solid-query";
@@ -26,12 +26,12 @@ import { injectStyles } from "../styles.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
 import { MediaPanel } from "./media-panel.jsx";
 import { type BuiltInPageRef, type PageTemplate, PagesPanel } from "./pages-panel.jsx";
-import { createDrawerQueryClient } from "./query.js";
+import { createSettingsQueryClient } from "./query.js";
 import { SettingsPanel } from "./settings-panel.jsx";
 import { UsersPanel } from "./users-panel.jsx";
 
-/** Event the edit-bar's Settings action fires to open the drawer. */
-export const OPEN_DRAWER_EVENT = "louise:open-drawer";
+/** Event the edit-bar's Settings action fires to open Louise Settings. */
+export const OPEN_SETTINGS_EVENT = "louise:open-settings";
 
 /** A site-registered collection tab (the BOTTOM group). The framework panels are
  *  not `CollectionTab`s — they're fixed in the top strip and can't be added here. */
@@ -44,8 +44,8 @@ export interface CollectionTab {
   panel: () => JSX.Element;
 }
 
-export interface DrawerConfig {
-  /** Editor display name shown in the drawer header. */
+export interface SettingsConfig {
+  /** Editor display name shown in the Louise Settings header. */
   userName: string;
   /** Site-registered collection tabs (bottom group). The framework panels
    *  (Pages/Media/Settings) are fixed and shell-owned — not part of this list. */
@@ -83,7 +83,7 @@ const BASE_FRAMEWORK_BUTTONS: {
   { id: "settings", label: "Settings", icon: "gear" },
 ];
 
-export function Drawer(props: DrawerConfig) {
+export function Settings(props: SettingsConfig) {
   const tabs = () => props.tabs ?? [];
   // The top strip: Media/Pages/Settings always, Users first when opted in.
   const frameworkButtons = () =>
@@ -99,8 +99,8 @@ export function Drawer(props: DrawerConfig) {
   );
 
   const openDrawer = () => setOpen(true);
-  window.addEventListener(OPEN_DRAWER_EVENT, openDrawer);
-  onCleanup(() => window.removeEventListener(OPEN_DRAWER_EVENT, openDrawer));
+  window.addEventListener(OPEN_SETTINGS_EVENT, openDrawer);
+  onCleanup(() => window.removeEventListener(OPEN_SETTINGS_EVENT, openDrawer));
 
   const toggleOverlay = (o: FrameworkPanel) => setOverlay((cur) => (cur === o ? null : o));
   const selectTab = (id: string) => {
@@ -191,22 +191,22 @@ export function Drawer(props: DrawerConfig) {
 }
 
 /**
- * Mount the drawer shell: inject the Louise stylesheet, create the shared
+ * Mount the Louise Settings shell: inject the Louise stylesheet, create the shared
  * QueryClient, and render into a body-appended root. Idempotent — a second call
- * is a no-op (Astro view-transition re-runs). Returns nothing; the drawer opens
- * on the {@link OPEN_DRAWER_EVENT}.
+ * is a no-op (Astro view-transition re-runs). Returns nothing; Louise Settings opens
+ * on the {@link OPEN_SETTINGS_EVENT}.
  */
-export function mountDrawer(config: DrawerConfig): void {
+export function mountSettings(config: SettingsConfig): void {
   if (document.getElementById("louise-drawer-root")) return;
   injectStyles();
   const root = document.createElement("div");
   root.id = "louise-drawer-root";
   document.body.appendChild(root);
-  const queryClient = createDrawerQueryClient();
+  const queryClient = createSettingsQueryClient();
   render(
     () => (
       <QueryClientProvider client={queryClient}>
-        <Drawer {...config} />
+        <Settings {...config} />
       </QueryClientProvider>
     ),
     root,

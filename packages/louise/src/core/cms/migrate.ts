@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import type { LocalApi } from "./localApi.js";
 import { computePatch, type Patch } from "./patch.js";

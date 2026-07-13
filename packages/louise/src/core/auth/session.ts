@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import type { LouiseAuth } from "./auth.js";
 import type { EditorSession } from "./types.js";
@@ -31,7 +31,7 @@ export async function resolveEditorSession(
  * role — for a site's own multi-role auth instance where the role is arbitrary
  * and access is decided per route (via {@link requireRole}) or the UI renders
  * per role. Returns null only when there is no session. Generic and
- * unopinionated: Louise bakes in no role names. (The CMS studio uses the
+ * unopinionated: Louise bakes in no role names. (Louise Editor uses the
  * role-gating {@link resolveEditorSession}.)
  */
 export async function resolveSession(

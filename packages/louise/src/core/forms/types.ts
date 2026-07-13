@@ -1,12 +1,12 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — declarative form definitions (issue #46). Define a form's
+// louise/forms — declarative form definitions (issue #46). Define a form's
 // fields once; the same definition derives the submission table, the public
 // capture route (`formRoute`), server + client validation, and the review
-// columns. `inquiries` is just the built-in default form (see `louisecms/db`).
+// columns. `inquiries` is just the built-in default form (see `louise/db`).
 //
 // Field validation reuses the shared `Rule`/`validateValue` engine
-// (`louisecms/cms`) — there is one validation definition, run on both sides.
+// (`louise/cms`) — there is one validation definition, run on both sides.
 
 import type {
   SQLiteColumn,
@@ -81,7 +81,7 @@ export interface FormSpamConfig {
 
 /** A minimal mailer the site provides so `formRoute` can send an email
  *  notification without coupling to any one email binding. Wrap your `EMAIL`
- *  binding + `louisecms/email` templates here. */
+ *  binding + `louise/email` templates here. */
 export type FormMailer = (message: {
   to: string;
   subject: string;
@@ -122,7 +122,7 @@ export type FormColumns = Record<string, SQLiteColumn>;
 
 /**
  * The product of {@link defineForm}: the original config plus everything derived
- * from it — the Drizzle `columns`/`table`, and the `reviewColumns` the drawer
+ * from it — the Drizzle `columns`/`table`, and the `reviewColumns` the Settings
  * uses to render the submissions list.
  */
 export interface FormDefinition extends FormConfig {

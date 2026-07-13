@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Scheduled link-checking (issue #5). Crawls a set of pages, extracts their
 // links, and reports the ones that don't resolve — driven from a Cron Trigger.
@@ -30,7 +30,7 @@ export function extractLinks(html: string, base: string): string[] {
 }
 
 export interface CheckLinksOptions {
-  /** Origin the pages are served from, e.g. `https://louisecms.com`. */
+  /** Origin the pages are served from, e.g. `https://louisetoolkit.com`. */
   base: string;
   /** Page paths to crawl, e.g. `["/docs/", "/docs/guide/"]`. */
   paths: string[];

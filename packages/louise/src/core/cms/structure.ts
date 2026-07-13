@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import type { CmsConfig, CollectionAdminConfig, CollectionConfig } from "./types.js";
 
@@ -14,22 +14,22 @@ import type { CmsConfig, CollectionAdminConfig, CollectionConfig } from "./types
  * optional per-slug overrides supplied at the call site.
  *
  * Pure data in / pure data out: no SolidJS, no DOM, no server imports — so
- * it's safe to import from a client studio component (e.g. the site's
+ * it's safe to import from a client editor component (e.g. the site's
  * `PanelNav`) and trivially testable.
  */
 
 /** Default group heading for collections that don't declare `admin.group`. */
-export const DEFAULT_STUDIO_GROUP = "Content";
+export const DEFAULT_EDITOR_GROUP = "Content";
 
-/** One navigable collection entry in the studio sidebar. */
-export interface StudioStructureItem {
+/** One navigable collection entry in the editor sidebar. */
+export interface EditorStructureItem {
   /** The collection's slug. */
   slug: string;
   /** Human label — `admin.label`, else the capitalized slug. */
   label: string;
   /** Where the sidebar link points (`/admin/<slug>`, configurable prefix). */
   href: string;
-  /** Read-only collections are viewable but not editable in the studio. */
+  /** Read-only collections are viewable but not editable in the editor. */
   readOnly: boolean;
   /**
    * Singletons link straight to their editor rather than a list+create
@@ -41,19 +41,19 @@ export interface StudioStructureItem {
 }
 
 /** A titled group of sidebar items, in render order. */
-export interface StudioStructureGroup {
+export interface EditorStructureGroup {
   title: string;
-  items: StudioStructureItem[];
+  items: EditorStructureItem[];
 }
 
-export interface BuildStudioStructureOptions {
+export interface BuildEditorStructureOptions {
   /**
    * Per-slug presentation overrides, merged over each collection's own
    * `admin` block (override keys win). The escape hatch for plugin-injected
    * collections (`products`, `payments`, `webhook_events`, …) that can't
-   * carry an `admin` block in hand-written config — the studio declares
+   * carry an `admin` block in hand-written config — the editor declares
    * their presentation here, exactly like Sanity defines structure at the
-   * studio level rather than on the schema.
+   * editor level rather than on the schema.
    */
   overrides?: Record<string, CollectionAdminConfig>;
   /**
@@ -81,11 +81,11 @@ function resolveAdmin(
 }
 
 /**
- * Build the studio sidebar structure from a resolved CMS config.
+ * Build the editor sidebar structure from a resolved CMS config.
  *
  * - Hidden collections (`admin.hidden`) are dropped entirely.
  * - Each remaining collection is placed in its `admin.group` (or
- *   {@link DEFAULT_STUDIO_GROUP}).
+ *   {@link DEFAULT_EDITOR_GROUP}).
  * - Within a group, items sort by `admin.order` (ascending; unset sorts
  *   after set), then by their original position in `config.collections` —
  *   so config order is the stable tiebreaker.
@@ -95,10 +95,10 @@ function resolveAdmin(
  * The input is expected to be the *resolved* config (post-plugins), since
  * that's what carries plugin-injected collections like `products`.
  */
-export function buildStudioStructure(
+export function buildEditorStructure(
   config: CmsConfig,
-  options: BuildStudioStructureOptions = {},
-): StudioStructureGroup[] {
+  options: BuildEditorStructureOptions = {},
+): EditorStructureGroup[] {
   const basePath = options.basePath ?? "/admin";
   const groupOrder = options.groupOrder ?? [];
 
@@ -109,13 +109,13 @@ export function buildStudioStructure(
     admin: resolveAdmin(collection, options.overrides),
   }));
 
-  const groups = new Map<string, StudioStructureItem[]>();
+  const groups = new Map<string, EditorStructureItem[]>();
   // Track first-appearance order of group titles for the fallback ordering.
   const appearance: string[] = [];
 
   for (const { collection, admin } of ranked) {
     if (admin.hidden) continue;
-    const title = admin.group ?? DEFAULT_STUDIO_GROUP;
+    const title = admin.group ?? DEFAULT_EDITOR_GROUP;
     if (!groups.has(title)) {
       groups.set(title, []);
       appearance.push(title);

@@ -1,12 +1,12 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/client — headless <Form> render helper (issue #46, Tier 2). Emits
+// louise/client — headless <Form> render helper (issue #46, Tier 2). Emits
 // accessible inputs from a `defineForm` catalog, mirrors the SAME server
 // validation client-side (reuses `validateSubmission` → the shared Rule engine —
 // no second validation definition), and POSTs to the form's `formRoute`. Field
 // state is a Solid `createStore` (the same lightweight approach `mountSections`
 // uses); no form-state dependency. For complex/multi-step forms, an opt-in
-// `@tanstack/solid-form` scaffold lives in `louisecms/client/tanstack-form`.
+// `@tanstack/solid-form` scaffold lives in `louise/client/tanstack-form`.
 //
 // Unstyled by default: every element carries a `louise-form*` class hook so a
 // site keeps its own look. Import `injectStyles` if you want the Louise chrome.

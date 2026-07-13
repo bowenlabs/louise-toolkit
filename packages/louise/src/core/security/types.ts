@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Shared binding-contract types for the Louise security primitives. Each
 // primitive takes its binding explicitly (rather than reaching for an ambient

@@ -1,16 +1,16 @@
 {
-  "name": "louisecms-workspace",
+  "name": "louise-workspace",
   "version": "0.0.0",
   "private": true,
-  "description": "Louise CMS — a V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers. Monorepo: the louisecms library plus the louisecms.com marketing site and Starlight docs.",
+  "description": "Louise Toolkit — a V8-native toolkit for building editable sites on Cloudflare Workers. Monorepo: the louise library plus the louisetoolkit.com marketing site and Starlight docs.",
   "license": "MIT",
   "author": "BowenLabs",
   "type": "module",
   "scripts": {
     "build": "sh ./scripts/ci-build.sh",
-    "typecheck": "vp run louisecms#typecheck",
-    "check": "vp run louisecms#check",
-    "test": "vp run louisecms#test",
+    "typecheck": "vp run louise#typecheck",
+    "check": "vp run louise#check",
+    "test": "vp run louise#test",
     "dev": "vp run site#dev",
     "changeset": "changeset",
     "release": "changeset publish"

@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Cloudflare Turnstile activation gate. Captcha protecting the magic-link
 // endpoint only turns on when BOTH halves of the pair are real: a

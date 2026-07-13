@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — submission notifications (issue #46, Tier 3). A form declares
+// louise/forms — submission notifications (issue #46, Tier 3). A form declares
 // where a submission is announced (`notify.webhook` / `notify.email`); `formRoute`
 // fires these after a successful insert, off the response path (waitUntil). The
 // email transport is the site's (a `FormMailer`), so Louise stays decoupled from

@@ -57,7 +57,7 @@ describe("mountLouise — auto-save (inline live fields)", () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
     const el = addField("settings", "1", "heroHeadline", "old");
 
-    mountLouise({ onOpenDrawer: () => {}, autoSave: { debounceMs: 50 } });
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 } });
 
     // No manual Save button while auto-save drives saves.
     expect(document.querySelector(".louise-save")).toBeNull();
@@ -82,7 +82,7 @@ describe("mountLouise — auto-save (inline live fields)", () => {
   it("coalesces rapid edits into a single save", async () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
     const el = addField("settings", "1", "heroHeadline", "");
-    mountLouise({ onOpenDrawer: () => {}, autoSave: { debounceMs: 50 } });
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 } });
 
     type(el, "a");
     type(el, "ab");
@@ -108,7 +108,7 @@ describe("mountLouise — auto-save (inline live fields)", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const el = addField("settings", "1", "heroHeadline", "");
-    mountLouise({ onOpenDrawer: () => {}, autoSave: { debounceMs: 50 } });
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 } });
 
     type(el, "v1");
     await vi.advanceTimersByTimeAsync(50); // save #1 starts, awaits
@@ -126,7 +126,7 @@ describe("mountLouise — auto-save (inline live fields)", () => {
   it("flushes immediately when the tab is hidden (no debounce wait)", async () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
     const el = addField("settings", "1", "heroHeadline", "");
-    mountLouise({ onOpenDrawer: () => {}, autoSave: { debounceMs: 5000 } });
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 5000 } });
 
     type(el, "urgent");
     // Simulate the tab being hidden before the long debounce elapses.
@@ -141,7 +141,7 @@ describe("mountLouise — auto-save (inline live fields)", () => {
   it("opt-out (autoSave:false) renders a Save button and never auto-saves", async () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
     const el = addField("settings", "1", "heroHeadline", "");
-    mountLouise({ onOpenDrawer: () => {}, autoSave: false });
+    mountLouise({ onOpenSettings: () => {}, autoSave: false });
 
     const saveBtn = document.querySelector<HTMLButtonElement>(".louise-save");
     expect(saveBtn).not.toBeNull();

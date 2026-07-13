@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import {
   integer,
@@ -124,7 +124,7 @@ function fieldToColumn(key: string, field: FieldConfig): SQLiteColumnBuilderBase
     }
     default:
       throw new LouiseCmsError(
-        `Field type "${(field as FieldConfig).type}" is not yet supported by louisecms/cms codegen`,
+        `Field type "${(field as FieldConfig).type}" is not yet supported by louise/cms codegen`,
       );
   }
 }

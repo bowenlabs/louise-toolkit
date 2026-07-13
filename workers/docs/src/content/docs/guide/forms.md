@@ -14,7 +14,7 @@ the **built-in default form**.
 ## Define a form
 
 ```ts
-import { defineForm } from "louisecms/forms";
+import { defineForm } from "louise/forms";
 
 export const contact = defineForm({
   name: "inquiries", // form + table name (a bare SQL identifier)
@@ -48,8 +48,8 @@ same-origin-guarded (CSRF) but **not** session-gated — anyone may submit —
 validates + coerces against the fields, applies the spam guard, and inserts:
 
 ```ts
-import { formRoute } from "louisecms/editor";
-import { composeWorker } from "louisecms/worker";
+import { formRoute } from "louise/editor";
+import { composeWorker } from "louise/worker";
 import { contact } from "./forms";
 
 export default composeWorker({
@@ -76,14 +76,14 @@ the same-origin check passes); a `fetch` with a JSON body works too.
 
 ## Render (headless `<Form>`)
 
-`louisecms/client` ships a headless `<Form>` that renders accessible inputs from
+`louise/client` ships a headless `<Form>` that renders accessible inputs from
 the catalog and **mirrors the exact server validation client-side** (it reuses
 `validateSubmission` — the same `Rule` engine, no second definition), then POSTs
 to the form's `formRoute`. It's unstyled by default (every element has a
 `louise-form*` class hook), so a site keeps its own look.
 
 ```tsx
-import { Form } from "louisecms/client";
+import { Form } from "louise/client";
 import { contact } from "./forms"; // a client-safe { name, fields } config
 
 <Form form={contact} />; // POSTs to /api/louise/forms/inquiries
@@ -104,7 +104,7 @@ multi-step form, field arrays, or async cross-field rules, reach for
 Louise's one `Rule` engine via the dependency-free adapter:
 
 ```tsx
-import { tanstackFormValidators } from "louisecms/forms";
+import { tanstackFormValidators } from "louise/forms";
 const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | undefined }
 
 // wire each into a TanStack field:
@@ -117,7 +117,7 @@ complex hand-built form runs the same checks as `<Form>` and the server.
 
 ## Review
 
-The submissions review route (`inquiriesRoute`) and the drawer's Inquiries tab
+The submissions review route (`inquiriesRoute`) and the Settings' Inquiries tab
 are already form-agnostic: the route lists newest-first / deletes by id over the
 form's table, and the panel renders the columns. So one `defineForm` gives you
 capture **and** review with no extra wiring.
@@ -158,7 +158,7 @@ defineForm({
 ```
 
 `webhook` POSTs `{ form, values }`. `email` uses a **`mailer`** you pass to
-`formRoute` (wrap your `EMAIL` binding + `louisecms/email` templates), so Louise
+`formRoute` (wrap your `EMAIL` binding + `louise/email` templates), so Louise
 stays decoupled from any one mail transport. A notification failure never fails
 the submission.
 
@@ -166,7 +166,7 @@ the submission.
 
 A first-class form like `inquiries` gets its own typed table. For one-off forms —
 RSVP, waitlist, booking — write to the shared **`submissions`** table
-(`louisecms/db`) instead, so a new form needs **no migration**:
+(`louise/db`) instead, so a new form needs **no migration**:
 
 ```ts
 formRoute({ form: rsvp, genericTable: "submissions" });     // capture → { form, data }
@@ -175,5 +175,5 @@ submissionsRoute({ form: "rsvp", resolveEditor });           // review that form
 
 `formRoute`'s `genericTable` stores each submission as `{ form, data }` (the
 values JSON-encoded); `submissionsRoute` lists/deletes one form's rows (parsing
-`data` back out) for a drawer review tab. Register a tab per catalog form and each
+`data` back out) for Louise Settings review tab. Register a tab per catalog form and each
 gets capture, validation, and review with one shared table.

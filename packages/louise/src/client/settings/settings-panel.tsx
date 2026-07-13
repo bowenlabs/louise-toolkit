@@ -1,10 +1,10 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework Settings panel — edits the structured `site_settings` singleton
 // (identity, appearance, navigation, contact, SEO) that every Louise site
 // shares, and exposes an extension slot for site-specific settings. Talks to
-// the generic louisecms/editor `settings` route (GET current, POST patch)
-// through TanStack Query. Opened from the gear icon in the drawer's top strip.
+// the generic louise/editor `settings` route (GET current, POST patch)
+// through TanStack Query. Opened from the gear icon in the Settings' top strip.
 //
 // The panel is fixed and framework-owned, but its contents = a common base
 // (mapping 1:1 to `siteSettingsColumns`) PLUS a site's declarative extension

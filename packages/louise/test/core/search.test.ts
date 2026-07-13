@@ -32,14 +32,14 @@ describe("search config + indexing", () => {
 
   it("flattens a json field's string leaves into search text", () => {
     const [title, body, sections] = extractSearchText(config, {
-      title: "Louise CMS",
+      title: "Louise Toolkit",
       body: { type: "doc", content: [{ type: "text", text: "edit on the page" }] },
       sections: [
         { _type: "hero", heading: "Big Heading", tagline: "a tagline" },
         { _type: "featureGrid", items: [{ title: "Fast", body: "at the edge" }] },
       ],
     });
-    expect(title).toBe("Louise CMS");
+    expect(title).toBe("Louise Toolkit");
     expect(body).toContain("edit on the page"); // richText flattened
     expect(sections).toContain("Big Heading");
     expect(sections).toContain("a tagline");

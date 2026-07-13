@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // `Error.captureStackTrace` is a real V8 engine feature available in
 // workerd's V8 isolates — it's just not part of any spec, so it isn't in
@@ -128,7 +128,7 @@ export class LouiseAccessDeniedError extends LouiseCmsError {
  * (flattened, e.g. `shippingAddress_city` for a group subfield). `severity`
  * lets a rule warn without blocking the write — only `"error"` violations
  * cause createLocalApi to throw; `"warning"` ones are carried through for
- * the studio to surface non-blockingly.
+ * the editor to surface non-blockingly.
  */
 export interface ValidationViolation {
   path: string;

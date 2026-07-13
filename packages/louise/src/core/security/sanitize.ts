@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Parser-based allowlist sanitizer for editor-authored rich text. Parses the
 // HTML with ultrahtml and rebuilds it against a strict allowlist:
@@ -118,7 +118,7 @@ const DANGEROUS_TOKENS =
 const SRCLESS_IMG = /<img\b(?![^>]*\bsrc=)[^>]*>/gi;
 
 /** Whether `src` is served from `base` (the site's `MEDIA_URL`) — mirrors
- *  `isMediaUrl` in louisecms/media, inlined so this base-security module stays
+ *  `isMediaUrl` in louise/media, inlined so this base-security module stays
  *  dependency-free. */
 function isFromMediaBase(base: string, src: string): boolean {
   const b = base.replace(/\/$/, "");

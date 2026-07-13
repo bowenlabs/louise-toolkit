@@ -1,18 +1,18 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louisecms/client/drawer` — the drawer data layer: the shared TanStack Solid
-// Query wiring and typed fetch helpers every Louise editor drawer uses. The
+// `louise/client/settings` — the Settings data layer: the shared TanStack Solid
+// Query wiring and typed fetch helpers every Louise editor Settings uses. The
 // shell (see ./shell) and framework panels build on this; sites reuse the same
 // helpers for their own collection tabs so everything shares one query cache.
 
 import { QueryClient } from "@tanstack/solid-query";
 
 /**
- * The drawer's QueryClient. The drawer is a short-lived, editor-only surface
+ * The Settings' QueryClient. The Settings is a short-lived, editor-only surface
  * that opens over the live page, so: no window-focus refetch, a short stale
  * window to keep tab switches snappy without hammering the API, and one retry.
  */
-export function createDrawerQueryClient(): QueryClient {
+export function createSettingsQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: { refetchOnWindowFocus: false, staleTime: 30_000, retry: 1 },
@@ -21,7 +21,7 @@ export function createDrawerQueryClient(): QueryClient {
 }
 
 /**
- * A namespaced drawer query key, e.g. `louiseQueryKey("products", id)`. Sites
+ * A namespaced Settings query key, e.g. `louiseQueryKey("products", id)`. Sites
  * use this for their own collections; the framework-generic ones are in
  * {@link louiseQueryKeys}.
  */

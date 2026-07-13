@@ -1,4 +1,4 @@
-// Louise inline-editing chrome — styled to feel like Tina Studio: soft blue
+// Louise inline-editing chrome — styled to feel like a modern inline editor: soft blue
 // accent, clean light surface, rounded corners, a small floating action bar.
 // Injected once at mount (only ever loaded in edit mode) so nothing ships to
 // public page loads.

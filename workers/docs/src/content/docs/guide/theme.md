@@ -5,7 +5,7 @@ sidebar:
   order: 12
 ---
 
-Louise's editor chrome — the drawer, inline-edit affordances, panels — is styled
+Louise's editor chrome — Louise Settings, inline-edit affordances, panels — is styled
 by the **louise** [daisyUI](https://daisyui.com) theme, built from the BowenLabs
 brand system with blue `#1481ef` as primary. It styles _editor surfaces only_;
 your public site keeps its own theme.
@@ -34,8 +34,8 @@ chrome:
     louise --default,
     louise-dark --prefersdark;
 }
-@import "louisecms/theme/louise.css";
-@import "louisecms/theme/fonts.css";
+@import "louise/theme/louise.css";
+@import "louise/theme/fonts.css";
 ```
 
 Apply `data-theme="louise"` (or `louise-dark`) to the root of any editor surface

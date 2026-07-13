@@ -1,10 +1,10 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `save` route: the inline field-save endpoint
+// louise/editor — the generic `save` route: the inline field-save endpoint
 // the client posts a single changed field to (`{ collection, key, field, value }`).
 // The session comes from `resolveEditor` (never the page's edit mode); field
 // names are allowlisted per collection so a forged request can't touch an
-// unintended column; rich fields are sanitized (louisecms/security) before store.
+// unintended column; rich fields are sanitized (louise/security) before store.
 //
 // Scope: collection rows keyed by id. Settings edits go through the `settings`
 // route (structured panel), not here — so `save` has no settings branch.
@@ -30,7 +30,7 @@ export interface SaveRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   collections: Record<string, SaveCollectionConfig>;
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
-  /** Rich-HTML sanitizer; defaults to louisecms/security's `sanitizeRichHtml`. */
+  /** Rich-HTML sanitizer; defaults to louise/security's `sanitizeRichHtml`. */
   sanitize?: (html: string) => string;
   /** Mount path. Default `/api/louise/save`. */
   path?: string;

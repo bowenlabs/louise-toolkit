@@ -1,8 +1,8 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Default Inquiries panel — the package-provided body for the Inquiries
 // collection tab. Contact-form submissions are created by the public site; the
-// drawer only reviews and clears them, so this is read-mostly: list newest-first
+// Settings only reviews and clears them, so this is read-mostly: list newest-first
 // (GET /api/louise/inquiries), delete one by id. `inquiries` is a Louise base
 // table, but how a site displays a submission varies, so this is a *tab* a site
 // registers (in the bottom group) and can customize via `renderRow` — not a

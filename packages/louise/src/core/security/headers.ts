@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Transport/scope security headers + an optional CSP style-src rewrite, shared
 // by every Louise site's middleware. Composed as small functions the site's

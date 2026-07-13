@@ -1,8 +1,8 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/forms — optional TanStack Form adapter (issue #46, Tier 2).
+// louise/forms — optional TanStack Form adapter (issue #46, Tier 2).
 //
-// The base <Form> render helper (louisecms/client) covers the flat, generated
+// The base <Form> render helper (louise/client) covers the flat, generated
 // forms in scope with no dependency. For a COMPLEX form — multi-step, field
 // arrays, cross-field/async rules — a site may reach for `@tanstack/solid-form`.
 // This adapter lets that form still validate with Louise's SHARED `Rule` engine

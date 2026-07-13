@@ -34,7 +34,7 @@ the same config:
 
 ```ts
 // pages-collection.ts
-import { defineCollection } from "louisecms/cms";
+import { defineCollection } from "louise/cms";
 export const pagesCollection = defineCollection({
   slug: "pages",
   fields: {
@@ -46,7 +46,7 @@ export const pagesCollection = defineCollection({
 });
 
 // schema.ts — the snapshot table, plus the pointer column on `pages`
-import { collectionVersionsTable } from "louisecms/cms";
+import { collectionVersionsTable } from "louise/cms";
 export const pagesVersions = collectionVersionsTable(pagesCollection);
 // pages: { …pagesColumns, publishedVersionId: integer("published_version_id") }
 ```

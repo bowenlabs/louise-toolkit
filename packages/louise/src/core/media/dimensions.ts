@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/media — intrinsic image dimensions from the file header.
+// louise/media — intrinsic image dimensions from the file header.
 //
 // Reads width/height out of the leading bytes without decoding the pixels, so an
 // upload can record its dimensions cheaply on a Worker (no image library). Pairs

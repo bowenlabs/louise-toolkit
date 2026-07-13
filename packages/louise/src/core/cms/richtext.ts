@@ -1,4 +1,4 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Minimal TipTap-JSON → HTML read-side renderer. Turns stored rich-text JSON
 // into an HTML string for a public site — only the node/mark types listed

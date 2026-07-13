@@ -1,10 +1,10 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import { isAllowedSignInEmail } from "./admins.js";
 import type { LouiseAuth } from "./auth.js";
 
 /**
- * Better Auth catch-all with the studio magic-link allowlist gate. A site's
+ * Better Auth catch-all with the editor magic-link allowlist gate. A site's
  * `/api/auth/[...all]` route calls this. Non-admin magic-link requests are
  * rejected BEFORE Better Auth runs — no token, no mail, and (at the verify
  * step) no user row — and return the SAME enumeration-safe response a real send

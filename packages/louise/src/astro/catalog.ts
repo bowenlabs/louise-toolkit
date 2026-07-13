@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louisecms/astro` — `defineCatalogLoader`: the shared plumbing for a commerce
+// `louise/astro` — `defineCatalogLoader`: the shared plumbing for a commerce
 // catalog served as an Astro Live Content Collection. Live collections fetch at
 // request time, so a price/stock edit shows on the next render with no rebuild.
 //

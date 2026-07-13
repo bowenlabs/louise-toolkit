@@ -1,6 +1,6 @@
 # Third-party notices
 
-`louisecms` bundles code and assets from the following third-party projects.
+`louise` bundles code and assets from the following third-party projects.
 Their licenses and copyright notices are reproduced below, as required.
 
 ---
@@ -9,7 +9,7 @@ Their licenses and copyright notices are reproduced below, as required.
 
 The inline-edit toolbar and panels use icons from [Phosphor Icons](https://phosphoricons.com).
 Phosphor's SVG assets are inlined into this package's build (see
-`src/client/icons.tsx`), so a copy is distributed with `louisecms`.
+`src/client/icons.tsx`), so a copy is distributed with `louise`.
 
 Copyright (c) 2023 Phosphor Icons
 
@@ -35,10 +35,10 @@ SOFTWARE.
 
 ## ultrahtml
 
-The rich-text sanitizer (`louisecms/security`, see `src/core/security/sanitize.ts`)
+The rich-text sanitizer (`louise/security`, see `src/core/security/sanitize.ts`)
 parses and rebuilds editor HTML with [ultrahtml](https://github.com/natemoo-re/ultrahtml),
 which is bundled into this package's build, so a copy is distributed with
-`louisecms`.
+`louise`.
 
 Copyright (c) 2022 Nate Moore
 

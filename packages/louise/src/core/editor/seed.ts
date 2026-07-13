@@ -1,9 +1,9 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/editor — the generic `seed` route: idempotently create the
+// louise/editor — the generic `seed` route: idempotently create the
 // `site_settings` singleton row (with optional default column values) so a
 // fresh deploy has a row to patch. Guarded as a mutation (same-origin) even on
-// GET, so the drawer's seed *link* works from a same-origin click (which sends
+// GET, so the Settings' seed *link* works from a same-origin click (which sends
 // a same-origin Referer) without dropping CSRF protection on a write.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -22,7 +22,7 @@ export interface SeedRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   id?: number;
   /** Mount path. Default `/api/louise/seed`. */
   path?: string;
-  /** Let a same-origin GET trigger the seed (a clickable drawer link). Default true. */
+  /** Let a same-origin GET trigger the seed (a clickable Settings link). Default true. */
   allowGet?: boolean;
 }
 

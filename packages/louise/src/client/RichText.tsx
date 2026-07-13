@@ -1,6 +1,6 @@
 // Louise rich text — ProseKit-Solid everywhere (per LOUISE.md's stack row).
 // One Solid component owns the editor; the vanilla inline surface reuses it
-// through mountRichText (solid-js/web render), so inline fields and drawer
+// through mountRichText (solid-js/web render), so inline fields and Settings
 // forms share the exact same editor + ProseMirror JSON storage contract.
 
 import { defineBasicExtension } from "prosekit/basic";
@@ -36,7 +36,7 @@ import { Icon, type IconName } from "./icons.jsx";
 
 /**
  * Uploads a dropped/pasted/picked image to R2 through the same
- * /api/louise/media endpoint the drawer panels use (web/ scope), returning the
+ * /api/louise/media endpoint the Settings panels use (web/ scope), returning the
  * public URL. Shared by the paste/drop handler and the toolbar image button.
  */
 async function r2ImageUploader({ file }: { file: File }): Promise<string> {
@@ -89,7 +89,7 @@ function louiseExtension(blocks = false) {
     defineImageUploadHandler({ uploader: r2ImageUploader }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
-    // Page-builder blocks (#16) — opt-in: the drawer Pages panel composes
+    // Page-builder blocks (#16) — opt-in: the Settings Pages panel composes
     // whole pages, while inline prose fields stay blocks-free.
     ...(blocks ? [defineBlocksExtension()] : []),
   );

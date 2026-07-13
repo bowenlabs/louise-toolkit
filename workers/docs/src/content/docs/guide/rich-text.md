@@ -6,8 +6,8 @@ sidebar:
 ---
 
 Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid) —
-`louisecms/client`'s `RichText` — used identically by inline fields and
-by any drawer form a host app builds.
+`louise/client`'s `RichText` — used identically by inline fields and
+by any Settings form a host app builds.
 
 ## HTML in, HTML out
 
@@ -59,7 +59,7 @@ resizable node view lets an editor drag the corner; the size persists as
 ## Using it directly
 
 ```tsx
-import { RichText } from "louisecms/client";
+import { RichText } from "louise/client";
 
 <RichText
   value={html}
@@ -70,4 +70,4 @@ import { RichText } from "louisecms/client";
 
 For inline `[data-louise-field]` markers you don't call `RichText` yourself —
 [`mountLouise`](/guide/inline-editing/) mounts it for you. `RichText` is
-exported for the structured forms a host app builds in its drawer.
+exported for the structured forms a host app builds in its Settings.

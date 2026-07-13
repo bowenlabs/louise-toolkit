@@ -1,10 +1,10 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Framework Media panel — browses the site's media library (GET
 // /api/louise/media), uploads new images, copies public URLs, and deletes
 // objects with the delete-safety reference scan (a 409 lists what still uses
-// the file). Opened from the image icon in the drawer's top framework strip.
-// Talks to the generic louisecms/editor `media` route.
+// the file). Opened from the image icon in the Settings' top framework strip.
+// Talks to the generic louise/editor `media` route.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";

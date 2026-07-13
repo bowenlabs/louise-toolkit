@@ -3,9 +3,9 @@ import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
-// louisecms.com — the marketing landing plus the Louise CMS dogfood, deployed to
+// louisetoolkit.com — the marketing landing, itself built with Louise Toolkit, deployed to
 // Cloudflare Workers. The Starlight docs used to live here under /docs/**; they
-// now have their own static app (workers/docs) served under docs.louisecms.com
+// now have their own static app (workers/docs) served under docs.louisetoolkit.com
 // by the *same* Worker — see src/worker.ts, which dispatches by Host.
 //
 // SSR (`output: server`) because Louise renders per-request edit affordances and
@@ -13,7 +13,7 @@ import { defineConfig } from "astro/config";
 // (src/styles/louise.css); the plugin only emits into stylesheets that
 // `@import "tailwindcss"`.
 export default defineConfig({
-  site: "https://louisecms.com",
+  site: "https://louisetoolkit.com",
   output: "server",
   adapter: cloudflare(),
   vite: {
@@ -21,6 +21,6 @@ export default defineConfig({
     // `astro preview` runs behind Vite's preview server, which blocks foreign
     // Host headers by default. Allow the two production hosts so the one-Worker
     // Host dispatch (src/worker.ts) can be exercised locally with a Host header.
-    preview: { allowedHosts: ["louisecms.com", "docs.louisecms.com"] },
+    preview: { allowedHosts: ["louisetoolkit.com", "docs.louisetoolkit.com"] },
   },
 });

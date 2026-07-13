@@ -5,7 +5,7 @@
 // Publishing promotes a draft onto the main row. Used for both the `sections`
 // surface (home) and the rich-text `body` surface ([...slug] pages).
 import { and, desc, eq, gt } from "drizzle-orm";
-import { db } from "louisecms/db";
+import { db } from "louise/db";
 import { pages, pagesVersions } from "../../schema.js";
 
 /** The newest still-*pending* draft's full snapshot for a page, or `null` when

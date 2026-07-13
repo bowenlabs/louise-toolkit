@@ -1,11 +1,11 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 /**
  * Visual editing / click-to-edit (issue #15) — adopts Sanity's
  * Presentation/visual-editing idea (pattern, not code): the rendered page
  * (in a preview context) tags editable regions with the source field they
  * came from, and an overlay turns those regions into click targets that tell
- * the studio which field to focus.
+ * the editor which field to focus.
  *
  * This module ships the two reusable, framework-agnostic primitives:
  * 1. **Encoding** — `editAttr({ collection, id, field })` produces a data
@@ -14,9 +14,9 @@
  * 2. **Overlay** — `mountVisualEditing()` (browser-only; references `document`
  *    lazily, so importing it server-side is harmless) highlights tagged
  *    elements on hover and, on click, calls `onSelect` and `postMessage`s the
- *    ref to the parent window (the studio shell hosting the preview iframe).
+ *    ref to the parent window (the editor shell hosting the preview iframe).
  *
- * The studio side listens for that message and navigates to
+ * The editor side listens for that message and navigates to
  * `/admin/<collection>/<id>` (and may focus `<field>`); that wiring is
  * consumer-side and not prescribed here.
  */
@@ -33,7 +33,7 @@ export const EDIT_ATTR = "data-louise-edit";
 
 /**
  * Per-item stable key on `array`/block items (#15, per-block tagging). The
- * studio's block builder stamps this on each block it creates so a click-to-
+ * editor's block builder stamps this on each block it creates so a click-to-
  * edit ref (`blocks.<_key>`) survives reordering — unlike a bare array index.
  * It rides along in the block's JSON (the `array` field is a verbatim JSON
  * column) and is never rendered as an input (the editor only renders declared
@@ -57,7 +57,7 @@ export function newBlockKey(): string {
  * (`blocks.<_key>`) and the per-field live-preview path (`blocks.<index>.
  * <field>`) — either way the first segment is the array, the second the
  * block. Returns null for a bare array ref (`blocks`) that names no specific
- * block. Shared by the studio (routing a click to a block) and the block
+ * block. Shared by the editor (routing a click to a block) and the block
  * builder (focusing it) so the two can't drift.
  */
 export function parseBlockFieldRef(field: string): { field: string; key: string } | null {
@@ -98,8 +98,8 @@ export interface VisualEditingMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Live preview (studio → preview): the reverse channel of click-to-edit. The
-// studio posts the in-progress form values into the preview iframe so tagged
+// Live preview (editor → preview): the reverse channel of click-to-edit. The
+// editor posts the in-progress form values into the preview iframe so tagged
 // text regions update as the client types. Structural edits (adding blocks)
 // aren't reflected — those need a full re-render — but text edits feel live.
 // ---------------------------------------------------------------------------
@@ -146,13 +146,13 @@ export interface PreviewSyncOptions {
   id: number;
   /** Where to search for tagged regions. Default `document`. */
   root?: ParentNode;
-  /** Only accept messages from this origin (the studio). Default: any. */
+  /** Only accept messages from this origin (the editor). Default: any. */
   allowedOrigin?: string;
 }
 
 /**
  * Mount the live-preview receiver on a preview page (browser-only). Listens
- * for {@link PreviewValuesMessage} from the studio window and patches tagged
+ * for {@link PreviewValuesMessage} from the editor window and patches tagged
  * text regions via {@link applyPreviewValues}. Returns a cleanup function.
  */
 export function mountPreviewSync(options: PreviewSyncOptions): () => void {
@@ -177,14 +177,14 @@ export interface VisualEditingOptions {
   onSelect?: (ref: EditRef, element: Element) => void;
   /**
    * Origin to `postMessage` the selection to the parent window. Default
-   * `"*"`. Set to the studio origin in production.
+   * `"*"`. Set to the editor origin in production.
    */
   targetOrigin?: string;
   /** Outline color for the hover highlight. Default a teal accent. */
   highlightColor?: string;
   /**
    * Resolve a stega-encoded {@link EditRef} from a text run (pass `stegaDecode`
-   * from `louisecms/stega`). When provided, the overlay ALSO hit-tests text
+   * from `louise/stega`). When provided, the overlay ALSO hit-tests text
    * nodes: prose tagged invisibly via stega becomes a click target with no
    * wrapper element — in addition to the `data-louise-edit` element targets.
    * Kept as an injected callback so this module stays free of the optional

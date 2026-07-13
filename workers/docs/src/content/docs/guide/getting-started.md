@@ -11,17 +11,17 @@ Louise is a library, not a scaffold — you add it to a Cloudflare Workers app
 ## Install
 
 ```sh
-npm install louisecms
+npm install louise
 ```
 
 Louise's heavier dependencies are **optional peers**, so a route that only uses
-`louisecms/errors` pulls in nothing extra. Install the peers for the
+`louise/errors` pulls in nothing extra. Install the peers for the
 exports you actually use:
 
 | If you import…                              | Also install                     |
 | ------------------------------------------- | -------------------------------- |
-| `louisecms/db`, `/cms`                      | `drizzle-orm`                    |
-| `louisecms/client`                          | `solid-js prosekit @prosekit/pm` |
+| `louise/db`, `/cms`                      | `drizzle-orm`                    |
+| `louise/client`                          | `solid-js prosekit @prosekit/pm` |
 | `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_                     |
 
 ```sh
@@ -38,8 +38,8 @@ and in a unit test with a fake binding.
 
 ```ts
 // A bare Cloudflare Worker endpoint.
-import { db } from "louisecms/db";
-import { sendEmail } from "louisecms/email";
+import { db } from "louise/db";
+import { sendEmail } from "louise/email";
 
 export default {
   async fetch(_req: Request, env: Env) {
@@ -71,7 +71,7 @@ wasn't rendered in edit mode) `mountLouise` does nothing, so you can lazy-import
 it safely.
 
 ```ts
-import { mountLouise } from "louisecms/client";
+import { mountLouise } from "louise/client";
 mountLouise();
 ```
 
@@ -89,7 +89,7 @@ and [Rich text](/guide/rich-text/) for prose fields.
 
 ## Building the package
 
-Louise is developed in the [`louisecms`](https://github.com/bowenlabs/louisecms)
+Louise is developed in the [`louise`](https://github.com/bowenlabs/louise-toolkit)
 workspace with [Vite+](https://viteplus.dev):
 
 ```sh

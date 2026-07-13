@@ -46,6 +46,6 @@ magic-link** delivered through Cloudflare Email Sending (Louise's
   request time on Workers.
 - **Rate-limited & captcha'd** public POSTs (sign-in, contact, checkout).
 
-None of this is _in_ the `louisecms` package — it's the host app's
+None of this is _in_ the `louise` package — it's the host app's
 wiring. Louise's contribution is the `email` primitive the magic link rides on
 and the client that only renders once your middleware says "editor".

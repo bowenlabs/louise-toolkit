@@ -1,6 +1,6 @@
-// Copyright (c) 2026 BowenLabs. Louise (louisecms) is MIT licensed.
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louisecms/db
+// louise/db
 //
 // Thin wrapper around Drizzle's D1 driver. Raw binding in, Drizzle
 // instance out — the schema is the caller's, never Louise's. Louise has

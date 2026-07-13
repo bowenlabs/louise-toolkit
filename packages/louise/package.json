@@ -1,7 +1,7 @@
 {
-  "name": "louisecms",
+  "name": "louise",
   "version": "0.11.0",
-  "description": "Louise CMS — a V8-native, inline edit-on-the-live-page CMS for Cloudflare Workers. Framework-agnostic core primitives (cms, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
+  "description": "Louise Toolkit — a V8-native toolkit for building editable sites on Cloudflare Workers. Framework-agnostic core primitives (cms, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
   "keywords": [
     "astro",
     "cloudflare-workers",
@@ -12,13 +12,13 @@
     "prosekit",
     "solid-js"
   ],
-  "homepage": "https://louisecms.com",
-  "bugs": "https://github.com/bowenlabs/louisecms/issues",
+  "homepage": "https://louisetoolkit.com",
+  "bugs": "https://github.com/bowenlabs/louise-toolkit/issues",
   "license": "MIT",
   "author": "BowenLabs",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bowenlabs/louisecms.git",
+    "url": "git+https://github.com/bowenlabs/louise-toolkit.git",
     "directory": "packages/louise"
   },
   "bin": {
@@ -56,10 +56,10 @@
       "import": "./dist/client/index.js",
       "default": "./dist/client/index.js"
     },
-    "./client/drawer": {
-      "types": "./dist/client/drawer/index.d.ts",
-      "import": "./dist/client/drawer/index.js",
-      "default": "./dist/client/drawer/index.js"
+    "./client/settings": {
+      "types": "./dist/client/settings/index.d.ts",
+      "import": "./dist/client/settings/index.js",
+      "default": "./dist/client/settings/index.js"
     },
     "./cms": {
       "types": "./dist/core/cms/index.d.ts",

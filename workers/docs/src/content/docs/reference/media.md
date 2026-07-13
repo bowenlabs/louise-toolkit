@@ -1,19 +1,19 @@
 ---
 title: media
-description: "louisecms/media — verified R2 uploads, an asset registry with alt/caption/dimensions, and Image-Resizing URL transforms."
+description: "louise/media — verified R2 uploads, an asset registry with alt/caption/dimensions, and Image-Resizing URL transforms."
 sidebar:
   order: 13
 ---
 
 ```ts
-import { putMedia, listMedia, deleteMedia, cfImage, mediaMetaByUrl } from "louisecms/media";
+import { putMedia, listMedia, deleteMedia, cfImage, mediaMetaByUrl } from "louise/media";
 ```
 
 A site's media library: security-verified R2 uploads (magic-byte sniffed), an
 asset registry carrying `alt`/`caption`/dimensions, delete-with-reference-scan,
 and Cloudflare Image-Resizing URL transforms. The HTTP surface that guards these
 with an editor session is [`mediaRoute`](/reference/editor/); the `media` table
-lives in [`louisecms/db`](/reference/db/) (`mediaColumns`). Bindings: `MEDIA`
+lives in [`louise/db`](/reference/db/) (`mediaColumns`). Bindings: `MEDIA`
 (R2) + `MEDIA_URL`. No required peers. See the [media guide](/guide/media/).
 
 ## Uploads

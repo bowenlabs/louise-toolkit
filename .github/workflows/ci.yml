@@ -30,14 +30,14 @@ jobs:
         working-directory: packages/louise
 
       - name: Type-check
-        run: vp run "louisecms#typecheck"
+        run: vp run "louise#typecheck"
 
       - name: Test
         run: vp test
         working-directory: packages/louise
 
       - name: Pack the library
-        run: vp run "louisecms#pack"
+        run: vp run "louise#pack"
 
       - name: Build the site
         run: vp run "site#build"

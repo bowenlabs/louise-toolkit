@@ -3,14 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiGet,
   apiSend,
-  createDrawerQueryClient,
+  createSettingsQueryClient,
   louiseQueryKey,
   louiseQueryKeys,
-} from "../../src/client/drawer/query.js";
+} from "../../src/client/settings/query.js";
 
-describe("createDrawerQueryClient", () => {
+describe("createSettingsQueryClient", () => {
   it("returns a QueryClient with editor-tuned defaults", () => {
-    const client = createDrawerQueryClient();
+    const client = createSettingsQueryClient();
     expect(client).toBeInstanceOf(QueryClient);
     const q = client.getDefaultOptions().queries;
     expect(q?.refetchOnWindowFocus).toBe(false);

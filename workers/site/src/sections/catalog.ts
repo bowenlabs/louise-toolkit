@@ -1,4 +1,4 @@
-import type { SectionCatalog } from "louisecms/client";
+import type { SectionCatalog } from "louise/client";
 
 // The site's catalog of preconfigured section types — SCHEMA ONLY (field defs);
 // the bespoke render components live in ./*.astro and are wired in
@@ -75,7 +75,7 @@ export const SECTIONS: SectionCatalog = {
     },
   },
   // Contact form — only the surrounding copy is section-edited; the inputs come
-  // from the built-in `inquiries` form (louisecms/forms), which owns validation.
+  // from the built-in `inquiries` form (louise/forms), which owns validation.
   contact: {
     label: "Contact form",
     icon: "ph ph-envelope",
