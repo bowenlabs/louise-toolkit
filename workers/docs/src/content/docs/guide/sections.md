@@ -89,6 +89,8 @@ Render empty fields too (in edit mode) so there's something to click into;
 import { mountSections } from "louisecms/client";
 
 mountSections(el, { catalog: SECTIONS, pageId, initial });
+// Auto-save is on by default; opt out with:
+mountSections(el, { catalog: SECTIONS, pageId, initial, autoSave: false });
 ```
 
 `el` is the wrapper around the server-rendered sections. The UX is **hybrid**:
@@ -102,15 +104,18 @@ mountSections(el, { catalog: SECTIONS, pageId, initial });
 ## The save contract
 
 When the page is wired for [drafts & publishing](/guide/drafts/) (a `versions`
-collection), the dock's **Save draft** stages a version without touching the live
-page, and **Publish** promotes it. Otherwise **Save** writes straight to the page
-via `PATCH /api/louise/pages/:id`.
+collection), a save stages a **draft** version without touching the live page,
+and **Publish** promotes it.
 
-- **Text edits** are dirty until **Save draft** — no reload (the DOM already
-  shows the change); the live page is unchanged until you **Publish**.
+- **Text edits** stage a **draft** — no reload (the DOM already shows the change);
+  the live page is unchanged until you **Publish**. With auto-save on (the
+  default) this happens on an idle debounce, so the dock shows only a live status
+  and **Publish** — no Save draft button. Auto-save **never publishes**.
 - **Structural changes** save a draft and then reload, so the server re-renders
   the new shape (which comes back inline-editable). In edit mode the page resumes
   your latest draft; view mode always shows the published version.
+
+Opt out with `autoSave: false` to bring back the manual **Save draft** button.
 
 Store `sections` as a JSON column on your `pages` table and add it to your
 [`pagesRoute`](/reference/editor/) `fields` allowlist (metadata/create/delete) —

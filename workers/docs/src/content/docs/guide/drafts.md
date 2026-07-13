@@ -16,13 +16,16 @@ live in a companion `${slug}_versions` table until published; a nullable
 `published_version_id` on the main row points at the live version.
 
 - **Save draft** stores a full snapshot in `${slug}_versions` — the live row is
-  untouched.
+  untouched. With [auto-save](/guide/inline-editing/#auto-save) on (the default),
+  edits stage this draft automatically on an idle debounce — no button.
 - **Publish** copies a version's snapshot onto the live row and sets
   `published_version_id`, running full field validation.
 - **Unpublish** clears the pointer; **Restore** is just publishing an older
   version again.
 
-Publishing is a distinct privilege from editing (`access.publish`).
+Publishing is a distinct privilege from editing (`access.publish`), and is
+**always a manual, explicit action** — auto-save only ever stages drafts, it
+never publishes.
 
 ## Opting in
 
@@ -90,6 +93,16 @@ draft** / **Publish** governs the whole page.
 View mode renders the live main row. In **edit mode**, resume the latest draft so
 work-in-progress is visible until published — query the newest `status: 'draft'`
 version for the page and render its content, falling back to the main row.
+
+:::note[Read-your-writes with D1 read replication]
+Resuming a draft reads back what auto-save just wrote. On a default D1 database
+this is always consistent (reads hit the primary). If you enable [D1 read
+replication](https://developers.cloudflare.com/d1/best-practices/read-replication/),
+route the editor's reads through the **Sessions API** (`env.DB.withSession(bookmark)`,
+persisting the bookmark across requests) so a resumed draft is never served stale
+from a lagging replica. Writes always go to the primary, so this only affects the
+read path.
+:::
 
 Skip **superseded** drafts: ignore any draft whose `id` is at or below the live
 row's `published_version_id`. Publishing a version stamps `published_version_id`

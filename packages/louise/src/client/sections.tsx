@@ -24,6 +24,7 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
+import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import { Icon } from "./icons.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { injectStyles } from "./styles.js";
@@ -51,6 +52,10 @@ export interface SectionsEditorProps {
   catalog: SectionCatalog;
   pageId: number;
   initial: SectionItem[];
+  /** Auto-save inline section edits as a draft on an idle debounce — never
+   *  publishes, and structural changes keep their own save+reload. On by default;
+   *  pass `false` to opt out (manual Save draft button), or `{ debounceMs }`. */
+  autoSave?: AutoSaveOption;
 }
 
 function humanize(key: string): string {
@@ -166,6 +171,7 @@ function wireInline(
   items: SectionItem[],
   set: StoreSetter,
   onEdit: () => void,
+  onBlur?: () => void,
 ): void {
   const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
   for (const node of Array.from(nodes)) {
@@ -186,6 +192,8 @@ function wireInline(
       set("items", ...pathToArgs(path), node.textContent ?? "");
       onEdit();
     });
+    // Flush a pending auto-save when the editor tabs out of this field.
+    if (onBlur) node.addEventListener("blur", onBlur);
   }
 }
 
@@ -294,9 +302,19 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [pos, setPos] = createSignal<DockPos | null>(null);
   const [dragging, setDragging] = createSignal(false);
 
+  const autoCfg = resolveAutoSave(props.autoSave);
+  // Bumped on every edit; `save()` captures it and only marks clean if it's
+  // unchanged when the draft POST resolves — so an edit made during an in-flight
+  // save keeps the surface dirty and the auto-saver reschedules.
+  let editGen = 0;
+  // Assigned once `save()` exists (below); `touched()` only runs on user input.
+  let auto: Autosave | null = null;
+
   const touched = () => {
+    editGen++;
     setDirty(true);
     if (status() !== "idle") setStatus("idle");
+    if (autoCfg.enabled) auto?.schedule();
   };
 
   const loadVersions = async () => {
@@ -315,8 +333,42 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   onMount(() => {
-    wireInline(props.host, props.catalog, state.items, set, touched);
+    wireInline(
+      props.host,
+      props.catalog,
+      state.items,
+      set,
+      touched,
+      autoCfg.enabled ? () => auto?.flush() : undefined,
+    );
     void loadVersions();
+
+    // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` /
+    // `pagehide` are the reliable "leaving" signals; the keepalive draft POST
+    // lets a flush fired here still land. `beforeunload` warns while dirty. This
+    // dock is a disposable Solid component, so the listeners are removed on
+    // cleanup (unlike mountLouise, which lives for the whole page).
+    if (autoCfg.enabled) {
+      const onVis = () => {
+        if (document.visibilityState === "hidden") auto?.flush();
+      };
+      const onPageHide = () => auto?.flush();
+      const onBeforeUnload = (e: BeforeUnloadEvent) => {
+        auto?.flush();
+        if (dirty()) {
+          e.preventDefault();
+          e.returnValue = "";
+        }
+      };
+      document.addEventListener("visibilitychange", onVis);
+      window.addEventListener("pagehide", onPageHide);
+      window.addEventListener("beforeunload", onBeforeUnload);
+      onCleanup(() => {
+        document.removeEventListener("visibilitychange", onVis);
+        window.removeEventListener("pagehide", onPageHide);
+        window.removeEventListener("beforeunload", onBeforeUnload);
+      });
+    }
     // Relocate Save-draft / Publish onto the shared edit bar once it exists — but
     // only if the bar isn't already driven by another versioned surface. The bar
     // is created by `mountLouise`'s chrome, which renders its own Save-draft /
@@ -399,6 +451,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ sections: unwrap(state.items) }),
+        // Survive a flush fired during page-hide / unload.
+        keepalive: true,
       });
       const body = (await res.json().catch(() => null)) as {
         version?: { id: number };
@@ -417,11 +471,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
-  // Save button: stage a draft (no reload; the DOM already shows the edit).
+  // Save button / auto-save: stage a draft (no reload; the DOM already shows the
+  // edit).
   const save = async () => {
+    const gen = editGen;
     setStatus("saving");
     if ((await saveDraft()) !== null) {
-      setDirty(false);
+      // Leave dirty set if an edit landed mid-save, so the auto-saver reschedules.
+      if (editGen === gen) setDirty(false);
       setStatus("saved");
       void loadVersions();
     } else {
@@ -429,10 +486,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // The debounced auto-saver, wrapping the existing draft `save`. Publish and
+  // structural changes are never automated. The callback RETURNS the save promise
+  // so the scheduler can await it (single-flight overlap guard).
+  auto = createAutosave(() => save(), autoCfg.debounceMs);
+
   // Publish: promote a version to live. With no `versionId`, flush pending edits
   // to a draft first, then publish it. Reload so the published render is
   // authoritative and edit mode stops resuming the (now published) draft.
   const publish = async (versionId?: number) => {
+    // Supersede any queued auto-save so it can't stage a draft mid-publish.
+    auto?.cancel();
     setErrorDetail("");
     setStatus("publishing");
     let vid = versionId;
@@ -492,6 +556,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Structural change: mutate, save a draft, then reload so the server
   // re-renders the new shape (edit mode resumes the draft).
   const structural = async (mutate: () => void) => {
+    // This path saves + reloads, so drop any queued debounce (it would fire into
+    // a page that's about to navigate).
+    auto?.cancel();
     mutate();
     setStatus("saving");
     if ((await saveDraft()) !== null) location.reload();
@@ -551,16 +618,24 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // The page's primary save actions — Save draft (green) and Publish (yellow) —
   // rendered onto the shared edit bar (or the dock as fallback). A component so
   // the same markup mounts in either place.
+  // With auto-save on, the manual Save draft button is dropped — edits stage a
+  // draft on a debounce and the status line reports it. Publish is never
+  // automated, so it stays.
   const SaveActions = () => (
     <>
-      <button
-        class="louise-savedraft"
-        type="button"
-        disabled={status() === "saving" || status() === "publishing" || !dirty()}
-        onClick={() => void save()}
-      >
-        {status() === "saving" ? "Saving…" : "Save draft"}
-      </button>
+      <Show when={!autoCfg.enabled}>
+        <button
+          class="louise-savedraft"
+          type="button"
+          disabled={status() === "saving" || status() === "publishing" || !dirty()}
+          onClick={() => {
+            auto?.cancel();
+            void save();
+          }}
+        >
+          {status() === "saving" ? "Saving…" : "Save draft"}
+        </button>
+      </Show>
       <button
         class="louise-publish"
         type="button"

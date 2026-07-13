@@ -37,9 +37,9 @@ mountLouise();
 ```
 
 `mountLouise` finds the markers, attaches the right editor to each, and mounts
-the **edit bar** for the page: a live-status dot, the editor's name, and three
-actions — **Save**, **Settings** (dispatches a `louise:open-drawer` event), and
-**Done** (leaves edit mode).
+the **edit bar** for the page: a live-status line, **Settings** (dispatches a
+`louise:open-drawer` event), and **Done** (leaves edit mode). Edits **auto-save**
+by default (see below), so there is no manual Save button unless you opt out.
 
 The client also re-exports the pieces a host app's own panels reuse, so the
 drawer renders the same editor and icon set as inline editing:
@@ -52,7 +52,7 @@ See the [client reference](/reference/client/) for the full export list.
 
 ## The save contract
 
-On **Save**, the client sends **one `PATCH` per changed field** to your save
+When a save runs, the client sends **one `PATCH` per changed field** to your save
 endpoint (e.g. `POST /api/louise/save`). Unchanged fields are never sent.
 
 Your endpoint owns two responsibilities Louise cannot do for you:
@@ -75,6 +75,29 @@ export async function POST({ request, locals, env }) {
   return new Response(null, { status: 204 });
 }
 ```
+
+## Auto-save
+
+Edits persist **automatically**, on a short idle debounce — there is no Save
+button to remember. It's on by default:
+
+```ts
+mountLouise();                          // auto-save on (800ms debounce)
+mountLouise({ autoSave: { debounceMs: 1500 } }); // tune the delay
+mountLouise({ autoSave: false });       // opt out → a manual Save button returns
+```
+
+- Auto-save reuses the **same save** as a manual click: a live field write, or a
+  **draft** on a [versioned page](/guide/drafts/). It **never publishes** —
+  Publish stays an explicit action.
+- Pending edits are flushed when you tab out of a field, hide the tab, or navigate
+  away (the save `fetch` uses `keepalive` so it survives the unload), and the
+  browser warns if you try to leave with a save still in flight.
+- The edit bar's status line reflects it live: _Saving…_ → _Saved_ (or _Draft
+  saved_). A failed save keeps the field dirty and retries on your next edit.
+
+On a page with no inline fields (a sections-only page), the [sections
+dock](/guide/sections/) owns its own auto-save instead.
 
 ## Adding an inline-editable field
 

@@ -26,7 +26,11 @@ peer dependencies: `solid-js`, `prosekit`, `@prosekit/pm`.
 ## `mountLouise()`
 
 ```ts
-function mountLouise(): void;
+function mountLouise(opts?: {
+  onOpenDrawer?: () => void;
+  versionedPageId?: number;
+  autoSave?: boolean | { debounceMs?: number };
+}): void;
 ```
 
 Finds every `[data-louise-field]` marker on the page, makes each editable in
@@ -34,6 +38,15 @@ place (plain text via `contenteditable`, rich text via the ProseKit editor), and
 mounts the edit bar. **Self-gating** — if no markers are present it does nothing,
 so it's safe to lazy-import and call on any page. See
 [Inline editing](/guide/inline-editing/).
+
+- `versionedPageId` — opt this page's inline edits into the draft workflow: saves
+  stage a draft on this page id and a **Publish** button promotes it, instead of
+  writing each field live.
+- `autoSave` — persist edits automatically on an idle debounce (default `800ms`),
+  reusing the same save (a live field write, or a draft when versioned). **On by
+  default**; the manual Save / Save draft button is then dropped in favour of a
+  live status line (**Publish** stays). Pass `false` to opt out, or
+  `{ debounceMs }` to tune the delay. Auto-save **never publishes**.
 
 ## `RichText` / `mountRichText`
 
@@ -98,7 +111,12 @@ import {
 ```ts
 function mountSections(
   el: HTMLElement,
-  opts: { catalog: SectionCatalog; pageId: number; initial: SectionItem[] },
+  opts: {
+    catalog: SectionCatalog;
+    pageId: number;
+    initial: SectionItem[];
+    autoSave?: boolean | { debounceMs?: number };
+  },
 ): () => void;
 ```
 
@@ -108,8 +126,13 @@ around the server-rendered sections): visible text nodes marked with
 `data-louise-sfield` become editable in place, and a floating control dock adds /
 reorders / removes sections and edits non-visible fields. Text saves `PATCH` the
 whole `sections` array to the pages route; structural changes persist and reload.
-Returns a disposer. Exported types: `SectionCatalog`, `SectionDef`,
-`SectionField`, `SectionItem`, `SectionsEditorProps`.
+Returns a disposer.
+
+`autoSave` (default **on**) stages a **draft** on an idle debounce as you edit in
+place, dropping the manual Save draft button (Publish stays, and is never
+automated). Structural changes keep their own save+reload. Pass `false` to opt
+out, or `{ debounceMs }` to tune the delay. Exported types: `SectionCatalog`,
+`SectionDef`, `SectionField`, `SectionItem`, `SectionsEditorProps`, `AutoSaveOption`.
 
 ## `injectStyles()`
 

@@ -10,6 +10,7 @@
 // edit mode) it does nothing, so the bootstrap can lazy-import it safely.
 
 import { stegaClean } from "../core/cms/stega-clean.js";
+import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
@@ -33,6 +34,9 @@ export {
 // Re-exported so the site-local explorer drawer (slice 2) can ensure the
 // shared Louise stylesheet is present even on pages with no inline fields.
 export { injectStyles } from "./styles.js";
+// The auto-save option shape, re-exported so consumers can type a shared config
+// object passed to both `mountLouise` and `mountSections`.
+export { type AutoSaveOption } from "./autosave.js";
 // Structured "sections" editor — hybrid in-place editing for bespoke,
 // component-rendered pages (site owns rendering; this owns editing).
 export {
@@ -93,6 +97,9 @@ interface ChromeOptions {
   /** Versioned page: inline saves stage a DRAFT and a Publish button promotes it
    *  (Save draft / Publish), instead of a single live Save. */
   versioned: boolean;
+  /** Auto-save is driving saves on a debounce, so the bar shows no manual
+   *  Save / Save draft button — only the live status (and Publish, if versioned). */
+  autoSave: boolean;
 }
 
 /**
@@ -122,11 +129,19 @@ function createChrome(opts: ChromeOptions): Chrome {
   // versioned page with no inline fields (its sections dock owns Save/Publish)
   // shows neither, so the dock's relocated actions are the bar's only pair — one
   // versioned surface per page drives the bar (see the Drafts & publishing guide).
+  // With auto-save on, the manual Save / Save draft button is dropped entirely —
+  // edits persist on a debounce and the status span reports it. Publish is never
+  // automated, so it stays.
   const saveDraft =
-    opts.versioned && opts.hasFields ? btn("louise-savedraft", "Save draft", opts.onSave) : null;
+    opts.versioned && opts.hasFields && !opts.autoSave
+      ? btn("louise-savedraft", "Save draft", opts.onSave)
+      : null;
   const publish =
     opts.versioned && opts.hasFields ? btn("louise-publish", "Publish", opts.onPublish) : null;
-  const save = !opts.versioned && opts.hasFields ? btn("louise-save", "Save", opts.onSave) : null;
+  const save =
+    !opts.versioned && opts.hasFields && !opts.autoSave
+      ? btn("louise-save", "Save", opts.onSave)
+      : null;
   const status = opts.hasFields ? document.createElement("span") : null;
 
   const settings = document.createElement("button");
@@ -199,6 +214,11 @@ export interface MountLouiseOptions {
    *  writing each field live via `/save`. The page must render its editable
    *  fields' current draft values in edit mode (see the site's draft resume). */
   versionedPageId?: number;
+  /** Auto-save inline edits on an idle debounce, reusing this surface's existing
+   *  save (a live field save, or a draft on a versioned page) — never publishes.
+   *  On by default; pass `false` to opt out (back to a manual Save button), or an
+   *  object to tune the debounce (`{ debounceMs }`). */
+  autoSave?: AutoSaveOption;
 }
 
 export function mountLouise(opts: MountLouiseOptions): void {
@@ -217,10 +237,21 @@ export function mountLouise(opts: MountLouiseOptions): void {
   const dirty = new Map<string, ValueGetter>();
   let chrome: Chrome;
 
+  const { enabled: autoSaveOn, debounceMs } = resolveAutoSave(opts.autoSave);
+  // Bumped on every edit. A save captures it up front and only clears `dirty` if
+  // it's unchanged when the save resolves — so a field edited *during* an
+  // in-flight save is never cleared unsaved (the auto-saver reschedules).
+  let editGen = 0;
+  // Assigned once the save fns exist (below); markDirty only runs on user input,
+  // long after, so the null window is never hit in practice.
+  let auto: Autosave | null = null;
+
   const markDirty = (fieldKey: string, getter: ValueGetter) => {
     dirty.set(fieldKey, getter);
+    editGen++;
     chrome.setDirty(dirty.size > 0);
     chrome.setStatus("idle");
+    if (autoSaveOn) auto?.schedule();
   };
 
   const pageId = opts.versionedPageId;
@@ -229,6 +260,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // Non-versioned: write each changed field LIVE (POST /save).
   const saveLive = async () => {
     if (dirty.size === 0) return;
+    const gen = editGen;
     chrome.setStatus("saving");
     try {
       for (const [fieldKey, getter] of Array.from(dirty.entries())) {
@@ -237,11 +269,18 @@ export function mountLouise(opts: MountLouiseOptions): void {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ collection, key, field, value: getter() }),
+          // Survive a flush fired during page-hide / unload (a normal fetch is
+          // aborted mid-navigation).
+          keepalive: true,
         });
         if (!res.ok) throw new Error(`save failed: ${res.status}`);
       }
-      dirty.clear();
-      chrome.setDirty(false);
+      // Only clear if nothing was edited mid-save; otherwise leave the map dirty
+      // and let the auto-saver's re-run persist the newer value.
+      if (editGen === gen) {
+        dirty.clear();
+        chrome.setDirty(false);
+      }
       chrome.setStatus("saved");
     } catch (err) {
       console.error("[louise] save failed", err);
@@ -254,6 +293,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // shows the edit, and edit mode resumes this draft on the next load.
   const saveDraft = async (): Promise<boolean> => {
     if (dirty.size === 0) return true;
+    const gen = editGen;
     chrome.setStatus("saving");
     const changed: Record<string, unknown> = {};
     for (const [fieldKey, getter] of dirty) changed[fieldKey.split(":")[2]] = getter();
@@ -262,10 +302,15 @@ export function mountLouise(opts: MountLouiseOptions): void {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(changed),
+        // Survive a flush fired during page-hide / unload.
+        keepalive: true,
       });
       if (!res.ok) throw new Error(`draft failed: ${res.status}`);
-      dirty.clear();
-      chrome.setDirty(false);
+      // Leave dirty intact if an edit landed mid-save (auto-saver reschedules).
+      if (editGen === gen) {
+        dirty.clear();
+        chrome.setDirty(false);
+      }
       chrome.setStatus("saved");
       chrome.setHasDraft(true);
       return true;
@@ -279,6 +324,8 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // Versioned: flush pending edits to a draft, then promote it to live. Reload so
   // the server re-renders the published content authoritatively.
   const publish = async () => {
+    // Supersede any queued auto-save so it can't fire a draft mid-publish.
+    auto?.cancel();
     if (dirty.size > 0 && !(await saveDraft())) return;
     chrome.setStatus("publishing");
     try {
@@ -295,12 +342,23 @@ export function mountLouise(opts: MountLouiseOptions): void {
     }
   };
 
+  // The debounced auto-saver, wrapping this page's save (a live field save, or a
+  // draft on a versioned page). Publish is never automated. The callback RETURNS
+  // the save promise so the scheduler can await it (single-flight overlap guard).
+  auto = createAutosave(() => (versioned ? saveDraft() : saveLive()), debounceMs);
+
   chrome = createChrome({
-    onSave: () => void (versioned ? saveDraft() : saveLive()),
+    onSave: () => {
+      // Manual Save (only shown when auto-save is off) supersedes any pending
+      // debounce, then saves immediately.
+      auto?.cancel();
+      void (versioned ? saveDraft() : saveLive());
+    },
     onPublish: () => void publish(),
     onOpenDrawer: opts.onOpenDrawer,
     hasFields: fieldEls.length > 0,
     versioned,
+    autoSave: autoSaveOn,
   });
 
   // Reflect whether an unpublished draft already exists, so Publish is available
@@ -347,6 +405,9 @@ export function mountLouise(opts: MountLouiseOptions): void {
       } catch (err) {
         console.error(`[louise] rich-text editor failed to mount for ${fieldKey}`, err);
       }
+      // Flush on tab-out. blur doesn't bubble and ProseKit's editable is a child,
+      // so listen for focusout on the field container.
+      if (autoSaveOn) el.addEventListener("focusout", () => auto?.flush());
     } else {
       // Plain-text field: contenteditable, single line.
       el.setAttribute("contenteditable", "plaintext-only");
@@ -357,6 +418,28 @@ export function mountLouise(opts: MountLouiseOptions): void {
       el.addEventListener("input", () =>
         markDirty(fieldKey, () => stegaClean(el.textContent?.trim() ?? "")),
       );
+      if (autoSaveOn) el.addEventListener("blur", () => auto?.flush());
     }
+  }
+
+  // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` is the
+  // reliable "user is leaving" signal (tab switch, mobile background, most
+  // navigations); `pagehide` covers the rest. The keepalive fetches let a flush
+  // fired here still reach the Worker. `beforeunload` adds a last-resort browser
+  // warning while edits are genuinely unsaved. mountLouise runs once per page
+  // lifetime (idempotent guard above), so these window listeners need no teardown.
+  if (autoSaveOn && fieldEls.length > 0) {
+    const flush = () => auto?.flush();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", (e) => {
+      flush();
+      if (dirty.size > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
   }
 }
