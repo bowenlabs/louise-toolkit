@@ -1,0 +1,63 @@
+---
+// /examples/commerce — a Square card checkout on Workers. The left pane runs a
+// sandboxed twin of the flow (tokenize → createPayment), fully simulated in-page.
+// The "checkout.ts" tab is sliced from the real handler in
+// src/lib/examples/square-checkout.ts, which targets the current
+// louise/commerce/square API; the "CommerceDemo.astro" tab is this page's live
+// demo. Both are pulled with `?raw` + extractRegion, so they can't drift.
+import Example from "../../components/example/Example.astro";
+import CommerceDemo from "../../components/example/demos/CommerceDemo.astro";
+import CommerceDemoSource from "../../components/example/demos/CommerceDemo.astro?raw";
+import SiteChrome from "../../components/SiteChrome.astro";
+import checkoutSource from "../../lib/examples/square-checkout.ts?raw";
+import { extractRegion } from "../../lib/examples/region.js";
+import "louise/theme/fonts.css";
+import "../../styles/louise.css";
+
+export const prerender = false;
+
+const serverCode = extractRegion(checkoutSource, "example:square-server");
+const demoCode = extractRegion(CommerceDemoSource, "example:demo");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Commerce — Louise Toolkit examples</title>
+    <meta
+      name="description"
+      content="Take a card payment on Cloudflare Workers with louise/commerce/square — the browser tokenizes the card, the server prices it from the live catalog and charges it. Live sandbox demo plus the real handler."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
+    <SiteChrome>
+      <Example
+        title="A card checkout, priced on the server"
+        blurb="louise/commerce/square wraps the Square API for Workers. The browser tokenizes the card into a sourceId (raw card data never touches your Worker); the server prices the item from the live catalog and charges the token with createPayment. Sandbox test cards approve for free."
+        route="/examples/commerce"
+        primitive="louise/commerce/square"
+        testMode={true}
+        docHref="https://docs.louisetoolkit.com/guide/commerce"
+        sourceHref="https://github.com/bowenlabs/louise-toolkit/blob/main/packages/louise/src/core/commerce/square.ts"
+        tabs={[
+          { label: "checkout.ts", lang: "ts", code: serverCode },
+          { label: "CommerceDemo.astro", lang: "astro", code: demoCode },
+        ]}
+      >
+        <CommerceDemo slot="live" />
+        <span slot="try"
+          >Hit pay with Square's sandbox test card — watch it tokenize, then charge.
+          The charge is simulated here; the code on the right is the real handler.</span
+        >
+      </Example>
+
+      <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
+        Stripe and Fourthwall follow the same shape — a client token or hosted
+        checkout, then a server call — via <code>louise/commerce/stripe</code> and
+        <code>louise/commerce/fourthwall</code>.
+      </p>
+    </SiteChrome>
+  </body>
+</html>

@@ -10,12 +10,15 @@
     "build": "sh ./scripts/ci-build.sh",
     "typecheck": "vp run louise#typecheck",
     "check": "vp run louise#check",
+    "lint:astro": "biome lint .",
+    "lint:astro:fix": "biome lint --write .",
     "test": "vp run louise#test",
     "dev": "vp run site#dev",
     "changeset": "changeset",
     "release": "changeset publish"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
     "@changesets/cli": "^2.27.10"
   },
   "engines": {

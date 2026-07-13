@@ -29,6 +29,11 @@ jobs:
         run: vp check
         working-directory: packages/louise
 
+      # oxlint doesn't parse .astro; Biome lints the component scripts (partial
+      # Astro support). Scoped to **/*.astro in biome.json — no overlap with oxlint.
+      - name: Lint .astro (Biome)
+        run: node_modules/.bin/biome lint .
+
       - name: Type-check
         run: vp run "louise#typecheck"
 

@@ -1,0 +1,196 @@
+---
+// /examples — the hub. One card per primitive; each future page reuses the
+// <Example> anatomy (live UI + real, drift-proof source). `forms` ships first;
+// the rest are staged in build-ROI order. Several map to patterns proven in the
+// production sites already built on the toolkit (noted per card) — distil those
+// into first-party demos here rather than importing client source.
+import SiteChrome from "../../components/SiteChrome.astro";
+import "louise/theme/fonts.css";
+import "../../styles/louise.css";
+
+export const prerender = false;
+
+type Status = "live" | "soon";
+interface Ex {
+  primitive: string;
+  title: string;
+  blurb: string;
+  icon: string;
+  href?: string;
+  status: Status;
+}
+
+const EXAMPLES: Ex[] = [
+  {
+    primitive: "louise/forms",
+    title: "Validated contact form",
+    blurb: "One definition → the table, validation, and capture route.",
+    icon: "ph ph-envelope-simple",
+    href: "/examples/forms",
+    status: "live",
+  },
+  {
+    primitive: "louise/client",
+    title: "Edit the live page",
+    blurb: "Toggle a sandboxed guest edit mode and type in a real ProseKit field.",
+    icon: "ph ph-cursor-text",
+    status: "soon",
+  },
+  {
+    primitive: "louise/commerce/square",
+    title: "Checkout on Workers",
+    blurb: "Tokenize a card, price it server-side, charge with Square — in sandbox.",
+    icon: "ph ph-shopping-cart",
+    href: "/examples/commerce",
+    status: "live",
+  },
+  {
+    primitive: "louise/media",
+    title: "Upload + transform",
+    blurb: "Drag an image to R2, get a resized, alt-tracked URL back.",
+    icon: "ph ph-image",
+    status: "soon",
+  },
+  {
+    primitive: "louise/queues",
+    title: "Track a job live",
+    blurb: "Fire an event and watch it move through queue-driven stages.",
+    icon: "ph ph-flow-arrow",
+    status: "soon",
+  },
+  {
+    primitive: "louise/auth",
+    title: "Login + edit gate",
+    blurb: "The session flow that turns a viewer into an in-place editor.",
+    icon: "ph ph-lock-key",
+    status: "soon",
+  },
+];
+
+// Built with Louise — real production sites (owner-confirmed for public display).
+// Each maps to the primitives it leans on hardest; links open the live site.
+interface Site {
+  name: string;
+  url: string;
+  blurb: string;
+  tags: string[];
+}
+const SITES: Site[] = [
+  {
+    name: "coracle.coffee",
+    url: "https://coracle.coffee",
+    blurb: "Coffee shop — order-ahead, loyalty, and a full Square storefront.",
+    tags: ["commerce/square", "auth", "queues"],
+  },
+  {
+    name: "ghostfire.coffee",
+    url: "https://ghostfire.coffee",
+    blurb: "Services shop with a live, queue-driven order tracker and client portal.",
+    tags: ["queues", "auth", "commerce/square"],
+  },
+  {
+    name: "themidwestartist.com",
+    url: "https://themidwestartist.com",
+    blurb: "Artist storefront — Stripe + Fourthwall commerce and a media gallery.",
+    tags: ["commerce/stripe", "commerce/fourthwall", "media"],
+  },
+];
+
+const year = new Date().getFullYear();
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Examples — Louise Toolkit</title>
+    <meta
+      name="description"
+      content="Hands-on, interactive examples of the Louise Toolkit primitives: live UI beside the real source that ships it, on Cloudflare Workers."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
+    <SiteChrome>
+      <section class="mx-auto max-w-5xl px-5 py-16">
+        <h1 class="text-4xl font-black tracking-tight">Examples</h1>
+        <p class="mt-3 max-w-2xl text-lg text-base-content/70">
+          Every primitive, running — the live UI beside the real, drift-proof source that
+          ships it. This whole site is built with Louise, so the demos are the product.
+        </p>
+
+        <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            EXAMPLES.map((ex) => {
+              const Tag = ex.status === "live" && ex.href ? "a" : "div";
+              return (
+                <Tag
+                  href={ex.href}
+                  class:list={[
+                    "group flex flex-col rounded-2xl border border-base-300 p-5 transition",
+                    ex.status === "live"
+                      ? "bg-base-100 hover:border-primary hover:shadow-sm"
+                      : "bg-base-200/50 opacity-70",
+                  ]}
+                >
+                  <div class="flex items-center justify-between">
+                    <i class={`${ex.icon} text-2xl text-primary`} aria-hidden="true" />
+                    {ex.status === "live" ? (
+                      <span class="badge badge-sm badge-success">Live</span>
+                    ) : (
+                      <span class="badge badge-sm badge-ghost">Soon</span>
+                    )}
+                  </div>
+                  <h2 class="mt-3 text-lg font-bold">{ex.title}</h2>
+                  <p class="mt-1 flex-1 text-sm text-base-content/70">{ex.blurb}</p>
+                  <code class="mt-3 text-xs text-base-content/50">{ex.primitive}</code>
+                </Tag>
+              );
+            })
+          }
+        </div>
+
+        {/* Built with Louise — real production sites (owner-confirmed). */}
+        <div class="mt-16">
+          <h2 class="text-2xl font-black tracking-tight">Built with Louise</h2>
+          <p class="mt-2 max-w-xl text-base-content/70">
+            Real shops and studios running on these primitives in production.
+          </p>
+          <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {
+              SITES.map((s) => (
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="group flex flex-col rounded-2xl border border-base-300 bg-base-100 p-5 transition hover:border-primary hover:shadow-sm"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="font-mono font-semibold group-hover:text-primary">
+                      {s.name}
+                    </span>
+                    <i class="ph ph-arrow-up-right text-base-content/40" aria-hidden="true" />
+                  </div>
+                  <p class="mt-2 flex-1 text-sm text-base-content/70">{s.blurb}</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    {s.tags.map((t) => (
+                      <code class="rounded bg-base-200 px-1.5 py-0.5 text-[11px] text-base-content/60">
+                        {t}
+                      </code>
+                    ))}
+                  </div>
+                </a>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <footer
+        class="border-t border-base-300 py-10 text-center text-sm text-base-content/60"
+      >
+        <p>MIT © {year} BowenLabs</p>
+      </footer>
+    </SiteChrome>
+  </body>
+</html>

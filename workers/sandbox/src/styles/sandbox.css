@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Square's card iframe mounts into #card-container; give it a field-like frame. */
+#card-container {
+  min-height: 44px;
+}

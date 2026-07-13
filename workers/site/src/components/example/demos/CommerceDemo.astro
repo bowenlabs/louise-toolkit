@@ -1,0 +1,78 @@
+---
+// A sandboxed twin of the Square checkout for /examples/commerce. It walks the
+// same two steps the real flow does — the browser tokenizes the card into a
+// `sourceId`, then the server charges it with createPayment — but here both steps
+// are simulated in the page: no Square SDK loads, no network call, no charge. The
+// real handler is src/lib/examples/square-checkout.ts (shown in the code tab).
+const PRICE_CENTS = 450;
+const price = `$${(PRICE_CENTS / 100).toFixed(2)}`;
+---
+
+{/* #region example:demo */}
+<div class="louise-commerce-demo grid gap-4" data-price-cents={PRICE_CENTS}>
+  <div class="flex items-center gap-3 rounded-xl border border-base-300 p-3">
+    <div
+      class="flex h-12 w-12 items-center justify-center rounded-lg bg-base-200 text-2xl"
+      aria-hidden="true"
+    >
+      <i class="ph ph-coffee"></i>
+    </div>
+    <div class="flex-1">
+      <p class="font-semibold">Cortado</p>
+      <p class="text-sm text-base-content/60">Single origin · 6oz</p>
+    </div>
+    <span class="font-mono font-semibold">{price}</span>
+  </div>
+
+  <label class="grid gap-1 text-sm">
+    <span class="text-base-content/70">Card — Square sandbox test card</span>
+    <input
+      class="input input-bordered w-full font-mono"
+      name="card"
+      value="4111 1111 1111 1111"
+      inputmode="numeric"
+    />
+  </label>
+  <div class="grid grid-cols-2 gap-3">
+    <input class="input input-bordered w-full font-mono" name="exp" value="12/26" />
+    <input class="input input-bordered w-full font-mono" name="cvv" value="111" />
+  </div>
+
+  <button class="louise-pay-btn btn btn-primary btn-sm w-fit" type="button">
+    Pay {price} · sandbox
+  </button>
+  <p class="louise-pay-status text-sm" role="status" aria-live="polite"></p>
+</div>
+
+<script>
+  // Simulate the real Square flow without loading the SDK or calling the server:
+  //   1. Web Payments SDK tokenizes the card → sourceId
+  //   2. POST sourceId → the handler runs createPayment (see square-checkout.ts)
+  // Sandbox test cards approve for free; here the whole thing is faked in-page.
+  document.querySelectorAll<HTMLElement>(".louise-commerce-demo").forEach((root) => {
+    const btn = root.querySelector<HTMLButtonElement>(".louise-pay-btn");
+    const status = root.querySelector<HTMLElement>(".louise-pay-status");
+    const cents = Number(root.dataset.priceCents ?? "0");
+    const amount = `$${(cents / 100).toFixed(2)}`;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const say = (text: string, kind: "step" | "ok" = "step") => {
+      if (!status) return;
+      status.textContent = text;
+      status.style.color = kind === "ok" ? "var(--color-success)" : "var(--color-base-content)";
+    };
+
+    btn?.addEventListener("click", async () => {
+      btn.disabled = true;
+      say("Tokenizing card with the Web Payments SDK…");
+      await wait(500);
+      const sourceId = `cnon:card-nonce-demo-${Math.random().toString(36).slice(2, 8)}`;
+      say(`Got token ${sourceId} — charging via createPayment…`);
+      await wait(650);
+      const paymentId = `sqpmt_${Math.random().toString(36).slice(2, 12)}`;
+      say(`Payment COMPLETED · ${amount} · ${paymentId}`, "ok");
+      btn.disabled = false;
+    });
+  });
+</script>
+{/* #endregion example:demo */}

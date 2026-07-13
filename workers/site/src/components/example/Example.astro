@@ -1,0 +1,170 @@
+---
+// Reusable anatomy for an /examples/* page: a live pane (left) beside tabbed,
+// real-source code (right), a "try it" strip, and doc + source links. The code
+// tabs are handed real file text sliced with extractRegion() so they can't drift
+// from what ships. Live content and the try-it hint come in via named slots
+// (`live`, `try`); everything else is data-driven for consistency across pages.
+interface Tab {
+  label: string;
+  lang?: string;
+  code: string;
+}
+interface Props {
+  title: string;
+  blurb?: string;
+  route: string;
+  primitive: string;
+  testMode?: boolean;
+  docHref: string;
+  sourceHref: string;
+  tabs: Tab[];
+}
+const { title, blurb, route, primitive, testMode = false, docHref, sourceHref, tabs } =
+  Astro.props;
+// Stable-enough id to scope the tab radios + copy button to this instance.
+const uid = `ex-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<section class="mx-auto max-w-5xl px-5 py-14">
+  <div class="mb-6">
+    <div class="flex flex-wrap items-center gap-3">
+      <code class="text-sm text-base-content/60">{route}</code>
+      <span class="badge badge-sm badge-ghost font-mono">{primitive}</span>
+      {
+        testMode && (
+          <span class="badge badge-sm badge-warning gap-1">
+            <i class="ph ph-flask" aria-hidden="true"></i> test mode · no data leaves your browser
+          </span>
+        )
+      }
+    </div>
+    <h1 class="mt-2 text-3xl font-black tracking-tight">{title}</h1>
+    {blurb && <p class="mt-1 max-w-2xl text-base-content/70">{blurb}</p>}
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+    {/* Live pane — the primitive actually running. */}
+    <div class="flex flex-col rounded-2xl border border-base-300 bg-base-100 p-5">
+      <div
+        class="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-base-content/50"
+      >
+        <i class="ph ph-play-circle" aria-hidden="true"></i> live · running now
+      </div>
+      <div class="flex-1"><slot name="live" /></div>
+    </div>
+
+    {/* Code pane — tabbed, sliced from real source. */}
+    <div
+      class="flex flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-200"
+      data-example={uid}
+    >
+      <div class="flex items-center gap-1 border-b border-base-300 px-2 pt-2">
+        {
+          tabs.map((t, i) => (
+            <>
+              <input
+                type="radio"
+                name={`${uid}-tab`}
+                id={`${uid}-tab-${i}`}
+                class="louise-tab-radio sr-only"
+                checked={i === 0}
+              />
+              <label
+                for={`${uid}-tab-${i}`}
+                class="louise-tab-label cursor-pointer rounded-t-lg px-3 py-1.5 font-mono text-xs text-base-content/60"
+              >
+                {t.label}
+              </label>
+            </>
+          ))
+        }
+        <button
+          type="button"
+          class="louise-copy-btn ml-auto rounded-md px-2 py-1 text-xs text-base-content/50 hover:text-base-content"
+          aria-label="Copy code"
+        >
+          <i class="ph ph-copy" aria-hidden="true"></i> <span class="louise-copy-text">Copy</span>
+        </button>
+      </div>
+      {
+        tabs.map((t, i) => (
+          <pre
+            class="louise-tab-pane m-0 overflow-x-auto px-4 py-3 text-xs leading-relaxed"
+            data-pane={i}
+            hidden={i !== 0}
+          ><code>{t.code}</code></pre>
+        ))
+      }
+      <div
+        class="mt-auto border-t border-base-300 px-4 py-2 text-[11px] text-base-content/40"
+      >
+        <i class="ph ph-git-branch" aria-hidden="true"></i> sliced from real source — never drifts
+      </div>
+    </div>
+  </div>
+
+  {/* Try-it strip + links. */}
+  <div
+    class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-base-200 px-5 py-4"
+  >
+    <span class="flex items-center gap-2 text-sm font-semibold">
+      <i class="ph ph-hand-pointing" aria-hidden="true"></i> Try it
+    </span>
+    <span class="text-sm text-base-content/70"><slot name="try" /></span>
+    <span class="ml-auto flex flex-wrap gap-2">
+      <a
+        class="btn btn-sm btn-ghost gap-1"
+        href={docHref}><i class="ph ph-book-open" aria-hidden="true"></i> Deep-dive doc</a
+      >
+      <a
+        class="btn btn-sm btn-ghost gap-1"
+        href={sourceHref}><i class="ph ph-github-logo" aria-hidden="true"></i> View source</a
+      >
+    </span>
+  </div>
+</section>
+
+<style>
+  /* CSS-driven tabs: the checked radio (a sibling of the label row) styles its
+     label; a tiny script below toggles the matching <pre> pane. */
+  .louise-tab-radio:checked + .louise-tab-label {
+    background: var(--color-base-100);
+    color: var(--color-base-content);
+  }
+  .louise-tab-pane code {
+    font-family:
+      ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    white-space: pre;
+  }
+</style>
+
+<script>
+  // Toggle code panes to match the selected tab, and wire the copy button to the
+  // visible pane. Scoped per-Example via the data-example wrapper.
+  document.querySelectorAll<HTMLElement>("[data-example]").forEach((root) => {
+    const radios = root.querySelectorAll<HTMLInputElement>(".louise-tab-radio");
+    const panes = root.querySelectorAll<HTMLElement>(".louise-tab-pane");
+    radios.forEach((radio, i) => {
+      radio.addEventListener("change", () => {
+        panes.forEach((p, j) => {
+          p.hidden = j !== i;
+        });
+      });
+    });
+    const btn = root.querySelector<HTMLButtonElement>(".louise-copy-btn");
+    const label = root.querySelector<HTMLElement>(".louise-copy-text");
+    btn?.addEventListener("click", async () => {
+      const active = Array.from(panes).find((p) => !p.hidden);
+      if (!active?.textContent) return;
+      try {
+        await navigator.clipboard.writeText(active.textContent);
+        if (label) {
+          label.textContent = "Copied";
+          setTimeout(() => (label.textContent = "Copy"), 1200);
+        }
+      } catch {
+        /* clipboard blocked — no-op */
+      }
+    });
+  });
+</script>

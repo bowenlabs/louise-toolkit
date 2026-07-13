@@ -1,0 +1,147 @@
+---
+// sandbox.louisetoolkit.com — the live sandbox. Real Square sandbox checkout
+// (test cards approve for free) + a real confirmation email via louise/email.
+// The Square SDK is dynamically imported on first pay so it isn't downloaded up
+// front. Public Square config (app id + location) is safe to expose to the client.
+import { env } from "cloudflare:workers";
+import "../styles/sandbox.css";
+
+export const prerender = false;
+
+const e = env as unknown as CloudflareEnv;
+const appId = e.SQUARE_APP_ID;
+const locationId = e.SQUARE_LOCATION;
+const squareEnv = e.SQUARE_ENV ?? "sandbox";
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Louise Toolkit — live sandbox</title>
+    <meta
+      name="description"
+      content="Kick the wheels: run a real Square sandbox checkout on Cloudflare Workers and get a real confirmation email, powered by the Louise Toolkit."
+    />
+  </head>
+  <body class="min-h-screen bg-base-200">
+    <main class="mx-auto max-w-lg px-5 py-16">
+      <div class="mb-6 text-center">
+        <span class="badge badge-warning gap-1 mb-3">test mode · Square sandbox · no real charge</span>
+        <h1 class="text-3xl font-black tracking-tight">Kick the wheels</h1>
+        <p class="mt-2 text-base-content/70">
+          A real Square sandbox payment on Cloudflare Workers, with a real confirmation email —
+          built with the Louise Toolkit. Nothing is charged; the sandbox resets nightly.
+        </p>
+      </div>
+
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body gap-4">
+          <div class="flex items-center justify-between rounded-lg border border-base-300 p-3">
+            <div>
+              <p class="font-semibold">Cortado</p>
+              <p class="text-sm text-base-content/60">Single origin · 6oz</p>
+            </div>
+            <span class="font-mono font-semibold">$4.50</span>
+          </div>
+
+          <label class="form-control">
+            <span class="label-text mb-1">Email for the receipt</span>
+            <input
+              id="email"
+              type="email"
+              class="input input-bordered w-full"
+              placeholder="you@example.com"
+            />
+          </label>
+
+          <div>
+            <span class="label-text">Card</span>
+            {/* Square Web Payments SDK mounts its card iframe here. */}
+            <div
+              id="card-container"
+              class="mt-1 rounded-lg border border-base-300 p-3"
+            ></div>
+            <p class="mt-1 text-xs text-base-content/50">
+              Sandbox test card: <code>4111 1111 1111 1111</code>, any future expiry, any CVV/ZIP.
+            </p>
+          </div>
+
+          <button
+            id="pay"
+            class="btn btn-primary"
+            data-app-id={appId}
+            data-location={locationId}
+            data-env={squareEnv}
+          >
+            Pay $4.50 · sandbox
+          </button>
+          <p id="status" class="text-sm" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <p class="mt-6 text-center text-xs text-base-content/50">
+        Powered by <code>louise/commerce/square</code> + <code>louise/email</code>.
+      </p>
+    </main>
+
+    <script>
+      // Lazy-load the Square SDK loader only when someone actually pays (dynamic
+      // import — the heavy SDK never downloads for people who just look).
+      const btn = document.getElementById("pay") as HTMLButtonElement;
+      const status = document.getElementById("status") as HTMLElement;
+      const emailEl = document.getElementById("email") as HTMLInputElement;
+
+      let card: { tokenize: () => Promise<string> } | null = null;
+
+      const say = (text: string, ok = false) => {
+        status.textContent = text;
+        status.style.color = ok ? "var(--color-success, green)" : "var(--color-error, crimson)";
+      };
+
+      btn.addEventListener("click", async () => {
+        const email = emailEl.value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return say("Enter a valid email first.");
+
+        btn.disabled = true;
+        try {
+          if (!card) {
+            say("Loading secure card field…", true);
+            const { mountCard } = await import("../lib/square-web.ts");
+            card = await mountCard(
+              btn.dataset.appId!,
+              btn.dataset.location!,
+              btn.dataset.env!,
+              "#card-container",
+            );
+          }
+          say("Tokenizing card…", true);
+          const sourceId = await card.tokenize();
+
+          say("Charging (sandbox)…", true);
+          const res = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sourceId, email }),
+          });
+          const data = (await res.json()) as {
+            status?: string;
+            paymentId?: string;
+            emailed?: boolean;
+            error?: string;
+          };
+          if (!res.ok) return say(data.error ?? "Something went wrong.");
+          say(
+            `Payment ${data.status} · ${data.paymentId}${data.emailed ? ` — receipt sent to ${email}` : " (email failed to send)"}`,
+            true,
+          );
+        } catch (err) {
+          say((err as Error).message || "Checkout failed.");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+---
+// A self-contained preview of the inquiries form for /examples/forms. It mirrors
+// the real client checks louise/forms runs (required + email format) so you can
+// feel the validation, but it never posts — no row is written, nothing leaves the
+// browser. The production form (src/sections/Contact.astro) is the same fields
+// posting to the real capture route; this is the safe, sandboxed twin.
+---
+
+{/* #region example:demo */}
+<form class="louise-demo-form grid gap-3" novalidate>
+  <label class="grid gap-1 text-sm">
+    <span class="text-base-content/70">Email</span>
+    <input
+      class="input input-bordered w-full"
+      type="email"
+      name="email"
+      value="jordan@acme"
+      required
+    />
+  </label>
+  <label class="grid gap-1 text-sm">
+    <span class="text-base-content/70">Message</span>
+    <textarea
+      class="textarea textarea-bordered w-full"
+      name="message"
+      rows="3"
+      required>Loved the toolkit — a question about queues.</textarea>
+  </label>
+  <button class="btn btn-primary btn-sm w-fit" type="submit">Send inquiry</button>
+  <p class="louise-demo-status text-sm" role="status" aria-live="polite"></p>
+</form>
+
+<script>
+  // Mirror of louise/forms `validateField` for the two built-in checks demoed
+  // here: `required`, and the `email` type's format rule. Kept deliberately tiny
+  // — the real engine (server + client) lives in louise/forms/validate.ts.
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  document.querySelectorAll<HTMLFormElement>("form.louise-demo-form").forEach((form) => {
+    const status = form.querySelector<HTMLElement>(".louise-demo-status");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+      const email = String(data.email ?? "").trim();
+      const message = String(data.message ?? "").trim();
+
+      if (!email) return say("Email is required", "error");
+      if (!EMAIL_RE.test(email)) return say("Email must be a valid email address", "error");
+      if (!message) return say("Message is required", "error");
+
+      // Passed — show the exact payload the real route would validate + insert.
+      say(`Valid ✓ would POST → ${JSON.stringify({ email, message })}`, "ok");
+
+      function say(text: string, kind: "error" | "ok") {
+        if (!status) return;
+        status.textContent = text;
+        status.style.color =
+          kind === "ok" ? "var(--color-success)" : "var(--color-error)";
+      }
+    });
+  });
+</script>
+{/* #endregion example:demo */}

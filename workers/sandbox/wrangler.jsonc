@@ -1,0 +1,51 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // sandbox.louisetoolkit.com — the live "kick the wheels" sandbox: a REAL
+  // Square sandbox checkout + a REAL confirmation email, isolated from the
+  // marketing worker so demo writes/payments/emails never touch site content.
+  // Deploy as its own Cloudflare Workers project (separate from louisetoolkitcom).
+  "name": "louise-sandbox",
+  "account_id": "c3e97bc9169c1a57894dae15e6b39304",
+  "compatibility_date": "2026-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/worker.ts",
+  "routes": [{ "pattern": "sandbox.louisetoolkit.com", "custom_domain": true }],
+
+  // --- Sandbox bindings ------------------------------------------------------
+  // Demo orders (email + Square payment id + amount). Nightly-reset by the cron
+  // below. TODO(provision): `wrangler d1 create louise-sandbox` → paste id.
+  "d1_databases": [
+    {
+      "binding": "SANDBOX_DB",
+      "database_name": "louise-sandbox",
+      "database_id": "REPLACE_WITH_D1_ID",
+      "migrations_dir": "migrations",
+    },
+  ],
+  // Per-IP rate limiter (abuse control on the public pay + email endpoint).
+  // TODO(provision): `wrangler kv namespace create RL` → paste id.
+  "kv_namespaces": [{ "binding": "RL", "id": "REPLACE_WITH_KV_ID" }],
+
+  // Cloudflare Email Sending binding (louise/email → env.EMAIL.send()).
+  // TODO(provision): `wrangler email sending enable louisetoolkit.com` (or the
+  // subdomain you send from) so `from` is an onboarded domain. No API key needed.
+  "send_email": [{ "name": "EMAIL" }],
+
+  "vars": {
+    // Public Square sandbox config (safe to ship — the app id + location id are
+    // client-visible; only the access token is a secret, set via `wrangler secret`).
+    "SQUARE_ENV": "sandbox",
+    "SQUARE_APP_ID": "REPLACE_WITH_SANDBOX_APP_ID",
+    "SQUARE_LOCATION": "REPLACE_WITH_SANDBOX_LOCATION_ID",
+    // Confirmation emails are sent FROM this address; its domain must be onboarded
+    // to Email Sending (see send_email TODO above).
+    "FROM_EMAIL": "sandbox@louisetoolkit.com",
+  },
+  // Secret (NOT here): `wrangler secret put SQUARE_TOKEN` — the sandbox access token.
+
+  // Nightly reset (06:00 UTC): clear demo orders + rate-limit counters so the
+  // sandbox always starts fresh. Handled in worker.ts `scheduled()`.
+  "triggers": { "crons": ["0 6 * * *"] },
+
+  "observability": { "enabled": true },
+}

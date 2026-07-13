@@ -162,11 +162,13 @@ const SETTINGS_COLUMNS = [
 // The public contact form: the built-in inquiries fields + Tier-3 silent spam
 // heuristics (a `website` honeypot + a 2s minimum since render). Same `inquiries`
 // table, so the Louise Settings Inquiries tab reviews it unchanged.
+// #region example:inquiries-form  (sliced into /examples/forms — keep runnable)
 const contactForm = defineForm({
   name: "inquiries",
   fields: inquiriesForm.fields,
   spam: { honeypot: "website", minSeconds: 2 },
 });
+// #endregion example:inquiries-form
 
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
@@ -239,8 +241,10 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Public capture (contact form) + editor-gated review, both from the one
   // built-in `inquiries` form (louise/forms) — #46. The site adds the
   // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
+  // #region example:inquiries-route  (sliced into /examples/forms)
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),
+  // #endregion example:inquiries-route
   seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise Toolkit" } }),
 ];
 

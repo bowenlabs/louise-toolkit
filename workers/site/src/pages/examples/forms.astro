@@ -1,0 +1,66 @@
+---
+// /examples/forms — the first live example page. The left pane runs a sandboxed
+// twin of the inquiries form (FormsDemo); the right pane shows the REAL wiring,
+// sliced out of this site's worker.ts + the demo component with `?raw`, so the
+// code you read is the code that ships. See src/components/example/Example.astro.
+import Example from "../../components/example/Example.astro";
+import FormsDemo from "../../components/example/demos/FormsDemo.astro";
+import FormsDemoSource from "../../components/example/demos/FormsDemo.astro?raw";
+import SiteChrome from "../../components/SiteChrome.astro";
+import { extractRegion } from "../../lib/examples/region.js";
+import workerSource from "../../worker.ts?raw";
+import "louise/theme/fonts.css";
+import "../../styles/louise.css";
+
+export const prerender = false;
+
+// Real production source — one form definition drives the table, validation, and
+// the capture route. These slices update automatically when worker.ts changes.
+const defineSrc = extractRegion(workerSource, "example:inquiries-form");
+const routeSrc = extractRegion(workerSource, "example:inquiries-route");
+const serverCode = `// The one definition — derives the table, review columns, and validation.\n${defineSrc}\n\n// Wired into the worker's route list — public capture + editor-gated review:\n${routeSrc}`;
+const demoCode = extractRegion(FormsDemoSource, "example:demo");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forms — Louise Toolkit examples</title>
+    <meta
+      name="description"
+      content="Build a validated contact form on Cloudflare Workers with louise/forms — one definition derives the table, validation, and capture route. Live demo plus real source."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
+    <SiteChrome>
+      <Example
+        title="A validated contact form, one definition"
+        blurb="louise/forms turns a single field definition into the D1 table, the server + client validation, and the public capture route — no hand-rolled handler. The form on the left runs the same email + required checks the toolkit ships."
+        route="/examples/forms"
+        primitive="louise/forms"
+        testMode={true}
+        docHref="https://docs.louisetoolkit.com/guide/forms"
+        sourceHref="https://github.com/bowenlabs/louise-toolkit/blob/main/packages/louise/src/core/forms/defineForm.ts"
+        tabs={[
+          { label: "worker.ts", lang: "ts", code: serverCode },
+          { label: "FormsDemo.astro", lang: "astro", code: demoCode },
+        ]}
+      >
+        <FormsDemo slot="live" />
+        <span slot="try"
+          >Fix the email to <code>jordan@acme.com</code> and send — watch the same
+          validation the server runs pass client-side.</span
+        >
+      </Example>
+
+      <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
+        Want the fully wired version that actually stores a row and shows up in Louise
+        Settings? That's <a class="link link-primary" href="/">the contact form on the
+        home page</a> — same <code>inquiries</code> definition, posting to its real capture
+        route.
+      </p>
+    </SiteChrome>
+  </body>
+</html>
