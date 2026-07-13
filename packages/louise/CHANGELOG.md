@@ -1,5 +1,34 @@
 # louisecms
 
+## 0.11.0
+
+### Minor Changes
+
+- d8ba9d1: feat(client): multi-line textarea for `textarea`-typed dock fields
+
+  Section fields declared `type: "textarea"` but edited in the dock (i.e.
+  `inline: false` — card bodies, FAQ answers, packaging step/tier bodies) were
+  rendered with a single-line `<input>`, so they couldn't hold line breaks. They
+  now render a resizable `<textarea>`, and the entered newlines are saved as `\n`
+  (the site renders them with `white-space: pre-line`). Inline (in-place) text
+  fields are unchanged.
+
+### Patch Changes
+
+- 8cbbc99: fix(client): make the inline editor chrome usable on mobile
+
+  - The structured-sections dock becomes a full-width bottom sheet on phones
+    instead of a fixed 300px card that overflowed the viewport and sat under the
+    edit bar.
+  - The shared edit bar docks to the top on mobile so the two floating bars no
+    longer collide (the sheet owns the bottom thumb zone).
+  - The caret formatting toolbar is kept within the viewport (CSS `max-width`
+    plus a left clamp in `ToolbarDock`) instead of bleeding off the right edge.
+  - Comfortable touch targets on coarse pointers (toolbar buttons, swatches,
+    section-row ops, inputs, disclosure toggles), and a persistent
+    ring + focus-revealed pencil on editable regions so they stay discoverable
+    where there is no `:hover`.
+
 ## 0.10.0
 
 ### Minor Changes
