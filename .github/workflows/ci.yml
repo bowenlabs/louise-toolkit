@@ -34,11 +34,14 @@ jobs:
       - name: Lint .astro (Biome)
         run: node_modules/.bin/biome lint .
 
-      # `vp check` runs vp's own oxlint config and ignores the repo .oxlintrc.json
-      # (and its jsPlugins). A direct oxlint run loads eslint-plugin-solid via
-      # jsPlugins to lint the SolidJS inline-edit client (solid/* rules).
+      # `vp check` uses vp's own bundled oxlint and ignores the repo .oxlintrc.json
+      # (and its jsPlugins). Run a standalone oxlint to load eslint-plugin-solid via
+      # jsPlugins and lint the SolidJS inline-edit client (solid/* rules). It MUST
+      # be isolated (npx), not a node_modules dep — a node_modules oxlint shadows
+      # vp's and breaks `vp check` (vp reads its oxlint config from vite.config.ts,
+      # which imports vite-plus, unresolvable to a standalone oxlint).
       - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
-        run: node_modules/.bin/oxlint packages/louise/src/client
+        run: npx --yes -p oxlint@1.73.0 -p eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client
 
       - name: Type-check
         run: vp run "louise#typecheck"
