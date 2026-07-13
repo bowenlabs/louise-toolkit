@@ -52,6 +52,11 @@ const CSS = `
 .louise-editable:hover::after {
   display: flex;
 }
+/* Also reveal the pencil on focus — so keyboard users and touch devices (no
+   :hover) still get the affordance once a field is entered. */
+.louise-editable:focus-within::after {
+  display: flex;
+}
 .louise-editable .ProseMirror:focus {
   outline: none;
 }
@@ -912,6 +917,9 @@ const CSS = `
   flex-wrap: wrap;
   gap: 2px;
   padding: 4px;
+  /* Never wider than the viewport — on a phone the pill wraps to two rows
+     instead of running off the edge (its left is set inline from the caret). */
+  max-width: calc(100vw - 12px);
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
   background: #fff;
@@ -1113,10 +1121,18 @@ const CSS = `
 
 /* Comfortable touch targets on coarse pointers, any width. */
 @media (pointer: coarse) {
-  .louise-btn, .louise-tab, .louise-drawer-close, .louise-save, .louise-exit {
+  .louise-btn, .louise-tab, .louise-drawer-close, .louise-save, .louise-exit,
+  .louise-savedraft, .louise-publish, .louise-settings {
     min-height: 44px;
   }
   .louise-icon-btn { min-width: 36px; min-height: 36px; }
+  /* Formatting toolbar, colour swatches, section-row ops, inputs and the
+     dock's disclosure toggles were all below a comfortable tap size. */
+  .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 19px; }
+  .louise-swatch { width: 32px; height: 32px; }
+  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+  .louise-input, .louise-select { min-height: 42px; }
+  .louise-sections-toggle, .louise-sections-history-toggle { min-height: 36px; }
 }
 
 /* Tablet: keep the side drawer, cap it so the live site stays visible. */
@@ -1165,21 +1181,73 @@ const CSS = `
   .louise-tab { white-space: nowrap; flex: none; }
   /* Two-column form rows collapse. */
   .louise-grid-2 { grid-template-columns: 1fr !important; }
-  /* Inline bar: full-width strip that leaves room for the Manage toggle. */
+  /* Edit bar: dock it to the TOP on mobile, so the contextual sections sheet
+     can own the bottom (thumb zone) without the two floating bars colliding. */
   .louise-bar {
+    top: calc(8px + env(safe-area-inset-top));
+    bottom: auto;
     left: 12px;
-    right: 88px;
+    right: 12px;
     transform: none;
     width: auto;
     max-width: none;
+    justify-content: center;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  /* Structured-sections dock → bottom sheet. The default is a fixed 300px card
+     at bottom-left that overflows a phone and sits under the edit bar; here it
+     spans full width and docks to the bottom. !important overrides the dragged
+     inline position (left/top set by the pointer-drag in sections.tsx), which
+     is meaningless for a full-width sheet. */
+  .louise-sections-dock {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: none;
+    max-height: 62dvh;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.22);
+    animation: louise-sheet-up 200ms ease;
+  }
+  .louise-sections-dock[data-collapsed="1"] { width: auto !important; }
+  /* Full-width sheet: the header is no longer a drag grip — swap the grab
+     cursor for a sheet grab-bar cue (matching the drawer). */
+  .louise-sections-head {
+    position: relative;
+    cursor: default;
+    touch-action: auto;
+    padding-top: 10px;
+  }
+  .louise-sections-head::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.15);
   }
   /* Image grid: keep tiles tappable. */
   .louise-image-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 }
 
+/* Touch devices can't hover, so hover-revealed affordances never appear. Keep a
+   faint persistent ring on editable regions so they're discoverable, and reveal
+   in-editor block controls on focus instead of hover. */
+@media (hover: none) {
+  .louise-editable { box-shadow: 0 0 0 1px rgba(20, 129, 239, 0.20); }
+  .louise-block:focus-within .louise-block-control { display: inline-flex; }
+}
+
 /* Motion sensitivity. */
 @media (prefers-reduced-motion: reduce) {
-  .louise-drawer, .louise-bar { animation: none !important; }
+  .louise-drawer, .louise-bar, .louise-sections-dock { animation: none !important; }
 }
 
 /* ── Headless <Form> (#46) ────────────────────────────────────────────── */

@@ -312,7 +312,13 @@ function ToolbarDock(props: { focused: () => boolean }) {
     if (sel instanceof NodeSelection) return null;
     try {
       const c = e.view.coordsAtPos(sel.head);
-      return { top: c.top, left: c.left };
+      // Keep the pill on-screen: its left is the caret x, but near the right
+      // edge that would start it off the viewport. CSS caps its width at
+      // calc(100vw - 12px) so it wraps; this stops the left edge from starting
+      // too far right (reserving a wrapped-pill width).
+      const reserve = Math.min(340, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(c.left, window.innerWidth - 8 - reserve));
+      return { top: c.top, left };
     } catch {
       return null;
     }
