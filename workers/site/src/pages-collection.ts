@@ -37,7 +37,7 @@ export const pagesCollection = defineCollection({
     ogImage: { type: "text" },
     noindex: { type: "checkbox" },
     sortOrder: { type: "number" },
-    // The structured sections array (deep-validated separately by
+    // The Louise Sections array (deep-validated separately by
     // assertValidSections on the draft-save path).
     sections: { type: "json" },
   },

@@ -9,7 +9,7 @@ export interface CollectionMeta {
   searchable: boolean;
 }
 
-// Serializable introspection contract a content admin (or any other
+// Serializable introspection contract the Louise Editor (or any other
 // consumer) uses to render generic UI without importing CollectionConfig
 // or ContentConfig directly. CollectionConfig is already plain, serializable
 // data — this is a stable, narrow public surface over it, not a

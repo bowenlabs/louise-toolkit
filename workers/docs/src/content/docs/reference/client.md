@@ -59,7 +59,7 @@ import { RichText, type RichTextProps } from "louise/client";
 <RichText
   value={html}
   onChange={(next) => save(next)}
-  // `blocks` turns on the page-builder slash menu; omit for plain prose.
+  // `blocks` turns on the builder slash menu; omit for plain prose.
 />;
 ```
 
@@ -88,7 +88,7 @@ inlined at build time. See the package's `THIRD_PARTY_NOTICES.md`.
 
 ## Blocks
 
-The page-builder framework (see [Page builder](/guide/page-builder/)):
+The builder framework (see [Louise Builder](/guide/builder/)):
 
 ```ts
 import {
@@ -120,7 +120,7 @@ function mountSections(
 ): () => void;
 ```
 
-The editor for [structured sections](/guide/sections/) — component-rendered pages
+The editor for [Louise Sections](/guide/sections/) — component-rendered pages
 whose content is stored as typed JSON, not HTML. Takes over `el` (the wrapper
 around the server-rendered sections): visible text nodes marked with
 `data-louise-sfield` become editable in place, and a floating control dock adds /

@@ -5,7 +5,8 @@
 **A V8-native toolkit for building editable sites on Cloudflare Workers.**
 
 No separate admin app. No JSON forms for prose. Log in, and the live site
-becomes editable in place — text where the text is, structured work in Louise Settings.
+becomes editable in place — text where the text is, structured sections through
+your own components, and back-office work in Louise Settings.
 
 [Documentation](https://louisetoolkit.com/docs) ·
 [Getting started](https://louisetoolkit.com/docs/guide/getting-started) ·

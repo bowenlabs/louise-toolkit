@@ -20,7 +20,7 @@ export { mountRichText, RichText, type RichTextField, type RichTextProps } from 
 // Re-exported so Settings panels render the same Phosphor icon set as the
 // rich-text toolbar (no per-panel glyph literals).
 export { Icon, icons, type IconName } from "./icons.jsx";
-// Page-builder blocks (#16): the registry drives the inserter; defineBlock
+// Builder blocks (#16): the registry drives the inserter; defineBlock
 // lets future blocks be authored outside this module.
 export {
   BLOCKS,
@@ -386,7 +386,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // field's text, its invisible payload must never round-trip into stored
       // HTML / ProseMirror JSON (it would compound on every save). No-op when
       // stega isn't in use.
-      // `data-louise-blocks` opts the field into the full page-builder block set
+      // `data-louise-blocks` opts the field into the full builder block set
       // (rows/columns, gallery, hero, …) — so a page body can be built in place
       // on the live page, not just in Louise Settings.
       const blocks = el.dataset.louiseBlocks === "1";

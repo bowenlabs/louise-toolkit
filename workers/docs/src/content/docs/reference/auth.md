@@ -52,7 +52,7 @@ passed straight to `database` (no adapter).
 | `rpName`               | passkey relying-party display name                                                                                            |
 | `mailFrom`             | `from` for the magic-link email                                                                                               |
 | `renderMagicLinkEmail` | render the email body (site branding)                                                                                         |
-| `resolveAdmins?`       | admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
+| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup |
 | `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                |
 | `additionalFields?`    | extra Better Auth user columns (e.g. `squareCustomerId`)                                                                      |
 | `tablePrefix?`         | namespace the auth tables in the same D1 (e.g. `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |

@@ -10,7 +10,7 @@ import "louise/theme/fonts.css";
 import "../styles/louise.css";
 
 // Renders published Louise Toolkit pages (drafts are visible only in edit mode).
-// The body is sanitized page-builder HTML, rendered straight back via set:html.
+// The body is sanitized builder HTML, rendered straight back via set:html.
 export const prerender = false;
 
 const DB = (env as unknown as CloudflareEnv).DB;

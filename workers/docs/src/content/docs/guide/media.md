@@ -11,7 +11,7 @@ does the validation Louise can't do from the client.
 
 ## The endpoint's job
 
-A media endpoint should be **admin-gated** and enforce, at minimum:
+A media endpoint should be **editor-gated** and enforce, at minimum:
 
 - **A size cap** (e.g. 10 MB).
 - **Content sniffing over trust.** Validate the _actual_ image bytes with a

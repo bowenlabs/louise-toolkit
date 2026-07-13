@@ -44,7 +44,7 @@ export interface FieldAdminConfig {
   /**
    * Create-form only (issue #98). **Array fields only.** When creating a new
    * row and `when(values)` holds, append `item(values)` to this array before
-   * submit — lets a "template" create-flow auto-insert a page-builder block
+   * submit — lets a "template" create-flow auto-insert a builder block
    * bound to another field (e.g. push a `portfolioGallery` block bound to the
    * chosen `category` into `blocks`). Runs once at submit; never on edit.
    */
@@ -171,7 +171,7 @@ export interface ArrayFieldConfig extends BaseFieldConfig {
    */
   fields: Record<string, FieldConfig>;
   /**
-   * Lets one array field model a union of item shapes (e.g. page-builder
+   * Lets one array field model a union of item shapes (e.g. builder
    * blocks: image vs hero vs richText vs...) instead of one fixed field
    * set for every item. `key` names a field already present in `fields`
    * (rendered as the item's type switcher); `variants` maps each of that
@@ -207,7 +207,7 @@ export interface UploadFieldConfig extends BaseFieldConfig {
  * `richText`/`array` (one `.$type<JsonValue>()` text column, see
  * codegen.ts's `fieldToColumn`) but with no TipTap/array-item connotation —
  * use this for genuinely unstructured data (webhook audit payloads, CRM
- * activity metadata), not page-builder content.
+ * activity metadata), not builder content.
  */
 export interface JsonFieldConfig extends BaseFieldConfig {
   type: "json";

@@ -157,7 +157,7 @@
 
 /* ── Louise Toolkit page rendering ────────────────────────────────────────────
  * Published `pages` bodies: the Louise Settings rich-text editor serializes
- * page-builder blocks to semantic, `pb-`-classed HTML, and these styles render
+ * builder blocks to semantic, `pb-`-classed HTML, and these styles render
  * that markup on the public site. Column widths for `.pb-row` come from a
  * sanitizer-validated inline `grid-template-columns` (louise/security), so
  * there's no per-layout CSS — any percentage split just works.

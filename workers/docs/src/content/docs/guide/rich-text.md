@@ -38,7 +38,7 @@ boundary. Sanitize with a **parser-based allowlist**, not a regex stripper
   domain rendering arbitrary SVG/HTML is a hosted-content risk.
 - Block containers (`section`/`figure`/`figcaption`/`hr`, plus `div`/
   `blockquote` with a filtered `class` allowlist) are permitted for the
-  [page builder](/guide/page-builder/); iframes stay banned.
+  [Louise Builder](/guide/builder/); iframes stay banned.
 
 ## The toolbar
 
@@ -64,7 +64,7 @@ import { RichText } from "louise/client";
 <RichText
   value={html}
   onChange={(next) => save(next)}
-  // `blocks` enables the page-builder slash menu; omit for plain prose fields.
+  // `blocks` enables the builder slash menu; omit for plain prose fields.
 />;
 ```
 

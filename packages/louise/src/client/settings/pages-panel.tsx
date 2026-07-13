@@ -33,7 +33,7 @@ export interface PageTemplate {
   label: string;
   /** Prefilled page title (defaults to `label`). */
   title?: string;
-  /** Prefilled page-builder body (HTML). */
+  /** Prefilled builder body (HTML). */
   body: string;
 }
 

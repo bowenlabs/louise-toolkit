@@ -1,4 +1,4 @@
-// Block node-view framework for the page builder (#16 + grid follow-up).
+// Block node-view framework for the Louise Builder (#16 + grid follow-up).
 //
 // A "block" is a ProseKit custom node that serializes to semantic, classed
 // HTML (`<section data-block="hero" class="pb-hero">…`) so the existing
@@ -69,7 +69,7 @@ function dataAttrs(def: BlockDef, attrs: Attrs): Record<string, string> {
 }
 
 /**
- * Define a page-builder block: node spec (persistence) + Solid node view
+ * Define a builder block: node spec (persistence) + Solid node view
  * (editing chrome), mirroring how the resizable image is wired in RichText.
  */
 export function defineBlock(def: BlockDef): Extension {

@@ -89,7 +89,7 @@ function louiseExtension(blocks = false) {
     defineImageUploadHandler({ uploader: r2ImageUploader }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
-    // Page-builder blocks (#16) — opt-in: the Settings Pages panel composes
+    // Builder blocks (#16) — opt-in: the Settings Pages panel composes
     // whole pages, while inline prose fields stay blocks-free.
     ...(blocks ? [defineBlocksExtension()] : []),
   );
@@ -108,7 +108,7 @@ export interface RichTextProps {
   ref?: (field: RichTextField) => void;
   /** Show the formatting toolbar (default true). */
   toolbar?: boolean;
-  /** Enable page-builder blocks (#16) — the Pages panel opts in. */
+  /** Enable builder blocks (#16) — the Pages panel opts in. */
   blocks?: boolean;
   class?: string;
 }

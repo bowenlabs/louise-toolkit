@@ -35,7 +35,7 @@ export type FieldChangeKind = "added" | "removed" | "changed";
 
 /**
  * One segment of a {@link FieldChange} path. A plain string is an object field
- * key; `{ key }` addresses an element of a `_key`-keyed array (a page-builder
+ * key; `{ key }` addresses an element of a `_key`-keyed array (a builder
  * block) by its stable key rather than a positional index — so a change survives
  * reordering. E.g. `["blocks", { key: "b1a2" }, "heading"]`.
  */

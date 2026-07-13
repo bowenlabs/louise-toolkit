@@ -1,14 +1,14 @@
 ---
-title: Structured sections
+title: Louise Sections
 description: Component-rendered pages under editor control — the preconfigured-blocks model.
 sidebar:
   order: 6
 ---
 
-Structured **sections** are the preconfigured-blocks model: a page is an ordered
+**Louise Sections** are the preconfigured-blocks model: a page is an ordered
 list of typed items that _your own components_ render, so a bespoke design stays
 pixel-perfect while editors still add, reorder, and edit it. Where the
-[page builder](/guide/page-builder/) stores sanitized HTML and
+[Louise Builder](/guide/builder/) stores sanitized HTML and
 [inline fields](/guide/inline-editing/) edit one value at a time, sections store
 **structured JSON** and render through **your** components.
 

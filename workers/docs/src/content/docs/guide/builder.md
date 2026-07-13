@@ -1,5 +1,5 @@
 ---
-title: Page builder
+title: Louise Builder
 description: Blocks, the slash menu, and defineBlock.
 sidebar:
   order: 5

@@ -194,7 +194,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // /reindex to rebuild the FTS index. Before pagesRoute (its `/:id` matcher
   // would else claim the non-integer `search`/`reindex` segments).
   searchRoute({ table: pages, config: pagesCollection, resolveEditor }),
-  // `sections` (structured page-builder blocks JSON) is editable alongside the
+  // `sections` (structured builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is
   // rejected with a 422 rather than persisted.

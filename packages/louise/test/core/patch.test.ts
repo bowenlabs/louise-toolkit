@@ -15,7 +15,7 @@ const block = (key: string, fields: Record<string, JsonValue>): JsonValue => ({
   ...fields,
 });
 
-// A two-block page-builder document, the shape the deep diff exists for.
+// A two-block builder document, the shape the deep diff exists for.
 const base = (): Doc => ({
   title: "Home",
   blocks: [
