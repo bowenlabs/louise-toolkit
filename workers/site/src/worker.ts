@@ -237,7 +237,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     ],
   }),
   // Public capture (contact form) + editor-gated review, both from the one
-  // built-in `inquiries` form (louise/forms) — #46. The dogfood adds the
+  // built-in `inquiries` form (louise/forms) — #46. The site adds the
   // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),

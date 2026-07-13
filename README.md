@@ -43,7 +43,7 @@ packages/
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
 workers/
-  site/            # louisetoolkit.com — Astro on Cloudflare Workers: marketing + the Louise Toolkit dogfood
+  site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
   docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
 ```
 

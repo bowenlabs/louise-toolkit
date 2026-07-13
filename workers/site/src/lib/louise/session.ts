@@ -1,4 +1,4 @@
-// Minimal pre-prod editor gate for the louisetoolkit.com dogfood.
+// Minimal pre-prod editor gate for the louisetoolkit.com site.
 //
 // This is NOT Better Auth — it's the smallest thing that can answer "is this
 // request an editor?" for a single-editor, pre-production testbed, sitting

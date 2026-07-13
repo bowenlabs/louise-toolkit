@@ -3,7 +3,7 @@ import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
-// louisetoolkit.com — the marketing landing plus the Louise Toolkit dogfood, deployed to
+// louisetoolkit.com — the marketing landing, itself built with Louise Toolkit, deployed to
 // Cloudflare Workers. The Starlight docs used to live here under /docs/**; they
 // now have their own static app (workers/docs) served under docs.louisetoolkit.com
 // by the *same* Worker — see src/worker.ts, which dispatches by Host.

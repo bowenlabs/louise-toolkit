@@ -1,4 +1,4 @@
--- Louise dogfood seed: home page (sections) + site_settings singleton.
+-- Louise Toolkit seed: home page (sections) + site_settings singleton.
 -- Exported from local miniflare D1 (2026-07-08), home sections cleaned of test junk.
 -- Apply to the remote pre-prod DB:
 --   cd workers/site && npx wrangler d1 execute DB --remote --file=seed/home-and-settings.seed.sql
