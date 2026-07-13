@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise/client/settings` — the Settings data layer: the shared TanStack Solid
+// `louise-toolkit/client/settings` — the Settings data layer: the shared TanStack Solid
 // Query wiring and typed fetch helpers every Louise editor Settings uses. The
 // shell (see ./shell) and framework panels build on this; sites reuse the same
 // helpers for their own collection tabs so everything shares one query cache.

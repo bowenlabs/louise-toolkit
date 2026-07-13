@@ -4,7 +4,7 @@
 // /api/louise/media), uploads new images, copies public URLs, and deletes
 // objects with the delete-safety reference scan (a 409 lists what still uses
 // the file). Opened from the image icon in the Settings' top framework strip.
-// Talks to the generic louise/editor `media` route.
+// Talks to the generic louise-toolkit/editor `media` route.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";

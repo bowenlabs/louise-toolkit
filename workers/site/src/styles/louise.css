@@ -4,7 +4,7 @@
 /*
  * "louise" — the public louisetoolkit.com site theme (BowenLabs brand system).
  *
- * Distinct from the package's `louise/theme/louise.css`: that one dresses the
+ * Distinct from the package's `louise-toolkit/theme/louise.css`: that one dresses the
  * Louise *editor* chrome (Louise Settings, inline affordances). This one is the *site*
  * theme for the marketing landing — same brand tokens, site-appropriate bases.
  *   blue #1481ef primary · gold #f3ae29 accent · greens for success ·
@@ -159,7 +159,7 @@
  * Published `pages` bodies: the Louise Settings rich-text editor serializes
  * builder blocks to semantic, `pb-`-classed HTML, and these styles render
  * that markup on the public site. Column widths for `.pb-row` come from a
- * sanitizer-validated inline `grid-template-columns` (louise/security), so
+ * sanitizer-validated inline `grid-template-columns` (louise-toolkit/security), so
  * there's no per-layout CSS — any percentage split just works.
  */
 .louise-page {

@@ -1,13 +1,13 @@
 ---
 title: theme
-description: "louise/theme — the daisyUI louise editor theme stylesheets."
+description: "louise-toolkit/theme — the daisyUI louise editor theme stylesheets."
 sidebar:
   order: 8
 ---
 
 ```css
-@import "louise/theme/louise.css";
-@import "louise/theme/fonts.css";
+@import "louise-toolkit/theme/louise.css";
+@import "louise-toolkit/theme/fonts.css";
 ```
 
 Two CSS assets — not JS — that style Louise's editor chrome. They ship as plain
@@ -16,8 +16,8 @@ side-effectful files, so importing JS never accidentally pulls in CSS.
 
 | Export                       | Contents                                                                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `louise/theme/louise.css` | The `louise` / `louise-dark` daisyUI themes + chrome variables (`--louise-accent`, `--louise-ring`, `--louise-font-head`, `--louise-font-body`). |
-| `louise/theme/fonts.css`  | The `.louise-type` typography contract (Hepta Slab headers, Roboto Flex body).                                                                   |
+| `louise-toolkit/theme/louise.css` | The `louise` / `louise-dark` daisyUI themes + chrome variables (`--louise-accent`, `--louise-ring`, `--louise-font-head`, `--louise-font-body`). |
+| `louise-toolkit/theme/fonts.css`  | The `.louise-type` typography contract (Hepta Slab headers, Roboto Flex body).                                                                   |
 
 ## Wiring
 
@@ -31,8 +31,8 @@ declare the daisyUI themes:
     louise --default,
     louise-dark --prefersdark;
 }
-@import "louise/theme/louise.css";
-@import "louise/theme/fonts.css";
+@import "louise-toolkit/theme/louise.css";
+@import "louise-toolkit/theme/fonts.css";
 ```
 
 Apply `data-theme="louise"` (or `louise-dark`) to any editor surface's root so it

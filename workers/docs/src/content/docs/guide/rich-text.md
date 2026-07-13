@@ -6,7 +6,7 @@ sidebar:
 ---
 
 Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid) —
-`louise/client`'s `RichText` — used identically by inline fields and
+`louise-toolkit/client`'s `RichText` — used identically by inline fields and
 by any Settings form a host app builds.
 
 ## HTML in, HTML out
@@ -59,7 +59,7 @@ resizable node view lets an editor drag the corner; the size persists as
 ## Using it directly
 
 ```tsx
-import { RichText } from "louise/client";
+import { RichText } from "louise-toolkit/client";
 
 <RichText
   value={html}

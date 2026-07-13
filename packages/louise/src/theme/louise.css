@@ -103,7 +103,7 @@
 }
 
 /*
- * Louise chrome variables — consumed by louise/client (inline-edit
+ * Louise chrome variables — consumed by louise-toolkit/client (inline-edit
  * affordances, Settings, action bar). Defined per-theme so the chrome follows
  * the editor theme, never the site theme.
  */

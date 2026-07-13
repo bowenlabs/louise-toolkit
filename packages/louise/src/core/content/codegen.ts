@@ -124,7 +124,7 @@ function fieldToColumn(key: string, field: FieldConfig): SQLiteColumnBuilderBase
     }
     default:
       throw new LouiseContentError(
-        `Field type "${(field as FieldConfig).type}" is not yet supported by louise/content codegen`,
+        `Field type "${(field as FieldConfig).type}" is not yet supported by louise-toolkit/content codegen`,
       );
   }
 }

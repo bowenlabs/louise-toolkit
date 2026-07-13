@@ -3,8 +3,8 @@
 // this entry is just the Astro SSR fallback plus a nightly reset cron that keeps
 // this public, write-capable surface from retaining visitors' data.
 import { handle } from "@astrojs/cloudflare/handler";
-import { db } from "louise/db";
-import { composeWorker } from "louise/worker";
+import { db } from "louise-toolkit/db";
+import { composeWorker } from "louise-toolkit/worker";
 import { demoOrders } from "./schema.js";
 
 type Env = CloudflareEnv;

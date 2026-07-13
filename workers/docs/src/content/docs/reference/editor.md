@@ -1,6 +1,6 @@
 ---
 title: editor
-description: "louise/editor — framework-generic api/louise/* route handlers for Louise Settings."
+description: "louise-toolkit/editor — framework-generic api/louise/* route handlers for Louise Settings."
 sidebar:
   order: 11
 ---
@@ -19,7 +19,7 @@ import {
   inquiriesRoute,
   seedRoute,
   runEditorRoute,
-} from "louise/editor";
+} from "louise-toolkit/editor";
 ```
 
 The server-side counterpart to the [Louise Settings](/guide/settings/): framework-generic
@@ -35,13 +35,13 @@ call these endpoints. Peer: `drizzle-orm`.
 ## Composing the routes
 
 ```ts
-import { composeWorker } from "louise/worker";
-import { pagesRoute, mediaRoute, settingsRoute, saveRoute, inquiriesRoute } from "louise/editor";
-import { getLouiseAuth, resolveEditorSession } from "louise/auth";
+import { composeWorker } from "louise-toolkit/worker";
+import { pagesRoute, mediaRoute, settingsRoute, saveRoute, inquiriesRoute } from "louise-toolkit/editor";
+import { getLouiseAuth, resolveEditorSession } from "louise-toolkit/auth";
 import { pages, media, siteSettings, inquiries } from "./db/schema";
 
 // Bridge the site's auth once; every route reuses it. `getLouiseAuth` and
-// `resolveEditorSession` come from louise/auth — see the auth reference.
+// `resolveEditorSession` come from louise-toolkit/auth — see the auth reference.
 const resolveEditor = async (request: Request, env: Env) =>
   resolveEditorSession(await getLouiseAuth(env, request.url, authConfig), request);
 
@@ -100,7 +100,7 @@ second auth path:
 
 ```ts
 // Astro: src/pages/api/louise/inquiries.ts
-import { inquiriesRoute, runEditorRoute } from "louise/editor";
+import { inquiriesRoute, runEditorRoute } from "louise-toolkit/editor";
 import { inquiries } from "../../../db/schema";
 import { env } from "cloudflare:workers";
 
@@ -150,7 +150,7 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
   `search.fields` is indexed by flattening every string leaf, so structured
   `sections` content is searchable. Also **mount before `pagesRoute`**.
-- **`mediaRoute`** — wraps [`louise/media`](/guide/media/): magic-byte-
+- **`mediaRoute`** — wraps [`louise-toolkit/media`](/guide/media/): magic-byte-
   sniffed uploads (recording intrinsic `width`/`height`), the registry list,
   `PATCH` to set an asset's [`alt`/`caption`](/guide/media/#asset-level-alt-caption-and-dimensions)
   (only those two columns are writable), and a delete-safety reference scan (a

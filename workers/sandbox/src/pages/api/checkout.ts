@@ -6,9 +6,9 @@
 import { FROM_EMAIL, SQUARE_ENV, SQUARE_LOCATION, SQUARE_TOKEN } from "astro:env/server";
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { createPayment } from "louise/commerce/square";
-import { db } from "louise/db";
-import { sendEmail } from "louise/email";
+import { createPayment } from "louise-toolkit/commerce/square";
+import { db } from "louise-toolkit/db";
+import { sendEmail } from "louise-toolkit/email";
 import { demoOrders } from "../../schema.js";
 
 export const prerender = false;
@@ -41,7 +41,7 @@ function confirmationEmail(paymentId: string): { subject: string; html: string }
         <tr><td style="color:#666;padding:2px 12px 2px 0">Payment</td><td>${paymentId}</td></tr>
       </table>
       <p style="color:#888;font-size:12px">This was a Square <b>sandbox</b> payment — no real
-        money moved, and this email was sent by louise/email over Cloudflare Email Sending.</p>
+        money moved, and this email was sent by louise-toolkit/email over Cloudflare Email Sending.</p>
     </div>`,
   };
 }

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise/client/settings` — the Louise editor Settings: a registry-driven
+// `louise-toolkit/client/settings` — the Louise editor Settings: a registry-driven
 // SolidJS shell with a fixed top strip of framework panels (Pages/Media/
 // Settings) and a bottom group of site-registered collection tabs. Sites call
 // `mountSettings(config)` in edit mode and register their own collections;

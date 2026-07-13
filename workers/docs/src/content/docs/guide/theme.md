@@ -34,8 +34,8 @@ chrome:
     louise --default,
     louise-dark --prefersdark;
 }
-@import "louise/theme/louise.css";
-@import "louise/theme/fonts.css";
+@import "louise-toolkit/theme/louise.css";
+@import "louise-toolkit/theme/fonts.css";
 ```
 
 Apply `data-theme="louise"` (or `louise-dark`) to the root of any editor surface

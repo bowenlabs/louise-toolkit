@@ -19,7 +19,7 @@ export const pagesColumns = {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
-  /** Sanitized rich HTML — run `sanitizeRichHtml` (louise/security) on write
+  /** Sanitized rich HTML — run `sanitizeRichHtml` (louise-toolkit/security) on write
    *  and render. */
   body: text("body"),
   status: text("status", { enum: ["draft", "published"] })

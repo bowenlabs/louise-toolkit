@@ -83,7 +83,7 @@ importers:
       astro:
         specifier: ^7.0.6
         version: 7.0.6(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@24.13.2)(jiti@2.7.0)(rollup@4.62.2)(tsx@4.23.0)
-      louise:
+      louise-toolkit:
         specifier: workspace:*
         version: link:../../packages/louise
       sharp:
@@ -101,7 +101,7 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@cloudflare/workers-types@4.20260702.1)(kysely@0.29.3)
-      louise:
+      louise-toolkit:
         specifier: workspace:*
         version: link:../../packages/louise
     devDependencies:
@@ -141,7 +141,7 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.2(@cloudflare/workers-types@4.20260702.1)(kysely@0.29.3)
-      louise:
+      louise-toolkit:
         specifier: workspace:*
         version: link:../../packages/louise
       prosekit:

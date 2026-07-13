@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the generic `seed` route: idempotently create the
+// louise-toolkit/editor — the generic `seed` route: idempotently create the
 // `site_settings` singleton row (with optional default column values) so a
 // fresh deploy has a row to patch. Guarded as a mutation (same-origin) even on
 // GET, so the Settings' seed *link* works from a same-origin click (which sends

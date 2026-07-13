@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — shared plumbing for the generic `api/louise/*` editor
+// louise-toolkit/editor — shared plumbing for the generic `api/louise/*` editor
 // routes (issue #10, Tier 2). Each route is a `WorkerRoute` composeWorker
 // composes: it matches its mount path, resolves + guards the editor session,
 // then reads/writes D1. The site supplies `resolveEditor` (wrapping its own
@@ -61,7 +61,7 @@ export async function guardEditor<Env>(
 /**
  * Validate + double-quote a SQL identifier (table/column). Identifiers come
  * from a site's own Drizzle schema, never user input, but quote them anyway as
- * defense in depth so a typo can't become injection (mirrors louise/media's
+ * defense in depth so a typo can't become injection (mirrors louise-toolkit/media's
  * `findMediaReferences`).
  */
 export function ident(name: string): string {

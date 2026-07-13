@@ -1,6 +1,6 @@
 ---
 // A self-contained preview of the inquiries form for /examples/forms. It mirrors
-// the real client checks louise/forms runs (required + email format) so you can
+// the real client checks louise-toolkit/forms runs (required + email format) so you can
 // feel the validation, but it never posts — no row is written, nothing leaves the
 // browser. The production form (src/sections/Contact.astro) is the same fields
 // posting to the real capture route; this is the safe, sandboxed twin.
@@ -31,9 +31,9 @@
 </form>
 
 <script>
-  // Mirror of louise/forms `validateField` for the two built-in checks demoed
+  // Mirror of louise-toolkit/forms `validateField` for the two built-in checks demoed
   // here: `required`, and the `email` type's format rule. Kept deliberately tiny
-  // — the real engine (server + client) lives in louise/forms/validate.ts.
+  // — the real engine (server + client) lives in louise-toolkit/forms/validate.ts.
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   document.querySelectorAll<HTMLFormElement>("form.louise-demo-form").forEach((form) => {

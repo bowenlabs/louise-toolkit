@@ -1,12 +1,12 @@
 ---
 title: errors
-description: "louise/errors — LouiseError and its typed subclasses."
+description: "louise-toolkit/errors — LouiseError and its typed subclasses."
 sidebar:
   order: 7
 ---
 
 ```ts
-import { LouiseError, LouiseValidationError } from "louise/errors";
+import { LouiseError, LouiseValidationError } from "louise-toolkit/errors";
 ```
 
 Every Louise primitive throws `LouiseError` or a typed subclass — never a raw
@@ -67,7 +67,7 @@ And for HTTP clients:
   re-parsing `{ error }` bodies.
 
 ```ts
-import { LouiseValidationError } from "louise/errors";
+import { LouiseValidationError } from "louise-toolkit/errors";
 
 try {
   await api.create(doc, ctx);

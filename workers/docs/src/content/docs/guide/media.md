@@ -78,7 +78,7 @@ behavior (any safe `http(s)`/relative image) is unchanged.
 
 ## Asset-level alt, caption, and dimensions
 
-The `media` registry table (`mediaColumns` in `louise/db`) makes uploads a
+The `media` registry table (`mediaColumns` in `louise-toolkit/db`) makes uploads a
 real library rather than a bare file list. Each row carries an **asset-level
 `alt`** and `caption` you set once and reuse wherever the asset appears, plus its
 pixel `width`/`height`.

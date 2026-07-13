@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the draft/publish/versions route. Exposes a collection's
-// `createVersionedLocalApi` (louise/content) over HTTP, so the editor can stage
+// louise-toolkit/editor — the draft/publish/versions route. Exposes a collection's
+// `createVersionedLocalApi` (louise-toolkit/content) over HTTP, so the editor can stage
 // edits as drafts and promote them on publish without the change going live:
 //   GET  /api/louise/pages/:id/versions   list versions (newest first)
 //   POST /api/louise/pages/:id/versions   save a draft (merged over the live row)

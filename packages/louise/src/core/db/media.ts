@@ -3,7 +3,7 @@
 // Framework-owned `media` asset registry — turns "R2 file picker" into a real
 // media library. Tracked assets carry verified type/size/dimensions plus
 // asset-level `alt`/`caption`, are reusable across collection items, and make
-// delete-safety a join (with `louise/media`'s LIKE scan retained as a
+// delete-safety a join (with `louise-toolkit/media`'s LIKE scan retained as a
 // fallback for rich-text `<img src>` embeds that don't reference a row).
 //
 // A content `upload` field stores this row's `id`/`key`; the item then carries the

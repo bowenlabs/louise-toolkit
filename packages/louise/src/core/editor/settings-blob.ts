@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — the blob-mode `settings` route. The structured
+// louise-toolkit/editor — the blob-mode `settings` route. The structured
 // `settingsRoute` (see ./settings) maps settings to `siteSettingsColumns` + a
 // `custom` JSON column. This variant is for sites that keep ALL site config in
 // a single JSON blob column (e.g. `site_settings.data`) and drive the framework

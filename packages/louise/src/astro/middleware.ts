@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/astro — the shared Louise Astro middleware, as a factory. Every
+// louise-toolkit/astro — the shared Louise Astro middleware, as a factory. Every
 // Louise site's `middleware.ts` runs the same flow; only the auth wiring, rate
 // rules, and CSP allow-list vary. `createLouiseMiddleware` owns the flow and
 // takes those as config, so a site's middleware collapses to:
@@ -13,7 +13,7 @@
 //   });
 //
 // This subpath is the ONE place Louise touches Astro's types — `astro` is an
-// optional peer, pulled in only by sites that import `louise/astro`.
+// optional peer, pulled in only by sites that import `louise-toolkit/astro`.
 
 import type { APIContext, MiddlewareHandler } from "astro";
 import {

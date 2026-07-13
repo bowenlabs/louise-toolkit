@@ -34,7 +34,7 @@ A `SectionCatalog` describes each type's editable fields — schema only, no
 markup:
 
 ```ts
-import type { SectionCatalog } from "louise/client";
+import type { SectionCatalog } from "louise-toolkit/client";
 
 export const SECTIONS: SectionCatalog = {
   hero: {
@@ -86,7 +86,7 @@ Render empty fields too (in edit mode) so there's something to click into;
 ## Editing: `mountSections`
 
 ```ts
-import { mountSections } from "louise/client";
+import { mountSections } from "louise-toolkit/client";
 
 mountSections(el, { catalog: SECTIONS, pageId, initial });
 // Auto-save is on by default; opt out with:
@@ -127,7 +127,7 @@ The stored JSON is validated server-side before every write. Give `pagesRoute` a
 `validate` hook that runs `assertValidSections` against your catalog:
 
 ```ts
-import { assertValidSections } from "louise/content";
+import { assertValidSections } from "louise-toolkit/content";
 import { SECTIONS } from "./sections/catalog";
 
 pagesRoute({

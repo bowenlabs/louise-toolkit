@@ -2,7 +2,7 @@
 /// <reference types="astro/client" />
 /// <reference types="@cloudflare/workers-types" />
 
-import type { EmailSender } from "louise/email";
+import type { EmailSender } from "louise-toolkit/email";
 
 // Cloudflare *bindings* this Worker exposes (see wrangler.jsonc), read via
 // `import { env } from "cloudflare:workers"`. The string config (SQUARE_*,
@@ -13,7 +13,7 @@ type CloudflareEnv = {
   SANDBOX_DB: D1Database;
   /** Per-IP rate limiter. */
   RL: KVNamespace;
-  /** Cloudflare Email Sending binding (louise/email). */
+  /** Cloudflare Email Sending binding (louise-toolkit/email). */
   EMAIL: EmailSender;
   /** Static assets fetcher (Astro adapter). */
   ASSETS: Fetcher;

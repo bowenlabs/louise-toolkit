@@ -2,7 +2,7 @@
 // order over the Astro SSR fallback:
 //
 //   docs.louisetoolkit.com/*  → static Starlight bundle folded into /_docs (serveDocs)
-//   /api/louise/*         → louise/editor routes (pages/save/settings/media/
+//   /api/louise/*         → louise-toolkit/editor routes (pages/save/settings/media/
 //                           inquiries/seed), guarded by the cookie editor gate
 //   /media/*              → uploaded R2 objects (self-hosted media, no public bucket)
 //   /og.png?slug=&title=  → Browser-Run OG card, content-hash cached
@@ -16,7 +16,7 @@ import {
   type OgImageCache,
   ogCacheKey,
   ogImage,
-} from "louise/browser";
+} from "louise-toolkit/browser";
 import {
   DEFAULT_PAGE_FIELDS,
   formRoute,
@@ -28,11 +28,11 @@ import {
   seedRoute,
   settingsRoute,
   versionsRoute,
-} from "louise/editor";
-import { assertValidSections } from "louise/content";
-import { inquiriesForm } from "louise/db";
-import { defineForm } from "louise/forms";
-import { composeWorker, type WorkerRoute } from "louise/worker";
+} from "louise-toolkit/editor";
+import { assertValidSections } from "louise-toolkit/content";
+import { inquiriesForm } from "louise-toolkit/db";
+import { defineForm } from "louise-toolkit/forms";
+import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesCollection } from "./pages-collection.js";
 import { inquiries, media, pages, pagesVersions, siteSettings } from "./schema.js";
@@ -43,7 +43,7 @@ type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
 const SITE_ORIGIN = "https://louisetoolkit.com";
 const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
-/* ── OG image (louise/browser, #5) ─────────────────────────────────── */
+/* ── OG image (louise-toolkit/browser, #5) ─────────────────────────────────── */
 
 /** The OG card markup screenshotted into a share image. Self-contained (inline
  *  styles, system fonts) so no network fetch is needed during rendering. */
@@ -239,7 +239,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     ],
   }),
   // Public capture (contact form) + editor-gated review, both from the one
-  // built-in `inquiries` form (louise/forms) — #46. The site adds the
+  // built-in `inquiries` form (louise-toolkit/forms) — #46. The site adds the
   // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
   // #region example:inquiries-route  (sliced into /examples/forms)
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),

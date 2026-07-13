@@ -1,6 +1,6 @@
 ---
 title: auth
-description: "louise/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
+description: "louise-toolkit/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
 sidebar:
   order: 9
 ---
@@ -12,7 +12,7 @@ import {
   handleAuthRequest,
   requireEditor,
   defaultResolveAdmins,
-} from "louise/auth";
+} from "louise-toolkit/auth";
 ```
 
 The shared Better Auth setup for a Louise site: magic-link + passkey editor
@@ -62,7 +62,7 @@ passed straight to `database` (no adapter).
 
 ```ts
 // src/lib/auth.ts
-import { getLouiseAuth } from "louise/auth";
+import { getLouiseAuth } from "louise-toolkit/auth";
 import { magicLinkEmail } from "./emails";
 
 export const getAuth = (env: Env, baseURL: string) =>

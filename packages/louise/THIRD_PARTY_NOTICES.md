@@ -35,7 +35,7 @@ SOFTWARE.
 
 ## ultrahtml
 
-The rich-text sanitizer (`louise/security`, see `src/core/security/sanitize.ts`)
+The rich-text sanitizer (`louise-toolkit/security`, see `src/core/security/sanitize.ts`)
 parses and rebuilds editor HTML with [ultrahtml](https://github.com/natemoo-re/ultrahtml),
 which is bundled into this package's build, so a copy is distributed with
 `louise`.

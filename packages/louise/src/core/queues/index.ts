@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/queues
+// louise-toolkit/queues
 //
 // Thin wrapper over Cloudflare Queues' `Queue`/`MessageBatch` bindings.
 // Producer side is a single `enqueue()` call; consumer side is a batch

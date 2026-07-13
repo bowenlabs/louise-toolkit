@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/content — the structured "sections" schema + its server-side validator.
+// louise-toolkit/content — the structured "sections" schema + its server-side validator.
 //
 // A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`
 // — a discriminated block that the SITE renders with its own bespoke component.

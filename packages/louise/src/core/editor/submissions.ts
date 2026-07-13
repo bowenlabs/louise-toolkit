@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise/editor — review route for the shared generic `submissions` table
+// louise-toolkit/editor — review route for the shared generic `submissions` table
 // (issue #46, Tier 3). The read/delete companion to a generic `formRoute`
 // (`genericTable`): GET lists a form's submissions newest-first (parsing the
 // JSON `data` back to a flat row), DELETE removes one by id. Scoped to one

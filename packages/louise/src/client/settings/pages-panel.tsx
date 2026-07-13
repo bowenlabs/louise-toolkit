@@ -4,7 +4,7 @@
 // Privacy, and anything the owner creates), served publicly by the site's
 // catch-all route. List ⇄ detail via an `editing` signal; the body is the
 // shared RichText editor and stores sanitized HTML like every other rich field.
-// Talks to the generic louise/editor `pages` route. Opened from the
+// Talks to the generic louise-toolkit/editor `pages` route. Opened from the
 // file-text icon in the Settings' top framework strip.
 //
 // A site may pass `builtInPages` — its code-defined routes (Home, About, …)

@@ -10,7 +10,7 @@ your own components, and back-office work in Louise Settings.
 
 [Documentation](https://louisetoolkit.com/docs) ·
 [Getting started](https://louisetoolkit.com/docs/guide/getting-started) ·
-[`louise`](packages/louise)
+[`louise-toolkit`](packages/louise)
 
 </div>
 
@@ -39,7 +39,7 @@ This is a [pnpm](https://pnpm.io) workspace driven by the
 
 ```
 packages/
-  louise/          # louise — the published library
+  louise/          # louise-toolkit — the published library
     src/core/      # content, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)

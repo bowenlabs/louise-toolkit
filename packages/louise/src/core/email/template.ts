@@ -1,4 +1,4 @@
-// louise/email — transactional email *templating* (the frame; sending lives in
+// louise-toolkit/email — transactional email *templating* (the frame; sending lives in
 // ./index). Built for email clients, not browsers: every colour is an inlined
 // hex (no CSS variables / no <style> block), and the fragile bits — the page
 // frame and the header colour band — are tables so Outlook's Word engine

@@ -8,17 +8,17 @@ sidebar:
 Louise's commerce primitives are thin, V8-native glue over three external
 services. They use raw `fetch` and `crypto.subtle` — **no Node SDKs** — so they
 run in a Worker unchanged. Each provider is its own subpath — `/commerce/stripe`,
-`/commerce/square`, `/commerce/fourthwall` — over a shared `louise/commerce`
+`/commerce/square`, `/commerce/fourthwall` — over a shared `louise-toolkit/commerce`
 base that holds the money helpers and webhook-signature crypto all three reuse.
 
 ## Stripe — invoices only
 
-`louise/commerce/stripe` creates hosted Stripe invoices: reuse-or-create a
+`louise-toolkit/commerce/stripe` creates hosted Stripe invoices: reuse-or-create a
 customer, add line items, enable automatic tax when the customer has an address,
 and verify incoming webhooks.
 
 ```ts
-import { verifyStripeSignature } from "louise/commerce/stripe";
+import { verifyStripeSignature } from "louise-toolkit/commerce/stripe";
 
 // Webhook route — verify before trusting the payload.
 export async function POST({ request, env }) {
@@ -40,7 +40,7 @@ Two design notes worth knowing:
 
 ## Fourthwall — storefront & orders
 
-`louise/commerce/fourthwall` wraps the Fourthwall storefront
+`louise-toolkit/commerce/fourthwall` wraps the Fourthwall storefront
 (catalog + cart) and platform (orders) APIs, plus HMAC webhook verification.
 
 ```ts
@@ -49,7 +49,7 @@ import {
   lowestPrice,
   createCart,
   verifyFourthwallSignature,
-} from "louise/commerce/fourthwall";
+} from "louise-toolkit/commerce/fourthwall";
 ```
 
 A typical shop keeps a light on-site cart keyed by Fourthwall variant id, then
@@ -60,7 +60,7 @@ idempotent consumer.
 
 ## Square — catalog, orders, payments & subscriptions
 
-`louise/commerce/square` is the fullest of the three: a **read-first** client
+`louise-toolkit/commerce/square` is the fullest of the three: a **read-first** client
 over Square's `/v2` REST surface, covering catalog, inventory, orders, payments,
 customers, cards, loyalty, and subscriptions. Everything is injected through a
 `SquareConfig` (an access token plus a `sandbox`/`production` environment), and the
@@ -74,7 +74,7 @@ import {
   createOrder,
   createPayment,
   verifySquareSignature,
-} from "louise/commerce/square";
+} from "louise-toolkit/commerce/square";
 
 const config = { accessToken: env.SQUARE_ACCESS_TOKEN, environment: "production" };
 ```

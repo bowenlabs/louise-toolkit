@@ -1,6 +1,6 @@
 ---
 title: client
-description: "louise/client — the inline-edit client, ProseKit editor, icons, and blocks."
+description: "louise-toolkit/client — the inline-edit client, ProseKit editor, icons, and blocks."
 sidebar:
   order: 3
 ---
@@ -17,7 +17,7 @@ import {
   defineBlock,
   mountSections,
   injectStyles,
-} from "louise/client";
+} from "louise-toolkit/client";
 ```
 
 The browser-side editor. This is the only subpath that touches the DOM and Solid;
@@ -54,7 +54,7 @@ The ProseKit (Solid) editor used identically by inline fields and by any
 Settings form you build.
 
 ```tsx
-import { RichText, type RichTextProps } from "louise/client";
+import { RichText, type RichTextProps } from "louise-toolkit/client";
 
 <RichText
   value={html}
@@ -74,7 +74,7 @@ The Phosphor icon set the toolbar and panels share, inlined as raw SVG (CSP-safe
 — no external requests).
 
 ```tsx
-import { Icon, type IconName } from "louise/client";
+import { Icon, type IconName } from "louise-toolkit/client";
 
 <Icon name="pencil" />;
 ```
@@ -99,7 +99,7 @@ import {
   defineBlocksExtension,
   type BlockDef,
   type BlockEntry,
-} from "louise/client";
+} from "louise-toolkit/client";
 ```
 
 - `BLOCKS` — the registry that drives the `/` slash menu.
@@ -143,19 +143,19 @@ function injectStyles(): void;
 Ensures the shared Louise stylesheet (and edit-mode fonts) is present, even on a
 page that has no inline fields — call it before opening Louise Settings on a bare page.
 
-## `louise/client/settings`
+## `louise-toolkit/client/settings`
 
 The **Louise Settings** — a registry-driven SolidJS shell with a fixed top strip of
 framework panels (Pages/Media/Settings) and a bottom group of site-registered
 collection tabs. Optional peer: `@tanstack/solid-query`. See
 [Louise Settings](/guide/settings/) for the full walkthrough; it pairs with the
-[`louise/editor`](/reference/editor/) handlers on the server.
+[`louise-toolkit/editor`](/reference/editor/) handlers on the server.
 
 ### Shell
 
 ```ts
-import { mountSettings, OPEN_SETTINGS_EVENT } from "louise/client/settings";
-import type { SettingsConfig, CollectionTab } from "louise/client/settings";
+import { mountSettings, OPEN_SETTINGS_EVENT } from "louise-toolkit/client/settings";
+import type { SettingsConfig, CollectionTab } from "louise-toolkit/client/settings";
 ```
 
 - `mountSettings(config)` — inject the stylesheet, create the shared `QueryClient`,
@@ -171,7 +171,7 @@ import type { SettingsConfig, CollectionTab } from "louise/client/settings";
 ### Panels
 
 ```ts
-import { PagesPanel, MediaPanel, SettingsPanel, InquiriesPanel } from "louise/client/settings";
+import { PagesPanel, MediaPanel, SettingsPanel, InquiriesPanel } from "louise-toolkit/client/settings";
 ```
 
 - `PagesPanel` / `MediaPanel` / `SettingsPanel` — the fixed framework panels the
@@ -190,12 +190,12 @@ import {
   ImageField,
   MediaUrlPicker,
   SettingsField,
-} from "louise/client/settings";
+} from "louise-toolkit/client/settings";
 import type {
   SettingsFieldGroup,
   SettingsFieldDef,
   SettingsFieldType,
-} from "louise/client/settings";
+} from "louise-toolkit/client/settings";
 ```
 
 The primitives the framework panels are built from — reuse them so your own tabs
@@ -229,7 +229,7 @@ import {
   apiSend,
   louiseQueryKey,
   louiseQueryKeys,
-} from "louise/client/settings";
+} from "louise-toolkit/client/settings";
 ```
 
 - `createSettingsQueryClient()` — a `QueryClient` tuned for the editor-only Settings
