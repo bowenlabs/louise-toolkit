@@ -3,6 +3,10 @@ dist/
 .astro/
 .wrangler/
 .dev.vars
+# astro:env reads local dev config/secrets from .env (see workers/sandbox/.env.example)
+.env
+.env.*
+!.env.example
 *.log
 .DS_Store
 coverage/

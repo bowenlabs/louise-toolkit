@@ -3,15 +3,16 @@
 // (test cards approve for free) + a real confirmation email via louise/email.
 // The Square SDK is dynamically imported on first pay so it isn't downloaded up
 // front. Public Square config (app id + location) is safe to expose to the client.
-import { env } from "cloudflare:workers";
+import { SQUARE_APP_ID, SQUARE_ENV, SQUARE_LOCATION } from "astro:env/server";
 import "../styles/sandbox.css";
 
 export const prerender = false;
 
-const e = env as unknown as CloudflareEnv;
-const appId = e.SQUARE_APP_ID;
-const locationId = e.SQUARE_LOCATION;
-const squareEnv = e.SQUARE_ENV ?? "sandbox";
+// Typed + validated by the astro:env schema (astro.config.mjs). Read on the
+// server and handed to the browser via the button's data-* attributes below.
+const appId = SQUARE_APP_ID;
+const locationId = SQUARE_LOCATION;
+const squareEnv = SQUARE_ENV;
 ---
 
 <!doctype html>

@@ -1,6 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "import"],
+  // eslint-plugin-solid, loaded as an oxlint JS plugin. The SolidJS reactivity
+  // rules only make sense for the inline-edit client, so they're scoped to
+  // src/client/** via the override below (not the framework-agnostic core).
+  "jsPlugins": ["eslint-plugin-solid"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn",
@@ -12,6 +16,25 @@
     "typescript/no-unsafe-function-type": "warn",
     "no-unassigned-vars": "off"
   },
+  "overrides": [
+    {
+      "files": ["**/src/client/**/*.{ts,tsx}"],
+      "rules": {
+        "solid/reactivity": "warn",
+        "solid/no-destructure": "warn",
+        "solid/components-return-once": "warn",
+        "solid/no-react-specific-props": "warn",
+        "solid/no-react-deps": "warn",
+        "solid/prefer-for": "warn",
+        "solid/event-handlers": "warn",
+        "solid/style-prop": "warn",
+        "solid/no-innerhtml": "off",
+        "solid/self-closing-comp": "warn",
+        "solid/jsx-no-undef": "error",
+        "solid/jsx-no-duplicate-props": "error"
+      }
+    }
+  ],
   "ignorePatterns": [
     "**/dist/**",
     "**/.astro/**",
