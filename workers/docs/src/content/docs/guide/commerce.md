@@ -11,6 +11,13 @@ run in a Worker unchanged. Each provider is its own subpath — `/commerce/strip
 `/commerce/square`, `/commerce/fourthwall` — over a shared `louise-toolkit/commerce`
 base that holds the money helpers and webhook-signature crypto all three reuse.
 
+:::tip[See it live]
+The [Workers checkout example](https://louisetoolkit.com/examples/commerce) runs a
+real Square charge against the [sandbox](https://sandbox.louisetoolkit.com) — the
+same `louise-toolkit/commerce/square` client shown below, with its secret resolved
+through [`astro:env`](/guide/getting-started/#typed-env-vars-with-astroenv).
+:::
+
 ## Stripe — invoices only
 
 `louise-toolkit/commerce/stripe` creates hosted Stripe invoices: reuse-or-create a

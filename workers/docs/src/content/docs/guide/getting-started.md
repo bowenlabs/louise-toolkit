@@ -8,6 +8,16 @@ sidebar:
 Louise is a library, not a scaffold — you add it to a Cloudflare Workers app
 (Astro, Hono, or a bare Worker) and wire the pieces you need.
 
+:::tip[See it running first]
+Two live surfaces let you try Louise before wiring it in. The
+[interactive examples](https://louisetoolkit.com/examples) show each primitive as
+live UI backed by real, drift-proof source — the
+[contact form](https://louisetoolkit.com/examples/forms) and
+[Workers checkout](https://louisetoolkit.com/examples/commerce) are live today. The
+[sandbox](https://sandbox.louisetoolkit.com) is a write-capable demo that resets
+nightly, so you can poke at real saves without leaving anything behind.
+:::
+
 ## Install
 
 ```sh
@@ -54,6 +64,45 @@ export default {
   },
 };
 ```
+
+## Typed env vars with `astro:env`
+
+Bindings arrive on `env`, but plain **env vars and secrets** (an API token, a
+provider mode) are easy to fat-finger. On Astro, declare a schema and let
+`astro:env` validate it and generate a typed accessor — the values still come
+from `wrangler.jsonc` `vars` / `wrangler secret` at runtime, this is just the
+schema on top:
+
+```js
+// astro.config.mjs
+import { defineConfig, envField } from "astro/config";
+
+export default defineConfig({
+  env: {
+    schema: {
+      SQUARE_ENV: envField.enum({
+        context: "server",
+        access: "public",
+        values: ["sandbox", "production"],
+        default: "sandbox",
+      }),
+      SQUARE_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
+    },
+  },
+});
+```
+
+Import the validated values from `astro:env/server` and pass them into the Louise
+primitive — same dependency-injection model, just type-checked first:
+
+```ts
+import { SQUARE_ENV, SQUARE_TOKEN } from "astro:env/server";
+// …hand SQUARE_ENV / SQUARE_TOKEN to the Square client — see the Commerce guide.
+```
+
+`astro:env` covers env vars and secrets; D1/R2/Queues **bindings** still arrive on
+`env`. The [live sandbox](https://sandbox.louisetoolkit.com) wires its Square
+checkout exactly this way.
 
 ## Your first inline-editable field
 

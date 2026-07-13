@@ -62,7 +62,9 @@ Then, from the repo root:
 vp install          # install the workspace
 pnpm build          # pack the library (vp pack) + build the site (astro build)
 pnpm test           # run the library's Vitest suite
-pnpm check          # Oxlint + Oxfmt over the library
+pnpm check          # Oxlint + Oxfmt over the library's TypeScript
+pnpm lint:astro     # Biome lint over .astro files
+pnpm lint:solid     # oxlint + eslint-plugin-solid over the SolidJS client
 pnpm typecheck      # tsc over the library
 pnpm dev            # run louisetoolkit.com locally (marketing + Starlight docs)
 ```
