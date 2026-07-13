@@ -241,7 +241,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),
-  seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise dogfood" } }),
+  seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise Toolkit" } }),
 ];
 
 /* ── Non-editor routes ────────────────────────────────────────────────── */
