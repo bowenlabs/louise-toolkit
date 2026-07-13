@@ -740,15 +740,35 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       fallback={
                         <label class="louise-field">
                           <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                          <input
-                            class="louise-input"
-                            value={String(item[key] ?? "")}
-                            placeholder={field.placeholder}
-                            onInput={(e) => {
-                              set("items", i(), key, e.currentTarget.value);
-                              touched();
-                            }}
-                          />
+                          <Show
+                            when={field.type === "textarea"}
+                            fallback={
+                              <input
+                                class="louise-input"
+                                value={String(item[key] ?? "")}
+                                placeholder={field.placeholder}
+                                onInput={(e) => {
+                                  set("items", i(), key, e.currentTarget.value);
+                                  touched();
+                                }}
+                              />
+                            }
+                          >
+                            {/* A textarea (not a single-line input) so dock-edited
+                                body copy — card bodies, FAQ answers, step/tier
+                                bodies — can hold line breaks, saved as `\n`. The
+                                site renders them with `white-space: pre-line`. */}
+                            <textarea
+                              class="louise-input louise-dock-textarea"
+                              rows={3}
+                              value={String(item[key] ?? "")}
+                              placeholder={field.placeholder}
+                              onInput={(e) => {
+                                set("items", i(), key, e.currentTarget.value);
+                                touched();
+                              }}
+                            />
+                          </Show>
                         </label>
                       }
                     >

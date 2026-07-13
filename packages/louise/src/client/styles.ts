@@ -539,6 +539,15 @@ const CSS = `
   border-color: var(--louise-blue);
   box-shadow: 0 0 0 3px rgba(20, 129, 239, 0.12);
 }
+/* Dock textarea for textarea-typed fields (card bodies, FAQ answers, step/tier
+   bodies) — multi-line + resizable so they can hold line breaks. Keeps the
+   .louise-input frame; textareas don't inherit font-family, so restore it. */
+.louise-dock-textarea {
+  resize: vertical;
+  min-height: 66px;
+  line-height: 1.5;
+  font-family: inherit;
+}
 .louise-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* ── Rich-text editor: ONE framed unit ────────────────────────────
    The frame lives on .louise-rt and the editing surface carries the padding.
