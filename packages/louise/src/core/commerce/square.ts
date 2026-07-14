@@ -78,6 +78,17 @@ async function sqPost<T>(config: SquareConfig, path: string, body: unknown): Pro
   return data;
 }
 
+async function sqPut<T>(config: SquareConfig, path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${host(config)}${path}`, {
+    method: "PUT",
+    headers: headers(config),
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as T & SquareErrorBody;
+  if (!res.ok) throw squareError(path, res.status, data);
+  return data;
+}
+
 // ── Money ────────────────────────────────────────────────────────────────────
 
 /** Square money is an integer amount in the currency's minor unit (cents) —
@@ -93,6 +104,7 @@ export { centsToMajor };
 interface RawCatalogObject {
   id: string;
   type: string;
+  version?: number;
   is_deleted?: boolean;
   item_data?: {
     name?: string;
@@ -101,6 +113,7 @@ interface RawCatalogObject {
     variations?: {
       id: string;
       type: string;
+      version?: number;
       item_variation_data?: {
         name?: string;
         sku?: string;
@@ -123,6 +136,8 @@ export interface SquareVariation {
   sku: string | null;
   priceCents: number;
   currency: string;
+  /** Object version — pass back to {@link upsertCatalogItem} when updating. */
+  version: number;
 }
 
 export interface SquareCatalogItem {
@@ -131,6 +146,8 @@ export interface SquareCatalogItem {
   description: string;
   imageUrl: string | null;
   variations: SquareVariation[];
+  /** Object version — pass back to {@link upsertCatalogItem} when updating. */
+  version: number;
 }
 
 /** Resolve IMAGE object urls from a related-objects list, keyed by image id. */
@@ -157,6 +174,7 @@ export function mapCatalogItem(
       sku: v.item_variation_data?.sku ?? null,
       priceCents: v.item_variation_data?.price_money?.amount ?? 0,
       currency: v.item_variation_data?.price_money?.currency ?? "USD",
+      version: v.version ?? 0,
     }));
   return {
     id: obj.id,
@@ -164,6 +182,7 @@ export function mapCatalogItem(
     description: data.description ?? "",
     imageUrl: firstImageId ? (images.get(firstImageId) ?? null) : null,
     variations,
+    version: obj.version ?? 0,
   };
 }
 
@@ -233,6 +252,81 @@ export async function retrieveVariationPrices(
   return prices;
 }
 
+export interface CatalogVariationInput {
+  /** Existing Square variation id — pass to update; omit to create a new one. */
+  id?: string;
+  /** Stable client key for a NEW variation, echoed back in `idMappings` so the
+   *  caller can persist the id Square assigns (ignored when `id` is set). */
+  clientId?: string;
+  name: string;
+  sku?: string;
+  priceCents: number;
+  currency?: string;
+  /** Current Square version — required when UPDATING an existing variation
+   *  (Square uses optimistic concurrency; a stale/absent version is rejected). */
+  version?: number;
+}
+
+/**
+ * Create or update a catalog ITEM with its ITEM_VARIATIONs (fixed pricing).
+ * POST /v2/catalog/object. This is the one catalog WRITE — sites where D1 owns
+ * the product and pushes it up (vs. Square-as-source-of-truth reads above) call
+ * this to mirror an item and its size/price variations into Square.
+ *
+ * Omit `id`s to create (Square assigns real ids, returned in `idMappings` keyed
+ * by each variation's `clientId`/`#temp` id). To UPDATE, pass the item `id` +
+ * each variation `id` AND its current `version` (from a prior retrieve) — Square
+ * rejects a write with a stale version. Returns the normalized item with the
+ * real ids resolved.
+ */
+export async function upsertCatalogItem(
+  config: SquareConfig,
+  input: {
+    id?: string;
+    name: string;
+    description?: string;
+    variations: CatalogVariationInput[];
+    /** Current item version — required when updating an existing ITEM. */
+    version?: number;
+    idempotencyKey?: string;
+  },
+): Promise<{ item: SquareCatalogItem; idMappings: Record<string, string> }> {
+  const itemId = input.id ?? "#item";
+  const res = await sqPost<{
+    catalog_object?: RawCatalogObject;
+    id_mappings?: { client_object_id?: string; object_id?: string }[];
+  }>(config, "/v2/catalog/object", {
+    idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+    object: {
+      type: "ITEM",
+      id: itemId,
+      ...(input.version != null ? { version: input.version } : {}),
+      item_data: {
+        name: input.name,
+        description: input.description,
+        variations: input.variations.map((v, i) => ({
+          type: "ITEM_VARIATION",
+          id: v.id ?? v.clientId ?? `#var-${i}`,
+          ...(v.version != null ? { version: v.version } : {}),
+          item_variation_data: {
+            item_id: itemId,
+            name: v.name,
+            sku: v.sku,
+            pricing_type: "FIXED_PRICING",
+            price_money: { amount: v.priceCents, currency: v.currency ?? "USD" },
+          },
+        })),
+      },
+    },
+  });
+  if (!res.catalog_object) throw new Error("Square catalog upsert returned no object");
+  const idMappings: Record<string, string> = {};
+  for (const m of res.id_mappings ?? []) {
+    if (m.client_object_id && m.object_id) idMappings[m.client_object_id] = m.object_id;
+  }
+  return { item: mapCatalogItem(res.catalog_object, new Map()), idMappings };
+}
+
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
 export interface SquareInventoryCount {
@@ -269,11 +363,14 @@ export async function retrieveInventoryCounts(
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 
-export interface SquareOrderLineItem {
-  /** Catalog variation id to charge (lets Square apply catalog price + taxes). */
-  catalogObjectId: string;
-  quantity: number;
-}
+/**
+ * An order line item — either a catalog variation reference (Square applies the
+ * catalog price + taxes) OR an ad-hoc line (explicit name + price), for charges
+ * with no catalog object behind them (e.g. a manufacturing deposit).
+ */
+export type SquareOrderLineItem =
+  | { catalogObjectId: string; quantity: number }
+  | { name: string; priceCents: number; quantity: number; currency?: string };
 
 export interface SquareOrder {
   id: string;
@@ -352,10 +449,15 @@ export async function createOrder(
       location_id: input.locationId,
       customer_id: input.customerId,
       reference_id: input.referenceId,
-      line_items: input.lineItems.map((li) => ({
-        catalog_object_id: li.catalogObjectId,
-        quantity: String(li.quantity),
-      })),
+      line_items: input.lineItems.map((li) =>
+        "catalogObjectId" in li
+          ? { catalog_object_id: li.catalogObjectId, quantity: String(li.quantity) }
+          : {
+              name: li.name,
+              quantity: String(li.quantity),
+              base_price_money: { amount: li.priceCents, currency: li.currency ?? "USD" },
+            },
+      ),
     },
   });
   if (!res.order) throw new Error("Square order creation returned no order");
@@ -701,6 +803,447 @@ export async function createSubscription(
   });
   if (!res.subscription) throw new Error("Square subscription creation returned no subscription");
   return mapSubscription(res.subscription);
+}
+
+// ── Team (employees) ────────────────────────────────────────────────────────────
+
+export interface SquareTeamMember {
+  id: string;
+  referenceId: string | null;
+  givenName: string | null;
+  familyName: string | null;
+  emailAddress: string | null;
+  phoneNumber: string | null;
+  status: string;
+  isOwner: boolean;
+}
+
+interface RawTeamMember {
+  id?: string;
+  reference_id?: string;
+  given_name?: string;
+  family_name?: string;
+  email_address?: string;
+  phone_number?: string;
+  status?: string;
+  is_owner?: boolean;
+}
+
+function mapTeamMember(m: RawTeamMember): SquareTeamMember {
+  return {
+    id: m.id ?? "",
+    referenceId: m.reference_id ?? null,
+    givenName: m.given_name ?? null,
+    familyName: m.family_name ?? null,
+    emailAddress: m.email_address ?? null,
+    phoneNumber: m.phone_number ?? null,
+    status: m.status ?? "",
+    isOwner: m.is_owner ?? false,
+  };
+}
+
+export interface TeamMemberInput {
+  givenName?: string;
+  familyName?: string;
+  emailAddress?: string;
+  phoneNumber?: string;
+  /** Your own id for this person (e.g. a portal_user id) — round-trips on the
+   *  Square record so you can correlate without a separate lookup. */
+  referenceId?: string;
+  status?: "ACTIVE" | "INACTIVE";
+  /** Assign to all current + future locations (the common default). Omit and
+   *  Square assigns none — you manage locations yourself. */
+  assignAllLocations?: boolean;
+}
+
+function teamMemberBody(input: TeamMemberInput) {
+  return {
+    given_name: input.givenName,
+    family_name: input.familyName,
+    email_address: input.emailAddress,
+    phone_number: input.phoneNumber,
+    reference_id: input.referenceId,
+    status: input.status ?? "ACTIVE",
+    ...(input.assignAllLocations
+      ? { assigned_locations: { assignment_type: "ALL_CURRENT_AND_FUTURE_LOCATIONS" } }
+      : {}),
+  };
+}
+
+/** Create a team member (employee). POST /v2/team-members. */
+export async function createTeamMember(
+  config: SquareConfig,
+  input: TeamMemberInput & { idempotencyKey?: string },
+): Promise<SquareTeamMember> {
+  const res = await sqPost<{ team_member?: RawTeamMember }>(config, "/v2/team-members", {
+    idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+    team_member: teamMemberBody(input),
+  });
+  if (!res.team_member) throw new Error("Square team member creation returned no member");
+  return mapTeamMember(res.team_member);
+}
+
+/** Update a team member. PUT /v2/team-members/{id}. */
+export async function updateTeamMember(
+  config: SquareConfig,
+  teamMemberId: string,
+  input: TeamMemberInput,
+): Promise<SquareTeamMember> {
+  const res = await sqPut<{ team_member?: RawTeamMember }>(
+    config,
+    `/v2/team-members/${encodeURIComponent(teamMemberId)}`,
+    { team_member: teamMemberBody(input) },
+  );
+  if (!res.team_member) throw new Error(`Square team member ${teamMemberId} update returned none`);
+  return mapTeamMember(res.team_member);
+}
+
+/** Retrieve one team member. GET /v2/team-members/{id}. */
+export async function retrieveTeamMember(
+  config: SquareConfig,
+  teamMemberId: string,
+): Promise<SquareTeamMember | null> {
+  const res = await sqGet<{ team_member?: RawTeamMember }>(
+    config,
+    `/v2/team-members/${encodeURIComponent(teamMemberId)}`,
+  );
+  return res.team_member ? mapTeamMember(res.team_member) : null;
+}
+
+/**
+ * Search team members. POST /v2/team-members/search. The Team API has no email
+ * filter, so pass `status`/`locationIds` and match the rest client-side (by
+ * `referenceId` or `emailAddress`). Coffee teams are small — one page suffices,
+ * so this returns the first page (up to `limit`, default 200).
+ */
+export async function searchTeamMembers(
+  config: SquareConfig,
+  input: { locationIds?: string[]; status?: "ACTIVE" | "INACTIVE"; limit?: number } = {},
+): Promise<SquareTeamMember[]> {
+  const filter: Record<string, unknown> = { status: input.status ?? "ACTIVE" };
+  if (input.locationIds) filter.location_ids = input.locationIds;
+  const res = await sqPost<{ team_members?: RawTeamMember[] }>(config, "/v2/team-members/search", {
+    query: { filter },
+    limit: input.limit ?? 200,
+  });
+  return (res.team_members ?? []).map(mapTeamMember);
+}
+
+// ── Labor (timecards / time tracking) ───────────────────────────────────────────
+
+export interface SquareTimecard {
+  id: string;
+  locationId: string;
+  teamMemberId: string;
+  startAt: string;
+  endAt: string | null;
+  status: string;
+  /** Optimistic-concurrency version — pass it back to update/close the card. */
+  version: number;
+  /** Wage on the card (Square defaults it from the team member). An update is a
+   *  full replace and Square requires a wage, so pass this back when closing. */
+  wage: { title: string | null; hourlyRateCents: number; currency: string } | null;
+}
+
+interface RawTimecard {
+  id?: string;
+  location_id?: string;
+  team_member_id?: string;
+  start_at?: string;
+  end_at?: string;
+  status?: string;
+  version?: number;
+  wage?: { title?: string; hourly_rate?: { amount?: number; currency?: string } };
+}
+
+function mapTimecard(t: RawTimecard): SquareTimecard {
+  return {
+    id: t.id ?? "",
+    locationId: t.location_id ?? "",
+    teamMemberId: t.team_member_id ?? "",
+    startAt: t.start_at ?? "",
+    endAt: t.end_at ?? null,
+    status: t.status ?? "",
+    version: t.version ?? 0,
+    wage: t.wage
+      ? {
+          title: t.wage.title ?? null,
+          hourlyRateCents: t.wage.hourly_rate?.amount ?? 0,
+          currency: t.wage.hourly_rate?.currency ?? "USD",
+        }
+      : null,
+  };
+}
+
+export interface TimecardWage {
+  title?: string;
+  hourlyRateCents: number;
+  currency?: string;
+}
+
+function wageBody(wage?: TimecardWage) {
+  return wage
+    ? {
+        wage: {
+          title: wage.title,
+          hourly_rate: { amount: wage.hourlyRateCents, currency: wage.currency ?? "USD" },
+        },
+      }
+    : {};
+}
+
+/**
+ * Open a timecard (clock in). POST /v2/labor/timecards. A team member can hold
+ * only ONE open timecard at a time. `startAt` is an RFC 3339 timestamp; pass a
+ * `wage` (hourly rate) for Square to compute labor cost. Returns the timecard
+ * incl. its `version`, which you need to close it later. Requires Square-Version
+ * ≥ 2025-05-21 (the default pinned {@link SQUARE_VERSION} satisfies this).
+ */
+export async function createTimecard(
+  config: SquareConfig,
+  input: {
+    locationId: string;
+    teamMemberId: string;
+    startAt: string;
+    wage?: TimecardWage;
+    idempotencyKey?: string;
+  },
+): Promise<SquareTimecard> {
+  const res = await sqPost<{ timecard?: RawTimecard }>(config, "/v2/labor/timecards", {
+    idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+    timecard: {
+      location_id: input.locationId,
+      team_member_id: input.teamMemberId,
+      start_at: input.startAt,
+      ...wageBody(input.wage),
+    },
+  });
+  if (!res.timecard) throw new Error("Square timecard creation returned no timecard");
+  return mapTimecard(res.timecard);
+}
+
+/**
+ * Update a timecard — typically to close it (clock out) by setting `endAt`.
+ * PUT /v2/labor/timecards/{id} REPLACES the record, so pass its full state
+ * (location, team member, start) plus the current `version` from the prior
+ * create/retrieve (Square rejects a stale version).
+ */
+export async function updateTimecard(
+  config: SquareConfig,
+  timecardId: string,
+  input: {
+    locationId: string;
+    teamMemberId: string;
+    startAt: string;
+    endAt?: string;
+    version: number;
+    wage?: TimecardWage;
+  },
+): Promise<SquareTimecard> {
+  const res = await sqPut<{ timecard?: RawTimecard }>(
+    config,
+    `/v2/labor/timecards/${encodeURIComponent(timecardId)}`,
+    {
+      timecard: {
+        location_id: input.locationId,
+        team_member_id: input.teamMemberId,
+        start_at: input.startAt,
+        end_at: input.endAt,
+        version: input.version,
+        ...wageBody(input.wage),
+      },
+    },
+  );
+  if (!res.timecard) throw new Error(`Square timecard ${timecardId} update returned none`);
+  return mapTimecard(res.timecard);
+}
+
+/** Retrieve one timecard (e.g. to read its current version before closing).
+ *  GET /v2/labor/timecards/{id}. */
+export async function retrieveTimecard(
+  config: SquareConfig,
+  timecardId: string,
+): Promise<SquareTimecard | null> {
+  const res = await sqGet<{ timecard?: RawTimecard }>(
+    config,
+    `/v2/labor/timecards/${encodeURIComponent(timecardId)}`,
+  );
+  return res.timecard ? mapTimecard(res.timecard) : null;
+}
+
+/**
+ * Search timecards (labor reporting). POST /v2/labor/timecards/search. Filter
+ * by team member(s), location(s), and/or a start-time window (RFC 3339).
+ * Returns the first page newest-first (up to `limit`, default 200).
+ */
+export async function searchTimecards(
+  config: SquareConfig,
+  input: {
+    teamMemberIds?: string[];
+    locationIds?: string[];
+    startAtMin?: string;
+    startAtMax?: string;
+    limit?: number;
+  } = {},
+): Promise<SquareTimecard[]> {
+  const filter: Record<string, unknown> = {};
+  if (input.teamMemberIds) filter.team_member_ids = input.teamMemberIds;
+  if (input.locationIds) filter.location_ids = input.locationIds;
+  if (input.startAtMin || input.startAtMax) {
+    filter.start = { start_at: input.startAtMin, end_at: input.startAtMax };
+  }
+  const res = await sqPost<{ timecards?: RawTimecard[] }>(config, "/v2/labor/timecards/search", {
+    query: { filter, sort: { field: "START_AT", order: "DESC" } },
+    limit: input.limit ?? 200,
+  });
+  return (res.timecards ?? []).map(mapTimecard);
+}
+
+// ── Invoices ────────────────────────────────────────────────────────────────────
+
+export interface SquareInvoicePaymentRequest {
+  uid: string | null;
+  requestType: string;
+  dueDate: string | null;
+  status: string | null;
+  computedAmountCents: number;
+  totalCompletedAmountCents: number;
+}
+
+export interface SquareInvoice {
+  id: string;
+  version: number;
+  status: string;
+  orderId: string | null;
+  /** Square-hosted pay page — present after publishing with SHARE_MANUALLY. */
+  publicUrl: string | null;
+  paymentRequests: SquareInvoicePaymentRequest[];
+}
+
+interface RawInvoice {
+  id?: string;
+  version?: number;
+  status?: string;
+  order_id?: string;
+  public_url?: string;
+  payment_requests?: {
+    uid?: string;
+    request_type?: string;
+    due_date?: string;
+    status?: string;
+    computed_amount_money?: { amount?: number; currency?: string };
+    total_completed_amount_money?: { amount?: number; currency?: string };
+  }[];
+}
+
+function mapInvoice(i: RawInvoice): SquareInvoice {
+  return {
+    id: i.id ?? "",
+    version: i.version ?? 0,
+    status: i.status ?? "",
+    orderId: i.order_id ?? null,
+    publicUrl: i.public_url ?? null,
+    paymentRequests: (i.payment_requests ?? []).map((r) => ({
+      uid: r.uid ?? null,
+      requestType: r.request_type ?? "",
+      dueDate: r.due_date ?? null,
+      status: r.status ?? null,
+      computedAmountCents: r.computed_amount_money?.amount ?? 0,
+      totalCompletedAmountCents: r.total_completed_amount_money?.amount ?? 0,
+    })),
+  };
+}
+
+export interface InvoicePaymentRequestInput {
+  /** Exactly one BALANCE (the last request), with an optional leading DEPOSIT
+   *  and/or 2–12 INSTALLMENTs. */
+  type: "DEPOSIT" | "BALANCE" | "INSTALLMENT";
+  /** Due date, YYYY-MM-DD. */
+  dueDate: string;
+  /** Fixed amount for this request. Omit on BALANCE to auto-cover the remainder. */
+  amountCents?: number;
+  currency?: string;
+}
+
+/**
+ * Create a DRAFT invoice for an existing OPEN Square Order (the order carries
+ * the line items + total; the invoice adds the payment schedule + recipient).
+ * POST /v2/invoices. Publish with {@link publishInvoice} to start collecting.
+ * `deliveryMethod` "SHARE_MANUALLY" (default) yields a `publicUrl` after publish
+ * — send your own email linking to it; "EMAIL" has Square email the customer.
+ */
+export async function createInvoice(
+  config: SquareConfig,
+  input: {
+    locationId: string;
+    orderId: string;
+    customerId: string;
+    paymentRequests: InvoicePaymentRequestInput[];
+    deliveryMethod?: "SHARE_MANUALLY" | "EMAIL";
+    title?: string;
+    description?: string;
+    idempotencyKey?: string;
+  },
+): Promise<SquareInvoice> {
+  const res = await sqPost<{ invoice?: RawInvoice }>(config, "/v2/invoices", {
+    idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+    invoice: {
+      location_id: input.locationId,
+      order_id: input.orderId,
+      primary_recipient: { customer_id: input.customerId },
+      delivery_method: input.deliveryMethod ?? "SHARE_MANUALLY",
+      title: input.title,
+      description: input.description,
+      accepted_payment_methods: { card: true },
+      payment_requests: input.paymentRequests.map((r) => ({
+        request_type: r.type,
+        due_date: r.dueDate,
+        tipping_enabled: false,
+        ...(r.amountCents != null
+          ? {
+              fixed_amount_requested_money: {
+                amount: r.amountCents,
+                currency: r.currency ?? "USD",
+              },
+            }
+          : {}),
+      })),
+    },
+  });
+  if (!res.invoice) throw new Error("Square invoice creation returned no invoice");
+  return mapInvoice(res.invoice);
+}
+
+/** Publish a draft invoice (starts processing; yields the hosted `publicUrl` when
+ *  created with SHARE_MANUALLY). POST /v2/invoices/{id}/publish. Pass the current
+ *  `version` from {@link createInvoice} (optimistic concurrency). */
+export async function publishInvoice(
+  config: SquareConfig,
+  invoiceId: string,
+  version: number,
+  idempotencyKey?: string,
+): Promise<SquareInvoice> {
+  const res = await sqPost<{ invoice?: RawInvoice }>(
+    config,
+    `/v2/invoices/${encodeURIComponent(invoiceId)}/publish`,
+    { version, idempotency_key: idempotencyKey ?? crypto.randomUUID() },
+  );
+  if (!res.invoice) throw new Error(`Square invoice ${invoiceId} publish returned none`);
+  return mapInvoice(res.invoice);
+}
+
+/** Retrieve one invoice — e.g. to read each payment request's completed amount
+ *  when reconciling a webhook. GET /v2/invoices/{id}. */
+export async function retrieveInvoice(
+  config: SquareConfig,
+  invoiceId: string,
+): Promise<SquareInvoice> {
+  const res = await sqGet<{ invoice?: RawInvoice }>(
+    config,
+    `/v2/invoices/${encodeURIComponent(invoiceId)}`,
+  );
+  if (!res.invoice) throw new Error(`Square invoice ${invoiceId} not found`);
+  return mapInvoice(res.invoice);
 }
 
 // ── Webhooks ──────────────────────────────────────────────────────────────────
