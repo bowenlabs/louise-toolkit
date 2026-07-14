@@ -22,7 +22,11 @@ function stubFetch(json: unknown): { url: string; method: string; body: unknown 
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit) => {
-      calls.push({ url, method: String(init.method), body: JSON.parse(String(init.body ?? "null")) });
+      calls.push({
+        url,
+        method: String(init.method),
+        body: JSON.parse(String(init.body ?? "null")),
+      });
       return new Response(JSON.stringify(json), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -201,7 +205,10 @@ describe("upsertCatalogItem", () => {
             {
               id: "VAR_REAL",
               type: "ITEM_VARIATION",
-              item_variation_data: { name: "12 oz", price_money: { amount: 2000, currency: "USD" } },
+              item_variation_data: {
+                name: "12 oz",
+                price_money: { amount: 2000, currency: "USD" },
+              },
             },
           ],
         },
@@ -246,7 +253,9 @@ describe("upsertCatalogItem", () => {
   });
 
   it("passes item + variation versions through when updating an existing item", async () => {
-    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM", item_data: { name: "x" } } });
+    const calls = stubFetch({
+      catalog_object: { id: "ITEM1", type: "ITEM", item_data: { name: "x" } },
+    });
     await upsertCatalogItem(CONFIG, {
       id: "ITEM1",
       name: "x",
@@ -264,7 +273,12 @@ describe("createOrder", () => {
 
   it("emits catalog-ref and ad-hoc (name + base_price_money) line items", async () => {
     const calls = stubFetch({
-      order: { id: "ORD1", location_id: "L1", state: "OPEN", total_money: { amount: 3000, currency: "USD" } },
+      order: {
+        id: "ORD1",
+        location_id: "L1",
+        state: "OPEN",
+        total_money: { amount: 3000, currency: "USD" },
+      },
     });
 
     await createOrder(CONFIG, {
@@ -279,7 +293,11 @@ describe("createOrder", () => {
       order: {
         line_items: [
           { catalog_object_id: "VAR1", quantity: "2" },
-          { name: "Manufacturing deposit", quantity: "1", base_price_money: { amount: 3000, currency: "USD" } },
+          {
+            name: "Manufacturing deposit",
+            quantity: "1",
+            base_price_money: { amount: 3000, currency: "USD" },
+          },
         ],
       },
     });
@@ -319,7 +337,12 @@ describe("createTeamMember", () => {
         assigned_locations: { assignment_type: "ALL_CURRENT_AND_FUTURE_LOCATIONS" },
       },
     });
-    expect(tm).toMatchObject({ id: "TM1", referenceId: "pu_9", emailAddress: "sam@x.co", isOwner: false });
+    expect(tm).toMatchObject({
+      id: "TM1",
+      referenceId: "pu_9",
+      emailAddress: "sam@x.co",
+      isOwner: false,
+    });
   });
 });
 
@@ -375,7 +398,9 @@ describe("timecards", () => {
 
     expect(calls[0]?.url).toBe("https://connect.squareupsandbox.com/v2/labor/timecards/TC1");
     expect(calls[0]?.method).toBe("PUT");
-    expect(calls[0]?.body).toMatchObject({ timecard: { end_at: "2026-07-14T19:00:00Z", version: 1 } });
+    expect(calls[0]?.body).toMatchObject({
+      timecard: { end_at: "2026-07-14T19:00:00Z", version: 1 },
+    });
     expect(tc).toMatchObject({ status: "CLOSED", endAt: "2026-07-14T19:00:00Z", version: 2 });
   });
 });
@@ -391,8 +416,16 @@ describe("invoices", () => {
         status: "DRAFT",
         order_id: "ORD1",
         payment_requests: [
-          { uid: "d", request_type: "DEPOSIT", computed_amount_money: { amount: 5000, currency: "USD" } },
-          { uid: "b", request_type: "BALANCE", computed_amount_money: { amount: 5000, currency: "USD" } },
+          {
+            uid: "d",
+            request_type: "DEPOSIT",
+            computed_amount_money: { amount: 5000, currency: "USD" },
+          },
+          {
+            uid: "b",
+            request_type: "BALANCE",
+            computed_amount_money: { amount: 5000, currency: "USD" },
+          },
         ],
       },
     });
@@ -424,8 +457,9 @@ describe("invoices", () => {
       },
     });
     // BALANCE has no fixed amount (auto-covers the remainder).
-    const balanceReq = (calls[0]?.body as { invoice: { payment_requests: Record<string, unknown>[] } })
-      .invoice.payment_requests[1];
+    const balanceReq = (
+      calls[0]?.body as { invoice: { payment_requests: Record<string, unknown>[] } }
+    ).invoice.payment_requests[1];
     expect(balanceReq).not.toHaveProperty("fixed_amount_requested_money");
     expect(inv).toMatchObject({ id: "INV1", version: 0, status: "DRAFT", orderId: "ORD1" });
     expect(inv.paymentRequests.map((r) => r.requestType)).toEqual(["DEPOSIT", "BALANCE"]);
@@ -433,7 +467,12 @@ describe("invoices", () => {
 
   it("publishInvoice posts the version and returns the hosted public_url", async () => {
     const calls = stubFetch({
-      invoice: { id: "INV1", version: 1, status: "UNPAID", public_url: "https://squareup.com/pay/INV1" },
+      invoice: {
+        id: "INV1",
+        version: 1,
+        status: "UNPAID",
+        public_url: "https://squareup.com/pay/INV1",
+      },
     });
 
     const inv = await publishInvoice(CONFIG, "INV1", 0);
