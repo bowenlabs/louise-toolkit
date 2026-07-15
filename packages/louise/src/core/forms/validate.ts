@@ -7,6 +7,7 @@
 
 import { type Rule, type ValidationBuilder, validateValue } from "../content/validation.js";
 import type { ValidationViolation } from "../errors.js";
+import { standardValidate } from "../schema/index.js";
 import type { FormConfig, FormField } from "./types.js";
 
 // A loose URL check (scheme + host); the input `type=url` mirrors it client-side.
@@ -88,11 +89,19 @@ export async function validateField(
   ) {
     return [{ path: key, message: `${field.label} is not a valid choice`, severity: "error" }];
   }
-  return validateValue(fieldValidation(field), value, {
+  const violations = await validateValue(fieldValidation(field), value, {
     document: data,
     path: key,
     operation: "create",
   });
+  // A consumer-supplied Standard Schema runs alongside the `Rule` chain, on the
+  // coerced value. Skipped when empty so an optional blank field stays valid
+  // (the `required` flag / a `.required()` rule already guards presence).
+  if (field.schema && !isEmpty(value)) {
+    const parsed = await standardValidate(field.schema, value, key);
+    if (!parsed.ok) violations.push(...parsed.violations);
+  }
+  return violations;
 }
 
 /**

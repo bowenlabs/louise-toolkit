@@ -2,6 +2,7 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { inquiries, inquiriesForm } from "../../src/core/db/index.js";
 import { formRoute } from "../../src/core/editor/index.js";
+import { s } from "../../src/core/schema/index.js";
 import {
   coerceFormValue,
   columnName,
@@ -135,6 +136,30 @@ describe("validateSubmission", () => {
   it("reports a missing required field", async () => {
     const { violations } = await validateSubmission(form, { message: "hi" });
     expect(violations.some((v) => v.path === "email" && /required/.test(v.message))).toBe(true);
+  });
+
+  // #98: a field may carry a Standard Schema (here the built-in `s.*` builder,
+  // standing in for a consumer's Zod/Valibot schema) run in the same pass.
+  it("runs a field's Standard Schema alongside the Rule engine", async () => {
+    const schemaForm = defineForm({
+      name: "coupon",
+      fields: {
+        code: { type: "text", label: "Code", schema: s.string({ pattern: /^[A-Z]{4}$/ }) },
+      },
+    });
+    expect((await validateSubmission(schemaForm, { code: "ABCD" })).violations).toEqual([]);
+    const bad = await validateSubmission(schemaForm, { code: "ab" });
+    expect(bad.violations.some((v) => v.path === "code")).toBe(true);
+  });
+
+  it("skips a field's Standard Schema when the value is empty (stays optional)", async () => {
+    const schemaForm = defineForm({
+      name: "coupon2",
+      fields: {
+        code: { type: "text", label: "Code", schema: s.string({ min: 4 }) },
+      },
+    });
+    expect((await validateSubmission(schemaForm, {})).violations).toEqual([]);
   });
 });
 

@@ -1,5 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
+import type { StandardSchemaV1 } from "../schema/index.js";
 import type { ValidationBuilder } from "./validation.js";
 
 /**
@@ -74,6 +75,16 @@ export interface BaseFieldConfig {
    * {@link ValidationBuilder} and `validation.ts`.
    */
   validation?: ValidationBuilder;
+  /**
+   * Bring-your-own validation (#98): any Standard Schema
+   * (https://standardschema.dev) — Zod, Valibot, ArkType, or the built-in
+   * `louise-toolkit/schema` `s.*` builder. Evaluated by `validateDocument`
+   * alongside the `validation` chain, on the field's (flattened) value, and
+   * skipped when the value is empty so it doesn't double up with `required`.
+   * The zero-dep `Rule` engine stays the default; this lets a consumer reuse a
+   * validator they already maintain.
+   */
+  schema?: StandardSchemaV1;
 }
 
 export interface TextFieldConfig extends BaseFieldConfig {

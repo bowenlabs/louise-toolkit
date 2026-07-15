@@ -3,6 +3,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import type { BaseSQLiteDatabase, SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
+import { standardValidate } from "../schema/index.js";
 import type { ContentRegistry } from "./localApi.js";
 import type { CollectionConfig, FieldConfig } from "./types.js";
 import { flattenDoc, flattenFields } from "./types.js";
@@ -272,7 +273,7 @@ export async function validateDocument(
   for (const [path, field] of Object.entries(flatFields)) {
     if (options.onlyFields && !options.onlyFields.has(path)) continue;
     const checks = resolveChecks(field);
-    if (checks.length === 0) continue;
+    if (checks.length === 0 && !field.schema) continue;
 
     const value = flatDoc[path];
     const ctx: ValidationFieldContext = {
@@ -285,6 +286,14 @@ export async function validateDocument(
     for (const check of checks) {
       const violation = await evaluateCheck(check, value, field, ctx, options);
       if (violation) violations.push(violation);
+    }
+
+    // A consumer-supplied Standard Schema runs after the `Rule` chain, on the
+    // same flattened value. Skipped when empty so an optional field stays valid
+    // (`required` guards presence). Pure (no db), so it runs client-side too.
+    if (field.schema && !isEmpty(value)) {
+      const parsed = await standardValidate(field.schema, value, path);
+      if (!parsed.ok) violations.push(...parsed.violations);
     }
   }
 

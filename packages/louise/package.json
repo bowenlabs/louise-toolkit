@@ -117,6 +117,11 @@
       "import": "./dist/core/queues/index.js",
       "default": "./dist/core/queues/index.js"
     },
+    "./schema": {
+      "types": "./dist/core/schema/index.d.ts",
+      "import": "./dist/core/schema/index.js",
+      "default": "./dist/core/schema/index.js"
+    },
     "./security": {
       "types": "./dist/core/security/index.d.ts",
       "import": "./dist/core/security/index.js",

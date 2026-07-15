@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LouiseValidationError } from "../../src/core/errors.js";
 import type { CollectionConfig } from "../../src/core/content/types.js";
 import { assertValid, rule, validateDocument } from "../../src/core/content/validation.js";
+import { s } from "../../src/core/schema/index.js";
 
 const posts: CollectionConfig = {
   slug: "posts",
@@ -44,6 +45,29 @@ describe("validateDocument", () => {
     expect(paths).toContain("priority");
     expect(paths).toContain("email");
     expect(violations.every((v) => v.severity === "error")).toBe(true);
+  });
+
+  // #98: a collection field may carry a Standard Schema, run in the same pass
+  // as the Rule chain (here via the built-in `s.*` builder).
+  it("runs a field's Standard Schema and paths its issues to the field", async () => {
+    const catalog: CollectionConfig = {
+      slug: "products",
+      fields: {
+        sku: { type: "text", validation: (r) => r.required(), schema: s.string({ min: 6 }) },
+      },
+    };
+    expect(await validateDocument(catalog, { sku: "ABC123" }, { operation: "create" })).toEqual([]);
+
+    const violations = await validateDocument(catalog, { sku: "ABC" }, { operation: "create" });
+    expect(violations.some((v) => v.path === "sku")).toBe(true);
+  });
+
+  it("skips a field's Standard Schema when the value is empty", async () => {
+    const catalog: CollectionConfig = {
+      slug: "products2",
+      fields: { note: { type: "text", schema: s.string({ min: 6 }) } },
+    };
+    expect(await validateDocument(catalog, {}, { operation: "create" })).toEqual([]);
   });
 
   it("skips DB-backed rules (unique) when no db handle is given", async () => {

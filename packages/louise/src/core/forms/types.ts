@@ -14,6 +14,7 @@ import type {
   SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core";
 import type { ValidationBuilder } from "../content/validation.js";
+import type { StandardSchemaV1 } from "../schema/index.js";
 
 /**
  * Input semantics a public form needs, on top of the content field vocabulary. Each
@@ -55,6 +56,16 @@ export interface FormField {
    * `(r) => r.max(5000)`. Composed after the type's built-in check.
    */
   validation?: ValidationBuilder;
+  /**
+   * Bring-your-own validation (#98): any Standard Schema
+   * (https://standardschema.dev) — Zod, Valibot, ArkType, or the built-in
+   * `louise-toolkit/schema` `s.*` builder. Run in the same shared client+server
+   * pass as `validation`, on the coerced value, and skipped for empty values so
+   * an optional field stays optional. `validation` (the zero-dep `Rule` engine)
+   * remains the default; this is for consumers who'd rather reuse a validator
+   * they already have.
+   */
+  schema?: StandardSchemaV1;
 }
 
 /** Anti-spam options for a form's public capture route. */
