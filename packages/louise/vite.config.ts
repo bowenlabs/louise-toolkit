@@ -86,6 +86,7 @@ export default {
         /^@tanstack\/solid-query(\/|$)/,
         /^@vercel\/stega(\/|$)/,
         /^@cloudflare\/puppeteer(\/|$)/,
+        /^@resvg\/resvg-wasm(\/|$)/,
         /^astro(\/|$)/,
       ],
     },

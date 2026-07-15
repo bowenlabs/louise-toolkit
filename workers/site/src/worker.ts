@@ -11,10 +11,9 @@
 import { handle } from "@astrojs/cloudflare/handler";
 import {
   checkLinks,
-  createPuppeteerRenderer,
-  type LouiseBrowserEnv,
   type OgImageCache,
   ogCacheKey,
+  ogCardSvg,
   ogImage,
 } from "louise-toolkit/browser";
 import {
@@ -33,35 +32,19 @@ import { assertValidSections } from "louise-toolkit/content";
 import { inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
 import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
+import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesCollection } from "./pages-collection.js";
 import { inquiries, media, pages, pagesVersions, siteSettings } from "./schema.js";
 import { SECTIONS } from "./sections/catalog.js";
 
-type WorkerEnv = CloudflareEnv & LouiseBrowserEnv;
+type WorkerEnv = CloudflareEnv;
 
 const SITE_ORIGIN = "https://louisetoolkit.com";
 const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
-/* ── OG image (louise-toolkit/browser, #5) ─────────────────────────────────── */
-
-/** The OG card markup screenshotted into a share image. Self-contained (inline
- *  styles, system fonts) so no network fetch is needed during rendering. */
-function ogCardHtml(title: string): string {
-  const safe = title.replace(/[<>&]/g, (c) => (c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"));
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-    *{margin:0;box-sizing:border-box}
-    body{width:1200px;height:630px;display:flex;flex-direction:column;justify-content:center;
-      padding:80px;background:#0f172a;color:#f8fafc;
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-    .brand{font-size:28px;font-weight:600;color:#56c6be;letter-spacing:.02em}
-    h1{font-size:76px;font-weight:800;line-height:1.05;margin-top:24px;max-width:1000px}
-    .u{margin-top:auto;font-size:24px;color:#94a3b8}
-  </style></head><body>
-    <div class="brand">louise</div><h1>${safe}</h1><div class="u">louisetoolkit.com</div>
-  </body></html>`;
-}
+/* ── OG image (louise-toolkit/browser, #85) ────────────────────────────────── */
 
 /** OG-image byte store backed by the Workers Cache API — no extra binding, and
  *  the content-hashed key means a hit is always the right card. */
@@ -86,14 +69,14 @@ function ogCacheStore(): OgImageCache {
   };
 }
 
-async function handleOgImage(url: URL, env: WorkerEnv): Promise<Response> {
+async function handleOgImage(url: URL): Promise<Response> {
   const slug = url.searchParams.get("slug") ?? "/";
   const title = url.searchParams.get("title") ?? "The V8-native toolkit for Cloudflare Workers";
   const cacheKey = await ogCacheKey(slug, title);
   const { bytes, cached } = await ogImage({
     cacheKey,
-    html: ogCardHtml(title),
-    render: createPuppeteerRenderer(env.BROWSER),
+    markup: ogCardSvg(title, { fontFamily: OG_FONT_FAMILY }),
+    render: ogRenderer,
     cache: ogCacheStore(),
   });
   return new Response(bytes, {
@@ -279,9 +262,9 @@ const mediaAssetRoute: WorkerRoute<WorkerEnv> = async (request, env) => {
   return new Response(obj.body, { headers });
 };
 
-const ogRoute: WorkerRoute<WorkerEnv> = (request, env) => {
+const ogRoute: WorkerRoute<WorkerEnv> = (request) => {
   const url = new URL(request.url);
-  return url.pathname === "/og.png" ? handleOgImage(url, env) : undefined;
+  return url.pathname === "/og.png" ? handleOgImage(url) : undefined;
 };
 
 export default composeWorker<WorkerEnv>({

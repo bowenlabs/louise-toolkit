@@ -8,9 +8,8 @@
 // `mediaRoute`, whose `MediaRouteEnv` requires it) reads it off this runtime env.
 // The editor-gate config (OWNER_EMAIL, LOUISE_SESSION_SECRET,
 // LOUISE_EDITOR_PASSWORD) IS typed + validated by the astro:env schema — see
-// astro.config.mjs, consumed via `astro:env/server`. BROWSER comes from
-// louise-toolkit/browser's LouiseBrowserEnv, so it's intentionally omitted here
-// to avoid a duplicate/conflicting declaration.
+// astro.config.mjs, consumed via `astro:env/server`. The OG card is rendered
+// with resvg/WASM now (#85), so there's no Browser Rendering binding.
 type CloudflareEnv = {
   DB: D1Database;
   MEDIA: R2Bucket;
@@ -18,6 +17,14 @@ type CloudflareEnv = {
   RL: KVNamespace;
   ASSETS: Fetcher;
 };
+
+// The bundled resvg rasterizer imports as a compiled WebAssembly module (the
+// Cloudflare Worker build compiles `.wasm` imports). Typed so `import wasm from
+// "./resvg.wasm"` resolves to a `WebAssembly.Module`.
+declare module "*.wasm" {
+  const module: WebAssembly.Module;
+  export default module;
+}
 
 // Bindings are read via `import { env } from "cloudflare:workers"` (Astro v6+
 // removed Astro.locals.runtime.env), so Locals only carries what middleware sets.

@@ -24,10 +24,6 @@
   // lowers total latency. No-op for the static docs host (asset-only). Measure
   // TTFB on published-page + editor routes and keep/revert based on the numbers.
   "placement": { "mode": "smart" },
-  // Browser Run (louise-toolkit/browser, #5): OG-image rendering + link-checking.
-  "browser": {
-    "binding": "BROWSER",
-  },
   // --- Louise Toolkit bindings -----------------------------------------------
   // D1 holds pages/site_settings/media/inquiries (schema composed from
   // louise-toolkit/db, migrations in ./migrations). For local dev miniflare provides an

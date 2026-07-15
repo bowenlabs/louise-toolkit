@@ -50,9 +50,10 @@ export async function ogCacheKey(
 export interface OgImageOptions {
   /** Stable, content-hashed cache key (see {@link ogCacheKey}). */
   cacheKey: string;
-  /** HTML of the card template to screenshot. */
-  html: string;
-  /** How to rasterize the HTML (see {@link createPuppeteerRenderer}). */
+  /** The card source markup fed to the renderer — SVG for
+   *  {@link createResvgRenderer}, HTML for {@link createPuppeteerRenderer}. */
+  markup: string;
+  /** How to rasterize the markup to PNG bytes. */
   render: OgRenderer;
   /** Byte store. Omit to always render (no caching). */
   cache?: OgImageCache;
@@ -74,7 +75,7 @@ export async function ogImage(options: OgImageOptions): Promise<OgImageResult> {
     const hit = await options.cache.get(options.cacheKey);
     if (hit) return { bytes: hit, cached: true };
   }
-  const bytes = await options.render(options.html);
+  const bytes = await options.render(options.markup);
   if (options.cache) await options.cache.put(options.cacheKey, bytes, "image/png");
   return { bytes, cached: false };
 }

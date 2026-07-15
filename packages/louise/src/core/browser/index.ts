@@ -2,11 +2,15 @@
 //
 // louise-toolkit/browser
 //
-// Edge browser-automation helpers on Cloudflare Browser Run, shared across all
-// Louise sites (issue #5): per-page OG image generation with a content-hashed
-// cache (a session only on a miss), and a scheduled link-checker. Bindings
-// contract: `BROWSER` — see {@link LouiseBrowserEnv}. `@cloudflare/puppeteer` is
-// an optional peer, dynamically imported only when a render actually happens.
+// Edge rendering helpers shared across all Louise sites: per-page OG image
+// generation with a content-hashed cache (render only on a miss), and a
+// scheduled link-checker. Two OG renderers are offered behind one {@link
+// OgRenderer} contract — the resvg/WASM rasterizer (`createResvgRenderer`, the
+// default hot path, issue #85) and the Browser-Rendering screenshot
+// (`createPuppeteerRenderer`, issue #5). Both peers (`@resvg/resvg-wasm`,
+// `@cloudflare/puppeteer`) are optional and dynamically imported only when a
+// render actually happens. Browser Rendering binding contract: `BROWSER` — see
+// {@link LouiseBrowserEnv}.
 
 export {
   createPuppeteerRenderer,
@@ -17,5 +21,7 @@ export {
   type OgImageResult,
   type PuppeteerRendererOptions,
 } from "./og-image.js";
+export { type OgCardOptions, ogCardSvg, type WrapTitleOptions, wrapTitle } from "./og-card.js";
+export { createResvgRenderer, type ResvgRendererOptions } from "./resvg.js";
 export { type BrokenLink, checkLinks, type CheckLinksOptions, extractLinks } from "./link-check.js";
 export type { LouiseBrowserEnv, OgImageCache, OgRenderer } from "./types.js";

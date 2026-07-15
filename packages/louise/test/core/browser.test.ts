@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   checkLinks,
+  createResvgRenderer,
   extractLinks,
   ogCacheKey,
+  ogCardSvg,
   ogImage,
   type OgImageCache,
+  wrapTitle,
 } from "../../src/core/browser/index.js";
 
 // --- ogImage / ogCacheKey --------------------------------------------------
@@ -45,21 +48,141 @@ describe("ogImage", () => {
     const { cache, store } = makeCache();
     const render = vi.fn(async () => new Uint8Array([1, 2, 3]));
 
-    const first = await ogImage({ cacheKey: "og/x.png", html: "<h1>x</h1>", render, cache });
+    const first = await ogImage({ cacheKey: "og/x.png", markup: "<h1>x</h1>", render, cache });
     expect(first).toEqual({ bytes: new Uint8Array([1, 2, 3]), cached: false });
     expect(render).toHaveBeenCalledTimes(1);
     expect(store.size).toBe(1);
 
-    const second = await ogImage({ cacheKey: "og/x.png", html: "<h1>x</h1>", render, cache });
+    const second = await ogImage({ cacheKey: "og/x.png", markup: "<h1>x</h1>", render, cache });
     expect(second.cached).toBe(true);
     expect(render).toHaveBeenCalledTimes(1); // NOT called again — no browser session
   });
 
   it("always renders when no cache is provided", async () => {
     const render = vi.fn(async () => new Uint8Array([9]));
-    const res = await ogImage({ cacheKey: "k", html: "<h1/>", render });
+    const res = await ogImage({ cacheKey: "k", markup: "<h1/>", render });
     expect(res).toEqual({ bytes: new Uint8Array([9]), cached: false });
     expect(render).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- OG card SVG + resvg renderer ------------------------------------------
+
+describe("wrapTitle", () => {
+  it("wraps to fit the width and keeps every word", () => {
+    const lines = wrapTitle("The V8-native toolkit for Cloudflare Workers", {
+      maxWidth: 1040,
+      fontSize: 76,
+    });
+    expect(lines.length).toBeGreaterThan(1);
+    // No line exceeds the estimated character budget (1040 / (76*0.56) ≈ 24).
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(24);
+    // A short title stays on one line.
+    expect(wrapTitle("Hello world", { maxWidth: 1040, fontSize: 76 })).toEqual(["Hello world"]);
+  });
+
+  it("caps lines and ellipsizes an overflowing title", () => {
+    const lines = wrapTitle(
+      "one two three four five six seven eight nine ten eleven twelve thirteen",
+      { maxWidth: 200, fontSize: 76, maxLines: 2 },
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[1].endsWith("…")).toBe(true);
+  });
+
+  it("never drops a single word longer than a line", () => {
+    const lines = wrapTitle("supercalifragilisticexpialidocious", { maxWidth: 100, fontSize: 76 });
+    expect(lines).toEqual(["supercalifragilisticexpialidocious"]);
+  });
+});
+
+describe("ogCardSvg", () => {
+  it("emits a well-formed SVG with the brand, title, and footer", () => {
+    const svg = ogCardSvg("Ship faster", { brand: "louise", footer: "louisetoolkit.com" });
+    expect(svg.startsWith("<svg")).toBe(true);
+    expect(svg).toContain('width="1200"');
+    expect(svg).toContain('viewBox="0 0 1200 630"');
+    expect(svg).toContain(">louise<");
+    expect(svg).toContain(">Ship faster<");
+    expect(svg).toContain(">louisetoolkit.com<");
+  });
+
+  it("escapes XML-significant characters in dynamic text", () => {
+    const svg = ogCardSvg('A & B <are> "quoted"');
+    expect(svg).toContain("A &amp; B");
+    expect(svg).toContain("&lt;are&gt;");
+    expect(svg).not.toMatch(/<are>/);
+  });
+});
+
+describe("createResvgRenderer", () => {
+  function fakeResvg() {
+    const ctorOpts: unknown[] = [];
+    const Resvg = vi.fn(function (this: unknown, _svg: string, opts: unknown) {
+      ctorOpts.push(opts);
+      return {
+        render: () => ({ asPng: () => new Uint8Array([137, 80, 78, 71]) }),
+      };
+    }) as unknown as typeof import("@resvg/resvg-wasm").Resvg;
+    const initWasm = vi.fn(async () => {});
+    return { mod: { initWasm, Resvg }, initWasm, ctorOpts };
+  }
+
+  it("initializes the WASM once across renders, then rasterizes to PNG bytes", async () => {
+    const { mod, initWasm } = fakeResvg();
+    const render = createResvgRenderer({
+      wasm: new Uint8Array([0]),
+      fonts: [new Uint8Array([1, 2, 3])],
+      loadResvg: async () => mod,
+    });
+
+    const png = await render(ogCardSvg("hi"));
+    expect(Array.from(png)).toEqual([137, 80, 78, 71]);
+    expect(initWasm).toHaveBeenCalledTimes(1);
+
+    // A second render — even a second renderer over the same module — must not
+    // re-init (initWasm throws on a double init).
+    await render(ogCardSvg("again"));
+    const render2 = createResvgRenderer({
+      wasm: new Uint8Array([0]),
+      fonts: [],
+      loadResvg: async () => mod,
+    });
+    await render2("<svg/>");
+    expect(initWasm).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes font buffers (normalized to Uint8Array) and fit options", async () => {
+    const { mod, ctorOpts } = fakeResvg();
+    const ab = new Uint8Array([9, 9]).buffer; // an ArrayBuffer, must be normalized
+    const render = createResvgRenderer({
+      wasm: new Uint8Array([0]),
+      fonts: [ab],
+      defaultFontFamily: "Roboto Flex",
+      width: 1200,
+      loadResvg: async () => mod,
+    });
+    await render("<svg/>");
+    const opts = ctorOpts[0] as {
+      fitTo: { mode: string; value?: number };
+      font: { fontBuffers: Uint8Array[]; loadSystemFonts: boolean; defaultFontFamily?: string };
+    };
+    expect(opts.fitTo).toEqual({ mode: "width", value: 1200 });
+    expect(opts.font.loadSystemFonts).toBe(false);
+    expect(opts.font.defaultFontFamily).toBe("Roboto Flex");
+    expect(opts.font.fontBuffers[0]).toBeInstanceOf(Uint8Array);
+    expect(Array.from(opts.font.fontBuffers[0])).toEqual([9, 9]);
+  });
+
+  it("renders at intrinsic size when no width is given", async () => {
+    const { mod, ctorOpts } = fakeResvg();
+    const render = createResvgRenderer({
+      wasm: new Uint8Array([0]),
+      fonts: [],
+      loadResvg: async () => mod,
+    });
+    await render("<svg/>");
+    expect((ctorOpts[0] as { fitTo: unknown }).fitTo).toEqual({ mode: "original" });
   });
 });
 
