@@ -179,7 +179,8 @@ describe("parseJson", () => {
   it("reports malformed JSON as a violation instead of throwing", async () => {
     const r = await parseJson(schema, "{not json");
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.violations).toEqual([{ path: "", message: "Invalid JSON", severity: "error" }]);
+    if (!r.ok)
+      expect(r.violations).toEqual([{ path: "", message: "Invalid JSON", severity: "error" }]);
   });
 
   it("reports a shape mismatch as violations", async () => {
@@ -195,8 +196,9 @@ describe("extractJson", () => {
   });
 
   it("pulls the object out of model prose and ```json fences", () => {
-    expect(extractJson('Sure! Here is the SEO:\n```json\n{"title":"Hi"}\n```\nHope that helps'))
-      .toBe('{"title":"Hi"}');
+    expect(
+      extractJson('Sure! Here is the SEO:\n```json\n{"title":"Hi"}\n```\nHope that helps'),
+    ).toBe('{"title":"Hi"}');
   });
 
   it("does not stop on a brace inside a string value", () => {
@@ -204,7 +206,7 @@ describe("extractJson", () => {
   });
 
   it("handles a top-level array and nested braces", () => {
-    expect(extractJson("prefix [{\"a\":{\"b\":1}}] suffix")).toBe('[{"a":{"b":1}}]');
+    expect(extractJson('prefix [{"a":{"b":1}}] suffix')).toBe('[{"a":{"b":1}}]');
   });
 
   it("returns null when there is no JSON", () => {
