@@ -18,7 +18,7 @@ import {
   verifyTurnstileToken,
 } from "../forms/index.js";
 import { s, standardValidate } from "../schema/index.js";
-import { type KVLike, rateLimit } from "../security/rate-limit.js";
+import { type RateLimitBackend, rateLimit } from "../security/rate-limit.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, ident, json, matchPath } from "./shared.js";
 
@@ -31,8 +31,9 @@ export interface FormRouteConfig<Env extends FormRouteEnv = FormRouteEnv> {
   form: FormDefinition;
   /** Mount path. Default `/api/louise/forms/<name>`. */
   path?: string;
-  /** KV for the rate limiter, when the form declares `spam.rateLimit`. */
-  rateLimitKv?: (env: Env) => KVLike;
+  /** Rate-limit backend, when the form declares `spam.rateLimit` — a KV binding
+   *  or Cloudflare's native Rate Limiting binding. */
+  rateLimitKv?: (env: Env) => RateLimitBackend;
   /** Rate-limit key for a request. Default: the `CF-Connecting-IP` header. */
   clientKey?: (request: Request) => string;
   /** Turnstile secret, when the form declares `spam.turnstile`. */

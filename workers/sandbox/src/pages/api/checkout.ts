@@ -9,6 +9,7 @@ import { env } from "cloudflare:workers";
 import { createPayment } from "louise-toolkit/commerce/square";
 import { db } from "louise-toolkit/db";
 import { sendEmail } from "louise-toolkit/email";
+import { rateLimit } from "louise-toolkit/security";
 import { demoOrders } from "../../schema.js";
 
 export const prerender = false;
@@ -19,13 +20,24 @@ const bindings = env as unknown as CloudflareEnv;
 // sandbox). Square test cards approve this for free.
 const DEMO = { name: "Cortado", amountCents: 450, currency: "USD" as const };
 const RATE_LIMIT_PER_DAY = 8;
+const ONE_DAY_SEC = 86_400;
+// Advisory — the native binding's real budget lives in wrangler (`ratelimits`).
+const BURST_PER_MIN = 20;
 
+// Two-tier abuse control on this public pay+email surface, both through the
+// shared `rateLimit` primitive (louise-toolkit/security):
+//   1. an optional native, in-colo burst guard (env.RATE_LIMIT) when provisioned
+//      — cheap protection against a rapid flood;
+//   2. the per-IP daily budget on KV — a per-day cap can't be a native binding
+//      (its period maxes at 60s), so it stays on the KV counter.
+// Both fail open, so a limiter hiccup never blocks a legitimate checkout.
 async function rateLimited(ip: string): Promise<boolean> {
-  const key = `rl:${ip}:${new Date().toISOString().slice(0, 10)}`;
-  const count = Number((await bindings.RL.get(key)) ?? "0");
-  if (count >= RATE_LIMIT_PER_DAY) return true;
-  await bindings.RL.put(key, String(count + 1), { expirationTtl: 86_400 });
-  return false;
+  if (bindings.RATE_LIMIT) {
+    const burst = await rateLimit(bindings.RATE_LIMIT, `checkout:${ip}`, BURST_PER_MIN, 60);
+    if (!burst.ok) return true;
+  }
+  const day = await rateLimit(bindings.RL, `checkout:${ip}`, RATE_LIMIT_PER_DAY, ONE_DAY_SEC);
+  return !day.ok;
 }
 
 function confirmationEmail(paymentId: string): { subject: string; html: string } {

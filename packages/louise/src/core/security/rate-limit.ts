@@ -16,10 +16,27 @@
 //
 // The *rules* (which routes, which budgets) are site policy — a site defines its
 // own `RateRule[]` and passes it to `matchRateRule`. Only the mechanism lives here.
+//
+// A site can instead pass Cloudflare's native Rate Limiting binding (any
+// `RateLimitBackend` — see `rateLimit` below). That path is in-colo and cheaper
+// for the hot abuse-control surfaces, but its budget lives in wrangler config
+// (the `limit`/`windowSec` args become advisory) and it only reports a boolean.
 
-import type { KVLike } from "./types";
+import type { KVLike, RateLimitBackend, RateLimiterBinding } from "./types";
 
-export type { KVLike };
+export type { KVLike, RateLimitBackend, RateLimiterBinding };
+
+/** True for the native Rate Limiting binding (has `limit()`); false for KV. */
+function isNativeLimiter(backend: RateLimitBackend): backend is RateLimiterBinding {
+  return typeof (backend as RateLimiterBinding).limit === "function";
+}
+
+// The native binding's period is capped at 60s (Cloudflare only allows 10 or
+// 60), and the runtime response carries no reset clock, so on a block we can't
+// report the caller's intended `windowSec` (which may be far larger) as
+// Retry-After without misleading the client. Cap it at the largest possible
+// native window instead — a safe, bounded upper bound.
+const NATIVE_MAX_PERIOD_SEC = 60;
 
 export interface RateLimitResult {
   ok: boolean;
@@ -30,16 +47,37 @@ export interface RateLimitResult {
 }
 
 /**
- * Consume one unit against `key`'s current window. `windowSec` must be ≥ 60
- * (KV's minimum TTL). Returns `ok: false` once `limit` is reached.
+ * Consume one unit against `key`'s current window. Returns `ok: false` once the
+ * budget is reached. Fails open on any backend error.
+ *
+ * The `backend` is either a KV binding or Cloudflare's native Rate Limiting
+ * binding:
+ *   - **KV** — `windowSec` must be ≥ 60 (KV's minimum TTL); `limit`/`windowSec`
+ *     define the budget here, and the result's `remaining`/`retryAfter` are exact.
+ *   - **native binding** — the budget lives in wrangler config, so `limit` and
+ *     `windowSec` are *advisory* (ignored beyond the key); `remaining` is
+ *     best-effort and `retryAfter` is a bounded upper estimate. It's in-colo and
+ *     cheaper — preferred for the hot public abuse-control surfaces.
  */
 export async function rateLimit(
-  kv: KVLike,
+  backend: RateLimitBackend,
   key: string,
   limit: number,
   windowSec: number,
   now: number = Date.now(),
 ): Promise<RateLimitResult> {
+  if (isNativeLimiter(backend)) {
+    try {
+      const { success } = await backend.limit({ key: `rl:${key}` });
+      return success
+        ? { ok: true, remaining: Math.max(0, limit - 1), retryAfter: 0 }
+        : { ok: false, remaining: 0, retryAfter: NATIVE_MAX_PERIOD_SEC };
+    } catch {
+      // Fails open — a limiter outage must never take down sign-in or a form.
+      return { ok: true, remaining: limit, retryAfter: 0 };
+    }
+  }
+  const kv = backend;
   const sec = Math.floor(now / 1000);
   const windowStart = sec - (sec % windowSec);
   const retryAfter = windowStart + windowSec - sec;

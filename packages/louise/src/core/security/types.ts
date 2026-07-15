@@ -21,6 +21,28 @@ export interface KVLike {
 }
 
 /**
+ * The subset of Cloudflare's native Rate Limiting binding Louise uses. Unlike
+ * the KV limiter, the budget (limit + period) is fixed in wrangler config on
+ * the binding itself — at runtime you only pass a `key`, and the response is
+ * just `{ success }` (no remaining/retryAfter). It's in-colo (no round-trip)
+ * and cheaper, but permissive/eventually-consistent like KV. Declared
+ * structurally so the real binding satisfies it without a hard dependency on
+ * `@cloudflare/workers-types`.
+ */
+export interface RateLimiterBinding {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+/**
+ * Either backend the rate limiter accepts: the KV counter (portable, budget set
+ * per call) or the native binding (in-colo, budget fixed in config). Callers
+ * pass whichever they have — typically `env.RATE_LIMIT ?? env.KV` — so a site
+ * gains the native path just by provisioning the binding, and falls back to KV
+ * otherwise.
+ */
+export type RateLimitBackend = KVLike | RateLimiterBinding;
+
+/**
  * Base binding contract the Louise security primitives expect on a Worker's
  * `env`. A site's own `Env` can `extends LouiseEnv`; the auth extraction (#7)
  * widens this into the full `LouiseAuthEnv` surface.

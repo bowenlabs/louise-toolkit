@@ -9,4 +9,10 @@ export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from
 export { matchRateRule, rateLimit, type RateLimitResult, type RateRule } from "./rate-limit";
 export { getSessionSecret } from "./secrets";
 export { louiseSecurityHeaders, rewriteCspStyleSrc, type SecurityHeaderOptions } from "./headers";
-export type { KVLike, LouiseEnv, SecretBinding } from "./types";
+export type {
+  KVLike,
+  LouiseEnv,
+  RateLimitBackend,
+  RateLimiterBinding,
+  SecretBinding,
+} from "./types";

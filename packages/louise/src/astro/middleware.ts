@@ -17,9 +17,9 @@
 
 import type { APIContext, MiddlewareHandler } from "astro";
 import {
-  type KVLike,
   louiseSecurityHeaders,
   matchRateRule,
+  type RateLimitBackend,
   type RateRule,
   rateLimit,
   rewriteCspStyleSrc,
@@ -36,8 +36,9 @@ interface LouiseLocals {
 export interface LouiseMiddlewareRateLimit {
   /** The site's rate-limit rules — the public POST surfaces worth protecting. */
   rules: RateRule[];
-  /** KV counter binding. */
-  kv: KVLike;
+  /** Rate-limit backend — a KV counter or Cloudflare's native Rate Limiting
+   *  binding. */
+  kv: RateLimitBackend;
 }
 
 export interface LouiseMiddlewareConfig<TEditor = unknown> {

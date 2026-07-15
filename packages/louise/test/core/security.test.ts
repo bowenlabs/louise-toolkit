@@ -7,6 +7,7 @@ import {
   rewriteCspStyleSrc,
   sanitizeRichHtml,
   type KVLike,
+  type RateLimiterBinding,
   type RateRule,
 } from "../../src/core/security/index.js";
 
@@ -151,6 +152,47 @@ describe("rateLimit", () => {
       },
       async put() {
         throw new Error("kv down");
+      },
+    };
+    expect((await rateLimit(boom, "ip", 1, 60)).ok).toBe(true);
+  });
+});
+
+describe("rateLimit (native binding)", () => {
+  /** Native binding stub whose `success` we control; records the keys it saw. */
+  const makeLimiter = (success: boolean) => {
+    const keys: string[] = [];
+    const binding: RateLimiterBinding = {
+      async limit({ key }) {
+        keys.push(key);
+        return { success };
+      },
+    };
+    return { binding, keys };
+  };
+
+  it("passes through the native success verdict", async () => {
+    const pass = makeLimiter(true);
+    const allowed = await rateLimit(pass.binding, "ip", 20, 60);
+    expect(allowed.ok).toBe(true);
+
+    const block = makeLimiter(false);
+    const denied = await rateLimit(block.binding, "ip", 20, 60);
+    expect(denied.ok).toBe(false);
+    // Retry-After is a bounded upper estimate (native max period), not windowSec.
+    expect(denied.retryAfter).toBe(60);
+  });
+
+  it("dispatches to the native path (never treats the binding as KV)", async () => {
+    const { binding, keys } = makeLimiter(true);
+    await rateLimit(binding, "1.2.3.4", 20, 60);
+    expect(keys).toEqual(["rl:1.2.3.4"]);
+  });
+
+  it("fails open when the native binding throws", async () => {
+    const boom: RateLimiterBinding = {
+      async limit() {
+        throw new Error("limiter down");
       },
     };
     expect((await rateLimit(boom, "ip", 1, 60)).ok).toBe(true);
