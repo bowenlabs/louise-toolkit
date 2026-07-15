@@ -1,50 +1,99 @@
 ---
-// Bespoke feature-grid section — site-owned design (Tailwind + daisyUI cards),
-// rendered from a structured `items` array. Editors add/remove cards from the
-// dock; card text (title/body) is edited in place via `data-louise-sfield`
-// markers stamped in edit mode. The markup stays here.
+// Bespoke feature-grid — site-owned design (color-block cards on the daisyUI
+// `louise-dark` brand tokens). Rendered from a structured `items` array; editors
+// add/remove cards from the dock and edit each card's name/body in place. The
+// card's icon + colorway are dock fields (a Phosphor token like `ph-database`
+// and one of blue/orange/green/gold), so the exact look stays site-owned while
+// still being tweakable. The markup and color mapping stay here.
+import Icon from "../components/Icon.astro";
+import { featureIcon } from "../lib/landing-icons.js";
+
 interface Item {
-  title?: string;
+  name?: string;
   body?: string;
+  icon?: string;
+  colorway?: string;
 }
 interface Props {
   heading?: string;
+  headingLine2?: string;
   items?: Item[];
   _editIndex?: number;
   _editMode?: boolean;
 }
-const { heading = "", items = [], _editIndex = 0, _editMode: edit = false } = Astro.props;
+const {
+  heading = "",
+  headingLine2 = "",
+  items = [],
+  _editIndex = 0,
+  _editMode: edit = false,
+} = Astro.props;
 const idx = _editIndex;
+
+// colorway → daisyUI semantic pair. The `-content` foregrounds match the mock's
+// per-card text colors exactly (white on blue/orange, near-black on green/gold).
+const CARD_CLASS: Record<string, string> = {
+  blue: "bg-primary text-primary-content",
+  orange: "bg-error text-error-content",
+  green: "bg-success text-success-content",
+  gold: "bg-warning text-warning-content",
+};
+const CYCLE = ["blue", "orange", "green", "gold"];
+const cardClass = (cw: string | undefined, i: number) =>
+  (cw && CARD_CLASS[cw]) || CARD_CLASS[CYCLE[i % 4]];
+
+// Design defaults — shown when the section has no items yet (e.g. unseeded DB).
+const DEFAULT_ITEMS: Item[] = [
+  { name: "content", icon: "ph-article", colorway: "blue", body: "Collections with drafts, publish, version history and full-text search." },
+  { name: "db", icon: "ph-database", colorway: "orange", body: "D1 bindings passed in — your schema, your migrations." },
+  { name: "media", icon: "ph-image", colorway: "green", body: "R2-backed media library: uploads and a media base your pages trust." },
+  { name: "forms", icon: "ph-textbox", colorway: "gold", body: "A built-in inquiries form that owns its own validation." },
+  { name: "commerce", icon: "ph-shopping-cart", colorway: "gold", body: "Products and checkout primitives that run at the edge." },
+  { name: "email", icon: "ph-envelope", colorway: "blue", body: "Transactional sends through your Email binding." },
+  { name: "queues", icon: "ph-queue", colorway: "orange", body: "Background work on Cloudflare Queues — no job server." },
+  { name: "auth", icon: "ph-lock-key", colorway: "green", body: "Editor sessions with access rules per operation." },
+];
+const cards = items.length ? items : edit ? [] : DEFAULT_ITEMS;
 ---
 
-<section class="px-5 pb-16">
-  {
-    (edit || heading) && (
-      <h2
-        class="mb-6 text-center text-2xl font-black"
-        data-louise-sfield={edit ? `${idx}.heading` : undefined}
-      >
-        {heading}
-      </h2>
-    )
-  }
-  <div class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4">
+<section class="mx-auto max-w-[1180px] px-[clamp(20px,4vw,48px)] pt-[clamp(56px,8vw,90px)] pb-10">
+  <h2 class="lt-display lt-stretch-135 mb-11 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
+    <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+      {heading || (edit ? "" : "One package.")}
+    </span><br />
+    <span data-louise-sfield={edit ? `${idx}.headingLine2` : undefined}>
+      {headingLine2 || (edit ? "" : "Eight primitives.")}
+    </span>
+  </h2>
+
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-[14px]">
     {
-      items.map((f, j) => (
-        <article class="card rounded-box border border-base-300 bg-base-100 p-6">
-          <h3
-            class="mb-2 text-lg font-black"
-            data-louise-sfield={edit ? `${idx}.items.${j}.title` : undefined}
-          >
-            {f.title}
-          </h3>
-          <p
-            class="text-sm text-base-content/60"
-            data-louise-sfield={edit ? `${idx}.items.${j}.body` : undefined}
-            data-louise-multiline={edit || undefined}
-          >
-            {f.body}
-          </p>
+      cards.map((f, j) => (
+        <article
+          class:list={[
+            "flex min-h-[170px] flex-col justify-between rounded-[18px] px-[22px] py-[26px] transition-transform duration-150 hover:-translate-y-1 hover:-rotate-1",
+            cardClass(f.colorway, j),
+          ]}
+        >
+          <div class="flex items-center justify-between gap-2.5">
+            <div class="font-mono text-[13px] font-bold opacity-80">louise-toolkit/{f.name}</div>
+            <Icon svg={featureIcon(f.icon)} class="text-[22px]" />
+          </div>
+          <div>
+            <div
+              class="lt-stretch-125 mb-2 text-[24px] font-black uppercase"
+              data-louise-sfield={edit ? `${idx}.items.${j}.name` : undefined}
+            >
+              {f.name}
+            </div>
+            <div
+              class="text-[13.5px] leading-[1.5] font-medium opacity-90"
+              data-louise-sfield={edit ? `${idx}.items.${j}.body` : undefined}
+              data-louise-multiline={edit || undefined}
+            >
+              {f.body}
+            </div>
+          </div>
         </article>
       ))
     }

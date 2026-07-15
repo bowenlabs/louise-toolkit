@@ -1,0 +1,79 @@
+---
+// Bespoke code showcase — site-owned. The code sample on the left is baked
+// (illustrative, syntax-highlighted with inline spans and rendered via set:html
+// so its braces aren't parsed as expressions). The heading, body and doc link on
+// the right are Louise-editable in place; the link target is a dock field.
+interface Props {
+  heading?: string;
+  headingAccent?: string;
+  body?: string;
+  linkLabel?: string;
+  linkHref?: string;
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const {
+  heading = "",
+  headingAccent = "",
+  body = "",
+  linkLabel = "",
+  linkHref = "",
+  _editIndex = 0,
+  _editMode: edit = false,
+} = Astro.props;
+const idx = _editIndex;
+
+const CODE_HTML = `<span style="color:#6cb2ff">import</span> { defineCollection } <span style="color:#6cb2ff">from</span> <span style="color:#8ebe59">"louise-toolkit/content"</span>;
+
+<span style="color:#6cb2ff">export const</span> pages = <span style="color:#f3ae29">defineCollection</span>({
+  slug: <span style="color:#8ebe59">"pages"</span>,
+  fields: {
+    title: { type: <span style="color:#8ebe59">"text"</span>, required: <span style="color:#db8f5c">true</span> },
+    body:  { type: <span style="color:#8ebe59">"text"</span> },
+  },
+  versions: { drafts: <span style="color:#db8f5c">true</span> },
+  search: { fields: [<span style="color:#8ebe59">"title"</span>, <span style="color:#8ebe59">"body"</span>] },
+});`;
+---
+
+<section
+  class="mx-auto grid max-w-[1180px] grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-center gap-[clamp(32px,5vw,56px)] px-[clamp(20px,4vw,48px)] pt-[60px] pb-[90px]"
+>
+  <div
+    class="overflow-hidden rounded-[20px] border-[1.5px] border-neutral bg-base-200 px-[clamp(18px,3vw,30px)] py-[28px]"
+  >
+    <div class="mb-[18px] font-mono text-[12px] text-[#8a95a8]">pages-collection.ts</div>
+    <pre
+      class="m-0 overflow-x-auto font-mono text-[14px] leading-[1.75] text-base-content"><code set:html={CODE_HTML} /></pre>
+  </div>
+
+  <div>
+    <h2 class="lt-display lt-stretch-135 mb-5 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
+      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+        {heading || (edit ? "" : "Bring your")}
+      </span><br />
+      own <span class="text-error" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+        {headingAccent || (edit ? "" : "everything.")}
+      </span>
+    </h2>
+    <p
+      class="mb-7 text-[17px] leading-[1.65] text-[#aab3c2]"
+      data-louise-sfield={edit ? `${idx}.body` : undefined}
+      data-louise-multiline={edit || undefined}
+    >
+      {
+        body ||
+          (edit
+            ? ""
+            : "Bindings — D1, R2, Queues, Email — are passed in. No opinion about your schema, your auth, or your framework. Tree-shaken ESM, drafts & publish, version history, full-text search.")
+      }
+    </p>
+    <a
+      class="text-[16px] font-extrabold tracking-[0.04em] text-accent uppercase"
+      href={linkHref || "https://docs.louisetoolkit.com"}
+      data-louise-sfield={edit ? `${idx}.linkLabel` : undefined}
+    >
+      {linkLabel || (edit ? "" : "Read the docs →")}
+    </a>
+  </div>
+</section>

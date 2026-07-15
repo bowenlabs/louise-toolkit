@@ -1,0 +1,143 @@
+/*
+ * landing.css — presentational helpers for the bespoke marketing landing
+ * (workers/site/src/pages/index.astro). Layout, spacing and brand colors come
+ * from Tailwind v4 utilities + the daisyUI `louise-dark` theme tokens
+ * (src/styles/louise.css); this file only adds what Tailwind can't express
+ * cleanly: the wide/heavy display type (Roboto Flex `wdth`/`wght` axes), the
+ * marquee keyframes, and inline-SVG icon sizing. Scoped under `.lt-landing`
+ * where it affects free elements so it never leaks into editor chrome.
+ */
+
+/* JetBrains Mono for `font-mono` utilities inside the landing (the head <link>
+ * loads it). Tailwind v4 emits `.font-mono { font-family: var(--font-mono) }`,
+ * so overriding the variable in this scope is enough — no per-element class. */
+.lt-landing {
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ── Display type ──────────────────────────────────────────────────────────
+ * The design leans on Roboto Flex's variable width axis (`font-stretch`, which
+ * Tailwind has no first-class utility for) and weight 1000 (heavier than
+ * Tailwind's `font-black` = 900). Pair `.lt-display` with a `.lt-stretch-*`
+ * helper; keep sizing/color/tracking on Tailwind utilities at the call site.
+ * Scoped under `.lt-landing` so it out-specifies `.louise-type`'s heading-
+ * weight rule (which would otherwise force headings back to 800). */
+.lt-landing .lt-display {
+  font-weight: 1000;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.lt-landing .lt-black {
+  font-weight: 1000;
+}
+.lt-stretch-125 {
+  font-stretch: 125%;
+}
+.lt-stretch-130 {
+  font-stretch: 130%;
+}
+.lt-stretch-135 {
+  font-stretch: 135%;
+}
+.lt-stretch-140 {
+  font-stretch: 140%;
+}
+
+/* Louise brand mark (non-square), inlined; fills with currentColor. */
+.lt-mark {
+  display: inline-block;
+  line-height: 0;
+}
+.lt-mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* ── Marquee ───────────────────────────────────────────────────────────────
+ * Two copies of the token list sit side by side; translating the track by -50%
+ * lands copy #2 exactly where copy #1 began, so the loop is seamless. */
+@keyframes lt-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.lt-marquee-track {
+  display: inline-flex;
+  animation: lt-marquee 26s linear infinite;
+}
+
+/* ── Inline icons ──────────────────────────────────────────────────────────
+ * Phosphor SVGs are inlined raw (Icon.astro) so they inherit `currentColor` —
+ * no icon font, no runtime fetch. They ship without width/height, so size them
+ * to 1em and drive size via the wrapper's font-size (a `text-[...]` utility). */
+.lt-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+.lt-icon > svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+
+/* ── Landing-scoped affordances ────────────────────────────────────────────
+ * Gold text selection + focus ring, matching the mockup, kept inside the
+ * landing so they don't override the editor's own focus styling. */
+.lt-landing ::selection {
+  background: rgba(243, 174, 41, 0.3);
+}
+.lt-landing a:focus-visible,
+.lt-landing button:focus-visible,
+.lt-landing [contenteditable="true"]:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── Edit-in-place demo ────────────────────────────────────────────────────
+ * A self-contained illustration of Louise's on-page editing (its own toggle,
+ * independent of real Louise edit mode). State is a single `data-demo-edit`
+ * attribute on the demo root; everything visual keys off it so the toggle JS
+ * only flips one flag (plus contentEditable on the sample fields). */
+.lt-demo-track {
+  background: var(--color-neutral);
+  transition: background 0.18s;
+}
+[data-demo-edit="1"] .lt-demo-track {
+  background: var(--color-success);
+}
+.lt-demo-knob {
+  left: 3px;
+  transition: left 0.18s;
+}
+[data-demo-edit="1"] .lt-demo-knob {
+  left: 19px;
+}
+/* Field outlines + labels appear only while the demo is "editing". */
+.lt-demo-marker {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+[data-demo-edit="1"] .lt-demo-marker {
+  opacity: 1;
+}
+.lt-demo-status-edit {
+  display: none;
+}
+[data-demo-edit="1"] .lt-demo-status-view {
+  display: none;
+}
+[data-demo-edit="1"] .lt-demo-status-edit {
+  display: inline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-marquee-track {
+    animation: none;
+  }
+}

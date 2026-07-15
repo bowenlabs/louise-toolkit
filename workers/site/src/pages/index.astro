@@ -1,15 +1,21 @@
 ---
-// louisetoolkit.com landing page.
-// Public site theme: Tailwind v4 + daisyUI, with the `louise` theme defined in
-// src/styles/louise.css (auto light/dark via prefers-color-scheme). Brand type
-// comes from the package (`louise-toolkit/theme/fonts.css`, applied via `.louise-type`)
-// and the hero mark is the real `louise-mark.svg`. Icons are Phosphor, inlined
-// raw so they inherit `currentColor` — no icon font, no runtime fetch.
+// louisetoolkit.com landing page — a bespoke, editor-controlled marketing page.
+// Public site theme: Tailwind v4 + daisyUI, forced to the `louise-dark` theme
+// (src/styles/louise.css) to match the brand design. The whole landing is built
+// from structured "sections" (hero, feature grid, edit-in-place demo, code
+// showcase, closing CTA) stored in D1 and rendered by bespoke components
+// (../sections/*.astro) — so the copy stays editor-controlled in place while the
+// design stays pixel-bespoke. Header/footer/nav are site chrome (baked here, the
+// "everything is editable except chrome" boundary). Brand type is Roboto Flex
+// (variable width axis) + JetBrains Mono; icons are Phosphor, inlined raw so
+// they inherit currentColor — no icon font, no runtime fetch.
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { db } from "louise-toolkit/db";
 import "louise-toolkit/theme/fonts.css";
 import "../styles/louise.css";
+import "../styles/landing.css";
+import monogram from "../assets/louise-monogram.svg?raw";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import Sections from "../components/Sections.astro";
 import SectionsMount from "../components/SectionsMount.astro";
@@ -17,11 +23,8 @@ import { latestDraftSections } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 
 // SSR: the marketing app is `output: server` for Louise, and a prerendered
-// `/index.html` asset would shadow the docs root on docs.louisetoolkit.com (both map
-// to `/`). The homepage is now built entirely from structured "sections" (hero +
-// feature grid), edited on the page and rendered by bespoke components
-// (../sections/*.astro) — so the whole landing is editor-controlled while the
-// design stays bespoke. Header/footer/nav remain site chrome (settings).
+// `/index.html` asset would shadow the docs root on docs.louisetoolkit.com (both
+// map to `/`).
 export const prerender = false;
 
 const DB = (env as unknown as CloudflareEnv).DB;
@@ -33,45 +36,103 @@ const published = (home?.sections ?? []) as Record<string, unknown>[];
 const draft = editMode && home ? await latestDraftSections(DB, home.id) : null;
 const sections = draft ?? published;
 
-const year = new Date().getFullYear();
+const NAV = [
+  { label: "Docs", href: "https://docs.louisetoolkit.com" },
+  { label: "Guide", href: "https://docs.louisetoolkit.com/guide/getting-started" },
+  { label: "GitHub", href: "https://github.com/bowenlabs/louise-toolkit" },
+];
+const FOOTER_NAV = [
+  { label: "Documentation", href: "https://docs.louisetoolkit.com" },
+  { label: "Getting started", href: "https://docs.louisetoolkit.com/guide/getting-started" },
+  { label: "GitHub", href: "https://github.com/bowenlabs/louise-toolkit" },
+];
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="louise-dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Louise Toolkit — edit the live page</title>
+    <title>Louise Toolkit — stop building admin panels</title>
     <meta
       name="description"
-      content="A V8-native toolkit for building editable sites on Cloudflare Workers."
+      content="A V8-native toolkit for building editable sites on Cloudflare Workers. Log in and the live site becomes the editor — no admin app, no JSON forms for prose, ever."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
-    <main class="mx-auto max-w-4xl px-5">
-      {/* Editable hero — a section rendered by a bespoke component
-          (../sections/Hero.astro). In edit mode the block builder mounts on this
-          wrapper; in view mode it's the pixel-perfect bespoke render. */}
-      <div
-        data-louise-sections={editMode && home ? String(home.id) : undefined}
-        data-louise-sections-initial={editMode && home ? JSON.stringify(sections) : undefined}
+    <div class="lt-landing overflow-hidden">
+      <a
+        href="#main-content"
+        class="absolute top-[-60px] left-4 z-[100] rounded-b-[10px] bg-accent px-[18px] py-2.5 font-extrabold text-accent-content transition-[top] duration-150 focus:top-0"
+        >Skip to content</a
       >
-        <Sections sections={sections} />
-      </div>
 
-      <footer
-        class="border-t border-base-300 py-10 text-center text-sm text-base-content/60"
+      {/* ── Nav (site chrome) ─────────────────────────────────────────── */}
+      <header
+        class="relative z-20 flex flex-wrap items-center justify-between gap-4 px-[clamp(20px,4vw,48px)] py-5"
       >
-        <p>
-          <a class="link link-hover text-primary" href="https://docs.louisetoolkit.com">Documentation</a>
-          · <a
-            class="link link-hover text-primary"
-            href="https://github.com/bowenlabs/louise-toolkit">Source</a
-          > · MIT © {year} BowenLabs
-        </p>
+        <a href="/" class="inline-flex items-center gap-2.5 text-base-content no-underline">
+          <span class="lt-mark h-[25px] w-[30px] text-accent" set:html={monogram} />
+          <span class="lt-stretch-125 text-[18px] font-black tracking-[-0.01em]">LOUISE</span>
+        </a>
+        <nav aria-label="Primary" class="flex flex-wrap items-center gap-[clamp(14px,2.5vw,26px)]">
+          {
+            NAV.map((l) => (
+              <a
+                href={l.href}
+                class="text-[14px] font-semibold text-base-content/80 no-underline transition hover:text-accent"
+              >
+                {l.label}
+              </a>
+            ))
+          }
+          <a
+            href="https://docs.louisetoolkit.com/guide/getting-started"
+            class="inline-block rounded-full bg-accent px-5 py-2.5 text-[14px] font-extrabold text-accent-content no-underline transition hover:-translate-y-px hover:bg-[#ffc44d]"
+            >Get started</a
+          >
+        </nav>
+      </header>
+
+      {/* ── Editor-controlled canvas ──────────────────────────────────── */}
+      <main id="main-content">
+        <div
+          data-louise-sections={editMode && home ? String(home.id) : undefined}
+          data-louise-sections-initial={editMode && home ? JSON.stringify(sections) : undefined}
+        >
+          <Sections sections={sections} />
+        </div>
+      </main>
+
+      {/* ── Footer (site chrome) ──────────────────────────────────────── */}
+      <footer class="border-t-[1.5px] border-neutral">
+        <div
+          class="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-4 px-[clamp(20px,4vw,48px)] py-[30px] text-[13.5px] text-[#8a95a8]"
+        >
+          <span class="inline-flex items-center gap-2">
+            <span class="lt-mark h-[15px] w-[18px]" set:html={monogram} />
+            <span>MIT © BowenLabs</span>
+          </span>
+          <nav aria-label="Footer" class="flex flex-wrap gap-5">
+            {
+              FOOTER_NAV.map((l) => (
+                <a href={l.href} class="text-inherit no-underline transition hover:text-accent">
+                  {l.label}
+                </a>
+              ))
+            }
+          </nav>
+        </div>
       </footer>
-    </main>
+    </div>
+
     <SectionsMount />
     <LouiseEditor />
   </body>

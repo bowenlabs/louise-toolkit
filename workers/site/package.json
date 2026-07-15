@@ -21,10 +21,12 @@
     "louise-toolkit": "workspace:*",
     "prosekit": "^0.21.4",
     "sharp": "^0.34.0",
-    "solid-js": "^1.9.14"
+    "solid-js": "^1.9.14",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
+    "@types/three": "^0.185.1",
     "daisyui": "^5.0.0",
     "drizzle-kit": "^0.31.0",
     "tailwindcss": "^4.1.0",

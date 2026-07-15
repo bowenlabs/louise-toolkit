@@ -10,29 +10,80 @@ export const SECTIONS: SectionCatalog = {
     label: "Hero",
     icon: "ph ph-rocket",
     fields: {
+      badge: { type: "text", label: "Eyebrow badge", placeholder: "V8-NATIVE · RUNS ON …" },
       heading: { type: "text", label: "Heading", placeholder: "Add a heading" },
+      headingAccent: {
+        type: "text",
+        label: "Heading (accent line)",
+        placeholder: "Colored second line",
+      },
       tagline: { type: "textarea", label: "Tagline", placeholder: "Add a tagline" },
       ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
       // Edited in the dock — a link target has no visible text to click on.
       ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
-      // Uploadable logo image (dock upload/clear); falls back to the Louise mark.
-      logo: { type: "image", label: "Logo" },
+      // Edited in the dock — it lives inside the copy button, not a free text node.
+      installCommand: {
+        type: "text",
+        label: "Install command",
+        placeholder: "pnpm add louise-toolkit",
+        inline: false,
+      },
     },
   },
   featureGrid: {
     label: "Feature grid",
     icon: "ph ph-squares-four",
     fields: {
-      heading: { type: "text", label: "Heading (optional)", placeholder: "Section heading" },
+      heading: { type: "text", label: "Heading", placeholder: "Section heading" },
+      headingLine2: { type: "text", label: "Heading (line 2)", placeholder: "Second line" },
       items: {
         type: "array",
-        label: "Features",
-        itemLabel: "Feature",
+        label: "Primitives",
+        itemLabel: "Primitive",
         itemFields: {
-          title: { type: "text", label: "Title", placeholder: "Feature title" },
-          body: { type: "textarea", label: "Body", placeholder: "Feature description" },
+          name: { type: "text", label: "Name", placeholder: "e.g. content" },
+          body: { type: "textarea", label: "Body", placeholder: "What it does" },
+          // Dock-only: a Phosphor token (e.g. "ph-database") and a colorway
+          // keyword (blue/orange/green/gold). The render owns the exact tokens.
+          icon: { type: "text", label: "Icon (ph-…)", placeholder: "ph-database", inline: false },
+          colorway: {
+            type: "text",
+            label: "Color (blue/orange/green/gold)",
+            placeholder: "blue",
+            inline: false,
+          },
         },
       },
+    },
+  },
+  editDemo: {
+    label: "Edit-in-place demo",
+    icon: "ph ph-cursor-text",
+    fields: {
+      heading: { type: "text", label: "Heading", placeholder: "Click it." },
+      headingAccent: { type: "text", label: "Heading (accent line)", placeholder: "Type it." },
+    },
+  },
+  codeShowcase: {
+    label: "Code showcase",
+    icon: "ph ph-code",
+    fields: {
+      heading: { type: "text", label: "Heading", placeholder: "Bring your" },
+      headingAccent: { type: "text", label: "Heading (accent word)", placeholder: "everything." },
+      body: { type: "textarea", label: "Body", placeholder: "Supporting text" },
+      linkLabel: { type: "text", label: "Link label", placeholder: "Read the docs →" },
+      linkHref: { type: "text", label: "Link target", placeholder: "https://…", inline: false },
+    },
+  },
+  ctaSection: {
+    label: "Closing CTA",
+    icon: "ph ph-flag",
+    fields: {
+      heading: { type: "text", label: "Heading", placeholder: "Ship it" },
+      headingAccent: { type: "text", label: "Heading (accent word)", placeholder: "today." },
+      ctaLabel: { type: "text", label: "Button label", placeholder: "Get started →" },
+      ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
+      subtext: { type: "text", label: "Subtext", placeholder: "MIT licensed · deploys to the edge" },
     },
   },
   banner: {
