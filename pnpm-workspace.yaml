@@ -9,7 +9,7 @@ packages:
 # workers-types is types-only, so pinning wrangler's optional peer forward to v5
 # has no runtime effect.
 overrides:
-  "@cloudflare/workers-types": "^5.20260703.1"
+  "@cloudflare/workers-types": "^5.20260714.1"
 
 # Postinstall-script approvals. Without these, esbuild/workerd/sharp skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
