@@ -97,6 +97,11 @@
       "import": "./dist/core/commerce/square.js",
       "default": "./dist/core/commerce/square.js"
     },
+    "./commerce/square-web": {
+      "types": "./dist/core/commerce/square-web.d.ts",
+      "import": "./dist/core/commerce/square-web.js",
+      "default": "./dist/core/commerce/square-web.js"
+    },
     "./email": {
       "types": "./dist/core/email/index.d.ts",
       "import": "./dist/core/email/index.js",
