@@ -16,6 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the runner to Node 26 (repo engines + .nvmrc). Vite+ runs with
+      # VP_NODE_MANAGER=no below, so it uses this runner Node rather than managing
+      # its own.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
       - name: Install Vite+
         run: |
           curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
