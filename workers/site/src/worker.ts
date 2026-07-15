@@ -189,6 +189,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
         ? (id) => enqueue(queue, { kind: "reindex", collection: "pages", id })
         : undefined;
     },
+    // Coalesce high-frequency auto-save draft writes through the DRAFTS KV
+    // buffer (#70): each idle pause updates the buffer; D1 is flushed on the
+    // first write, every ~10s, and on publish. Resume reads prefer the buffer
+    // (see lib/louise/drafts.ts). Falls back to straight-to-D1 if unbound.
+    bufferKv: (env) => env.DRAFTS,
   }),
   // Full-text search over pages (title/body/flattened sections) — /search + a
   // /reindex to rebuild the FTS index. Before pagesRoute (its `/:id` matcher

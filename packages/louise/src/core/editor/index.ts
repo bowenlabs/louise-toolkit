@@ -43,6 +43,17 @@ export {
 export { DEFAULT_PAGE_FIELDS, type PagesRouteConfig, pagesRoute, pickFields } from "./pages.js";
 export { type SearchRouteConfig, searchRoute } from "./search.js";
 export { latestPendingDraft, type VersionsRouteConfig, versionsRoute } from "./versions.js";
+export {
+  type BufferedDraft,
+  clearDraftBuffer,
+  DEFAULT_FLUSH_MS,
+  DRAFT_BUFFER_TTL_SECONDS,
+  type DraftBufferKV,
+  draftBufferKey,
+  readDraftBuffer,
+  shouldFlushBuffer,
+  writeDraftBuffer,
+} from "./draft-buffer.js";
 export { type MediaRouteConfig, type MediaRouteEnv, mediaRoute } from "./media.js";
 export { type ListMediaRouteConfig, listMediaRoute } from "./media-list.js";
 export { type SeedRouteConfig, seedRoute } from "./seed.js";

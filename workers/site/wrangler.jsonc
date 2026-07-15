@@ -45,8 +45,13 @@
   // server-side `transformImage` re-encode. Also what @astrojs/cloudflare uses
   // for its production image service, so `sharp` is gone from the build.
   "images": { "binding": "IMAGES" },
-  // KV for the security rate limiter.
-  "kv_namespaces": [{ "binding": "RL", "id": "647f7c7b690c41229fea208fdef346a6" }],
+  // KV: the security rate limiter (RL) + the auto-save draft write-buffer (#70).
+  // DRAFTS coalesces high-frequency auto-save writes so a burst of edits doesn't
+  // hit D1 with a version row per debounce tick (see versionsRoute `bufferKv`).
+  "kv_namespaces": [
+    { "binding": "RL", "id": "647f7c7b690c41229fea208fdef346a6" },
+    { "binding": "DRAFTS", "id": "e8ce36dc775e407097374ed7d5f34624" },
+  ],
   // Cloudflare Queues (#77): move slow post-write side-effects (FTS reindex)
   // off the publish path. The producer (QUEUE) enqueues a reindex job on
   // publish; the consumer drains it (worker.ts `queue()`), acking on success

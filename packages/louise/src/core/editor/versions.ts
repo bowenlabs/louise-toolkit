@@ -20,6 +20,15 @@ import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { db } from "../db/index.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
+import {
+  clearDraftBuffer,
+  DEFAULT_FLUSH_MS,
+  type DraftBufferKV,
+  draftBufferKey,
+  readDraftBuffer,
+  shouldFlushBuffer,
+  writeDraftBuffer,
+} from "./draft-buffer.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
 
 // Bodies for the version actions. `publish` may omit `versionId` (it falls back
@@ -52,6 +61,17 @@ export interface VersionsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
    * syncing inline — so a site without a queue keeps working unchanged.
    */
   deferReindex?: (env: Env) => DeferReindex | undefined;
+  /**
+   * Coalesce high-frequency auto-save writes through a KV buffer (#70). Given
+   * the runtime `env`, return the KV namespace to buffer working drafts in;
+   * return `undefined` (or omit) to write every draft straight to D1 (unchanged).
+   * When set: each auto-save updates the buffer, and D1 is flushed only on the
+   * first write, every {@link bufferFlushMs}, and on publish (which then clears
+   * the buffer). Resume reads should prefer the buffer — see `readDraftBuffer`.
+   */
+  bufferKv?: (env: Env) => DraftBufferKV | undefined;
+  /** Flush cadence for the KV buffer, ms. Default {@link DEFAULT_FLUSH_MS} (10s). */
+  bufferFlushMs?: number;
 }
 
 /** Extract per-field violations from a thrown validation error, if present. */
@@ -137,6 +157,11 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       },
     );
 
+    // KV write-buffer for auto-save (#70): present → draft writes are absorbed
+    // by the buffer and only periodically flushed to D1 (see the POST handler).
+    const kv = cfg.bufferKv?.(env);
+    const bufferKey = draftBufferKey(cfg.config.slug, id);
+
     // GET /:id/versions — history, newest first, plus the live pointer so the
     // editor can flag which version is currently published. Publishing never
     // demotes a prior version's `status`, so several rows can read "published"
@@ -168,12 +193,20 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const publishedVersionId = (cur.publishedVersionId as number | null) ?? null;
       const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
       const pending = latestPendingDraft(versions, publishedVersionId);
-      const base = (pending?.versionData as Record<string, unknown> | undefined) ?? cur;
+      // The merge base is the freshest pending work: the KV buffer (if buffering
+      // is on and one exists — it's always ≥ the D1 draft), then the D1 draft,
+      // then the live row. So a partial save from a second surface still layers
+      // onto the in-flight buffer rather than reverting it.
+      const buffered = kv ? await readDraftBuffer(kv, bufferKey) : null;
+      const mergeBase =
+        (buffered?.data as Record<string, unknown> | undefined) ??
+        (pending?.versionData as Record<string, unknown> | undefined) ??
+        cur;
       const merged: Record<string, unknown> = {};
       for (const key of fieldKeys) {
-        // Prefer this save's fields, then the pending draft's snapshot, then the
-        // live row — so a key the draft snapshot happens to lack still resolves.
-        merged[key] = key in input ? input[key] : key in base ? base[key] : cur[key];
+        // Prefer this save's fields, then the base snapshot, then the live row —
+        // so a key the snapshot happens to lack still resolves.
+        merged[key] = key in input ? input[key] : key in mergeBase ? mergeBase[key] : cur[key];
       }
       if (cfg.validate) {
         try {
@@ -183,6 +216,26 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           return json({ error: message, ...(violations ? { violations } : {}) }, 422);
         }
       }
+
+      // Buffered: absorb the write in KV; flush to D1 only on the first write of
+      // a session and every bufferFlushMs, so a burst of auto-saves collapses to
+      // ~one D1 version per interval. Unbuffered: write straight to D1 as before.
+      if (kv) {
+        const now = Date.now();
+        const flushMs = cfg.bufferFlushMs ?? DEFAULT_FLUSH_MS;
+        if (shouldFlushBuffer(buffered, now, flushMs)) {
+          const version = await api.saveDraft(context, id, merged as never);
+          await writeDraftBuffer(kv, bufferKey, { data: merged, updatedAt: now, flushedAt: now });
+          return json({ version, buffered: false }, 201);
+        }
+        await writeDraftBuffer(kv, bufferKey, {
+          data: merged,
+          updatedAt: now,
+          flushedAt: buffered ? buffered.flushedAt : now,
+        });
+        return json({ buffered: true }, 200);
+      }
+
       const version = await api.saveDraft(context, id, merged as never);
       return json({ version }, 201);
     }
@@ -195,7 +248,15 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         PUBLISH_BODY,
         await request.json().catch(() => null),
       );
-      let versionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
+      const explicitVersionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
+      // Flush any buffered work to D1 first, so "publish the latest draft" sees
+      // the freshest edits (the buffer may hold writes not yet flushed) — this
+      // becomes the newest draft version.
+      if (kv) {
+        const buffered = await readDraftBuffer(kv, bufferKey);
+        if (buffered) await api.saveDraft(context, id, buffered.data as never);
+      }
+      let versionId = explicitVersionId;
       if (versionId === undefined) {
         const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
         const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
@@ -208,6 +269,10 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       }
       try {
         const page = await api.publish(context, versionId);
+        // Publishing the current work clears the buffer (its content is now
+        // live). An explicit historic republish leaves the buffer — the pending
+        // work-in-progress it holds is still newer than what just went live.
+        if (kv && explicitVersionId === undefined) await clearDraftBuffer(kv, bufferKey);
         return json({ page });
       } catch (err) {
         const { message, violations } = violationsOf(err);
@@ -239,6 +304,8 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         return json({ error: "Only draft versions can be discarded" }, 400);
       }
       await api.discardVersion(context, versionId);
+      // Drop the buffer too, so resume doesn't resurrect the discarded work.
+      if (kv) await clearDraftBuffer(kv, bufferKey);
       return json({ ok: true });
     }
 

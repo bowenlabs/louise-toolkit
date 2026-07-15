@@ -24,6 +24,9 @@ type CloudflareEnv = {
   // Optional so publish still works — and falls back to inline sync — if the
   // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.
   QUEUE?: Queue<import("louise-toolkit/queues").SideEffectJob>;
+  // Auto-save draft write-buffer (#70). Optional so the editor falls back to
+  // straight-to-D1 draft writes if the namespace isn't bound.
+  DRAFTS?: KVNamespace;
 };
 
 // The bundled resvg rasterizer imports as a compiled WebAssembly module (the

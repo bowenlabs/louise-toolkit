@@ -14,6 +14,7 @@ import "../styles/louise.css";
 export const prerender = false;
 
 const DB = (env as unknown as CloudflareEnv).DB;
+const DRAFTS = (env as unknown as CloudflareEnv).DRAFTS;
 const slug = Astro.params.slug ?? "";
 const [page] = await db(DB).select().from(pages).where(eq(pages.slug, slug)).limit(1);
 
@@ -24,7 +25,7 @@ if (!page || (page.status !== "published" && !Astro.locals.editMode)) {
 // View mode renders the published body; edit mode resumes the latest still-draft
 // version's body so an editor sees their work-in-progress (staged via the bar's
 // Save draft → /versions) until they publish, mirroring the sections workflow.
-const draftBody = Astro.locals.editMode ? await latestDraftBody(DB, page.id) : null;
+const draftBody = Astro.locals.editMode ? await latestDraftBody(DB, page.id, DRAFTS) : null;
 const body = draftBody ?? page.body;
 
 const title = page.seoTitle || page.title;

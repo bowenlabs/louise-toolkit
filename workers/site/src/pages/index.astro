@@ -28,12 +28,13 @@ import { pages } from "../schema.js";
 export const prerender = false;
 
 const DB = (env as unknown as CloudflareEnv).DB;
+const DRAFTS = (env as unknown as CloudflareEnv).DRAFTS;
 const [home] = await db(DB).select().from(pages).where(eq(pages.slug, "home")).limit(1);
 const editMode = Astro.locals.editMode;
 // View mode renders the published main row; edit mode resumes the latest draft
 // (saved via the sections dock) so work-in-progress is visible until published.
 const published = (home?.sections ?? []) as Record<string, unknown>[];
-const draft = editMode && home ? await latestDraftSections(DB, home.id) : null;
+const draft = editMode && home ? await latestDraftSections(DB, home.id, DRAFTS) : null;
 const sections = draft ?? published;
 
 const NAV = [
