@@ -17,7 +17,7 @@ export default defineConfig({
     starlight({
       title: "Louise Toolkit",
       description: "A V8-native toolkit for building editable sites on Cloudflare Workers.",
-      logo: { src: "./src/assets/louise-mark.svg", replacesTitle: false },
+      logo: { src: "./src/assets/louise-monogram.svg", replacesTitle: false },
       social: [
         {
           icon: "github",

@@ -1,11 +1,15 @@
-/* Louise brand accent for the Starlight docs.
-   Palette from the BowenLabs brand system: blue #1481ef primary, yellow
-   #f3ae29 accent, green #8ebe59 success — the same tokens the editor theme
-   (`louise-toolkit/theme`) ships. Brand type is loaded via the package's
-   `louise-toolkit/theme/fonts.css` (see astro.config customCss): Roboto Flex body,
-   Hepta Slab headings — not Starlight's defaults. */
+/* Louise brand for the Starlight docs — matched to the louisetoolkit.com
+   marketing site. BowenLabs palette: blue #1481ef primary, gold #f3ae29 accent,
+   green #8ebe59 success. Type is the site's display system: Roboto Flex
+   (variable weight + width axes) for body AND headings — heavy and a touch wide
+   for headings, echoing the marketing hero — and JetBrains Mono for code. The
+   package's fonts.css only loads the Roboto Flex weight axis, so pull the full
+   axes + JetBrains Mono here. */
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
 :root {
   --sl-font: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sl-color-accent-low: #08284a;
   --sl-color-accent: #1481ef;
   --sl-color-accent-high: #a9d1ff;
@@ -23,9 +27,27 @@
   border-color: color-mix(in srgb, #1481ef 25%, transparent);
 }
 
-/* Headings in the brand slab; body copy stays Roboto Flex via --sl-font. */
+/* Headings in the brand display face: Roboto Flex, heavy + a little wide, tight
+   tracking — the marketing look, dialed back to stay readable at doc lengths. */
 .sl-markdown-content :is(h1, h2, h3, h4),
 .content-panel h1,
 h1#_top {
-  font-family: "Hepta Slab", "Iowan Old Style", Georgia, serif;
+  font-family: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  font-stretch: 110%;
+  letter-spacing: -0.015em;
+}
+
+/* Page title carries the most brand weight (nod to the hero display type). */
+.content-panel h1,
+h1#_top {
+  font-weight: 900;
+  font-stretch: 120%;
+}
+
+/* Site title in the header — the "LOUISE" wordmark treatment beside the mark. */
+a.site-title {
+  font-weight: 900;
+  font-stretch: 120%;
+  letter-spacing: -0.01em;
 }
