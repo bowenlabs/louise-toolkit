@@ -17,6 +17,7 @@ import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm
 import { db } from "../db/index.js";
 import type { ValidationViolation } from "../errors.js";
 import { isMediaUrl } from "../media/index.js";
+import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
@@ -146,10 +147,9 @@ export function settingsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 
     if (!current) return json({ error: "No settings row" }, 404);
 
-    const patch = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-      return json({ error: "Invalid JSON" }, 400);
-    }
+    const parsedPatch = await standardValidate(s.record(), await request.json().catch(() => null));
+    if (!parsedPatch.ok) return json({ error: "Invalid JSON" }, 400);
+    const patch = parsedPatch.value;
 
     // Media-strictness: image settings (logo, favicon, share image…) must point
     // at a media-library URL — an external hotlink is rejected before write.
