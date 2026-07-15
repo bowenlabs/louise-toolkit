@@ -9,7 +9,7 @@
 // the *shape*, not the wiring. The HTTP route that guards these with an editor
 // session lives in the generic editor surface (louise-toolkit/worker), not here.
 
-import { imageDimensions } from "./dimensions.js";
+import { imageDimensions, imageInfo } from "./dimensions.js";
 import { sniffImageType } from "./sniff.js";
 
 /** Hard ceiling on a single upload. Without it the bucket streams whatever is
@@ -23,6 +23,10 @@ export interface PutMediaOptions {
   maxBytes?: number;
   /** `Cache-Control` stored on the object. Default: 1-year immutable. */
   cacheControl?: string;
+  /** Optional Cloudflare Images binding. When provided, dimensions are read via
+   *  `.info()` (which covers AVIF/TIFF, unlike the header parser); on any Images
+   *  failure it falls back to the header parser, so passing it never regresses. */
+  images?: ImagesBinding;
 }
 
 /** Outcome of {@link putMedia}: either the stored object, or a rejection with
@@ -74,9 +78,13 @@ export async function putMedia(
     return { ok: false, status: 415, error: "Unsupported or invalid image file" };
   }
 
-  // Read intrinsic dimensions from the header (no pixel decode). A larger slice
-  // than the sniff needs, since a JPEG's SOF can sit past several segments.
-  const dims = imageDimensions(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 65536)));
+  // Read intrinsic dimensions. With an Images binding, `.info()` sizes every
+  // format (incl. AVIF/TIFF, which the header parser can't); otherwise fall back
+  // to the header parser — a larger slice than the sniff needs, since a JPEG's
+  // SOF can sit past several segments. `.info()` failures fall back too.
+  const dims =
+    (opts.images && (await imageInfo(opts.images, buffer))) ||
+    imageDimensions(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 65536)));
 
   const scope = opts.scope ?? "web";
   const key = `${scope}/${Date.now()}-${safeName(file.name)}`;

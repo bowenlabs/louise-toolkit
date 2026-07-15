@@ -105,9 +105,6 @@ importers:
       louise-toolkit:
         specifier: workspace:*
         version: link:../../packages/louise
-      sharp:
-        specifier: ^0.34.0
-        version: 0.34.5
 
   workers/sandbox:
     dependencies:
@@ -166,9 +163,6 @@ importers:
       prosekit:
         specifier: ^0.21.4
         version: 0.21.4(@shikijs/types@4.3.1)(@types/hast@3.0.5)(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-transform@1.12.0)(prosemirror-view@1.42.0)(solid-js@1.9.14)
-      sharp:
-        specifier: ^0.34.0
-        version: 0.34.5
       solid-js:
         specifier: ^1.9.14
         version: 1.9.14

@@ -2,16 +2,19 @@
 //
 // louise-toolkit/media — image transforms.
 //
-// Two orthogonal, pure (no-binding) concerns:
+// Three transform concerns, cheapest first:
 //   1. Cloudflare Image Resizing URL rewriting — request a resized derivative
 //      through the same-zone `/cdn-cgi/image/<opts>/<path>` endpoint instead of
-//      shipping the full-size original. Per-request billing, a zone feature, no
-//      new cost. This is the single, settled transform backend; a seam is left
-//      for a future Images-binding backend (server-side re-encoded crops) but
-//      no abstraction is built yet.
+//      shipping the full-size original. Pure (no binding), per-request billing, a
+//      zone feature. The default for public derivatives — nothing is re-encoded
+//      or stored server-side, the edge does it on the fly and caches it.
 //   2. A CSS-coordinate crop — `{ x, y, scale }` applied at render via
 //      `object-position` + `transform: scale`, NOT a server-side re-encode. The
 //      same source crops differently per placement, so crop is per-usage.
+//   3. `transformImage` — a server-side re-encode via the Cloudflare Images
+//      binding (`env.IMAGES`), for when you need the transformed *bytes* (a
+//      stored, re-encoded crop) rather than a URL. Reach for #1 first; use this
+//      when the derivative must be materialized (e.g. persisted back to R2).
 
 export interface CfImageOptions {
   width?: number;
@@ -102,6 +105,52 @@ export function cfImageSrcset(
     cfImage(url, { width: w, height: heightFor(w), fit, gravity, format: "auto", quality });
   const widths = [...new Set(steps.map((s) => Math.round(width * s)))].sort((a, b) => a - b);
   return { src: at(width), srcset: widths.map((w) => `${at(w)} ${w}w`).join(", ") };
+}
+
+/** Options for {@link transformImage}. Mirrors the Image-Resizing knobs, but the
+ *  output `format` is a concrete encode (default AVIF) since bytes are produced,
+ *  not an `auto` served per `Accept`. */
+export interface TransformImageOptions {
+  width?: number;
+  height?: number;
+  /** Resize behaviour; `cover` fills and crops, `contain` letterboxes. */
+  fit?: "cover" | "contain" | "scale-down" | "crop" | "pad";
+  /** Focal point for cover-crops; `auto` lets Cloudflare pick the subject. */
+  gravity?: "auto" | "center" | "left" | "right" | "top" | "bottom" | "face";
+  /** Encoded output format. Default `"avif"`. */
+  format?: "avif" | "webp" | "jpeg" | "png";
+  quality?: number;
+}
+
+/** Coerce a byte buffer to a `ReadableStream` (the Images binding takes a
+ *  stream); a stream is passed through untouched. */
+function toImageStream(
+  input: ReadableStream<Uint8Array> | Uint8Array | ArrayBuffer,
+): ReadableStream<Uint8Array> {
+  if (input instanceof ReadableStream) return input;
+  return new Blob([input as BufferSource]).stream() as ReadableStream<Uint8Array>;
+}
+
+/**
+ * Server-side re-encode a source image to a resized/cropped derivative with the
+ * Cloudflare Images binding, returning a `Response` whose body is the encoded
+ * bytes and whose `content-type` is the output format. Use when you need the
+ * transformed bytes (a stored crop persisted back to R2, an OG source, etc.);
+ * for public on-the-fly derivatives prefer the zero-cost URL rewrite
+ * ({@link cfImage}). The binding is passed explicitly — see {@link LouiseMediaEnv}
+ * for the optional `IMAGES` contract.
+ */
+export async function transformImage(
+  images: ImagesBinding,
+  input: ReadableStream<Uint8Array> | Uint8Array | ArrayBuffer,
+  opts: TransformImageOptions = {},
+): Promise<Response> {
+  const { width, height, fit = "cover", gravity = "auto", format = "avif", quality = 82 } = opts;
+  const result = await images
+    .input(toImageStream(input))
+    .transform({ width, height, fit, gravity })
+    .output({ format: `image/${format}`, quality });
+  return result.response();
 }
 
 /** A per-usage crop: focal position (0–100, as a %) plus zoom (`scale` ≥ 1). */

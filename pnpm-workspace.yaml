@@ -11,10 +11,17 @@ packages:
 overrides:
   "@cloudflare/workers-types": "^5.20260714.1"
 
-# Postinstall-script approvals. Without these, esbuild/workerd/sharp skip their
+# Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
+#
+# `sharp: false` explicitly disallows its native postinstall (#84). We no longer
+# depend on it directly — image work moved to the Cloudflare Images binding, the
+# Cloudflare adapter externalizes sharp + uses its workerd image service, and the
+# docs use `passthroughImageService`. sharp still arrives as an *optional* dep of
+# `astro`, so we pin it off here to skip the heavy native build rather than have
+# pnpm prompt on every install.
 allowBuilds:
   esbuild: true
-  sharp: true
+  sharp: false
   workerd: true

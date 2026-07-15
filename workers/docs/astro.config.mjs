@@ -1,6 +1,6 @@
 // @ts-check
 import starlight from "@astrojs/starlight";
-import { defineConfig } from "astro/config";
+import { defineConfig, passthroughImageService } from "astro/config";
 
 // docs.louisetoolkit.com — the Starlight documentation as a standalone STATIC Astro
 // app. `astro build` emits a plain static site to dist/ (no adapter, default
@@ -11,6 +11,10 @@ import { defineConfig } from "astro/config";
 // the subdomain-root URLs, with no path rewriting of internal links.
 export default defineConfig({
   site: "https://docs.louisetoolkit.com",
+  // No raster image optimization here (the only asset is an SVG logo, which is
+  // served as-is), so use the passthrough service and skip the heavy `sharp`
+  // native dep entirely (#84).
+  image: { service: passthroughImageService() },
   // The docs home is the Getting started guide (there's no separate splash).
   redirects: { "/": "/guide/getting-started/" },
   integrations: [

@@ -40,6 +40,11 @@
   // R2 bucket for uploaded media; served back through the Worker at /media/*
   // (see src/worker.ts) so no public bucket URL is needed.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "louisetoolkit-media" }],
+  // Cloudflare Images binding (#84): the media route reads upload dimensions via
+  // `.info()` (covers AVIF/TIFF the header parser can't) and it backs the
+  // server-side `transformImage` re-encode. Also what @astrojs/cloudflare uses
+  // for its production image service, so `sharp` is gone from the build.
+  "images": { "binding": "IMAGES" },
   // KV for the security rate limiter.
   "kv_namespaces": [{ "binding": "RL", "id": "647f7c7b690c41229fea208fdef346a6" }],
   // The editor-gate config is typed + validated by the astro:env schema

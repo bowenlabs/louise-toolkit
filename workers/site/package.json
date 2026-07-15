@@ -20,7 +20,6 @@
     "drizzle-orm": "^0.45.2",
     "louise-toolkit": "workspace:*",
     "prosekit": "^0.21.4",
-    "sharp": "^0.34.0",
     "solid-js": "^1.9.14",
     "three": "^0.185.1"
   },

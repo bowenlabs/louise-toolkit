@@ -15,4 +15,11 @@ export interface LouiseMediaEnv extends LouiseEnv {
   /** Public base URL the bucket is served from (e.g. `https://media.example.com`).
    *  The public URL of an object is `MEDIA_URL` + "/" + its key. */
   MEDIA_URL: string;
+  /** Optional Cloudflare Images binding. When present, the media primitives use
+   *  it for server-side re-encoded transforms ({@link transformImage}) and to
+   *  read the dimensions of formats the header parser can't ({@link imageInfo} —
+   *  AVIF, TIFF). Absent → callers fall back to Image-Resizing URL rewriting
+   *  ({@link cfImage}) and the header-byte parser ({@link imageDimensions}).
+   *  Declare it in `wrangler.jsonc`: `"images": { "binding": "IMAGES" }`. */
+  IMAGES?: ImagesBinding;
 }

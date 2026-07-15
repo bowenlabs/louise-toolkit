@@ -16,6 +16,10 @@ type CloudflareEnv = {
   MEDIA_URL: string;
   RL: KVNamespace;
   ASSETS: Fetcher;
+  // Cloudflare Images binding (#84): upload `.info()` dimensions + server-side
+  // transforms. Optional in LouiseMediaEnv/MediaRouteEnv; declared here since
+  // wrangler.jsonc provides it.
+  IMAGES: ImagesBinding;
 };
 
 // The bundled resvg rasterizer imports as a compiled WebAssembly module (the

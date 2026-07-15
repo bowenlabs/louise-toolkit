@@ -8,7 +8,7 @@
 // `louise-toolkit/db` (`mediaColumns` / `media`). Bindings contract: `MEDIA` (R2) +
 // `MEDIA_URL` — see {@link LouiseMediaEnv}.
 
-export { type ImageDimensions, imageDimensions } from "./dimensions.js";
+export { type ImageDimensions, imageDimensions, imageInfo } from "./dimensions.js";
 export { sniffImageType, type SniffedImageType } from "./sniff.js";
 export {
   DEFAULT_MAX_BYTES,
@@ -35,5 +35,7 @@ export {
   circleImage,
   type Crop,
   cropStyle,
+  transformImage,
+  type TransformImageOptions,
 } from "./transform.js";
 export type { LouiseMediaEnv } from "./types.js";

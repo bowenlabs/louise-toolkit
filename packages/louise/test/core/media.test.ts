@@ -6,6 +6,7 @@ import {
   deleteMedia,
   findMediaReferences,
   imageDimensions,
+  imageInfo,
   isMediaUrl,
   likePattern,
   listMedia,
@@ -14,6 +15,7 @@ import {
   mediaUrl,
   putMedia,
   sniffImageType,
+  transformImage,
 } from "../../src/core/media/index.js";
 
 // --- fakes -----------------------------------------------------------------
@@ -172,6 +174,98 @@ describe("imageDimensions", () => {
   });
 });
 
+// --- Images binding (.info + transform) ------------------------------------
+
+/** Fake Cloudflare Images binding. `info` returns a raster response by default;
+ *  the transformer records the chained transform/output options. */
+function makeImages(
+  opts: { info?: () => unknown; infoThrows?: boolean; outputBytes?: Uint8Array } = {},
+) {
+  const calls = { info: 0, transform: [] as unknown[], output: [] as unknown[] };
+  const bytes = opts.outputBytes ?? new Uint8Array([1, 2, 3]);
+  const images = {
+    async info() {
+      calls.info++;
+      if (opts.infoThrows) throw new Error("not an image");
+      return opts.info
+        ? opts.info()
+        : { format: "image/avif", fileSize: 99, width: 1024, height: 768 };
+    },
+    input() {
+      const transformer = {
+        transform(t: unknown) {
+          calls.transform.push(t);
+          return transformer;
+        },
+        async output(o: unknown) {
+          calls.output.push(o);
+          return {
+            response: () =>
+              new Response(bytes as BodyInit, {
+                headers: { "content-type": (o as { format: string }).format },
+              }),
+            contentType: () => (o as { format: string }).format,
+            image: () => new Blob([bytes as BufferSource]).stream(),
+          };
+        },
+      };
+      return transformer;
+    },
+  };
+  return { images: images as unknown as ImagesBinding, calls };
+}
+
+describe("imageInfo", () => {
+  it("returns dimensions from the Images binding for any format (AVIF/TIFF)", async () => {
+    const { images } = makeImages({
+      info: () => ({ format: "image/avif", width: 4000, height: 3000 }),
+    });
+    expect(await imageInfo(images, new Uint8Array([0, 1, 2]))).toEqual({
+      width: 4000,
+      height: 3000,
+    });
+  });
+
+  it("returns null for vector input (SVG has no intrinsic pixel size)", async () => {
+    const { images } = makeImages({ info: () => ({ format: "image/svg+xml" }) });
+    expect(await imageInfo(images, new Uint8Array([0]))).toBeNull();
+  });
+
+  it("returns null on an Images error (so callers can fall back)", async () => {
+    const { images } = makeImages({ infoThrows: true });
+    expect(await imageInfo(images, new Uint8Array([0]))).toBeNull();
+  });
+});
+
+describe("transformImage", () => {
+  it("chains input→transform→output and returns the encoded Response", async () => {
+    const { images, calls } = makeImages({ outputBytes: new Uint8Array([9, 9, 9]) });
+    const res = await transformImage(images, new Uint8Array([1, 2, 3]), {
+      width: 1200,
+      height: 630,
+      format: "avif",
+      quality: 70,
+    });
+    expect(res).toBeInstanceOf(Response);
+    expect(res.headers.get("content-type")).toBe("image/avif");
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([9, 9, 9]));
+    expect(calls.transform[0]).toMatchObject({
+      width: 1200,
+      height: 630,
+      fit: "cover",
+      gravity: "auto",
+    });
+    expect(calls.output[0]).toEqual({ format: "image/avif", quality: 70 });
+  });
+
+  it("defaults fit/gravity/format/quality", async () => {
+    const { images, calls } = makeImages();
+    await transformImage(images, new Uint8Array([1]));
+    expect(calls.transform[0]).toMatchObject({ fit: "cover", gravity: "auto" });
+    expect(calls.output[0]).toEqual({ format: "image/avif", quality: 82 });
+  });
+});
+
 // --- putMedia --------------------------------------------------------------
 
 describe("putMedia", () => {
@@ -204,6 +298,35 @@ describe("putMedia", () => {
     const res = await putMedia(bucket, bytesToFile([1, 2, 3, 4], "notes.txt"));
     expect(res).toMatchObject({ ok: false, status: 415 });
     expect(store.size).toBe(0);
+  });
+
+  it("reads dimensions from the Images binding when provided (fills what the parser can't)", async () => {
+    const { bucket } = makeBucket();
+    const { images } = makeImages({
+      info: () => ({ format: "image/png", width: 1200, height: 800 }),
+    });
+    // The synthetic PNG header has no real size (parser → null); .info() supplies it.
+    const res = await putMedia(bucket, bytesToFile(PNG_HEADER, "big.png"), { images });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.width).toBe(1200);
+    expect(res.height).toBe(800);
+  });
+
+  it("falls back to the header parser when .info() fails", async () => {
+    const { bucket } = makeBucket();
+    const { images, calls } = makeImages({ infoThrows: true });
+    // A real 640×480 PNG IHDR the header parser can read.
+    const png = [...PNG_HEADER];
+    png.splice(8, 8, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52); // length + "IHDR"
+    png.splice(16, 4, 0x00, 0x00, 0x02, 0x80); // width 640
+    png.splice(20, 4, 0x00, 0x00, 0x01, 0xe0); // height 480
+    const res = await putMedia(bucket, bytesToFile(png, "photo.png"), { images });
+    expect(calls.info).toBe(1); // .info() was attempted
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.width).toBe(640); // from the parser, not the binding
+    expect(res.height).toBe(480);
   });
 });
 

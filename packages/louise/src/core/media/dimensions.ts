@@ -14,6 +14,37 @@ export interface ImageDimensions {
   height: number;
 }
 
+/** Wrap raw bytes as a `ReadableStream` for the Images binding, which takes a
+ *  stream (not a buffer). */
+function bytesToStream(bytes: Uint8Array | ArrayBuffer): ReadableStream<Uint8Array> {
+  return new Blob([bytes as BufferSource]).stream() as ReadableStream<Uint8Array>;
+}
+
+/**
+ * Read intrinsic pixel dimensions via the Cloudflare Images binding's `.info()`,
+ * which sizes the formats the header parser returns `null` for (AVIF, TIFF) —
+ * and every other raster format too. Returns `null` for vector input (SVG, which
+ * has no intrinsic pixel size) or on any Images error, so a caller can fall back
+ * to {@link imageDimensions} (the binding-free header parser). Prefer this in the
+ * upload path when an `IMAGES` binding is available.
+ */
+export async function imageInfo(
+  images: ImagesBinding,
+  bytes: Uint8Array | ArrayBuffer,
+): Promise<ImageDimensions | null> {
+  try {
+    const info = await images.info(bytesToStream(bytes));
+    // The SVG variant of the response has no width/height; only the raster
+    // variant carries them. Guard on the field, then on a sane (non-zero) size.
+    if ("width" in info && info.width > 0 && info.height > 0) {
+      return { width: info.width, height: info.height };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse intrinsic pixel dimensions from an image's header bytes (PNG, GIF,
  * JPEG, WebP). Pass enough of the file to include the header — the first few KB

@@ -29,10 +29,13 @@ import {
   tableMeta,
 } from "./shared.js";
 
-/** Env for the media route: the D1 binding plus the R2 bucket + its public URL. */
+/** Env for the media route: the D1 binding plus the R2 bucket + its public URL.
+ *  An optional `IMAGES` binding, when present, is used to read upload dimensions
+ *  via `.info()` (covers AVIF/TIFF). */
 export interface MediaRouteEnv extends EditorRouteEnv {
   MEDIA: R2Bucket;
   MEDIA_URL: string;
+  IMAGES?: ImagesBinding;
 }
 
 export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
@@ -103,6 +106,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
       const put = await putMedia(env.MEDIA, file, {
         scope: config.scope,
         maxBytes: config.maxBytes,
+        images: env.IMAGES,
       });
       if (!put.ok) return json({ error: put.error }, put.status);
       // Register the asset. uploaded_at is unix seconds to match Drizzle's
