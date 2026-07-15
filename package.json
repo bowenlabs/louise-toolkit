@@ -24,7 +24,7 @@
     "eslint-plugin-solid": "^0.14.5"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=26.0.0"
   },
-  "packageManager": "pnpm@10.12.1"
+  "packageManager": "pnpm@11.13.0"
 }

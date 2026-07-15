@@ -2,13 +2,6 @@ packages:
   - packages/*
   - workers/*
 
-# Postinstall-script approvals. Without these, esbuild/workerd/sharp skip their
-# postinstall and the Astro (Cloudflare) build fails.
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
-  - workerd
-
 # Dedupe @cloudflare/workers-types onto the v5 that packages/louise targets.
 # wrangler declares an optional ^4 peer, which otherwise pulls a second (v4) copy
 # into workers/site + workers/sandbox — splitting drizzle-orm into two
@@ -17,3 +10,11 @@ onlyBuiltDependencies:
 # has no runtime effect.
 overrides:
   "@cloudflare/workers-types": "^5.20260703.1"
+
+# Postinstall-script approvals. Without these, esbuild/workerd/sharp skip their
+# postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
+# `onlyBuiltDependencies` list to the `allowBuilds` map.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
