@@ -8,3 +8,12 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - workerd
+
+# Dedupe @cloudflare/workers-types onto the v5 that packages/louise targets.
+# wrangler declares an optional ^4 peer, which otherwise pulls a second (v4) copy
+# into workers/site + workers/sandbox — splitting drizzle-orm into two
+# peer-keyed instances and producing spurious cross-version type errors.
+# workers-types is types-only, so pinning wrangler's optional peer forward to v5
+# has no runtime effect.
+overrides:
+  "@cloudflare/workers-types": "^5.20260703.1"
