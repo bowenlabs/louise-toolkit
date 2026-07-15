@@ -17,6 +17,7 @@ import {
   validateSubmission,
   verifyTurnstileToken,
 } from "../forms/index.js";
+import { s, standardValidate } from "../schema/index.js";
 import { type KVLike, rateLimit } from "../security/rate-limit.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, ident, json, matchPath } from "./shared.js";
@@ -52,7 +53,8 @@ export interface FormRouteConfig<Env extends FormRouteEnv = FormRouteEnv> {
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   const type = request.headers.get("content-type") ?? "";
   if (type.includes("application/json")) {
-    return (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const parsed = await standardValidate(s.record(), await request.json().catch(() => null));
+    return parsed.ok ? parsed.value : {};
   }
   const form = await request.formData().catch(() => null);
   if (!form) return {};

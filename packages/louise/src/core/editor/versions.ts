@@ -18,8 +18,14 @@ import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm
 import { createVersionedLocalApi } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { db } from "../db/index.js";
+import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
+
+// Bodies for the version actions. `publish` may omit `versionId` (it falls back
+// to the latest pending draft); `discard` requires an integer `versionId`.
+const PUBLISH_BODY = s.object({ versionId: s.optional(s.number({ int: true })) });
+const DISCARD_BODY = s.object({ versionId: s.number({ int: true }) });
 
 export interface VersionsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** The main content table (e.g. the composed `pages`). */
@@ -133,8 +139,12 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // partial save layers onto — rather than reverts — the pending draft. See
     // `latestPendingDraft`.
     if (action === "versions" && method === "POST") {
-      const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
+      const parsedInput = await standardValidate(
+        s.record(),
+        await request.json().catch(() => null),
+      );
+      if (!parsedInput.ok) return json({ error: "Invalid JSON" }, 400);
+      const input = parsedInput.value;
       const [current] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
       if (!current) return json({ error: "Not found" }, 404);
       const cur = current as Record<string, unknown>;
@@ -164,8 +174,11 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // the newest still-*pending* draft (a superseded draft — one publishing has
     // already moved past — must not silently go live). See `latestPendingDraft`.
     if (action === "publish" && method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { versionId?: number };
-      let versionId = body.versionId;
+      const parsedBody = await standardValidate(
+        PUBLISH_BODY,
+        await request.json().catch(() => null),
+      );
+      let versionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
       if (versionId === undefined) {
         const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
         const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
@@ -194,9 +207,12 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // POST /:id/discard — delete a draft version from history. Body: { versionId }.
     // Scoped to drafts (never the live version) so history stays a safe cleanup.
     if (action === "discard" && method === "POST") {
-      const body = (await request.json().catch(() => ({}))) as { versionId?: number };
-      const versionId = body.versionId;
-      if (!Number.isInteger(versionId)) return json({ error: "Missing versionId" }, 400);
+      const parsedBody = await standardValidate(
+        DISCARD_BODY,
+        await request.json().catch(() => null),
+      );
+      if (!parsedBody.ok) return json({ error: "Missing versionId" }, 400);
+      const versionId = parsedBody.value.versionId;
       const versions = await api.findVersions(context, id);
       const target = versions.find((v) => (v as Record<string, unknown>).id === versionId) as
         | Record<string, unknown>
@@ -205,7 +221,7 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (target.status !== "draft") {
         return json({ error: "Only draft versions can be discarded" }, 400);
       }
-      await api.discardVersion(context, versionId as number);
+      await api.discardVersion(context, versionId);
       return json({ ok: true });
     }
 

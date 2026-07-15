@@ -12,6 +12,7 @@
 // first editor is seeded out-of-band (e.g. a seed script); from then on editors
 // invite each other here.
 
+import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
   type EditorRouteEnv,
@@ -23,6 +24,15 @@ import {
 } from "./shared.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// POST body for inviting an editor. All three are coerced (trimmed, email
+// lower-cased) after parse, so they stay `unknown` here; the real gate is the
+// `EMAIL_RE` check on the derived email.
+const INVITE_BODY = s.object({
+  firstName: s.unknown(),
+  lastName: s.unknown(),
+  email: s.unknown(),
+});
 
 export interface EditorsRouteConfig<Env extends EditorRouteEnv> {
   /** Resolve the editor session (site wraps its own auth). */
@@ -82,14 +92,13 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (request.method === "POST") {
       const g = await guardEditor(request, env, config.resolveEditor, true);
       if ("response" in g) return g.response;
-      const body = (await request.json().catch(() => null)) as {
-        firstName?: unknown;
-        lastName?: unknown;
-        email?: unknown;
-      } | null;
-      const firstName = typeof body?.firstName === "string" ? body.firstName.trim() : "";
-      const lastName = typeof body?.lastName === "string" ? body.lastName.trim() : "";
-      const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+      const parsed = await standardValidate(INVITE_BODY, await request.json().catch(() => null));
+      const body: { firstName?: unknown; lastName?: unknown; email?: unknown } = parsed.ok
+        ? parsed.value
+        : {};
+      const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+      const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
       if (!EMAIL_RE.test(email)) return json({ error: "A valid email is required." }, 400);
       // Derive the required display `name` from the parts; fall back to the email.
       const name = [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
