@@ -423,12 +423,86 @@ async function removeFromSearchIndex(
   await db.run(sql`DELETE FROM ${fts} WHERE rowid = ${id}`);
 }
 
+/**
+ * Enqueue a reindex of the changed row (by id) instead of updating the FTS
+ * index inline — the seam that moves search sync off the write path (#77).
+ * Supplied via {@link LocalApiOptions.deferReindex}; a queue consumer later
+ * runs {@link reindexDoc} to do the actual sync. Returning normally must mean
+ * "enqueued", so a failure to enqueue surfaces on the write (the caller can
+ * decide whether that fails the request).
+ */
+export type DeferReindex = (id: number) => void | Promise<void>;
+
+export interface LocalApiOptions {
+  /** Move FTS sync off the write path: when set, create/update/publish/delete
+   *  call this with the changed row's id INSTEAD of syncing the index inline
+   *  (#77). No-op collections (no `config.search`) never call it. */
+  deferReindex?: DeferReindex;
+}
+
+/** Sync the index inline, or hand the row id to `deferReindex` — whichever the
+ *  collection is configured for. Skips non-searchable collections and rows
+ *  without a numeric id (the FTS rowid). */
+async function reindexOrDefer(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  config: CollectionConfig,
+  doc: AnyRecord,
+  deferReindex?: DeferReindex,
+): Promise<void> {
+  if (!config.search?.fields.length) return;
+  const id = doc.id;
+  if (typeof id !== "number") return;
+  if (deferReindex) await deferReindex(id);
+  else await syncSearchIndex(db, config, doc);
+}
+
+/** Delete counterpart of {@link reindexOrDefer}. A deferred delete enqueues the
+ *  same id; the consumer re-reads, finds the row gone, and removes the entry. */
+async function removeOrDefer(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  config: CollectionConfig,
+  id: number,
+  deferReindex?: DeferReindex,
+): Promise<void> {
+  if (!config.search?.fields.length) return;
+  if (deferReindex) await deferReindex(id);
+  else await removeFromSearchIndex(db, config, id);
+}
+
+/**
+ * Sync one row's FTS entry by id — the deferred counterpart to the inline
+ * search sync (#77). Re-reads the current row: present → upsert its index
+ * entry; absent (it was deleted) → remove it. Call this from a queue consumer
+ * to drain a `deferReindex(id)` job. No-op for a collection without
+ * `config.search`, so it's always safe to call.
+ */
+export async function reindexDoc(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  table: AnyTable,
+  config: CollectionConfig,
+  id: number,
+): Promise<void> {
+  if (!config.search?.fields.length) return;
+  const [row] = await db.select().from(table).where(eq(table.id, id));
+  if (!row) {
+    await removeFromSearchIndex(db, config, id);
+    return;
+  }
+  const hasGroupFields = Object.values(config.fields).some((field) => field.type === "group");
+  const doc = hasGroupFields
+    ? (nestDoc(config.fields, row as Record<string, unknown>) as AnyRecord)
+    : (row as AnyRecord);
+  await syncSearchIndex(db, config, doc);
+}
+
 export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
   db: BaseSQLiteDatabase<"async", unknown>,
   table: TTable,
   config: CollectionConfig,
   registry?: ContentRegistry,
+  options?: LocalApiOptions,
 ): LocalApi<TTable, TContext> {
+  const deferReindex = options?.deferReindex;
   const idColumn = table.id;
   // Group fields are the only reason a document's shape (nested) ever
   // differs from its row's shape (flat columns) — skip the flatten/nest
@@ -569,7 +643,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       // succeeded and `row` is set. afterChange runs outside the try so its
       // side-effect errors aren't mis-reported as write failures.
       const doc = toNestedDoc(row as AnyRecord);
-      await syncSearchIndex(db, config, doc as AnyRecord);
+      await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
       await runAfterChange(config, doc as Record<string, unknown>, "create");
       return doc as InferSelectModel<TTable>;
     },
@@ -604,7 +678,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
         wrapWriteError(config, error);
       }
       const doc = toNestedDoc(row as AnyRecord);
-      await syncSearchIndex(db, config, doc as AnyRecord);
+      await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
       await runAfterChange(config, doc as Record<string, unknown>, "update");
       return doc as InferSelectModel<TTable>;
     },
@@ -615,7 +689,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       const [rawRow] = await db.delete(table).where(eq(idColumn, id)).returning();
       if (!rawRow) notFound(config, id);
       const row = toNestedDoc(rawRow as Record<string, unknown>);
-      await removeFromSearchIndex(db, config, id);
+      await removeOrDefer(db, config, id, deferReindex);
       await runAfterDelete(config, id);
       return row as InferSelectModel<TTable>;
     },
@@ -708,8 +782,10 @@ export function createVersionedLocalApi<
   versionsTable: TVersionsTable,
   config: CollectionConfig,
   registry?: ContentRegistry,
+  options?: LocalApiOptions,
 ): VersionedLocalApi<TTable, TVersionsTable, TContext> {
-  const base = createLocalApi<TTable, TContext>(db, table, config, registry);
+  const base = createLocalApi<TTable, TContext>(db, table, config, registry, options);
+  const deferReindex = options?.deferReindex;
   const idColumn = table.id;
   const versionsIdColumn = versionsTable.id;
   const versionsParentIdColumn = versionsTable.parentId;
@@ -757,7 +833,7 @@ export function createVersionedLocalApi<
       // oxlint-disable-next-line typescript/no-explicit-any -- status is a fixed enum column; scheduledAt is cleared so a re-scheduled republish needs a fresh draft
       .set({ status: "published", scheduledAt: null } as any)
       .where(eq(versionsIdColumn, versionId));
-    await syncSearchIndex(db, config, doc as AnyRecord);
+    await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
     // publish() writes to an already-existing row, never a new one —
     // counts as "update" the same way createLocalApi.update() does.
     await runAfterChange(config, doc as Record<string, unknown>, "update");

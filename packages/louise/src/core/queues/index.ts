@@ -12,6 +12,23 @@
 
 import { LouiseQueueError } from "../errors.js";
 
+/**
+ * A deferred post-write side-effect drained by a Worker's `queue()` consumer
+ * (#77) — keeps the write path to just the DB mutation while derived work runs
+ * async. An extensible discriminated union; match on `kind`. `reindex` (the
+ * first member) re-syncs one collection row's FTS entry: it's enqueued by
+ * `versionsRoute`'s `deferReindex` and drained with `reindexDoc`
+ * (louise-toolkit/content), which upserts the row's index entry or removes it if
+ * the row is gone.
+ */
+export type SideEffectJob = {
+  kind: "reindex";
+  /** Collection slug — the consumer maps it to a table + config. */
+  collection: string;
+  /** The changed row's id (the FTS rowid). */
+  id: number;
+};
+
 /** Enqueues `message` onto `queue`. Throws LouiseQueueError on failure. */
 export async function enqueue<T>(queue: Queue<T>, message: T): Promise<void> {
   try {

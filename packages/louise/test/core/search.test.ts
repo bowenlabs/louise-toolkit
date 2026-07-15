@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   collectionSearchTableSQL,
   defineCollection,
   extractSearchText,
+  reindexDoc,
 } from "../../src/core/content/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { searchRoute } from "../../src/core/editor/index.js";
@@ -54,6 +55,46 @@ describe("search config + indexing", () => {
       search: { fields: ["title"] },
     });
     expect(extractSearchText(noSections, {})).toEqual([""]);
+  });
+});
+
+// --- reindexDoc (deferred FTS sync — #77) ----------------------------------
+
+/** Fake async-drizzle db: `select().from().where()` resolves to `rows`; `run`
+ *  records each FTS statement so we can count DELETE/INSERT without a real DB. */
+function makeReindexDb(rows: Record<string, unknown>[]) {
+  const runs: unknown[] = [];
+  const select = vi.fn(() => ({ from: () => ({ where: () => Promise.resolve(rows) }) }));
+  const db = {
+    select,
+    run: (q: unknown) => {
+      runs.push(q);
+      return Promise.resolve();
+    },
+    // A structural stand-in for BaseSQLiteDatabase — only select/run are used.
+  } as unknown as Parameters<typeof reindexDoc>[0];
+  return { db, runs, select };
+}
+
+describe("reindexDoc", () => {
+  it("upserts the FTS entry (DELETE + INSERT) when the row still exists", async () => {
+    const { db, runs } = makeReindexDb([{ id: 1, title: "Hello", body: "world", sections: "[]" }]);
+    await reindexDoc(db, pages, config, 1);
+    expect(runs).toHaveLength(2); // DELETE old rowid, then INSERT fresh values
+  });
+
+  it("removes the FTS entry (DELETE only) when the row is gone (deleted)", async () => {
+    const { db, runs } = makeReindexDb([]); // row not found → treat as removal
+    await reindexDoc(db, pages, config, 1);
+    expect(runs).toHaveLength(1); // just the DELETE
+  });
+
+  it("is a no-op for a collection with no search config (never touches the DB)", async () => {
+    const noSearch = defineCollection({ slug: "pages", fields: { title: { type: "text" } } });
+    const { db, runs, select } = makeReindexDb([{ id: 1, title: "x" }]);
+    await reindexDoc(db, pages, noSearch, 1);
+    expect(runs).toHaveLength(0);
+    expect(select).not.toHaveBeenCalled(); // early return before any read
   });
 });
 

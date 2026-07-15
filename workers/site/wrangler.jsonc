@@ -47,6 +47,25 @@
   "images": { "binding": "IMAGES" },
   // KV for the security rate limiter.
   "kv_namespaces": [{ "binding": "RL", "id": "647f7c7b690c41229fea208fdef346a6" }],
+  // Cloudflare Queues (#77): move slow post-write side-effects (FTS reindex)
+  // off the publish path. The producer (QUEUE) enqueues a reindex job on
+  // publish; the consumer drains it (worker.ts `queue()`), acking on success
+  // and retrying on failure. Backpressure/retry live here — batches of up to
+  // 10 (or 5s), 3 attempts, then the dead-letter queue. Provision before deploy:
+  //   wrangler queues create louisetoolkit-side-effects
+  //   wrangler queues create louisetoolkit-side-effects-dlq
+  "queues": {
+    "producers": [{ "binding": "QUEUE", "queue": "louisetoolkit-side-effects" }],
+    "consumers": [
+      {
+        "queue": "louisetoolkit-side-effects",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "louisetoolkit-side-effects-dlq",
+      },
+    ],
+  },
   // The editor-gate config is typed + validated by the astro:env schema
   // (astro.config.mjs), read via `astro:env/server`: OWNER_EMAIL defaults in the
   // schema (public), and the secrets go in `wrangler secret put`

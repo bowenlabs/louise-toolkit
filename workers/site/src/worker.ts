@@ -5,8 +5,9 @@
 //   /api/louise/*         → louise-toolkit/editor routes (pages/save/settings/media/
 //                           inquiries/seed), guarded by the cookie editor gate
 //   /media/*              → uploaded R2 objects (self-hosted media, no public bucket)
-//   /og.png?slug=&title=  → Browser-Run OG card, content-hash cached
+//   /og.png?slug=&title=  → resvg/WASM OG card, content-hash cached
 //   else                  → Astro SSR (marketing + published content pages)
+//   queue()               → drain deferred side-effects off the write path (FTS reindex)
 //   scheduled()           → daily link-checker across both hosts
 import { handle } from "@astrojs/cloudflare/handler";
 import {
@@ -28,9 +29,10 @@ import {
   settingsRoute,
   versionsRoute,
 } from "louise-toolkit/editor";
-import { assertValidSections } from "louise-toolkit/content";
-import { inquiriesForm } from "louise-toolkit/db";
+import { assertValidSections, reindexDoc } from "louise-toolkit/content";
+import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
+import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
 import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
@@ -177,6 +179,16 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
         });
       }
     },
+    // Move FTS reindex off the publish path (#77): enqueue a reindex of the
+    // published row instead of syncing the index inline, so publish returns as
+    // soon as the row is written. The queue() consumer below drains it. Falls
+    // back to inline sync if no queue is bound (graceful degradation).
+    deferReindex: (env) => {
+      const queue = env.QUEUE;
+      return queue
+        ? (id) => enqueue(queue, { kind: "reindex", collection: "pages", id })
+        : undefined;
+    },
   }),
   // Full-text search over pages (title/body/flattened sections) — /search + a
   // /reindex to rebuild the FTS index. Before pagesRoute (its `/:id` matcher
@@ -272,6 +284,16 @@ export default composeWorker<WorkerEnv>({
   // everything else falls through to Astro SSR.
   routes: [docsRoute, ...editorRoutes, mediaAssetRoute, ogRoute],
   fetch: (request, env, ctx) => handle(request, env, ctx),
+  // Side-effect consumer (#77): drain the deferred reindex jobs enqueued on the
+  // publish path. processBatch acks each message on success and retries on a
+  // thrown error; Cloudflare Queues owns the backoff/DLQ (wrangler.jsonc).
+  async queue(batch, env) {
+    await processBatch(batch as MessageBatch<SideEffectJob>, async (job) => {
+      if (job.kind === "reindex" && job.collection === "pages") {
+        await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
+      }
+    });
+  },
   // Cron Trigger (wrangler.jsonc): crawl both hosts and log any broken links.
   async scheduled(_event, _env, ctx) {
     ctx.waitUntil(

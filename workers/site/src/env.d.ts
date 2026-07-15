@@ -20,6 +20,10 @@ type CloudflareEnv = {
   // transforms. Optional in LouiseMediaEnv/MediaRouteEnv; declared here since
   // wrangler.jsonc provides it.
   IMAGES: ImagesBinding;
+  // Cloudflare Queue (#77): deferred post-write side-effects (FTS reindex).
+  // Optional so publish still works — and falls back to inline sync — if the
+  // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.
+  QUEUE?: Queue<import("louise-toolkit/queues").SideEffectJob>;
 };
 
 // The bundled resvg rasterizer imports as a compiled WebAssembly module (the

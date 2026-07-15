@@ -15,7 +15,7 @@
 
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
-import { createVersionedLocalApi } from "../content/localApi.js";
+import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { db } from "../db/index.js";
 import { s, standardValidate } from "../schema/index.js";
@@ -44,6 +44,14 @@ export interface VersionsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
    * error's message; a `LouiseValidationError` surfaces its `violations`.
    */
   validate?: (data: Record<string, unknown>) => void | Promise<void>;
+  /**
+   * Move FTS reindex off the publish path (#77). Given the runtime `env` (so it
+   * can reach a queue binding), return a {@link DeferReindex} that enqueues a
+   * reindex of the published row's id instead of syncing the index inline; the
+   * consumer drains it with `reindexDoc`. Return `undefined` (or omit) to keep
+   * syncing inline — so a site without a queue keeps working unchanged.
+   */
+  deferReindex?: (env: Env) => DeferReindex | undefined;
 }
 
 /** Extract per-field violations from a thrown validation error, if present. */
@@ -118,7 +126,16 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const context = { session: g.editor };
 
     const database = db(env.DB);
-    const api = createVersionedLocalApi(database, cfg.table, cfg.versionsTable, cfg.config);
+    const api = createVersionedLocalApi(
+      database,
+      cfg.table,
+      cfg.versionsTable,
+      cfg.config,
+      undefined,
+      {
+        deferReindex: cfg.deferReindex?.(env),
+      },
+    );
 
     // GET /:id/versions — history, newest first, plus the live pointer so the
     // editor can flag which version is currently published. Publishing never
