@@ -17,6 +17,7 @@ import {
   mediaUrl,
   putMedia,
 } from "../media/index.js";
+import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
   type EditorRouteEnv,
@@ -51,6 +52,14 @@ export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
   /** Mount path. Default `/api/louise/media`. */
   path?: string;
 }
+
+// PATCH body: `key` identifies the asset; `alt`/`caption` are the only editable
+// fields and are coerced (any value → string), so they stay `unknown` here.
+const MEDIA_PATCH_BODY = s.object({
+  key: s.string({ min: 1 }),
+  alt: s.unknown(),
+  caption: s.unknown(),
+});
 
 /**
  * Build the `media` editor route. GET lists the registry newest-first (each
@@ -126,17 +135,16 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
     if (method === "PATCH") {
       const g = await guardEditor(request, env, config.resolveEditor, true);
       if ("response" in g) return g.response;
-      const body = (await request.json().catch(() => null)) as {
-        key?: unknown;
-        alt?: unknown;
-        caption?: unknown;
-      } | null;
-      const key = typeof body?.key === "string" ? body.key : "";
-      if (!key) return json({ error: "No key" }, 400);
+      const parsed = await standardValidate(
+        MEDIA_PATCH_BODY,
+        await request.json().catch(() => null),
+      );
+      if (!parsed.ok) return json({ error: "No key" }, 400);
+      const { key, alt: altRaw, caption: captionRaw } = parsed.value;
       // Only alt/caption are editable here; both are optional text (empty string
       // clears, undefined leaves unchanged). Nothing else on the row is writable.
-      const alt = body?.alt === undefined ? undefined : String(body.alt ?? "");
-      const caption = body?.caption === undefined ? undefined : String(body.caption ?? "");
+      const alt = altRaw === undefined ? undefined : String(altRaw ?? "");
+      const caption = captionRaw === undefined ? undefined : String(captionRaw ?? "");
       const sets: string[] = [];
       const binds: (string | null)[] = [];
       if (alt !== undefined) {

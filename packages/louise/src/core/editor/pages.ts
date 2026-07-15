@@ -14,6 +14,7 @@ import { asc, eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
 import { LouiseValidationError } from "../errors.js";
+import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
 import type { EditorSession } from "../auth/types.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -194,9 +195,9 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         return json({ pages: rows });
       }
       if (method === "POST") {
-        const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-        if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
-        let data = pickFields(input, fields, richFields, sanitize);
+        const parsed = await standardValidate(s.record(), await request.json().catch(() => null));
+        if (!parsed.ok) return json({ error: "Invalid JSON" }, 400);
+        let data = pickFields(parsed.value, fields, richFields, sanitize);
         if (config.transform) data = await config.transform(data, { operation: "create" });
         const reservedRejection = reservedSlugRejection(data);
         if (reservedRejection) return reservedRejection;
@@ -228,9 +229,9 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       return json({ page: row });
     }
     if (method === "PATCH") {
-      const input = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-      if (!input || typeof input !== "object") return json({ error: "Invalid JSON" }, 400);
-      let data = pickFields(input, fields, richFields, sanitize);
+      const parsed = await standardValidate(s.record(), await request.json().catch(() => null));
+      if (!parsed.ok) return json({ error: "Invalid JSON" }, 400);
+      let data = pickFields(parsed.value, fields, richFields, sanitize);
       if (config.transform) data = await config.transform(data, { operation: "update", id });
       if (Object.keys(data).length === 0) return json({ error: "Nothing to update" }, 400);
       const reservedRejection = reservedSlugRejection(data);

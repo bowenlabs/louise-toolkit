@@ -12,9 +12,20 @@
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
+import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
+
+// The inline field-save body. `collection`/`key`/`field` are the routing keys;
+// `value` stays `unknown` — its non-empty-string check + per-field sanitize
+// belong to {@link resolveFieldValue}, which needs the collection config.
+const SAVE_BODY = s.object({
+  collection: s.string(),
+  key: s.string(),
+  field: s.string(),
+  value: s.unknown(),
+});
 
 export interface SaveCollectionConfig {
   /** The collection's table (site-composed or ready-made). */
@@ -78,17 +89,9 @@ export function saveRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const g = await guardEditor(request, env, config.resolveEditor, true);
     if ("response" in g) return g.response;
 
-    const payload = (await request.json().catch(() => null)) as {
-      collection?: string;
-      key?: string;
-      field?: string;
-      value?: unknown;
-    } | null;
-    if (!payload) return json({ error: "Invalid JSON" }, 400);
-    const { collection, key, field, value } = payload;
-    if (typeof collection !== "string" || typeof key !== "string" || typeof field !== "string") {
-      return json({ error: "Bad payload" }, 400);
-    }
+    const parsed = await standardValidate(SAVE_BODY, await request.json().catch(() => null));
+    if (!parsed.ok) return json({ error: "Bad payload" }, 400);
+    const { collection, key, field, value } = parsed.value;
 
     const collConfig = config.collections[collection];
     if (!collConfig) return json({ error: "Unknown collection" }, 400);
