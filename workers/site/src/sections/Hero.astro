@@ -1,80 +1,192 @@
 ---
-// Bespoke hero section — the SITE owns this design (Tailwind + daisyUI, the real
-// brand look). It renders from section props; editors never touch its
-// markup or classes, only its fields (heading/tagline/cta). This is how a
-// preconfigured block keeps a pixel-perfect bespoke design while staying
-// editor-controlled.
+// Bespoke hero — the SITE owns this design (Tailwind + daisyUI `louise-dark`
+// tokens, the real brand look). It renders from section props; editors never
+// touch its markup or classes, only its fields (badge/heading/tagline/CTA/
+// install command). The animated edge-network globe, the install-copy button
+// and the primitives marquee are baked-in chrome, not editable content.
 //
 // In edit mode it stamps `data-louise-sfield` markers on the visible text nodes
 // so the client can make them editable in place, and always renders those nodes
-// (even when empty) so there's something to click into. `ctaHref` has no visible
-// text, so it's edited in the dock, not here.
-import louiseMark from "../assets/louise-mark.svg?raw";
+// (even when empty) so there's something to click into. `ctaHref` and the
+// install command have no clean visible node to click, so they're edited in the
+// dock (non-inline).
+import Icon from "../components/Icon.astro";
+import { lightningFillSvg } from "../lib/landing-icons.js";
 
 interface Props {
+  badge?: string;
   heading?: string;
+  headingAccent?: string;
   tagline?: string;
   ctaLabel?: string;
   ctaHref?: string;
-  /** Optional uploaded logo (media URL). Falls back to the built-in Louise mark. */
-  logo?: string;
+  installCommand?: string;
   _editIndex?: number;
   _editMode?: boolean;
 }
 const {
+  badge = "",
   heading = "",
+  headingAccent = "",
   tagline = "",
   ctaLabel = "",
   ctaHref = "",
-  logo = "",
+  installCommand = "pnpm add louise-toolkit",
   _editIndex = 0,
   _editMode: edit = false,
 } = Astro.props;
 const idx = _editIndex;
+
+// Marquee tokens — the eight primitives, colored on a 4-step brand cycle
+// (blue → orange → green → gold). Rendered twice so the -50% loop is seamless.
+const PRIMITIVES = ["content", "db", "media", "forms", "commerce", "email", "queues", "auth"];
+const MARQUEE_COLORS = ["text-primary", "text-error", "text-success", "text-warning"];
+const marquee = [...PRIMITIVES, ...PRIMITIVES];
 ---
 
-<section class="louise-type px-5 pt-24 pb-12 text-center">
-  {
-    logo ? (
-      <img
-        src={logo}
-        alt=""
-        class="mx-auto mb-6 h-[68px] w-[68px] object-contain drop-shadow-lg"
-      />
-    ) : (
-      <div
-        class="mx-auto mb-6 h-[68px] w-[68px] drop-shadow-lg [&>svg]:h-full [&>svg]:w-full"
-        aria-hidden="true"
-        set:html={louiseMark}
-      />
-    )
-  }
-  <h1
-    class="mb-3 text-5xl leading-none font-black tracking-tight md:text-6xl"
-    data-louise-sfield={edit ? `${idx}.heading` : undefined}
+<section
+  class="lt-landing relative px-[clamp(20px,4vw,48px)] pt-[clamp(36px,6vw,60px)] pb-10 text-center"
+>
+  {/* Animated edge-network globe (three.js), decorative. */}
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute top-[46%] left-1/2 h-[min(760px,96vw)] w-[min(760px,96vw)] -translate-x-1/2 -translate-y-1/2 opacity-55"
   >
-    {heading || (edit ? "" : "Louise Toolkit")}
-  </h1>
-  {
-    (edit || tagline) && (
-      <p
-        class="mx-auto mb-8 max-w-xl text-xl text-base-content/70"
-        data-louise-sfield={edit ? `${idx}.tagline` : undefined}
-        data-louise-multiline={edit || undefined}
-      >
-        {tagline}
-      </p>
-    )
-  }
-  {
-    (edit || (ctaLabel && ctaHref)) && (
+    <canvas data-lt-globe class="block h-full w-full"></canvas>
+  </div>
+
+  <div class="relative mx-auto max-w-[1100px]">
+    <div
+      class="mb-[34px] inline-flex items-center gap-2 rounded-full border-[1.5px] border-primary px-4 py-1.5 text-[13px] font-bold tracking-[0.1em] text-[#6cb2ff]"
+    >
+      <Icon svg={lightningFillSvg} class="text-[15px] text-accent" />
+      <span data-louise-sfield={edit ? `${idx}.badge` : undefined}>
+        {badge || (edit ? "" : "V8-NATIVE · RUNS ON CLOUDFLARE WORKERS")}
+      </span>
+    </div>
+
+    <h1
+      class="lt-display lt-stretch-140 mb-[30px] text-[clamp(44px,8.5vw,104px)] leading-[.94] tracking-[-0.02em]"
+    >
+      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+        {heading || (edit ? "" : "Stop building")}
+      </span><br />
+      <span class="text-[#2f92f5]" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+        {headingAccent || (edit ? "" : "admin panels.")}
+      </span>
+    </h1>
+
+    <p
+      class="mx-auto mb-10 max-w-[30em] text-[clamp(17px,2.2vw,21px)] leading-[1.6] text-pretty text-[#aab3c2]"
+      data-louise-sfield={edit ? `${idx}.tagline` : undefined}
+      data-louise-multiline={edit || undefined}
+    >
+      {
+        tagline ||
+          (edit
+            ? ""
+            : "Log in. Click the text. Type. Louise makes the live site the editor — no admin app, no JSON forms for prose, ever.")
+      }
+    </p>
+
+    <div class="flex flex-wrap items-center justify-center gap-[14px]">
       <a
-        class="btn btn-primary"
-        href={ctaHref || "#"}
+        class="inline-block rounded-full bg-primary px-[34px] py-4 text-[17px] font-extrabold text-primary-content transition hover:-translate-y-0.5 hover:bg-[#2f92f5]"
+        href={ctaHref || "https://docs.louisetoolkit.com/guide/getting-started"}
         data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
       >
-        {ctaLabel}
+        {ctaLabel || (edit ? "" : "Get started")}
       </a>
-    )
-  }
+      <button
+        type="button"
+        data-lt-copy
+        data-lt-copy-text={installCommand}
+        aria-label={`Copy install command: ${installCommand}`}
+        class="inline-flex cursor-pointer items-center gap-3 rounded-full border-[1.5px] border-neutral bg-white/[0.06] px-[22px] py-[15px] font-mono text-[15px] text-base-content transition hover:border-accent"
+      >
+        <span class="font-bold text-success">$</span>
+        <span data-lt-copy-cmd>{installCommand}</span>
+        <span data-lt-copy-label aria-live="polite" class="text-[12px] font-bold text-accent"
+          >Copy</span
+        >
+      </button>
+    </div>
+  </div>
 </section>
+
+{/* Primitives marquee — decorative, baked chrome. */}
+<div
+  aria-hidden="true"
+  class="mt-14 overflow-hidden border-y-[1.5px] border-neutral py-4 whitespace-nowrap"
+>
+  <div class="lt-marquee-track gap-0">
+    {
+      marquee.map((name, i) => (
+        <span
+          class:list={[
+            "lt-stretch-130 inline-flex items-center gap-[22px] px-[22px] text-[20px] font-black tracking-[0.04em] uppercase",
+            MARQUEE_COLORS[i % 4],
+          ]}
+        >
+          {name}
+          <Icon svg={lightningFillSvg} class="text-[16px] text-neutral" />
+        </span>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  import { initEdgeGlobe } from "../lib/edge-globe.js";
+
+  // Install-command copy button(s).
+  function wireCopy() {
+    document.querySelectorAll<HTMLButtonElement>("[data-lt-copy]").forEach((btn) => {
+      if (btn.dataset.ltCopyWired) return;
+      btn.dataset.ltCopyWired = "1";
+      const label = btn.querySelector<HTMLElement>("[data-lt-copy-label]");
+      btn.addEventListener("click", async () => {
+        const cmd =
+          btn.querySelector<HTMLElement>("[data-lt-copy-cmd]")?.textContent?.trim() ||
+          btn.dataset.ltCopyText ||
+          "";
+        try {
+          await navigator.clipboard.writeText(cmd);
+        } catch {
+          /* clipboard blocked — nothing to do */
+        }
+        if (label) {
+          label.textContent = "Copied!";
+          window.setTimeout(() => (label.textContent = "Copy"), 1600);
+        }
+      });
+    });
+  }
+
+  function boot() {
+    wireCopy();
+    const canvas = document.querySelector<HTMLCanvasElement>("[data-lt-globe]");
+    if (canvas) {
+      try {
+        initEdgeGlobe(canvas, {
+          nodeColor: "#f3ae29",
+          arcColor: "#db6327",
+          wireColor: "#1481ef",
+          wireOpacity: 0.22,
+          nodeOpacity: 0.9,
+          density: 800,
+          arcCount: 32,
+          speed: 1,
+        });
+      } catch {
+        /* WebGL unavailable — hero reads fine without the globe */
+      }
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+</script>

@@ -1,0 +1,55 @@
+---
+// Bespoke closing CTA — site-owned. Heading (with an accent word), button label
+// and subtext are Louise-editable in place; the button target is a dock field.
+interface Props {
+  heading?: string;
+  headingAccent?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  subtext?: string;
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const {
+  heading = "",
+  headingAccent = "",
+  ctaLabel = "",
+  ctaHref = "",
+  subtext = "",
+  _editIndex = 0,
+  _editMode: edit = false,
+} = Astro.props;
+const idx = _editIndex;
+---
+
+<section
+  class="border-t-[1.5px] border-neutral px-[clamp(20px,4vw,48px)] py-[clamp(56px,8vw,90px)] text-center"
+>
+  <h2
+    class="lt-display lt-stretch-140 mb-[34px] text-[clamp(40px,7vw,72px)] tracking-[-0.01em]"
+  >
+    <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+      {heading || (edit ? "" : "Ship it")}
+    </span>{" "}
+    <span class="text-accent" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+      {headingAccent || (edit ? "" : "today.")}
+    </span>
+  </h2>
+  <a
+    class="inline-block rounded-full bg-accent px-11 py-[18px] text-[18px] font-black text-accent-content transition hover:-translate-y-0.5 hover:bg-[#ffc44d]"
+    href={ctaHref || "https://docs.louisetoolkit.com/guide/getting-started"}
+    data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
+  >
+    {ctaLabel || (edit ? "" : "Get started →")}
+  </a>
+  {
+    (edit || subtext) && (
+      <div
+        class="mt-[22px] text-[14px] text-[#8a95a8]"
+        data-louise-sfield={edit ? `${idx}.subtext` : undefined}
+      >
+        {subtext || (edit ? "" : "MIT licensed · deploys to the edge")}
+      </div>
+    )
+  }
+</section>

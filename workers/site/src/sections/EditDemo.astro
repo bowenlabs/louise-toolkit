@@ -1,0 +1,144 @@
+---
+// Bespoke "edit in place" demo — site-owned. Only the section heading is
+// Louise-editable (data-louise-sfield); the framed browser mock and its EDIT
+// MODE toggle are a self-contained illustration of what Louise does, driven by a
+// local `data-demo-edit` flag (see the toggle script + landing.css). The mock's
+// own contentEditable fields are throwaway toys, deliberately NOT Louise fields.
+import Icon from "../components/Icon.astro";
+import { pencilSvg } from "../lib/landing-icons.js";
+
+interface Props {
+  heading?: string;
+  headingAccent?: string;
+  _editIndex?: number;
+  _editMode?: boolean;
+}
+const { heading = "", headingAccent = "", _editIndex = 0, _editMode: edit = false } = Astro.props;
+const idx = _editIndex;
+
+// A dashed field outline + label, shown only while the demo is "editing".
+const markerTag =
+  "lt-demo-marker absolute -top-6 left-[-10px] rounded bg-primary px-[7px] py-0.5 font-mono text-[10px] font-semibold text-white whitespace-nowrap";
+---
+
+<section class="mx-auto max-w-[1180px] px-[clamp(20px,4vw,48px)] py-[clamp(48px,6vw,70px)]">
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-6">
+    <h2 class="lt-display lt-stretch-135 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
+      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+        {heading || (edit ? "" : "Click it.")}
+      </span><br />
+      <span class="text-success" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+        {headingAccent || (edit ? "" : "Type it.")}
+      </span>
+    </h2>
+
+    <button
+      type="button"
+      data-lt-demo-toggle
+      role="switch"
+      aria-checked="false"
+      aria-label="Edit mode"
+      class="flex cursor-pointer items-center gap-3 rounded-full border-[1.5px] border-neutral bg-white/[0.04] px-5 py-3 text-[15px] font-bold text-base-content transition hover:border-accent"
+    >
+      <Icon svg={pencilSvg} class="text-[17px] text-success" />
+      <span>EDIT MODE</span>
+      <span class="lt-demo-track relative inline-block h-[22px] w-[38px] flex-none rounded-full">
+        <span class="lt-demo-knob absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)]"
+        ></span>
+      </span>
+    </button>
+  </div>
+
+  {/* Framed browser mock. Its own edit toggle flips data-demo-edit here. */}
+  <div
+    data-lt-demo
+    data-demo-edit="0"
+    class="overflow-hidden rounded-[22px] bg-white text-[#14181f] shadow-[0_30px_80px_rgba(0,0,0,.45)]"
+  >
+    <div class="flex items-center gap-3 border-b border-[#e6e9ef] bg-[#f5f7f9] px-[18px] py-[13px]">
+      <span class="flex gap-1.5">
+        <span class="h-[11px] w-[11px] rounded-full bg-[#db6327]"></span>
+        <span class="h-[11px] w-[11px] rounded-full bg-[#f3ae29]"></span>
+        <span class="h-[11px] w-[11px] rounded-full bg-[#8ebe59]"></span>
+      </span>
+      <span
+        class="mx-auto max-w-[340px] flex-1 rounded-lg border border-[#e6e9ef] bg-white px-3 py-1 text-center font-mono text-[12px] text-[#6b7484]"
+        >sunrise-bakery.com</span
+      >
+      <span class="lt-demo-status-view text-[11.5px] font-bold text-[#8ebe59]">Published</span>
+      <span class="lt-demo-status-edit text-[11.5px] font-bold text-[#db6327]"
+        >● Editing as louise@bakery</span
+      >
+    </div>
+
+    <div
+      class="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] items-center gap-[clamp(28px,4vw,48px)] px-[clamp(24px,5vw,64px)] py-[clamp(28px,5vw,52px)]"
+    >
+      <div class="flex flex-col items-start gap-[18px]">
+        <div class="relative">
+          <span class="lt-demo-marker pointer-events-none absolute -inset-y-2 -inset-x-2.5 rounded-lg border-[1.5px] border-dashed border-primary"></span>
+          <span class={markerTag}>field="heading"</span>
+          <h3
+            data-lt-demo-field
+            class="m-0 text-[clamp(30px,3.5vw,40px)] font-extrabold tracking-[-0.02em] outline-none"
+          >
+            Fresh every morning.
+          </h3>
+        </div>
+        <div class="relative">
+          <span class="lt-demo-marker pointer-events-none absolute -inset-y-2 -inset-x-2.5 rounded-lg border-[1.5px] border-dashed border-primary"></span>
+          <span class={markerTag}>field="tagline"</span>
+          <p data-lt-demo-field class="m-0 text-[16px] leading-[1.65] text-[#4a5261] outline-none">
+            Sourdough, croissants and seasonal pastries — baked in-house daily since 2011. Order
+            before 7am for same-day pickup.
+          </p>
+        </div>
+        <div class="relative mt-1.5">
+          <span class="lt-demo-marker pointer-events-none absolute -inset-y-2 -inset-x-2.5 rounded-xl border-[1.5px] border-dashed border-primary"></span>
+          <span class={markerTag}>field="ctaLabel"</span>
+          <span
+            data-lt-demo-field
+            class="inline-block rounded-[10px] bg-[#db6327] px-[22px] py-[11px] text-[15px] font-bold text-white outline-none"
+          >
+            Order now
+          </span>
+        </div>
+      </div>
+      <div class="relative">
+        <span class="lt-demo-marker pointer-events-none absolute -inset-2 z-[2] rounded-[14px] border-[1.5px] border-dashed border-primary"></span>
+        <span class={`${markerTag} z-[2]`}>field="image"</span>
+        <div
+          class="flex h-[240px] items-center justify-center rounded-xl border border-[#e6e9ef]"
+          style="background: repeating-linear-gradient(45deg, #f5f7f9, #f5f7f9 12px, #eef1f5 12px, #eef1f5 24px)"
+        >
+          <span class="font-mono text-[12px] text-[#6b7484]">media: bakery photo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function boot() {
+    document.querySelectorAll<HTMLButtonElement>("[data-lt-demo-toggle]").forEach((btn) => {
+      if (btn.dataset.ltWired) return;
+      btn.dataset.ltWired = "1";
+      const section = btn.closest("section");
+      const demo = section?.querySelector<HTMLElement>("[data-lt-demo]");
+      if (!demo) return;
+      btn.addEventListener("click", () => {
+        const on = demo.dataset.demoEdit !== "1";
+        demo.dataset.demoEdit = on ? "1" : "0";
+        btn.setAttribute("aria-checked", String(on));
+        demo
+          .querySelectorAll<HTMLElement>("[data-lt-demo-field]")
+          .forEach((f) => (f.contentEditable = on ? "true" : "false"));
+      });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+</script>
