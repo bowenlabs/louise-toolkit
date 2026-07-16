@@ -24,6 +24,13 @@ type CloudflareEnv = {
   // Optional so publish still works — and falls back to inline sync — if the
   // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.
   QUEUE?: Queue<import("louise-toolkit/queues").SideEffectJob>;
+  // Durable publish pipeline (#88): reindex → warm OG → webhook. Optional —
+  // publish falls back to the reindex Queue (then inline) when unbound. Binding
+  // from wrangler.jsonc `workflows`; the class is exported from worker.ts.
+  PUBLISH_WORKFLOW?: Workflow<import("./workflows/publish.js").PublishParams>;
+  // Optional outbound webhook the publish Workflow POSTs to on publish (rebuild
+  // hooks, analytics). No-op when unset. Set via `wrangler secret put`.
+  PUBLISH_WEBHOOK?: string;
   // Auto-save draft write-buffer (#70). Optional so the editor falls back to
   // straight-to-D1 draft writes if the namespace isn't bound.
   DRAFTS?: KVNamespace;

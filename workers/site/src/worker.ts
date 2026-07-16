@@ -10,13 +10,7 @@
 //   queue()               → drain deferred side-effects off the write path (FTS reindex)
 //   scheduled()           → daily link-checker across both hosts
 import { handle } from "@astrojs/cloudflare/handler";
-import {
-  checkLinks,
-  type OgImageCache,
-  ogCacheKey,
-  ogCardSvg,
-  ogImage,
-} from "louise-toolkit/browser";
+import { checkLinks, ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/browser";
 import {
   DEFAULT_PAGE_FIELDS,
   formRoute,
@@ -34,6 +28,8 @@ import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
 import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
 import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
+import { startWorkflow } from "louise-toolkit/workflows";
+import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
@@ -47,31 +43,6 @@ const SITE_ORIGIN = "https://louisetoolkit.com";
 const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
 /* ── OG image (louise-toolkit/browser, #85) ────────────────────────────────── */
-
-/** OG-image byte store backed by the Workers Cache API — no extra binding, and
- *  the content-hashed key means a hit is always the right card. */
-function ogCacheStore(): OgImageCache {
-  const req = (key: string) => new Request(`https://og.cache/${key}`);
-  return {
-    async get(key) {
-      const res = await caches.default.match(req(key));
-      return res ? new Uint8Array(await res.arrayBuffer()) : null;
-    },
-    async put(key, bytes, contentType) {
-      await caches.default.put(
-        req(key),
-        // bytes is Uint8Array<ArrayBufferLike>; lib.dom's BodyInit (TS 5.7+) wants
-        // an ArrayBuffer-backed view — fine at the Workers runtime.
-        new Response(bytes as BodyInit, {
-          headers: {
-            "content-type": contentType ?? "image/png",
-            "cache-control": "public, max-age=31536000, immutable",
-          },
-        }),
-      );
-    },
-  };
-}
 
 async function handleOgImage(url: URL): Promise<Response> {
   const slug = url.searchParams.get("slug") ?? "/";
@@ -182,11 +153,20 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
         });
       }
     },
-    // Move FTS reindex off the publish path (#77): enqueue a reindex of the
-    // published row instead of syncing the index inline, so publish returns as
-    // soon as the row is written. The queue() consumer below drains it. Falls
-    // back to inline sync if no queue is bound (graceful degradation).
+    // Post-publish work off the request path. Preferred: hand the published row
+    // to the durable PublishWorkflow (#88) — reindex → warm the OG card → notify
+    // webhook, each step retried independently and resumable mid-way (an
+    // idempotency id coalesces a double-publish). Falls back to the fire-and-forget
+    // reindex Queue (#77) when no Workflow is bound, then to inline sync when
+    // neither is — so publish keeps working in every deployment.
     deferReindex: (env) => {
+      const workflow = env.PUBLISH_WORKFLOW;
+      if (workflow) {
+        // DeferReindex resolves to void — start the instance and drop the handle.
+        return async (id) => {
+          await startWorkflow(workflow, { collection: "pages", id }, { id: `publish:pages:${id}` });
+        };
+      }
       const queue = env.QUEUE;
       return queue
         ? (id) => enqueue(queue, { kind: "reindex", collection: "pages", id })
@@ -286,6 +266,10 @@ const ogRoute: WorkerRoute<WorkerEnv> = (request) => {
   const url = new URL(request.url);
   return url.pathname === "/og.png" ? handleOgImage(url) : undefined;
 };
+
+// The durable publish pipeline (#88). Re-exported from the Worker entry so
+// wrangler's `[[workflows]]` `class_name` can find it.
+export { PublishWorkflow } from "./workflows/publish.js";
 
 export default composeWorker<WorkerEnv>({
   // docs host first (never touches the content); then the editor API, media, OG;

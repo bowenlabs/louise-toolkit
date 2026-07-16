@@ -71,6 +71,17 @@
       },
     ],
   },
+  // Durable publish pipeline (#88): reindex → warm OG → webhook. The class is
+  // exported from src/worker.ts; `wrangler deploy` registers the Workflow (no
+  // separate provisioning step, unlike Queues). `deferReindex` starts an instance
+  // on publish (worker.ts), falling back to the reindex Queue when unbound.
+  "workflows": [
+    {
+      "binding": "PUBLISH_WORKFLOW",
+      "name": "louisetoolkit-publish",
+      "class_name": "PublishWorkflow",
+    },
+  ],
   // The editor-gate config is typed + validated by the astro:env schema
   // (astro.config.mjs), read via `astro:env/server`: OWNER_EMAIL defaults in the
   // schema (public), and the secrets go in `wrangler secret put`
