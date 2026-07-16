@@ -1,9 +1,11 @@
 ---
 import { env } from "cloudflare:workers";
+import { LOUISE_EDGE_CACHE } from "astro:env/server";
 import { eq } from "drizzle-orm";
 import { db } from "louise-toolkit/db";
-import LouiseEditor from "../components/LouiseEditor.astro";
+import LouiseEditIsland from "../components/LouiseEditIsland.astro";
 import SiteChrome from "../components/SiteChrome.astro";
+import { publishedPageCache } from "../lib/louise/cache.js";
 import { latestDraftBody, resumeReadSession } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 import "louise-toolkit/theme/fonts.css";
@@ -19,7 +21,22 @@ const slug = Astro.params.slug ?? "";
 const [page] = await db(DB).select().from(pages).where(eq(pages.slug, slug)).limit(1);
 
 if (!page || (page.status !== "published" && !Astro.locals.editMode)) {
+  // A 404 (or an unpublished slug seen anonymously) is left uncached — the
+  // adapter defaults it to `no-store` — so a page published later isn't shadowed
+  // by a cached miss (a publish only purges that page's own tag).
   return new Response("Not found", { status: 404 });
+}
+
+// Caching (#95): a published page seen by a public visitor is edge-cacheable and
+// tagged for purge-on-publish — but only when LOUISE_EDGE_CACHE is on (it needs
+// the CDN bypass-on-edit-cookie rule in place first; see astro.config.mjs). Edit
+// mode always bypasses (set(false) → no-store) so an editor gets fresh,
+// personalized HTML. The edit chrome is a deferred island (#73), so the cached
+// public shell carries no editor state.
+if (Astro.locals.editMode || !LOUISE_EDGE_CACHE) {
+  Astro.cache.set(false);
+} else {
+  Astro.cache.set(publishedPageCache(page.id));
 }
 
 // View mode renders the published body; edit mode resumes the latest still-draft
@@ -70,6 +87,6 @@ const title = page.seoTitle || page.title;
         }
       </main>
     </SiteChrome>
-    <LouiseEditor versionedPageId={page.id} />
+    <LouiseEditIsland server:defer versionedPageId={page.id} />
   </body>
 </html>

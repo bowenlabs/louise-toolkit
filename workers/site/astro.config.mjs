@@ -1,5 +1,6 @@
 // @ts-check
 import cloudflare from "@astrojs/cloudflare";
+import { cacheCloudflare } from "@astrojs/cloudflare/cache";
 import solid from "@astrojs/solid-js";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, envField } from "astro/config";
@@ -17,6 +18,15 @@ export default defineConfig({
   site: "https://louisetoolkit.com",
   output: "server",
   adapter: cloudflare(),
+  // Route caching (#95): the Cloudflare provider maps `Astro.cache.set(...)` to
+  // `Cloudflare-CDN-Cache-Control` + `Cache-Tag` headers, so a published page's
+  // SSR render is cached at CF's edge. Opt-in per response — a route that never
+  // calls `Astro.cache.set` (or calls `set(false)`, as edit-mode renders do) is
+  // emitted `no-store`, so nothing personalized is ever cached. Published pages
+  // opt in via `publishedPageCache` (src/lib/louise/cache.ts) and are purged by
+  // tag on publish. Pairs with the deferred edit-chrome island (#73), which
+  // keeps the public shell cookie-independent.
+  cache: { provider: cacheCloudflare() },
   // Solid islands (ADR 0001) — matches every consuming site. Powers the typed
   // editor islands that call Astro Actions (see src/islands, src/actions).
   integrations: [solid()],
@@ -56,6 +66,19 @@ export default defineConfig({
       CF_ACCOUNT_ID: envField.string({ context: "server", access: "secret", optional: true }),
       CF_D1_DATABASE_ID: envField.string({ context: "server", access: "secret", optional: true }),
       CF_API_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
+      // Edge route caching (#95) master switch. OFF by default so merging never
+      // risks an editor regression: Cloudflare's edge cache is keyed by URL and
+      // does NOT bypass on a custom cookie by default, so a cached public page
+      // could be served to an editor (they'd see published content without the
+      // inline-edit hooks). Flip to true ONLY after adding a Cloudflare Cache
+      // Rule that bypasses the cache when the `louise_edit` cookie is present
+      // (the CDN half of "bypass in edit mode"). Until then, published pages
+      // render uncached — correct, just not yet accelerated.
+      LOUISE_EDGE_CACHE: envField.boolean({
+        context: "server",
+        access: "public",
+        default: false,
+      }),
     },
   },
   vite: {
