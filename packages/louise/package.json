@@ -177,6 +177,7 @@
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
     "happy-dom": "^20.10.6",
+    "harper.js": "^2.4.0",
     "prosekit": "^0.21.4",
     "solid-js": "^1.9.14",
     "typescript": "^5.8.0",
@@ -194,6 +195,7 @@
     "astro": "^7.0.6",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.0",
+    "harper.js": "^2.4.0",
     "prosekit": "^0.21.4",
     "solid-js": "^1.9.14"
   },
@@ -223,6 +225,9 @@
       "optional": true
     },
     "drizzle-orm": {
+      "optional": true
+    },
+    "harper.js": {
       "optional": true
     },
     "prosekit": {

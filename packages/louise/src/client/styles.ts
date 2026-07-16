@@ -1309,6 +1309,44 @@ const CSS = `
 .louise-og-card { display: block; width: 100%; height: 100%; line-height: 0; }
 .louise-og-card svg { display: block; width: 100%; height: 100%; }
 .louise-og-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Grammar/spelling checker (#110): a wavy red underline on issues + a small
+   suggestion popover (appended to <body>, so it needs a very high z-index to sit
+   above the editor chrome). */
+.louise-grammar-issue {
+  text-decoration: underline wavy #dc2626;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.louise-grammar-popover {
+  position: absolute;
+  z-index: 2147483000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  font-size: 13px;
+}
+.louise-grammar-popover-msg { padding: 4px 6px 6px; color: #475569; font-size: 12px; line-height: 1.35; }
+.louise-grammar-suggest {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+.louise-grammar-suggest:hover { background: #f1f5f9; }
+.louise-grammar-popover-none { padding: 4px 8px 6px; color: #94a3b8; font-size: 12px; }
 `;
 
 /** Google Fonts request for the brand type — Roboto Flex (variable). */

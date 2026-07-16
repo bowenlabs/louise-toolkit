@@ -75,6 +75,9 @@ importers:
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
+      harper.js:
+        specifier: ^2.4.0
+        version: 2.4.0
       prosekit:
         specifier: ^0.21.4
         version: 0.21.4(@shikijs/types@4.3.1)(@types/hast@3.0.5)(prosemirror-model@1.25.9)(prosemirror-state@1.4.4)(prosemirror-transform@1.12.0)(prosemirror-view@1.42.0)(solid-js@1.9.14)
@@ -3382,6 +3385,9 @@ packages:
   happy-dom@20.10.6:
     resolution: {integrity: sha512-6QD0ilzDDt93tX44y8tbmZdAcdTRYDhUP+Asgi6pC8Pp5IA3cvaZGyoVN/EGtlq9ziT65iPuBBn3ASLr6hCgVw==}
     engines: {node: '>=20.0.0'}
+
+  harper.js@2.4.0:
+    resolution: {integrity: sha512-tFSoBJ9MfVoIVYBCrUXS0ovJr6uZ9l4HjGmpaEcsm7Ea/OnBf+LPSwgcVJUfHQVktMmuWyYXoV2ejUU1HnXkug==}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -8584,6 +8590,10 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  harper.js@2.4.0:
+    dependencies:
+      fflate: 0.8.3
 
   has-flag@4.0.0: {}
 

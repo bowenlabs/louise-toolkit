@@ -219,6 +219,11 @@ export interface MountLouiseOptions {
    *  On by default; pass `false` to opt out (back to a manual Save button), or an
    *  object to tune the debounce (`{ debounceMs }`). */
   autoSave?: AutoSaveOption;
+  /** Enable the Harper grammar/spelling checker (#110) on rich-text fields. Off by
+   *  default; when on, the WASM checker is lazy-loaded (runs on-device — the text
+   *  never leaves the browser) and issues are underlined with click-to-apply
+   *  suggestions. English-only for now. */
+  grammar?: boolean;
 }
 
 export function mountLouise(opts: MountLouiseOptions): void {
@@ -400,7 +405,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
           el,
           () => markDirty(fieldKey, () => stegaClean(field.getHTML())),
           undefined,
-          { blocks },
+          { blocks, grammar: opts.grammar },
         );
       } catch (err) {
         console.error(`[louise] rich-text editor failed to mount for ${fieldKey}`, err);

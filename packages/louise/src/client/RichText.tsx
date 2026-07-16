@@ -24,6 +24,7 @@ import {
   useEditorDerivedValue,
 } from "prosekit/solid";
 import { BlockInserter, BlockInserterButton, defineBlocksExtension } from "./blocks.jsx";
+import { defineGrammarExtension } from "./grammar/plugin.js";
 import {
   BlockHandleDraggable,
   BlockHandlePositioner,
@@ -79,7 +80,7 @@ function ResizableImage(props: SolidNodeViewProps) {
   );
 }
 
-function louiseExtension(blocks = false) {
+function louiseExtension(blocks = false, grammar = false) {
   return union(
     defineBasicExtension(),
     defineBlockquote(),
@@ -92,6 +93,9 @@ function louiseExtension(blocks = false) {
     // Builder blocks (#16) — opt-in: the Settings Pages panel composes
     // whole pages, while inline prose fields stay blocks-free.
     ...(blocks ? [defineBlocksExtension()] : []),
+    // Grammar/spelling check (#110) — opt-in: adding the extension lazy-loads
+    // Harper's WASM checker; off by default so nothing extra ships otherwise.
+    ...(grammar ? [defineGrammarExtension()] : []),
   );
 }
 
@@ -110,6 +114,9 @@ export interface RichTextProps {
   toolbar?: boolean;
   /** Enable builder blocks (#16) — the Pages panel opts in. */
   blocks?: boolean;
+  /** Enable the Harper grammar/spelling checker (#110). Off by default; when on,
+   *  the WASM checker is lazy-loaded and issues are underlined with suggestions. */
+  grammar?: boolean;
   class?: string;
 }
 
@@ -336,7 +343,7 @@ function ToolbarDock(props: { focused: () => boolean }) {
 
 export function RichText(props: RichTextProps) {
   const editor = createEditor({
-    extension: louiseExtension(props.blocks ?? false),
+    extension: louiseExtension(props.blocks ?? false, props.grammar ?? false),
     defaultContent: props.initialDoc || "<p></p>",
   });
 
@@ -404,7 +411,7 @@ export function mountRichText(
   el: HTMLElement,
   onChange: () => void,
   initialDoc?: NodeJSON,
-  opts?: { blocks?: boolean },
+  opts?: { blocks?: boolean; grammar?: boolean },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
   let field: RichTextField | null = null;
@@ -414,6 +421,7 @@ export function mountRichText(
       <RichText
         initialDoc={defaultContent}
         blocks={opts?.blocks}
+        grammar={opts?.grammar}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;
