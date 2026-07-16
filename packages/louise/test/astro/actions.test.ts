@@ -182,9 +182,9 @@ describe("louiseSettingsAction", () => {
 
   it("throws NOT_FOUND when there is no settings row", async () => {
     const { db } = makeD1(() => []);
-    await expect(settingsActionFor(db).handler({ siteName: "Acme" }, makeCtx())).rejects.toMatchObject(
-      { code: "NOT_FOUND" },
-    );
+    await expect(
+      settingsActionFor(db).handler({ siteName: "Acme" }, makeCtx()),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 
