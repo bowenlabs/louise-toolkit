@@ -42,6 +42,33 @@ export async function runAi(
   }
 }
 
+/**
+ * Route a Workers AI call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
+ * (#87). Passed to `run` as `options.gateway`, so a gateway `id` puts response
+ * caching (identical prompts are free on repeat), cost caps / rate limits,
+ * provider fallback, retries, and request logging in front of every call —
+ * without changing this module's contract. Omit it and calls go direct.
+ * Hand-defined (a subset of workers-types' `GatewayOptions`) to stay decoupled.
+ */
+export interface AiGatewayOptions {
+  /** The AI Gateway id (created in the Cloudflare dashboard or via the API). */
+  id: string;
+  /** Custom cache key. Gateway caching already keys on the full request (model +
+   *  inputs), so identical calls dedupe by default; set this only to *widen* a
+   *  cache entry (e.g. a content hash) across incidental request variance. */
+  cacheKey?: string;
+  /** Cache TTL in seconds. Caching is on by default; `0` disables it. */
+  cacheTtl?: number;
+  /** Skip the cache for this call (force a fresh model run). */
+  skipCache?: boolean;
+}
+
+/** The `run` options object for a gateway config, or `undefined` when unset — so
+ *  callers thread it inline: `runAi(runner, model, inputs, gatewayRun(gateway))`. */
+function gatewayRun(gateway?: AiGatewayOptions): Record<string, unknown> | undefined {
+  return gateway ? { gateway } : undefined;
+}
+
 /** Default vision model for {@link generateAltText} — image bytes + a prompt in,
  *  a text `description` out. Overridable per call so a site can swap models
  *  without a code change here. */
@@ -63,6 +90,8 @@ export interface AltTextOptions {
   prompt?: string;
   /** Output token cap. Default 128 (alt text is short). */
   maxTokens?: number;
+  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  gateway?: AiGatewayOptions;
 }
 
 /**
@@ -77,12 +106,17 @@ export async function generateAltText(
   image: ArrayBuffer | Uint8Array | number[],
   opts: AltTextOptions = {},
 ): Promise<string | null> {
-  const out = await runAi(runner, opts.model ?? DEFAULT_ALT_TEXT_MODEL, {
-    // Vision models take the image as an array of byte values.
-    image: Array.from(toBytes(image)),
-    prompt: opts.prompt ?? DEFAULT_ALT_TEXT_PROMPT,
-    max_tokens: opts.maxTokens ?? 128,
-  });
+  const out = await runAi(
+    runner,
+    opts.model ?? DEFAULT_ALT_TEXT_MODEL,
+    {
+      // Vision models take the image as an array of byte values.
+      image: Array.from(toBytes(image)),
+      prompt: opts.prompt ?? DEFAULT_ALT_TEXT_PROMPT,
+      max_tokens: opts.maxTokens ?? 128,
+    },
+    gatewayRun(opts.gateway),
+  );
   const text = extractText(out);
   return text ? tidyAltText(text) : null;
 }
@@ -147,6 +181,8 @@ export interface RewriteOptions {
   model?: string;
   /** Output token cap. Default 512. */
   maxTokens?: number;
+  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  gateway?: AiGatewayOptions;
 }
 
 /**
@@ -164,16 +200,21 @@ export async function rewriteText(
   const input = text.trim();
   if (!input) return null;
   const instruction = REWRITE_INSTRUCTIONS[opts.mode ?? "tighten"];
-  const out = await runAi(runner, opts.model ?? DEFAULT_TEXT_MODEL, {
-    messages: [
-      {
-        role: "system",
-        content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
-      },
-      { role: "user", content: input },
-    ],
-    max_tokens: opts.maxTokens ?? 512,
-  });
+  const out = await runAi(
+    runner,
+    opts.model ?? DEFAULT_TEXT_MODEL,
+    {
+      messages: [
+        {
+          role: "system",
+          content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+        },
+        { role: "user", content: input },
+      ],
+      max_tokens: opts.maxTokens ?? 512,
+    },
+    gatewayRun(opts.gateway),
+  );
   const result = extractText(out);
   return result ? unwrapModelText(result) || null : null;
 }
@@ -190,6 +231,8 @@ export interface SeoOptions {
   maxTokens?: number;
   /** Max chars of `content` sent to the model (keeps the prompt bounded). Default 4000. */
   maxContentChars?: number;
+  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  gateway?: AiGatewayOptions;
 }
 
 /** Search engines truncate around these; keep suggestions within them. */
@@ -209,19 +252,24 @@ export async function suggestSeo(
 ): Promise<SeoSuggestion | null> {
   const input = content.trim();
   if (!input) return null;
-  const out = await runAi(runner, opts.model ?? DEFAULT_TEXT_MODEL, {
-    messages: [
-      {
-        role: "system",
-        content:
-          `You are an SEO assistant. From the page content, write a concise SEO title ` +
-          `(max ${SEO_TITLE_MAX} characters) and meta description (max ${SEO_DESCRIPTION_MAX} ` +
-          `characters). Reply with ONLY a JSON object: {"title": string, "description": string}.`,
-      },
-      { role: "user", content: input.slice(0, opts.maxContentChars ?? 4000) },
-    ],
-    max_tokens: opts.maxTokens ?? 256,
-  });
+  const out = await runAi(
+    runner,
+    opts.model ?? DEFAULT_TEXT_MODEL,
+    {
+      messages: [
+        {
+          role: "system",
+          content:
+            `You are an SEO assistant. From the page content, write a concise SEO title ` +
+            `(max ${SEO_TITLE_MAX} characters) and meta description (max ${SEO_DESCRIPTION_MAX} ` +
+            `characters). Reply with ONLY a JSON object: {"title": string, "description": string}.`,
+        },
+        { role: "user", content: input.slice(0, opts.maxContentChars ?? 4000) },
+      ],
+      max_tokens: opts.maxTokens ?? 256,
+    },
+    gatewayRun(opts.gateway),
+  );
   const text = extractText(out);
   const parsed = text ? parseJsonObject(text) : null;
   if (!parsed) return null;

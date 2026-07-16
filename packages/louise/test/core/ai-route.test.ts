@@ -113,3 +113,27 @@ describe("aiRoute — seo", () => {
     expect(res.status).toBe(502);
   });
 });
+
+describe("aiRoute — AI Gateway (#87)", () => {
+  it("forwards the configured gateway to the AI runner", async () => {
+    let seen: Record<string, unknown> | undefined;
+    const recording: AiRunner = {
+      run: async (_m, _i, options) => {
+        seen = options;
+        return { response: "Tighter." };
+      },
+    };
+    const r = aiRoute<{ DB: D1Database }>({
+      resolveEditor: () => editor,
+      ai: () => recording,
+      gateway: () => ({ id: "louise-gw", cacheTtl: 60 }),
+    });
+    const res = (await r(
+      req("POST", "/api/louise/ai/rewrite", { text: "a wordy passage" }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(200);
+    expect(seen).toEqual({ gateway: { id: "louise-gw", cacheTtl: 60 } });
+  });
+});

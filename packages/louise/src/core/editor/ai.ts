@@ -11,7 +11,13 @@
 // so the client can hide/disable the assist. Editor-guarded (same-origin + a
 // valid session), since each call spends Workers AI budget.
 
-import { type AiRunner, type RewriteMode, rewriteText, suggestSeo } from "../ai/index.js";
+import {
+  type AiGatewayOptions,
+  type AiRunner,
+  type RewriteMode,
+  rewriteText,
+  suggestSeo,
+} from "../ai/index.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
@@ -31,6 +37,10 @@ export interface AiRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * cleanly absent rather than erroring.
    */
   ai: (env: Env) => AiRunner | undefined;
+  /** Optional AI Gateway routing (#87) for the rewrite/SEO calls — caching, cost
+   *  caps, fallbacks, logging. Given the runtime `env`, return the gateway config
+   *  (or `undefined` to call Workers AI directly). */
+  gateway?: (env: Env) => AiGatewayOptions | undefined;
   /** Mount base. Default `/api/louise/ai`. */
   path?: string;
 }
@@ -58,6 +68,7 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 
     const runner = cfg.ai(env);
     if (!runner) return json({ error: "AI not available" }, 503);
+    const gateway = cfg.gateway?.(env);
 
     const body = await request.json().catch(() => null);
 
@@ -66,6 +77,7 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (!parsed.ok) return json({ error: "Invalid body" }, 400);
       const text = await rewriteText(runner, parsed.value.text, {
         mode: parsed.value.mode as RewriteMode | undefined,
+        gateway,
       });
       // Best-effort helper returns null when the model errored / gave nothing;
       // 502 so the client can leave the original text untouched.
@@ -76,7 +88,7 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // action === "seo"
     const parsed = await standardValidate(SEO_BODY, body);
     if (!parsed.ok) return json({ error: "Invalid body" }, 400);
-    const seo = await suggestSeo(runner, parsed.value.content);
+    const seo = await suggestSeo(runner, parsed.value.content, { gateway });
     if (!seo) return json({ error: "Suggestion unavailable" }, 502);
     return json(seo);
   };

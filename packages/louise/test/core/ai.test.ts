@@ -14,16 +14,26 @@ import {
 /** A fake runner that returns a canned output and records the call. */
 function runner(output: unknown): {
   runner: AiRunner;
-  calls: { model: string; inputs: Record<string, unknown> }[];
+  calls: { model: string; inputs: Record<string, unknown>; options?: Record<string, unknown> }[];
 } {
-  const calls: { model: string; inputs: Record<string, unknown> }[] = [];
+  const calls: {
+    model: string;
+    inputs: Record<string, unknown>;
+    options?: Record<string, unknown>;
+  }[] = [];
   return {
     calls,
     runner: {
-      run: vi.fn(async (model: string, inputs: Record<string, unknown>) => {
-        calls.push({ model, inputs });
-        return output;
-      }),
+      run: vi.fn(
+        async (
+          model: string,
+          inputs: Record<string, unknown>,
+          options?: Record<string, unknown>,
+        ) => {
+          calls.push({ model, inputs, options });
+          return output;
+        },
+      ),
     },
   };
 }
@@ -184,5 +194,29 @@ describe("suggestSeo", () => {
 
   it("returns null when the reply isn't parseable JSON", async () => {
     expect(await suggestSeo(runner("no json here").runner, "x")).toBeNull();
+  });
+});
+
+describe("AI Gateway routing (#87)", () => {
+  const gw = { id: "louise-gw", cacheTtl: 3600 };
+
+  it("threads the gateway config into the run options of each helper", async () => {
+    const alt = runner({ description: "a cat" });
+    await generateAltText(alt.runner, new Uint8Array([1]), { gateway: gw });
+    expect(alt.calls[0].options).toEqual({ gateway: gw });
+
+    const rw = runner({ response: "Tighter." });
+    await rewriteText(rw.runner, "a wordy passage", { gateway: gw });
+    expect(rw.calls[0].options).toEqual({ gateway: gw });
+
+    const seo = runner({ response: '{"title":"T","description":"D"}' });
+    await suggestSeo(seo.runner, "page content", { gateway: gw });
+    expect(seo.calls[0].options).toEqual({ gateway: gw });
+  });
+
+  it("passes no gateway option when unset (calls Workers AI directly)", async () => {
+    const alt = runner({ description: "a cat" });
+    await generateAltText(alt.runner, new Uint8Array([1]));
+    expect(alt.calls[0].options).toBeUndefined();
   });
 });
