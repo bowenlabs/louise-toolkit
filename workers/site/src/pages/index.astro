@@ -19,7 +19,7 @@ import monogram from "../assets/louise-monogram.svg?raw";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import Sections from "../components/Sections.astro";
 import SectionsMount from "../components/SectionsMount.astro";
-import { latestDraftSections } from "../lib/louise/drafts.js";
+import { latestDraftSections, resumeReadSession } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 
 // SSR: the marketing app is `output: server` for Louise, and a prerendered
@@ -34,7 +34,14 @@ const editMode = Astro.locals.editMode;
 // View mode renders the published main row; edit mode resumes the latest draft
 // (saved via the sections dock) so work-in-progress is visible until published.
 const published = (home?.sections ?? []) as Record<string, unknown>[];
-const draft = editMode && home ? await latestDraftSections(DB, home.id, DRAFTS) : null;
+// Resume through a Sessions-API read anchored at the last auto-save's bookmark
+// so the draft is read-your-writes even behind D1 read replication (#69).
+let draft: Record<string, unknown>[] | null = null;
+if (editMode && home) {
+  const resume = resumeReadSession(DB, Astro.cookies);
+  draft = await latestDraftSections(resume.client, home.id, DRAFTS);
+  resume.commit();
+}
 const sections = draft ?? published;
 
 const NAV = [

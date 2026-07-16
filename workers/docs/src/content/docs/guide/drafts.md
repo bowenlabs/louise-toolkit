@@ -94,15 +94,67 @@ View mode renders the live main row. In **edit mode**, resume the latest draft s
 work-in-progress is visible until published — query the newest `status: 'draft'`
 version for the page and render its content, falling back to the main row.
 
-:::note[Read-your-writes with D1 read replication]
+### Read-your-writes behind read replication
+
 Resuming a draft reads back what auto-save just wrote. On a default D1 database
-this is always consistent (reads hit the primary). If you enable [D1 read
-replication](https://developers.cloudflare.com/d1/best-practices/read-replication/),
-route the editor's reads through the **Sessions API** (`env.DB.withSession(bookmark)`,
-persisting the bookmark across requests) so a resumed draft is never served stale
-from a lagging replica. Writes always go to the primary, so this only affects the
-read path.
-:::
+this is always consistent (reads hit the primary). Enable [D1 read
+replication](https://developers.cloudflare.com/d1/best-practices/read-replication/)
+and a resume read can land on a replica that hasn't caught up to the write yet —
+"my edit vanished." The toolkit closes that gap with the **D1 Sessions API**, and
+it's wired for you:
+
+- The draft **write** (auto-save) runs through a `first-primary` session, so the
+  write hits the primary and the session's bookmark advances past it. The route
+  persists that bookmark in an HttpOnly `louise_d1_bookmark` cookie
+  (`serializeD1BookmarkCookie`).
+- The **resume read** opens a session anchored at that cookie
+  (`resumeReadSession(env.DB, Astro.cookies)`) and hands the session to
+  `latestDraftSections` / `latestDraftBody`, so the read is guaranteed to see the
+  write. The cookie round-trips automatically — no client code.
+
+Writes always target the primary, so this only shapes the read path. With
+replication **off** (or on a runtime without the Sessions API) it degrades to the
+raw binding — behaviour is identical, so the seam is safe to ship before you flip
+replication on.
+
+```ts
+// Edit-mode resume, anchored at the last auto-save's bookmark (see the site's
+// index.astro / [...slug].astro). commit() persists the advanced bookmark.
+import { resumeReadSession, latestDraftSections } from "./lib/louise/drafts.js";
+
+let draft = null;
+if (editMode && home) {
+  const resume = resumeReadSession(env.DB, Astro.cookies);
+  draft = await latestDraftSections(resume.client, home.id, env.DRAFTS);
+  resume.commit();
+}
+```
+
+The lower-level seam lives in `louise-toolkit/db`: `openD1Session(DB, constraint)`
+returns a session (or the raw binding as a fallback), `d1Bookmark(client)` reads
+the current bookmark, and `db(session)` accepts either — Drizzle only calls
+`prepare`/`batch`, which a session implements.
+
+#### Enabling replication on your database
+
+There's no wrangler command yet — enable it in the dashboard (**D1 → your
+database → Settings → Enable Read Replication**), or via the REST API with a token
+that has **D1:Edit**:
+
+```sh
+# Turn read replication on (auto mode). No extra cost — still billed on rows
+# read/written. Replace the account and database ids.
+curl -X PUT \
+  "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database/$D1_DATABASE_ID" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"read_replication": {"mode": "auto"}}'
+
+# Verify it took (expect .result.read_replication.mode == "auto"):
+curl -s \
+  "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database/$D1_DATABASE_ID" \
+  -H "Authorization: Bearer $CF_API_TOKEN" | jq '.result.read_replication'
+```
 
 Skip **superseded** drafts: ignore any draft whose `id` is at or below the live
 row's `published_version_id`. Publishing a version stamps `published_version_id`

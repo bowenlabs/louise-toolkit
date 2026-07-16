@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "louise-toolkit/db";
 import LouiseEditor from "../components/LouiseEditor.astro";
 import SiteChrome from "../components/SiteChrome.astro";
-import { latestDraftBody } from "../lib/louise/drafts.js";
+import { latestDraftBody, resumeReadSession } from "../lib/louise/drafts.js";
 import { pages } from "../schema.js";
 import "louise-toolkit/theme/fonts.css";
 import "../styles/louise.css";
@@ -25,7 +25,14 @@ if (!page || (page.status !== "published" && !Astro.locals.editMode)) {
 // View mode renders the published body; edit mode resumes the latest still-draft
 // version's body so an editor sees their work-in-progress (staged via the bar's
 // Save draft → /versions) until they publish, mirroring the sections workflow.
-const draftBody = Astro.locals.editMode ? await latestDraftBody(DB, page.id, DRAFTS) : null;
+// Resume through a Sessions-API read anchored at the last auto-save's bookmark
+// so the draft is read-your-writes even behind D1 read replication (#69).
+let draftBody: string | null = null;
+if (Astro.locals.editMode) {
+  const resume = resumeReadSession(DB, Astro.cookies);
+  draftBody = await latestDraftBody(resume.client, page.id, DRAFTS);
+  resume.commit();
+}
 const body = draftBody ?? page.body;
 
 const title = page.seoTitle || page.title;

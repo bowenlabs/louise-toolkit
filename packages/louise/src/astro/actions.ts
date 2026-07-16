@@ -30,6 +30,7 @@
 
 import { z } from "astro/zod";
 import type { EditorSession } from "../core/auth/types.js";
+import { D1_BOOKMARK_COOKIE } from "../core/db/index.js";
 import { applyFieldSave, type SaveCollectionConfig } from "../core/editor/save.js";
 import { applySettingsPatch, type SettingsPatchConfig } from "../core/editor/settings.js";
 import type { EditorRouteEnv } from "../core/editor/shared.js";
@@ -57,6 +58,12 @@ export interface EditorActionContext {
   locals: {
     editor?: unknown;
     runtime?: { env: unknown };
+  };
+  /** Astro's `AstroCookies` (structurally). Used to persist the D1 session
+   *  bookmark for read-your-writes on draft resume (#69). Optional so a bare
+   *  test context still satisfies this type. */
+  cookies?: {
+    set(name: string, value: string, options?: Record<string, unknown>): void;
   };
 }
 
@@ -251,6 +258,18 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
         input.data,
       );
       if (!result.ok) throwActionError(resolved.ActionError, result.status, result.error);
+      // Persist the D1 bookmark so this Action's draft is read-your-writes on the
+      // next edit-mode load behind read replication (#69). Mirrors the raw
+      // versionsRoute's Set-Cookie; no-op on a non-replicated D1.
+      if (result.bookmark) {
+        context.cookies?.set(D1_BOOKMARK_COOKIE, result.bookmark, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          maxAge: 60 * 60 * 8,
+        });
+      }
       return result.body;
     },
   };

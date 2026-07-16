@@ -18,7 +18,7 @@ import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm
 import type { EditorSession } from "../auth/types.js";
 import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
-import { db } from "../db/index.js";
+import { d1Bookmark, db, openD1Session, serializeD1BookmarkCookie } from "../db/index.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
@@ -86,10 +86,12 @@ export interface VersionsRouteConfig<
 
 /** The outcome of {@link applySaveDraft}: on success the exact JSON body + status
  *  the raw route returns (a created `version` at 201, or `{ buffered: true }` at
- *  200 when a KV write is coalesced); on failure a status + message (+ optional
+ *  200 when a KV write is coalesced), plus the D1 session `bookmark` to persist
+ *  for read-your-writes on resume (#69) — `undefined` on a non-replicated D1 /
+ *  runtime without the Sessions API; on failure a status + message (+ optional
  *  per-field `violations` from a `validate` throw). */
 export type SaveDraftResult =
-  | { ok: true; status: number; body: Record<string, unknown> }
+  | { ok: true; status: number; body: Record<string, unknown>; bookmark?: string }
   | { ok: false; status: number; error: string; violations?: unknown };
 
 /**
@@ -108,7 +110,12 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   id: number,
   input: Record<string, unknown>,
 ): Promise<SaveDraftResult> {
-  const database = db(env.DB);
+  // Run this save's D1 work through a `first-primary` session: the write hits
+  // the primary and the session's bookmark advances past it, so a later resume
+  // read anchored at that bookmark is guaranteed to see this draft even behind
+  // read replication (#69). Degrades to the raw binding without the Sessions API.
+  const session = openD1Session(env.DB, "first-primary");
+  const database = db(session);
   const pkCol = getTableConfig(deps.table).columns.find((c) => c.primary) as SQLiteColumn;
   const fieldKeys = Object.keys(flattenFields(deps.config.fields));
   const context = { session: editor };
@@ -162,18 +169,30 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
     if (shouldFlushBuffer(buffered, now, flushMs)) {
       const version = await api.saveDraft(context, id, merged as never);
       await writeDraftBuffer(kv, bufferKey, { data: merged, updatedAt: now, flushedAt: now });
-      return { ok: true, status: 201, body: { version, buffered: false } };
+      return {
+        ok: true,
+        status: 201,
+        body: { version, buffered: false },
+        bookmark: d1Bookmark(session) ?? undefined,
+      };
     }
     await writeDraftBuffer(kv, bufferKey, {
       data: merged,
       updatedAt: now,
       flushedAt: buffered ? buffered.flushedAt : now,
     });
-    return { ok: true, status: 200, body: { buffered: true } };
+    // No D1 write this time (coalesced into KV), but the reads above still
+    // advanced the bookmark — persist it so resume stays consistent.
+    return {
+      ok: true,
+      status: 200,
+      body: { buffered: true },
+      bookmark: d1Bookmark(session) ?? undefined,
+    };
   }
 
   const version = await api.saveDraft(context, id, merged as never);
-  return { ok: true, status: 201, body: { version } };
+  return { ok: true, status: 201, body: { version }, bookmark: d1Bookmark(session) ?? undefined };
 }
 
 /** Extract per-field violations from a thrown validation error, if present. */
@@ -292,7 +311,12 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           result.status,
         );
       }
-      return json(result.body, result.status);
+      // Persist the D1 bookmark in the editor cookie so the next edit-mode load
+      // resumes this draft read-your-writes even behind read replication (#69).
+      // keepalive auto-save fetches still process Set-Cookie, and it round-trips
+      // on the following top-level navigation — no client code needed.
+      const setCookie = serializeD1BookmarkCookie(result.bookmark ?? null);
+      return json(result.body, result.status, setCookie ? { "set-cookie": setCookie } : undefined);
     }
 
     // POST /:id/publish — promote a draft to live. `versionId` in the body, else
