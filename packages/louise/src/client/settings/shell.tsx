@@ -21,6 +21,7 @@
 import { QueryClientProvider } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, onCleanup, Show } from "solid-js";
 import { render } from "solid-js/web";
+import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
@@ -54,6 +55,9 @@ export interface SettingsConfig {
   builtInPages?: BuiltInPageRef[];
   /** Starter layouts offered under "New page from template" in the Pages panel. */
   pageTemplates?: PageTemplate[];
+  /** Match the Pages panel's live share-card preview to the site's real OG card
+   *  (brand, colours, footer, font). Omit for the toolkit's default card. */
+  ogCard?: OgCardOptions;
   /** Override which framework Settings groups render. Omit for the defaults;
    *  pass a subset (or `[]`) so a site whose settings don't map to
    *  `siteSettingsColumns` shows no empty base fields — its config lives in
@@ -169,7 +173,11 @@ export function Settings(props: SettingsConfig) {
               <MediaPanel />
             </Show>
             <Show when={overlay() === "pages"}>
-              <PagesPanel builtInPages={props.builtInPages} pageTemplates={props.pageTemplates} />
+              <PagesPanel
+                builtInPages={props.builtInPages}
+                pageTemplates={props.pageTemplates}
+                ogCard={props.ogCard}
+              />
             </Show>
             <Show when={overlay() === "settings"}>
               <SettingsPanel

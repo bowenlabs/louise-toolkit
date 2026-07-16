@@ -1294,6 +1294,21 @@ const CSS = `
 .louise-form-status { font-size: 14px; }
 .louise-form-status[data-status="success"] { color: var(--louise-green); }
 .louise-form-status[data-status="error"] { color: #dc2626; }
+
+/* Live OG / social-card preview (pages drawer). The box holds the OG aspect
+   ratio; the generated card is inline SVG (fills exactly, same ratio), a custom
+   image is object-fit: cover to mimic how a share card crops it. */
+.louise-og-preview {
+  aspect-ratio: 1200 / 630;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+}
+.louise-og-card { display: block; width: 100%; height: 100%; line-height: 0; }
+.louise-og-card svg { display: block; width: 100%; height: 100%; }
+.louise-og-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 `;
 
 /** Google Fonts request for the brand type — Roboto Flex (variable). */
