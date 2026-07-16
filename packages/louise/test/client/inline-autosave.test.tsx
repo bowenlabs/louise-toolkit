@@ -156,3 +156,72 @@ describe("mountLouise — auto-save (inline live fields)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("mountLouise — auto-save via Astro Action (#138)", () => {
+  it("routes a normal debounced live save through the injected Action, not the raw route", async () => {
+    const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
+    const save = vi.fn(async (_input: unknown) => ({ ok: true }));
+    const el = addField("settings", "1", "heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 }, actions: { save } });
+
+    type(el, "new headline");
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][0]).toMatchObject({
+      collection: "settings",
+      key: "1",
+      field: "heroHeadline",
+      value: "new headline",
+    });
+    expect(fetchMock).not.toHaveBeenCalled(); // the Action replaced the raw fetch
+  });
+
+  it("falls back to the raw keepalive fetch on unload, even with an Action injected", async () => {
+    const fetchMock = stubFetch(() => new Response(null, { status: 200 }));
+    const save = vi.fn(async (_input: unknown) => ({ ok: true }));
+    const el = addField("settings", "1", "heroHeadline", "");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 5000 }, actions: { save } });
+
+    type(el, "urgent");
+    // Tab hidden → the flush must use keepalive (an Action can't), so the save
+    // survives the navigation.
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
+  });
+
+  it("routes a versioned draft save through the injected saveDraft Action", async () => {
+    const fetchMock = stubFetch(
+      () =>
+        new Response(JSON.stringify({ version: { id: 9 } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const saveDraft = vi.fn(async (_input: unknown) => ({ version: { id: 9 } }));
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({
+      onOpenSettings: () => {},
+      autoSave: { debounceMs: 50 },
+      versionedPageId: 5,
+      actions: { saveDraft },
+    });
+
+    type(el, "draft text");
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(saveDraft.mock.calls[0][0]).toEqual({ id: 5, data: { heroHeadline: "draft text" } });
+    // The Action handled the save — no POST to the raw versions route. (A GET to
+    // load the draft-state for the Publish button on mount is fine.)
+    const posts = fetchMock.mock.calls.filter(
+      ([, init]) => ((init as RequestInit | undefined)?.method ?? "GET").toUpperCase() === "POST",
+    );
+    expect(posts).toHaveLength(0);
+  });
+});

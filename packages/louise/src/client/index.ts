@@ -224,6 +224,29 @@ export interface MountLouiseOptions {
    *  never leaves the browser) and issues are underlined with click-to-apply
    *  suggestions. English-only for now. */
   grammar?: boolean;
+  /**
+   * Typed Astro Action callables for the **normal** (debounced) auto-save path
+   * (#138). The site injects `actions.louise.save` / `actions.louise.saveDraft`
+   * — which it can import from `astro:actions`; this framework-agnostic client
+   * can't. Each must **resolve on success and reject on failure** (the site wraps
+   * the action's `{ data, error }` accordingly).
+   *
+   * The **unload** flush (tab-hide / page-hide / `beforeunload`) always uses the
+   * raw `keepalive` fetch instead — Astro's action client can't set `keepalive`,
+   * so a save fired while navigating away would be dropped. Omit `actions` to keep
+   * every save on the raw `/api/louise/*` routes (unchanged).
+   */
+  actions?: {
+    /** Live field save — mirrors `louiseSaveAction`'s input. */
+    save?: (input: {
+      collection: string;
+      key: string;
+      field: string;
+      value: unknown;
+    }) => Promise<unknown>;
+    /** Versioned draft save — mirrors `louiseSaveDraftAction`'s input. */
+    saveDraft?: (input: { id: number; data: Record<string, unknown> }) => Promise<unknown>;
+  };
 }
 
 export function mountLouise(opts: MountLouiseOptions): void {
@@ -250,6 +273,10 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // Assigned once the save fns exist (below); markDirty only runs on user input,
   // long after, so the null window is never hit in practice.
   let auto: Autosave | null = null;
+  // True while the page is hiding/unloading (set by the leave handlers below).
+  // The save fns fall back to a raw `keepalive` fetch then — an Astro Action
+  // can't keepalive, so its request would be aborted mid-navigation (#138).
+  let unloading = false;
 
   const markDirty = (fieldKey: string, getter: ValueGetter) => {
     dirty.set(fieldKey, getter);
@@ -270,15 +297,22 @@ export function mountLouise(opts: MountLouiseOptions): void {
     try {
       for (const [fieldKey, getter] of Array.from(dirty.entries())) {
         const [collection, key, field] = fieldKey.split(":");
-        const res = await fetch("/api/louise/save", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ collection, key, field, value: getter() }),
-          // Survive a flush fired during page-hide / unload (a normal fetch is
-          // aborted mid-navigation).
-          keepalive: true,
-        });
-        if (!res.ok) throw new Error(`save failed: ${res.status}`);
+        const input = { collection, key, field, value: getter() };
+        // Normal path → the typed Action when the site injected it; unload path
+        // → the raw `keepalive` fetch (the Action client can't keepalive) (#138).
+        if (opts.actions?.save && !unloading) {
+          await opts.actions.save(input);
+        } else {
+          const res = await fetch("/api/louise/save", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(input),
+            // Survive a flush fired during page-hide / unload (a normal fetch is
+            // aborted mid-navigation).
+            keepalive: true,
+          });
+          if (!res.ok) throw new Error(`save failed: ${res.status}`);
+        }
       }
       // Only clear if nothing was edited mid-save; otherwise leave the map dirty
       // and let the auto-saver's re-run persist the newer value.
@@ -303,14 +337,20 @@ export function mountLouise(opts: MountLouiseOptions): void {
     const changed: Record<string, unknown> = {};
     for (const [fieldKey, getter] of dirty) changed[fieldKey.split(":")[2]] = getter();
     try {
-      const res = await fetch(`/api/louise/pages/${pageId}/versions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(changed),
-        // Survive a flush fired during page-hide / unload.
-        keepalive: true,
-      });
-      if (!res.ok) throw new Error(`draft failed: ${res.status}`);
+      // Normal path → the typed Action when injected; unload path → the raw
+      // `keepalive` fetch (the Action client can't keepalive) (#138).
+      if (opts.actions?.saveDraft && pageId !== undefined && !unloading) {
+        await opts.actions.saveDraft({ id: pageId, data: changed });
+      } else {
+        const res = await fetch(`/api/louise/pages/${pageId}/versions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(changed),
+          // Survive a flush fired during page-hide / unload.
+          keepalive: true,
+        });
+        if (!res.ok) throw new Error(`draft failed: ${res.status}`);
+      }
       // Leave dirty intact if an edit landed mid-save (auto-saver reschedules).
       if (editGen === gen) {
         dirty.clear();
@@ -434,13 +474,19 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // warning while edits are genuinely unsaved. mountLouise runs once per page
   // lifetime (idempotent guard above), so these window listeners need no teardown.
   if (autoSaveOn && fieldEls.length > 0) {
-    const flush = () => auto?.flush();
+    // Mark the page as leaving so the flush routes through the raw `keepalive`
+    // fetch, not an Action (#138). A tab-switch back to visible clears it.
+    const leave = () => {
+      unloading = true;
+      auto?.flush();
+    };
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") flush();
+      if (document.visibilityState === "hidden") leave();
+      else unloading = false;
     });
-    window.addEventListener("pagehide", flush);
+    window.addEventListener("pagehide", leave);
     window.addEventListener("beforeunload", (e) => {
-      flush();
+      leave();
       if (dirty.size > 0) {
         e.preventDefault();
         e.returnValue = "";
