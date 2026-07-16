@@ -10,6 +10,7 @@
 // site's. The table is all-scalar, so the registry rows use raw D1.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
+import { type AiRunner, type AltTextOptions, generateAltText } from "../ai/index.js";
 import {
   deleteMedia,
   findMediaReferences,
@@ -54,6 +55,16 @@ export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
   limit?: number;
   /** Mount path. Default `/api/louise/media`. */
   path?: string;
+  /**
+   * Auto-generate alt text for uploaded images via Workers AI (#75). Given the
+   * runtime `env`, return the AI runner (`env.AI`) to fill each new upload's
+   * `alt` from the image; return `undefined` (or omit) to skip — uploads then
+   * behave exactly as before (empty `alt`, set by hand in the media panel).
+   * Best-effort: a model error or missing binding never fails the upload.
+   */
+  altText?: (env: Env) => AiRunner | undefined;
+  /** Model/prompt/token options for {@link altText} generation. */
+  altTextOptions?: AltTextOptions;
 }
 
 // PATCH body: `key` identifies the asset; `alt`/`caption` are the only editable
@@ -109,11 +120,21 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
         images: env.IMAGES,
       });
       if (!put.ok) return json({ error: put.error }, put.status);
+      // Best-effort AI alt text (#75), opt-in via `altText`. `generateAltText`
+      // never throws and returns null on any failure, so a slow/erroring model
+      // just leaves `alt` empty — the upload still succeeds. `file` is a Blob, so
+      // re-reading its bytes here (after putMedia) is safe.
+      const aiRunner = config.altText?.(env);
+      const alt =
+        aiRunner && put.contentType.startsWith("image/")
+          ? await generateAltText(aiRunner, await file.arrayBuffer(), config.altTextOptions)
+          : null;
       // Register the asset. uploaded_at is unix seconds to match Drizzle's
       // `integer({ mode: "timestamp" })` reads on the same column. width/height
-      // are recorded when the header could be read (else NULL — "when known").
+      // are recorded when the header could be read (else NULL — "when known");
+      // `alt` is the AI suggestion when generated, else NULL (set later via PATCH).
       await env.DB.prepare(
-        `INSERT INTO ${ident(name)} ("key","content_type","size","width","height","uploaded_at") VALUES (?1,?2,?3,?4,?5,?6)`,
+        `INSERT INTO ${ident(name)} ("key","content_type","size","width","height","alt","uploaded_at") VALUES (?1,?2,?3,?4,?5,?6,?7)`,
       )
         .bind(
           put.key,
@@ -121,6 +142,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
           put.size,
           put.width,
           put.height,
+          alt,
           Math.floor(Date.now() / 1000),
         )
         .run();
@@ -131,6 +153,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
           url: mediaUrl(env.MEDIA_URL, put.key),
           width: put.width,
           height: put.height,
+          alt,
         },
         201,
       );

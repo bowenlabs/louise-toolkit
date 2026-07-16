@@ -77,6 +77,11 @@
       "import": "./dist/core/db/index.js",
       "default": "./dist/core/db/index.js"
     },
+    "./ai": {
+      "types": "./dist/core/ai/index.d.ts",
+      "import": "./dist/core/ai/index.js",
+      "default": "./dist/core/ai/index.js"
+    },
     "./commerce": {
       "types": "./dist/core/commerce/index.d.ts",
       "import": "./dist/core/commerce/index.js",

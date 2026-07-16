@@ -43,6 +43,7 @@ const rawLoader = {
 export default {
   pack: {
     entry: [
+      "src/core/ai/index.ts",
       "src/core/auth/index.ts",
       "src/astro/index.ts",
       "src/client/index.ts",
