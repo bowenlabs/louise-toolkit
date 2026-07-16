@@ -74,6 +74,23 @@ The library is packaged with `vp pack` (tsdown/Rolldown under the hood: multi-en
 readme and [louisetoolkit.com/docs](https://louisetoolkit.com/docs) for the full guide and API
 reference.
 
+## Roadmap
+
+Louise is **pre-1.0** and dogfooded on 4 production sites. The current push —
+Cloudflare platform depth, Astro-native APIs, and an agent-editable MCP server —
+is tracked in the open:
+
+- [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1) — the active milestone.
+- [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102) — the umbrella issue tying the work together.
+
+## Contributing
+
+Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the dev
+setup (`vp`), the lint/format split, and the changeset + PR conventions. Because
+Louise is pre-1.0, the many subpath exports may still change between minor
+releases; breaking changes ship as a `minor` bump and are called out in the
+changeset.
+
 ## License
 
 [MIT](LICENSE) © BowenLabs
