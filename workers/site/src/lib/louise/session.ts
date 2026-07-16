@@ -86,7 +86,9 @@ export async function verifySession(
   const sig = token.slice(dot + 1);
   const key = await hmacKey(env.LOUISE_SESSION_SECRET ?? "");
   const ok = await crypto.subtle
-    .verify("HMAC", key, b64urlDecode(sig), encoder.encode(body))
+    // b64urlDecode returns Uint8Array<ArrayBufferLike>; lib.dom's BufferSource
+    // (TS 5.7+) wants an ArrayBuffer-backed view — fine at the Workers runtime.
+    .verify("HMAC", key, b64urlDecode(sig) as BufferSource, encoder.encode(body))
     .catch(() => false);
   if (!ok) return null;
   let payload: SessionPayload;

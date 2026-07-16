@@ -60,7 +60,9 @@ function ogCacheStore(): OgImageCache {
     async put(key, bytes, contentType) {
       await caches.default.put(
         req(key),
-        new Response(bytes, {
+        // bytes is Uint8Array<ArrayBufferLike>; lib.dom's BodyInit (TS 5.7+) wants
+        // an ArrayBuffer-backed view — fine at the Workers runtime.
+        new Response(bytes as BodyInit, {
           headers: {
             "content-type": contentType ?? "image/png",
             "cache-control": "public, max-age=31536000, immutable",
@@ -81,7 +83,8 @@ async function handleOgImage(url: URL): Promise<Response> {
     render: ogRenderer,
     cache: ogCacheStore(),
   });
-  return new Response(bytes, {
+  // bytes: Uint8Array<ArrayBufferLike> — see the cast note in ogCacheStore.
+  return new Response(bytes as BodyInit, {
     headers: {
       "content-type": "image/png",
       "cache-control": "public, max-age=3600",

@@ -6,11 +6,13 @@
 ---
 
 <script>
+  import type { SectionItem } from "louise-toolkit/client";
+
   if (document.body.dataset.louiseEdit === "1") {
     const el = document.querySelector<HTMLElement>("[data-louise-sections]");
     if (el?.dataset.louiseSections) {
       const pageId = Number(el.dataset.louiseSections);
-      let initial: Record<string, unknown>[] = [];
+      let initial: SectionItem[] = [];
       try {
         initial = JSON.parse(el.dataset.louiseSectionsInitial || "[]");
       } catch {

@@ -37,12 +37,22 @@ declare module "*.wasm" {
   export default module;
 }
 
-// Type the `cloudflare:workers` runtime module the whole site reads bindings
-// from (Astro v6+ removed Astro.locals.runtime.env). Without this, `astro check`
-// can't resolve the virtual module — the build transpiles it fine, but the
-// types need declaring here.
-declare module "cloudflare:workers" {
-  export const env: CloudflareEnv;
+// `caches.default` is Cloudflare's per-Worker cache. The tsconfig `lib` includes
+// DOM (Astro needs it for client code), and lib.dom's `CacheStorage` — which has
+// no `default` — wins the global merge over @cloudflare/workers-types', so re-add
+// it here to match the real runtime.
+interface CacheStorage {
+  default: Cache;
+}
+
+// Type the bindings the whole site reads via `import { env } from "cloudflare:workers"`
+// (Astro v6+ removed Astro.locals.runtime.env). `@cloudflare/workers-types` types
+// that `env` as the augmentable `Cloudflare.Env` interface, so we extend it here
+// rather than re-declaring the module — which would shadow the rest of the module's
+// exports (WorkflowEntrypoint, MessageBatch, …). Requires @cloudflare/workers-types
+// to be a devDependency so `tsconfig`'s `types` entry resolves.
+declare namespace Cloudflare {
+  interface Env extends CloudflareEnv {}
 }
 
 // Bindings are read via `import { env } from "cloudflare:workers"` (Astro v6+
