@@ -137,6 +137,11 @@
       "import": "./dist/core/worker/index.js",
       "default": "./dist/core/worker/index.js"
     },
+    "./workflows": {
+      "types": "./dist/core/workflows/index.d.ts",
+      "import": "./dist/core/workflows/index.js",
+      "default": "./dist/core/workflows/index.js"
+    },
     "./errors": {
       "types": "./dist/core/errors.d.ts",
       "import": "./dist/core/errors.js",

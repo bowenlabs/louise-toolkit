@@ -62,6 +62,7 @@ export default {
       "src/core/schema/index.ts",
       "src/core/security/index.ts",
       "src/core/worker/index.ts",
+      "src/core/workflows/index.ts",
       "src/core/editor/index.ts",
       "src/core/errors.ts",
     ],

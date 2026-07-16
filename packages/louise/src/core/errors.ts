@@ -102,6 +102,15 @@ export class LouiseQueueError extends LouiseError {
   }
 }
 
+/** For workflow failures (starting an instance; a step's own throw surfaces
+ *  as-is so Cloudflare Workflows can retry it per the step's config). */
+export class LouiseWorkflowError extends LouiseError {
+  constructor(message: string, cause?: unknown) {
+    super(message, "WORKFLOW_ERROR", cause);
+    this.name = "LouiseWorkflowError";
+  }
+}
+
 /** For content (collection / Local API) failures. */
 export class LouiseContentError extends LouiseError {
   constructor(message: string, cause?: unknown) {
