@@ -57,27 +57,34 @@ const editor = { userId: "u1", email: "e@x.com", name: "Ed", role: "admin" };
 const collections = {
   pages: { table: pages, fields: ["title", "body"], richFields: ["body"] },
 };
-const action = louiseSaveAction({ collections, ActionError: FakeActionError });
 
-// A minimal Astro Action context: the middleware-resolved editor + CF bindings,
-// both off `locals` (the handler's default `getEditor`/`getEnv` read here).
-const makeCtx = (db: D1Database, ed: unknown = editor): EditorActionContext => ({
-  locals: { editor: ed, runtime: { env: { DB: db } } },
-});
+// The Worker `env` is injected via `getEnv` — Astro v6+ removed `locals.runtime.env`,
+// so there is no context default (see resolveDeps). Each factory closes over the
+// per-test fake D1 exactly the way a site closes over `env` from `cloudflare:workers`,
+// so calling a handler only reaches D1 through the injected `getEnv`.
+const saveActionFor = (db: D1Database) =>
+  louiseSaveAction({ collections, ActionError: FakeActionError, getEnv: () => ({ DB: db }) });
+
+// A minimal Astro Action context: just the middleware-resolved editor off `locals`
+// (the handler's default `getEditor` reads here). No `runtime.env` — the env comes
+// from the injected `getEnv`, not the context.
+const makeCtx = (ed: unknown = editor): EditorActionContext => ({ locals: { editor: ed } });
 
 describe("louiseSaveAction", () => {
   it("input schema requires the routing keys", () => {
+    const action = saveActionFor({} as D1Database);
     expect(
       action.input.safeParse({ collection: "pages", key: "1", field: "title", value: "x" }).success,
     ).toBe(true);
     expect(action.input.safeParse({ collection: "pages" }).success).toBe(false);
   });
 
-  it("writes the field and returns ok", async () => {
+  it("resolves the env via the injected getEnv, writes the field, and returns ok", async () => {
     const { db, calls } = makeD1(() => [[1]]); // returning() yields the row
-    const out = await action.handler(
+    // The context carries no env; the only path to D1 is the injected `getEnv`.
+    const out = await saveActionFor(db).handler(
       { collection: "pages", key: "1", field: "title", value: "Hello" },
-      makeCtx(db),
+      makeCtx(),
     );
     expect(out).toEqual({ ok: true });
     expect(calls).toHaveLength(1);
@@ -88,9 +95,9 @@ describe("louiseSaveAction", () => {
 
   it("sanitizes a rich field before storing", async () => {
     const { db, calls } = makeD1(() => [[1]]);
-    await action.handler(
+    await saveActionFor(db).handler(
       { collection: "pages", key: "1", field: "body", value: "<b>hi</b><script>x</script>" },
-      makeCtx(db),
+      makeCtx(),
     );
     // The stored value is the sanitized HTML — the <script> is gone.
     const stored = String(calls[0].binds[0]);
@@ -101,9 +108,9 @@ describe("louiseSaveAction", () => {
   it("throws UNAUTHORIZED without an editor, and never touches D1", async () => {
     const { db, calls } = makeD1(() => []);
     await expect(
-      action.handler(
+      saveActionFor(db).handler(
         { collection: "pages", key: "1", field: "title", value: "x" },
-        makeCtx(db, null),
+        makeCtx(null),
       ),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(calls).toHaveLength(0);
@@ -112,7 +119,10 @@ describe("louiseSaveAction", () => {
   it("throws BAD_REQUEST for an unknown collection", async () => {
     const { db, calls } = makeD1(() => []);
     await expect(
-      action.handler({ collection: "nope", key: "1", field: "title", value: "x" }, makeCtx(db)),
+      saveActionFor(db).handler(
+        { collection: "nope", key: "1", field: "title", value: "x" },
+        makeCtx(),
+      ),
     ).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Unknown collection" });
     expect(calls).toHaveLength(0);
   });
@@ -120,24 +130,32 @@ describe("louiseSaveAction", () => {
   it("throws BAD_REQUEST for an empty value", async () => {
     const { db } = makeD1(() => []);
     await expect(
-      action.handler({ collection: "pages", key: "1", field: "title", value: "" }, makeCtx(db)),
+      saveActionFor(db).handler(
+        { collection: "pages", key: "1", field: "title", value: "" },
+        makeCtx(),
+      ),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("throws NOT_FOUND when no row is updated", async () => {
     const { db } = makeD1(() => []); // returning() yields nothing
     await expect(
-      action.handler({ collection: "pages", key: "999", field: "title", value: "x" }, makeCtx(db)),
+      saveActionFor(db).handler(
+        { collection: "pages", key: "999", field: "title", value: "x" },
+        makeCtx(),
+      ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 
-const settingsAction = louiseSettingsAction({
-  table: siteSettings,
-  columns: ["siteName"],
-  customKeys: ["heroHeadline"],
-  ActionError: FakeActionError,
-});
+const settingsActionFor = (db: D1Database) =>
+  louiseSettingsAction({
+    table: siteSettings,
+    columns: ["siteName"],
+    customKeys: ["heroHeadline"],
+    ActionError: FakeActionError,
+    getEnv: () => ({ DB: db }),
+  });
 
 // One all-null settings row: the singleton read goes through drizzle's `.raw()`,
 // and drizzle skips decoding for null cells, so an all-null array of the right
@@ -149,7 +167,7 @@ const settingsRow = [
 describe("louiseSettingsAction", () => {
   it("patches allowlisted keys and reports the ignored ones", async () => {
     const { db, calls } = makeD1(() => settingsRow);
-    const out = await settingsAction.handler({ siteName: "Acme", bogus: "x" }, makeCtx(db));
+    const out = await settingsActionFor(db).handler({ siteName: "Acme", bogus: "x" }, makeCtx());
     expect(out).toEqual({ ok: true, ignored: ["bogus"] });
     expect(calls.some((c) => /update/i.test(c.sql))).toBe(true);
   });
@@ -157,16 +175,16 @@ describe("louiseSettingsAction", () => {
   it("throws UNAUTHORIZED without an editor, and never touches D1", async () => {
     const { db, calls } = makeD1(() => settingsRow);
     await expect(
-      settingsAction.handler({ siteName: "Acme" }, makeCtx(db, null)),
+      settingsActionFor(db).handler({ siteName: "Acme" }, makeCtx(null)),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(calls).toHaveLength(0);
   });
 
   it("throws NOT_FOUND when there is no settings row", async () => {
     const { db } = makeD1(() => []);
-    await expect(settingsAction.handler({ siteName: "Acme" }, makeCtx(db))).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
+    await expect(settingsActionFor(db).handler({ siteName: "Acme" }, makeCtx())).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    );
   });
 });
 
@@ -175,12 +193,14 @@ const draftConfig = defineCollection({
   fields: { slug: { type: "text" }, title: { type: "text" }, sections: { type: "json" } },
   versions: { drafts: true },
 });
-const saveDraftAction = louiseSaveDraftAction({
-  table: pages,
-  versionsTable: collectionVersionsTable(draftConfig),
-  config: draftConfig,
-  ActionError: FakeActionError,
-});
+const saveDraftActionFor = (db: D1Database) =>
+  louiseSaveDraftAction({
+    table: pages,
+    versionsTable: collectionVersionsTable(draftConfig),
+    config: draftConfig,
+    ActionError: FakeActionError,
+    getEnv: () => ({ DB: db }),
+  });
 
 // The merge-base / KV-buffer happy path saves a draft version to D1 and is
 // covered by the astro-preview E2E against a real local D1 (there is no async
@@ -188,15 +208,16 @@ const saveDraftAction = louiseSaveDraftAction({
 // cover the Action wrapper contract, which short-circuits before that machinery.
 describe("louiseSaveDraftAction", () => {
   it("input schema requires an integer id and a data object", () => {
-    expect(saveDraftAction.input.safeParse({ id: 5, data: { title: "x" } }).success).toBe(true);
-    expect(saveDraftAction.input.safeParse({ data: { title: "x" } }).success).toBe(false);
-    expect(saveDraftAction.input.safeParse({ id: 1.5, data: {} }).success).toBe(false);
+    const action = saveDraftActionFor({} as D1Database);
+    expect(action.input.safeParse({ id: 5, data: { title: "x" } }).success).toBe(true);
+    expect(action.input.safeParse({ data: { title: "x" } }).success).toBe(false);
+    expect(action.input.safeParse({ id: 1.5, data: {} }).success).toBe(false);
   });
 
   it("throws UNAUTHORIZED without an editor, and never touches D1", async () => {
     const { db, calls } = makeD1(() => []);
     await expect(
-      saveDraftAction.handler({ id: 5, data: { title: "x" } }, makeCtx(db, null)),
+      saveDraftActionFor(db).handler({ id: 5, data: { title: "x" } }, makeCtx(null)),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(calls).toHaveLength(0);
   });
@@ -204,7 +225,44 @@ describe("louiseSaveDraftAction", () => {
   it("throws NOT_FOUND when the versioned row does not exist", async () => {
     const { db } = makeD1(() => []); // the parent-row select yields nothing
     await expect(
-      saveDraftAction.handler({ id: 999, data: { title: "x" } }, makeCtx(db)),
+      saveDraftActionFor(db).handler({ id: 999, data: { title: "x" } }, makeCtx()),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+// Regression for #138 / the Astro v6 `locals.runtime.env` removal: there is no
+// context default for the env, so a config that omits `getEnv` is a wiring error
+// that throws at construction — loudly, up front — instead of silently reading an
+// `undefined` env and 500-ing per request (which the old `runtime.env` default did
+// under the peer-dep `astro ^7`). The `as unknown as …` casts drop `getEnv` the way
+// an untyped (JS) caller would, exercising the shared `resolveDeps` guard.
+describe("editor Actions require an injected getEnv", () => {
+  it("louiseSaveAction throws when getEnv is omitted", () => {
+    expect(() =>
+      louiseSaveAction({ collections, ActionError: FakeActionError } as unknown as Parameters<
+        typeof louiseSaveAction
+      >[0]),
+    ).toThrow(/getEnv/);
+  });
+
+  it("louiseSettingsAction throws when getEnv is omitted", () => {
+    expect(() =>
+      louiseSettingsAction({
+        table: siteSettings,
+        columns: ["siteName"],
+        ActionError: FakeActionError,
+      } as unknown as Parameters<typeof louiseSettingsAction>[0]),
+    ).toThrow(/getEnv/);
+  });
+
+  it("louiseSaveDraftAction throws when getEnv is omitted", () => {
+    expect(() =>
+      louiseSaveDraftAction({
+        table: pages,
+        versionsTable: collectionVersionsTable(draftConfig),
+        config: draftConfig,
+        ActionError: FakeActionError,
+      } as unknown as Parameters<typeof louiseSaveDraftAction>[0]),
+    ).toThrow(/getEnv/);
   });
 });

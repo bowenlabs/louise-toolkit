@@ -7,14 +7,21 @@
 //
 //   // site: src/actions/index.ts
 //   import { defineAction, ActionError } from "astro:actions";
+//   import { env } from "cloudflare:workers";
 //   import { louiseSaveAction, louiseSettingsAction } from "louise-toolkit/astro";
 //
 //   export const server = {
 //     louise: {
-//       save: defineAction(louiseSaveAction({ collections, ActionError })),
-//       settings: defineAction(louiseSettingsAction({ ...settingsConfig, ActionError })),
+//       save: defineAction(louiseSaveAction({ collections, ActionError, getEnv: () => env })),
+//       settings: defineAction(louiseSettingsAction({ ...settingsConfig, ActionError, getEnv: () => env })),
 //     },
 //   };
+//
+// The Worker `env` (the D1 binding) is injected via `getEnv`, not read off the
+// context: Astro v6+ removed `Astro.locals.runtime.env`, so a site hands in its
+// bindings — typically `() => env` from `cloudflare:workers` — the same way the
+// core primitives take their bindings by injection (the library never reaches for
+// `cloudflare:workers` itself).
 //
 // Why a factory that returns `{ input, handler }` instead of a ready `defineAction`:
 // `defineAction`/`ActionError` live in Astro's VIRTUAL `astro:actions` module,
@@ -51,13 +58,15 @@ export interface ActionErrorCtor {
   new (opts: { code: ActionErrorCode; message?: string }): Error;
 }
 
-/** The slice of an Astro `ActionAPIContext` the editor handlers read: the resolved
- *  editor and the Cloudflare bindings, both off `locals`. A real context (which
- *  carries much more) structurally satisfies this. */
+/** The slice of an Astro `ActionAPIContext` the editor handlers read: the
+ *  middleware-resolved `locals.editor`, plus `cookies` for the D1 bookmark. The
+ *  Worker `env` is NOT read off the context — Astro v6+ removed
+ *  `Astro.locals.runtime.env`, so it's supplied by the injected
+ *  {@link EditorActionDeps.getEnv}. A real context (which carries much more)
+ *  structurally satisfies this. */
 export interface EditorActionContext {
   locals: {
     editor?: unknown;
-    runtime?: { env: unknown };
   };
   /** Astro's `AstroCookies` (structurally). Used to persist the D1 session
    *  bookmark for read-your-writes on draft resume (#69). Optional so a bare
@@ -67,18 +76,28 @@ export interface EditorActionContext {
   };
 }
 
-/** The dependencies every editor Action shares: the injected `ActionError` plus
- *  optional readers for the editor session and the Worker `env`, both defaulting
- *  to their `locals` location. */
+/** The dependencies every editor Action shares: the injected `ActionError`, an
+ *  optional reader for the editor session (defaulting to `locals.editor`), and the
+ *  required `getEnv` that hands in the Worker bindings. */
 export interface EditorActionDeps<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** Astro's `ActionError` class, injected (see file header). */
   ActionError: ActionErrorCtor;
   /** Resolve the editor session from the Action context. Default: `locals.editor`
    *  (set by `createLouiseMiddleware`). A falsy result answers 401. */
   getEditor?: (ctx: EditorActionContext) => unknown;
-  /** Resolve the Worker `env` (the D1 binding) from the Action context. Default:
-   *  `locals.runtime.env` — the Cloudflare adapter's binding location. */
-  getEnv?: (ctx: EditorActionContext) => Env;
+  /**
+   * Resolve the Worker `env` (the D1 binding) for the Action. **Required** — Astro
+   * v6+ removed `Astro.locals.runtime.env`, so there is no context field to default
+   * to; inject the bindings explicitly, typically by closing over the Cloudflare
+   * `env` (the `ctx` argument is available for per-request selection but usually
+   * unused):
+   *
+   * ```ts
+   * import { env } from "cloudflare:workers";
+   * louiseSaveAction({ collections, ActionError, getEnv: () => env });
+   * ```
+   */
+  getEnv: (ctx: EditorActionContext) => Env;
 }
 
 /** The validated `save` input — the inline field-save body, same keys the raw
@@ -130,12 +149,22 @@ type ResolvedDeps<Env extends EditorRouteEnv> = {
   getEnv: (ctx: EditorActionContext) => Env;
 };
 
-/** Resolve an editor Action's deps, filling the default `locals` readers. */
+/** Resolve an editor Action's deps, filling the default `locals.editor` reader.
+ *  `getEnv` has no default — Astro v6+ removed `locals.runtime.env`, so a safe one
+ *  can't exist — and a missing one is a wiring error thrown here, at
+ *  action-construction time, rather than a per-request 500 on an `undefined` env. */
 function resolveDeps<Env extends EditorRouteEnv>(deps: EditorActionDeps<Env>): ResolvedDeps<Env> {
+  if (typeof deps.getEnv !== "function") {
+    throw new TypeError(
+      "louise-toolkit/astro: `getEnv` is required — Astro v6+ removed " +
+        "`Astro.locals.runtime.env`, so inject the Worker env explicitly, " +
+        'e.g. `getEnv: () => env` from "cloudflare:workers".',
+    );
+  }
   return {
     ActionError: deps.ActionError,
     getEditor: deps.getEditor ?? ((ctx: EditorActionContext) => ctx.locals.editor),
-    getEnv: deps.getEnv ?? ((ctx: EditorActionContext) => ctx.locals.runtime?.env as Env),
+    getEnv: deps.getEnv,
   };
 }
 
