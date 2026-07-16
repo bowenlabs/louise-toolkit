@@ -16,6 +16,7 @@ import { ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/browser";
 import { reindexDoc } from "louise-toolkit/content";
 import { db } from "louise-toolkit/db";
 import { defineWorkflow } from "louise-toolkit/workflows";
+import { invalidatePageCache } from "../lib/louise/cache.js";
 import { ogCacheStore } from "../lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "../lib/og/render.js";
 import { syncPageVector } from "../lib/louise/vectors.js";
@@ -33,6 +34,7 @@ interface PublishState {
   title?: string;
   reindexed?: boolean;
   embedded?: boolean;
+  cachePurged?: boolean;
   ogWarmed?: boolean;
   notified?: boolean;
 }
@@ -69,6 +71,19 @@ const runPublish = defineWorkflow<CloudflareEnv, PublishParams, PublishState>([
     run: async ({ env, payload }) => {
       await syncPageVector(env, payload.id);
       return { embedded: true };
+    },
+  },
+  // Purge the just-published page's edge cache (#95) so the new render is live
+  // immediately instead of waiting out its `maxAge`. Best-effort inside
+  // invalidatePageCache (no-ops without the Workers cache API), so the step never
+  // fails the pipeline; the short `maxAge` is the freshness floor if it doesn't
+  // land. The purge is a global cache op keyed by the page tag, so it needs only
+  // the id, not `env`.
+  {
+    name: "invalidate-cache",
+    run: async ({ payload }) => {
+      await invalidatePageCache(payload.id);
+      return { cachePurged: true };
     },
   },
   // Pre-warm the OG share card into the Cache API so the first social share is a
