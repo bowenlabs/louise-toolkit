@@ -119,3 +119,149 @@ function tidyAltText(raw: string): string {
   }
   return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
+
+// ── Text assists: rewrite + SEO ──────────────────────────────────────────────
+
+/** Default instruct model for {@link rewriteText} and {@link suggestSeo}.
+ *  Overridable per call so a site can swap models without a code change. */
+export const DEFAULT_TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+
+/** How {@link rewriteText} should transform the passage. */
+export type RewriteMode = "tighten" | "rephrase" | "simplify" | "fix";
+
+/** The four rewrite modes, in menu order — export so a toolbar can list them. */
+export const REWRITE_MODES: readonly RewriteMode[] = ["tighten", "rephrase", "simplify", "fix"];
+
+const REWRITE_INSTRUCTIONS: Record<RewriteMode, string> = {
+  tighten:
+    "Rewrite the user's text to be tighter and more concise while preserving its meaning and tone.",
+  rephrase: "Rephrase the user's text in different words while preserving its meaning and tone.",
+  simplify: "Rewrite the user's text in plainer, simpler language while preserving its meaning.",
+  fix: "Correct spelling, grammar, and punctuation in the user's text without otherwise changing its meaning, tone, or wording.",
+};
+
+export interface RewriteOptions {
+  /** How to transform the text. Default `"tighten"`. */
+  mode?: RewriteMode;
+  /** Instruct model id. Default {@link DEFAULT_TEXT_MODEL}. */
+  model?: string;
+  /** Output token cap. Default 512. */
+  maxTokens?: number;
+}
+
+/**
+ * Rewrite a passage of text (tighten / rephrase / simplify / fix) via Workers AI.
+ * Best-effort: returns `null` when the runner is absent, the input is blank, or
+ * the model errors / returns nothing — the caller keeps the original text. The
+ * result is stripped of any wrapping quotes or "Here is the rewrite:" preamble
+ * the model may add.
+ */
+export async function rewriteText(
+  runner: AiRunner | undefined,
+  text: string,
+  opts: RewriteOptions = {},
+): Promise<string | null> {
+  const input = text.trim();
+  if (!input) return null;
+  const instruction = REWRITE_INSTRUCTIONS[opts.mode ?? "tighten"];
+  const out = await runAi(runner, opts.model ?? DEFAULT_TEXT_MODEL, {
+    messages: [
+      {
+        role: "system",
+        content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+      },
+      { role: "user", content: input },
+    ],
+    max_tokens: opts.maxTokens ?? 512,
+  });
+  const result = extractText(out);
+  return result ? unwrapModelText(result) || null : null;
+}
+
+/** A suggested SEO title + meta description. Either field may be `null` when the
+ *  model didn't produce a usable value. */
+export interface SeoSuggestion {
+  title: string | null;
+  description: string | null;
+}
+
+export interface SeoOptions {
+  model?: string;
+  maxTokens?: number;
+  /** Max chars of `content` sent to the model (keeps the prompt bounded). Default 4000. */
+  maxContentChars?: number;
+}
+
+/** Search engines truncate around these; keep suggestions within them. */
+export const SEO_TITLE_MAX = 60;
+export const SEO_DESCRIPTION_MAX = 155;
+
+/**
+ * Suggest an SEO title + meta description from page content via Workers AI.
+ * Best-effort: `null` when the runner is absent, the content is blank, or the
+ * reply can't be parsed as the expected JSON. Fields are length-capped, and a
+ * missing/empty field becomes `null` (a result with neither is `null` overall).
+ */
+export async function suggestSeo(
+  runner: AiRunner | undefined,
+  content: string,
+  opts: SeoOptions = {},
+): Promise<SeoSuggestion | null> {
+  const input = content.trim();
+  if (!input) return null;
+  const out = await runAi(runner, opts.model ?? DEFAULT_TEXT_MODEL, {
+    messages: [
+      {
+        role: "system",
+        content:
+          `You are an SEO assistant. From the page content, write a concise SEO title ` +
+          `(max ${SEO_TITLE_MAX} characters) and meta description (max ${SEO_DESCRIPTION_MAX} ` +
+          `characters). Reply with ONLY a JSON object: {"title": string, "description": string}.`,
+      },
+      { role: "user", content: input.slice(0, opts.maxContentChars ?? 4000) },
+    ],
+    max_tokens: opts.maxTokens ?? 256,
+  });
+  const text = extractText(out);
+  const parsed = text ? parseJsonObject(text) : null;
+  if (!parsed) return null;
+  const title = nonEmptyString(parsed.title) ? capLength(parsed.title.trim(), SEO_TITLE_MAX) : null;
+  const description = nonEmptyString(parsed.description)
+    ? capLength(parsed.description.trim(), SEO_DESCRIPTION_MAX)
+    : null;
+  return title === null && description === null ? null : { title, description };
+}
+
+function nonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+/** Strip a leading "Sure, here's …:" preamble and a single pair of wrapping
+ *  quotes a chat model may add around the rewritten text. */
+function unwrapModelText(raw: string): string {
+  let s = raw
+    .trim()
+    .replace(/^(sure[,!.]?\s*)?(here('s| is|’s)\b[^\n:]*:)\s*/i, "")
+    .trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+/** Best-effort parse of a JSON object possibly wrapped in prose or code fences. */
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    const obj: unknown = JSON.parse(text.slice(start, end + 1));
+    return obj && typeof obj === "object" ? (obj as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function capLength(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}

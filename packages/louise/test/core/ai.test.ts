@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type AiRunner,
   DEFAULT_ALT_TEXT_MODEL,
+  DEFAULT_TEXT_MODEL,
   generateAltText,
   MAX_ALT_TEXT_LENGTH,
+  rewriteText,
   runAi,
+  SEO_TITLE_MAX,
+  suggestSeo,
 } from "../../src/core/ai/index.js";
 
 /** A fake runner that returns a canned output and records the call. */
@@ -104,5 +108,81 @@ describe("generateAltText", () => {
     expect(alt).not.toBeNull();
     expect((alt as string).length).toBeLessThanOrEqual(MAX_ALT_TEXT_LENGTH);
     expect(alt as string).toMatch(/…$/);
+  });
+});
+
+describe("rewriteText", () => {
+  it("returns null without a runner and for blank input", async () => {
+    expect(await rewriteText(undefined, "hello")).toBeNull();
+    expect(await rewriteText(runner({ response: "x" }).runner, "   ")).toBeNull();
+  });
+
+  it("sends the passage as the chat user message and returns the model's text", async () => {
+    const { runner: r, calls } = runner({ response: "Tighter version." });
+    const out = await rewriteText(r, "  a rather wordy original passage  ");
+    const msgs = calls[0].inputs.messages as { role: string; content: string }[];
+    expect(calls[0].model).toBe(DEFAULT_TEXT_MODEL);
+    expect(msgs[0].role).toBe("system");
+    expect(msgs[1]).toEqual({ role: "user", content: "a rather wordy original passage" });
+    expect(out).toBe("Tighter version.");
+  });
+
+  it("varies the system instruction by mode", async () => {
+    const a = runner({ response: "x" });
+    const b = runner({ response: "x" });
+    await rewriteText(a.runner, "t", { mode: "tighten" });
+    await rewriteText(b.runner, "t", { mode: "fix" });
+    const sysA = (a.calls[0].inputs.messages as { content: string }[])[0].content;
+    const sysB = (b.calls[0].inputs.messages as { content: string }[])[0].content;
+    expect(sysA).not.toBe(sysB);
+    expect(sysB.toLowerCase()).toContain("grammar");
+  });
+
+  it("strips a preamble and wrapping quotes the model may add", async () => {
+    const r = runner({ response: 'Sure! Here is the rewrite: "A crisp sentence."' }).runner;
+    expect(await rewriteText(r, "original")).toBe("A crisp sentence.");
+  });
+
+  it("returns null (not a throw) on a model error", async () => {
+    const r: AiRunner = {
+      run: async () => {
+        throw new Error("down");
+      },
+    };
+    expect(await rewriteText(r, "original")).toBeNull();
+  });
+});
+
+describe("suggestSeo", () => {
+  it("returns null without a runner or content", async () => {
+    expect(await suggestSeo(undefined, "content")).toBeNull();
+    expect(await suggestSeo(runner("{}").runner, "  ")).toBeNull();
+  });
+
+  it("parses a JSON title + description from the reply", async () => {
+    const r = runner({
+      response: '{"title":"Best Coffee in Town","description":"Freshly roasted."}',
+    }).runner;
+    expect(await suggestSeo(r, "page about coffee")).toEqual({
+      title: "Best Coffee in Town",
+      description: "Freshly roasted.",
+    });
+  });
+
+  it("tolerates JSON wrapped in prose / code fences", async () => {
+    const r = runner('```json\n{"title":"T","description":"D"}\n```').runner;
+    expect(await suggestSeo(r, "x")).toEqual({ title: "T", description: "D" });
+  });
+
+  it("caps title/description and nulls missing or empty fields", async () => {
+    const title = "x".repeat(200);
+    const r = runner({ response: JSON.stringify({ title, description: "  " }) }).runner;
+    const seo = await suggestSeo(r, "x");
+    expect((seo?.title as string).length).toBeLessThanOrEqual(SEO_TITLE_MAX);
+    expect(seo?.description).toBeNull();
+  });
+
+  it("returns null when the reply isn't parseable JSON", async () => {
+    expect(await suggestSeo(runner("no json here").runner, "x")).toBeNull();
   });
 });
