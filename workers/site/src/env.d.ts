@@ -23,6 +23,11 @@ type CloudflareEnv = {
   // Workers AI (#75): alt text on upload + the rewrite/SEO assists. Binding from
   // wrangler.jsonc `ai`; the `core/ai` helpers degrade to null when a model errs.
   AI: Ai;
+  // Per-page live editing session Durable Object (#71): the realtime WebSocket
+  // route (worker.ts `realtimeRoute`) forwards upgrades here. Optional — the
+  // route 503s (realtime cleanly off) when the binding is absent. Class exported
+  // from worker.ts; namespace from wrangler.jsonc `durable_objects`.
+  EDIT_SESSION?: DurableObjectNamespace;
   // Cloudflare Queue (#77): deferred post-write side-effects (FTS reindex).
   // Optional so publish still works — and falls back to inline sync — if the
   // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.

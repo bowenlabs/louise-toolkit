@@ -27,6 +27,7 @@ import { assertValidSections, reindexDoc } from "louise-toolkit/content";
 import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
 import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
+import { realtimeRoute } from "louise-toolkit/realtime";
 import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
 import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
@@ -226,6 +227,10 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // #region example:inquiries-route  (sliced into /examples/forms)
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),
+  // Real-time multi-editor sessions (ADR 0002 / #71): a WebSocket upgrade at
+  // /api/louise/realtime/:slug/:id, guarded then forwarded to the per-page
+  // EditSessionDO. 503s when the binding is absent, so it's cleanly optional.
+  realtimeRoute({ resolveEditor, namespace: (env) => env.EDIT_SESSION }),
   // #endregion example:inquiries-route
   seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise Toolkit" } }),
 ];
@@ -264,6 +269,9 @@ const ogRoute: WorkerRoute<WorkerEnv> = (request) => {
 // The durable publish pipeline (#88). Re-exported from the Worker entry so
 // wrangler's `[[workflows]]` `class_name` can find it.
 export { PublishWorkflow } from "./workflows/publish.js";
+// Per-page live editing session DO (#71) — the wrangler `durable_objects` binding
+// names this class; it must be exported from the Worker entry.
+export { EditSessionDO } from "./realtime/edit-session.js";
 
 export default composeWorker<WorkerEnv>({
   // docs host first (never touches the content); then the editor API, media, OG;

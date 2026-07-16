@@ -87,6 +87,14 @@
       "class_name": "PublishWorkflow",
     },
   ],
+  // Per-page live editing session Durable Object (#71). The class is exported
+  // from src/worker.ts; `wrangler deploy` registers it (no separate provisioning,
+  // like Workflows). SQLite-backed (the modern default). The realtime route
+  // (worker.ts) forwards WebSocket upgrades to `EDIT_SESSION.idFromName(slug:id)`.
+  "durable_objects": {
+    "bindings": [{ "name": "EDIT_SESSION", "class_name": "EditSessionDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EditSessionDO"] }],
   // The editor-gate config is typed + validated by the astro:env schema
   // (astro.config.mjs), read via `astro:env/server`: OWNER_EMAIL defaults in the
   // schema (public), and the secrets go in `wrangler secret put`
