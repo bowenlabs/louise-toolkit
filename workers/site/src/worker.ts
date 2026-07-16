@@ -33,8 +33,9 @@ import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
+import { pagesDraftDeps } from "./lib/louise/versioned-pages.js";
 import { pagesCollection } from "./pages-collection.js";
-import { inquiries, media, pages, pagesVersions, siteSettings } from "./schema.js";
+import { inquiries, media, pages, siteSettings } from "./schema.js";
 import { SECTIONS } from "./sections/catalog.js";
 
 type WorkerEnv = CloudflareEnv;
@@ -141,18 +142,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // MUST precede pagesRoute — pagesRoute's `/:id` matcher would otherwise claim
   // `/pages/:id/versions` and 400 on the non-integer id.
   versionsRoute({
-    table: pages,
-    versionsTable: pagesVersions,
-    config: pagesCollection,
+    // Draft store deps (table/versions/config + sections validation + the #70 KV
+    // buffer) are shared with the `saveDraft` Astro Action so the two save
+    // entrypoints can't drift (#138).
+    ...pagesDraftDeps,
     resolveEditor,
-    validate: async (data) => {
-      if ("sections" in data) {
-        await assertValidSections(SECTIONS, data.sections, {
-          operation: "update",
-          mediaBase: MEDIA_BASE,
-        });
-      }
-    },
     // Post-publish work off the request path. Preferred: hand the published row
     // to the durable PublishWorkflow (#88) — reindex → warm the OG card → notify
     // webhook, each step retried independently and resumable mid-way (an
@@ -172,11 +166,6 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
         ? (id) => enqueue(queue, { kind: "reindex", collection: "pages", id })
         : undefined;
     },
-    // Coalesce high-frequency auto-save draft writes through the DRAFTS KV
-    // buffer (#70): each idle pause updates the buffer; D1 is flushed on the
-    // first write, every ~10s, and on publish. Resume reads prefer the buffer
-    // (see lib/louise/drafts.ts). Falls back to straight-to-D1 if unbound.
-    bufferKv: (env) => env.DRAFTS,
   }),
   // Full-text search over pages (title/body/flattened sections) — /search + a
   // /reindex to rebuild the FTS index. Before pagesRoute (its `/:id` matcher

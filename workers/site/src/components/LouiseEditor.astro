@@ -24,6 +24,7 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
   )
 }
 <script>
+  import { actions } from "astro:actions";
   if (document.body.dataset.louiseEdit === "1") {
     Promise.all([import("louise-toolkit/client"), import("louise-toolkit/client/settings")])
       .then(([client, settings]) => {
@@ -32,6 +33,22 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
         client.mountLouise({
           onOpenSettings: () => window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
           versionedPageId: versioned ? Number(versioned) : undefined,
+          // Route the normal debounced auto-save through the typed Astro Actions
+          // (#138). The client keeps its raw keepalive fetch for the page-hide /
+          // unload flush only (an Action can't keepalive). Each callable resolves
+          // on success and rejects on failure.
+          actions: {
+            save: async (input) => {
+              const { data, error } = await actions.louise.save(input);
+              if (error) throw error;
+              return data;
+            },
+            saveDraft: async (input) => {
+              const { data, error } = await actions.louise.saveDraft(input);
+              if (error) throw error;
+              return data;
+            },
+          },
         });
       })
       // Without this, a throw while booting the editor is a silent unhandled
