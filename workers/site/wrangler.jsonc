@@ -45,6 +45,11 @@
   // server-side `transformImage` re-encode. Also what @astrojs/cloudflare uses
   // for its production image service, so `sharp` is gone from the build.
   "images": { "binding": "IMAGES" },
+  // Workers AI (#75): powers editorial assists (alt text on upload, and the
+  // rewrite/SEO endpoints). Billed per Neuron with a 10k/day free allocation —
+  // fractions of a cent per call. Opt-in per feature (the media route's `altText`
+  // accessor); absent → those assists degrade to null, never blocking a save.
+  "ai": { "binding": "AI" },
   // KV: the security rate limiter (RL) + the auto-save draft write-buffer (#70).
   // DRAFTS coalesces high-frequency auto-save writes so a burst of edits doesn't
   // hit D1 with a version row per debounce tick (see versionsRoute `bufferKv`).

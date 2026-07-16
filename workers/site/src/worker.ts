@@ -225,6 +225,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     referenceSources: [
       { collection: "pages", table: "pages", columns: ["body"], labelColumn: "title" },
     ],
+    // Workers AI alt text on upload (#75): fill each new image's `alt` from the
+    // image. Best-effort — a model error/timeout never fails the upload (the alt
+    // just stays empty, editable in the media panel). Off wherever `env.AI` is
+    // unbound.
+    altText: (env) => env.AI,
   }),
   // Public capture (contact form) + editor-gated review, both from the one
   // built-in `inquiries` form (louise-toolkit/forms) — #46. The site adds the

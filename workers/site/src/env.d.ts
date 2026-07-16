@@ -20,6 +20,9 @@ type CloudflareEnv = {
   // transforms. Optional in LouiseMediaEnv/MediaRouteEnv; declared here since
   // wrangler.jsonc provides it.
   IMAGES: ImagesBinding;
+  // Workers AI (#75): alt text on upload + the rewrite/SEO assists. Binding from
+  // wrangler.jsonc `ai`; the `core/ai` helpers degrade to null when a model errs.
+  AI: Ai;
   // Cloudflare Queue (#77): deferred post-write side-effects (FTS reindex).
   // Optional so publish still works — and falls back to inline sync — if the
   // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.
