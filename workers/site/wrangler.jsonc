@@ -125,10 +125,11 @@
     // this off the runtime env, so it stays a Worker `var` (see src/env.d.ts).
     "MEDIA_URL": "/media",
     // Edge route caching (#95) master switch (astro:env boolean, defaults false).
-    // Set to "true" ONLY after adding a Cloudflare Cache Rule that bypasses the
-    // cache when the `louise_edit` cookie is present — otherwise a cached public
-    // page could be served to an editor. See the astro.config.mjs env schema.
-    // "LOUISE_EDGE_CACHE": "true",
+    // ON: the prerequisite Cloudflare Cache Rule — "Bypass cache" when the
+    // `louise_edit` cookie is present — is in place, so a cached public page can
+    // never be served to an editor. Published pages now edge-cache (see
+    // src/lib/louise/cache.ts); edit mode still bypasses. See astro.config.mjs.
+    "LOUISE_EDGE_CACHE": "true",
   },
   // Daily link-checker crawl of the docs (worker.ts `scheduled`).
   "triggers": {
