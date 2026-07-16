@@ -73,6 +73,42 @@ export function resolveFieldValue(
 }
 
 /**
+ * Apply an already-validated field save: look up the collection, allowlist-check
+ * + sanitize the field ({@link resolveFieldValue}), then write it to the row's
+ * primary key. Carries no transport/parse concern — the raw {@link saveRoute} and
+ * the Astro `save` Action each validate their own input, then converge here, so
+ * the store logic (and the #96 body-validation contract about where parsing
+ * happens) lives in exactly one place rather than being duplicated per adapter.
+ */
+export async function applyFieldSave<Env extends EditorRouteEnv = EditorRouteEnv>(
+  env: Env,
+  collections: Record<string, SaveCollectionConfig>,
+  sanitize: (html: string) => string,
+  body: { collection: string; key: string; field: string; value: unknown },
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const collConfig = collections[body.collection];
+  if (!collConfig) return { ok: false, status: 400, error: "Unknown collection" };
+
+  const resolved = resolveFieldValue(collConfig, body.field, body.value, sanitize);
+  if (!resolved.ok) return { ok: false, status: resolved.status, error: resolved.error };
+
+  const id = Number(body.key);
+  if (!Number.isInteger(id)) return { ok: false, status: 400, error: "Bad id" };
+
+  const pkCol = getTableConfig(collConfig.table).columns.find((c) => c.primary) as
+    | SQLiteColumn
+    | undefined;
+  const setBuilder = db(env.DB)
+    .update(collConfig.table)
+    .set({ [body.field]: resolved.stored } as never);
+  const [updated] = await (pkCol
+    ? setBuilder.where(eq(pkCol, id)).returning()
+    : setBuilder.returning());
+  if (!updated) return { ok: false, status: 404, error: "Not found" };
+  return { ok: true };
+}
+
+/**
  * Build the `save` editor route. POST only, same-origin-guarded. Returns
  * `undefined` for a non-matching path so `composeWorker` falls through.
  */
@@ -91,27 +127,9 @@ export function saveRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 
     const parsed = await standardValidate(SAVE_BODY, await request.json().catch(() => null));
     if (!parsed.ok) return json({ error: "Bad payload" }, 400);
-    const { collection, key, field, value } = parsed.value;
 
-    const collConfig = config.collections[collection];
-    if (!collConfig) return json({ error: "Unknown collection" }, 400);
-
-    const resolved = resolveFieldValue(collConfig, field, value, sanitize);
-    if (!resolved.ok) return json({ error: resolved.error }, resolved.status);
-
-    const id = Number(key);
-    if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
-
-    const pkCol = getTableConfig(collConfig.table).columns.find((c) => c.primary) as
-      | SQLiteColumn
-      | undefined;
-    const setBuilder = db(env.DB)
-      .update(collConfig.table)
-      .set({ [field]: resolved.stored } as never);
-    const [updated] = await (pkCol
-      ? setBuilder.where(eq(pkCol, id)).returning()
-      : setBuilder.returning());
-    if (!updated) return json({ error: "Not found" }, 404);
+    const result = await applyFieldSave(env, config.collections, sanitize, parsed.value);
+    if (!result.ok) return json({ error: result.error }, result.status);
     return json({ ok: true });
   };
 }

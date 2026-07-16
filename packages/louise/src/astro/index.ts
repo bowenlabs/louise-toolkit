@@ -5,6 +5,13 @@
 // core), so `astro` is an OPTIONAL peer, pulled in only by sites that import
 // this subpath. First inhabitant: the shared middleware factory.
 
+export {
+  type ActionErrorCtor,
+  type LouiseSaveActionConfig,
+  louiseSaveAction,
+  type SaveActionContext,
+  type SaveActionInput,
+} from "./actions.js";
 export { type CatalogLoaderConfig, defineCatalogLoader } from "./catalog.js";
 export {
   collectionToAstroSchema,
