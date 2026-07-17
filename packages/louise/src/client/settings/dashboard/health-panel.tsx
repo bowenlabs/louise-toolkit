@@ -2,12 +2,13 @@
 //
 // The site-health detail panel (#106 Phase 2) — the drill-in behind the Home
 // dashboard's Health card. It reads the full persisted HealthSummary (with the
-// broken-link details the card's count doesn't carry) from /api/louise/health,
-// lists what's wrong in plain language, and sends the owner to the surface that
-// fixes each class of issue (Media for alt text, Pages for SEO). It's a hidden
-// framework panel: reachable from the card's action, not a top-strip button.
+// broken-link details the card's count doesn't carry) from /api/louise/health
+// and lists what's wrong in plain language. Two issue classes offer a one-click
+// AI fix (Phase 2b/2c): image descriptions (alt text) and SEO title/description —
+// each with a manual "Review in …" fallback. It's a hidden framework panel:
+// reachable from the card's action, not a top-strip button.
 
-import { useQuery, useQueryClient } from "@tanstack/solid-query";
+import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";
 import type { HealthSummary } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
@@ -27,11 +28,58 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+interface Fixer {
+  fixing: () => boolean;
+  unavailable: () => boolean;
+  error: () => string | null;
+  run: () => Promise<void>;
+}
+
+/** A one-click AI fix: POST the backfill endpoint, then refresh the counts it
+ *  changed (always health + the dashboard overview, plus the fixed collection).
+ *  A 503 means the site has no AI binding wired, so the assist hides itself. */
+function createFixer(qc: QueryClient, endpoint: string, extraKeys: readonly unknown[][]): Fixer {
+  const [fixing, setFixing] = createSignal(false);
+  const [unavailable, setUnavailable] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const run = async () => {
+    setFixing(true);
+    setError(null);
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (res.status === 503) {
+        setUnavailable(true);
+        return;
+      }
+      if (!res.ok) {
+        setError(`Couldn’t apply the fix (${res.status}).`);
+        return;
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: louiseQueryKeys.health }),
+        qc.invalidateQueries({ queryKey: louiseQueryKeys.overview }),
+        ...extraKeys.map((key) => qc.invalidateQueries({ queryKey: key })),
+      ]);
+    } catch {
+      setError("Couldn’t reach the server.");
+    } finally {
+      setFixing(false);
+    }
+  };
+  return { fixing, unavailable, error, run };
+}
+
 export function HealthPanel(props: {
   navigate: DashboardApi["open"];
   endpoint?: string;
   /** Endpoint for the one-click alt backfill. Default `/api/louise/media/generate-alt`. */
   fixAltEndpoint?: string;
+  /** Endpoint for the one-click SEO backfill. Default `/api/louise/pages/generate-seo`. */
+  fixSeoEndpoint?: string;
 }) {
   const qc = useQueryClient();
   const query = useQuery(() => ({
@@ -43,40 +91,13 @@ export function HealthPanel(props: {
   }));
   const summary = () => query.data ?? null;
 
-  // One-click AI alt backfill: POST the fix, then refresh the counts it changed
-  // (health + the dashboard overview + the media list). A 503 means the site has
-  // no AI binding wired, so the assist hides itself.
-  const [fixing, setFixing] = createSignal(false);
-  const [aiUnavailable, setAiUnavailable] = createSignal(false);
-  const [fixError, setFixError] = createSignal<string | null>(null);
-  const fixAlt = async () => {
-    setFixing(true);
-    setFixError(null);
-    try {
-      const res = await fetch(props.fixAltEndpoint ?? "/api/louise/media/generate-alt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      if (res.status === 503) {
-        setAiUnavailable(true);
-        return;
-      }
-      if (!res.ok) {
-        setFixError(`Couldn’t fix descriptions (${res.status}).`);
-        return;
-      }
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: louiseQueryKeys.health }),
-        qc.invalidateQueries({ queryKey: louiseQueryKeys.overview }),
-        qc.invalidateQueries({ queryKey: louiseQueryKeys.media }),
-      ]);
-    } catch {
-      setFixError("Couldn’t reach the server.");
-    } finally {
-      setFixing(false);
-    }
-  };
+  const altFix = createFixer(qc, props.fixAltEndpoint ?? "/api/louise/media/generate-alt", [
+    louiseQueryKeys.media,
+  ]);
+  const seoFix = createFixer(qc, props.fixSeoEndpoint ?? "/api/louise/pages/generate-seo", [
+    louiseQueryKeys.pages,
+  ]);
+  const count = (n: number, unit: string) => `${n} ${n === 1 ? `${unit} is` : `${unit}s are`}`;
 
   return (
     <div>
@@ -100,7 +121,7 @@ export function HealthPanel(props: {
                 Last checked {timeAgo(s().checkedAt) || "recently"}.
               </p>
 
-              {/* Broken links — the one issue class with actionable detail here. */}
+              {/* Broken links — listed for review; nothing to auto-fix here. */}
               <section class="louise-settings-group">
                 <h3 class="louise-settings-title">Broken links</h3>
                 <Show
@@ -130,63 +151,26 @@ export function HealthPanel(props: {
                 </Show>
               </section>
 
-              {/* Image descriptions — the one class Louise can fix automatically:
-                  generate alt with AI in one click, or review by hand in Media. */}
-              <section class="louise-settings-group">
-                <h3 class="louise-settings-title">Image descriptions</h3>
-                <Show
-                  when={s().missingAlt > 0}
-                  fallback={
-                    <p class="louise-muted">
-                      <Icon name="check" /> Every image has a description.
-                    </p>
-                  }
-                >
-                  <div class="louise-list-item">
-                    <div class="louise-item-main">
-                      <div class="louise-item-sub">
-                        {s().missingAlt} {s().missingAlt === 1 ? "image is" : "images are"} missing
-                        a description.
-                      </div>
-                    </div>
-                    <Show when={!aiUnavailable()}>
-                      <button
-                        class="louise-btn louise-btn-primary"
-                        type="button"
-                        disabled={fixing()}
-                        onClick={() => void fixAlt()}
-                      >
-                        {fixing() ? "Fixing…" : "Fix with AI"}
-                      </button>
-                    </Show>
-                    <button
-                      class="louise-btn"
-                      type="button"
-                      onClick={() => props.navigate({ panel: "media" })}
-                    >
-                      Review in Media
-                    </button>
-                  </div>
-                  <Show when={aiUnavailable()}>
-                    <p class="louise-muted louise-settings-hint">
-                      AI descriptions aren’t set up for this site — add them by hand in Media.
-                    </p>
-                  </Show>
-                  <Show when={fixError()}>
-                    <div class="louise-alert" role="alert">
-                      {fixError()}
-                    </div>
-                  </Show>
-                </Show>
-              </section>
+              <AiFixSection
+                heading="Image descriptions"
+                count={s().missingAlt}
+                message={`${count(s().missingAlt, "image")} missing a description.`}
+                allClear="Every image has a description."
+                fixer={altFix}
+                reviewLabel="Review in Media"
+                onReview={() => props.navigate({ panel: "media" })}
+                unavailableNote="AI descriptions aren’t set up for this site — add them by hand in Media."
+              />
 
-              <HealthFixRow
-                title="Search engine info"
+              <AiFixSection
+                heading="Search engine info"
                 count={s().seoGaps}
-                unit="page"
-                verb="missing SEO title or description"
-                action="Fix in Pages"
-                onFix={() => props.navigate({ panel: "pages" })}
+                message={`${count(s().seoGaps, "page")} missing an SEO title or description.`}
+                allClear="Every page has search info."
+                fixer={seoFix}
+                reviewLabel="Review in Pages"
+                onReview={() => props.navigate({ panel: "pages" })}
+                unavailableNote="AI SEO isn’t set up for this site — add titles/descriptions by hand in Pages."
               />
             </>
           )}
@@ -196,37 +180,56 @@ export function HealthPanel(props: {
   );
 }
 
-/** One "N things need X → go fix them" row, hidden when the count is zero. */
-function HealthFixRow(props: {
-  title: string;
+/** An issue class Louise can fix automatically: the plain-language count, a
+ *  one-click "Fix with AI", and a manual "Review in …" fallback. Hidden verb when
+ *  the count is zero (all-clear), and the AI button when no runner is wired. */
+function AiFixSection(props: {
+  heading: string;
   count: number;
-  unit: string;
-  verb: string;
-  action: string;
-  onFix: () => void;
+  message: string;
+  allClear: string;
+  fixer: Fixer;
+  reviewLabel: string;
+  onReview: () => void;
+  unavailableNote: string;
 }) {
-  const plural = () => (props.count === 1 ? props.unit : `${props.unit}s`);
   return (
     <section class="louise-settings-group">
-      <h3 class="louise-settings-title">{props.title}</h3>
+      <h3 class="louise-settings-title">{props.heading}</h3>
       <Show
         when={props.count > 0}
         fallback={
           <p class="louise-muted">
-            <Icon name="check" /> All good.
+            <Icon name="check" /> {props.allClear}
           </p>
         }
       >
         <div class="louise-list-item">
           <div class="louise-item-main">
-            <div class="louise-item-sub">
-              {props.count} {plural()} {props.verb}.
-            </div>
+            <div class="louise-item-sub">{props.message}</div>
           </div>
-          <button class="louise-btn" type="button" onClick={props.onFix}>
-            {props.action}
+          <Show when={!props.fixer.unavailable()}>
+            <button
+              class="louise-btn louise-btn-primary"
+              type="button"
+              disabled={props.fixer.fixing()}
+              onClick={() => void props.fixer.run()}
+            >
+              {props.fixer.fixing() ? "Fixing…" : "Fix with AI"}
+            </button>
+          </Show>
+          <button class="louise-btn" type="button" onClick={props.onReview}>
+            {props.reviewLabel}
           </button>
         </div>
+        <Show when={props.fixer.unavailable()}>
+          <p class="louise-muted louise-settings-hint">{props.unavailableNote}</p>
+        </Show>
+        <Show when={props.fixer.error()}>
+          <div class="louise-alert" role="alert">
+            {props.fixer.error()}
+          </div>
+        </Show>
       </Show>
     </section>
   );

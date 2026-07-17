@@ -22,6 +22,7 @@ import {
   saveRoute,
   searchRoute,
   seedRoute,
+  seoFixRoute,
   settingsRoute,
   versionsRoute,
 } from "louise-toolkit/editor";
@@ -200,6 +201,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
       ai: (env) => env.AI,
     },
   }),
+  // One-click AI SEO backfill (#106 Phase 2c): /pages/generate-seo fills the SEO
+  // title/description of published pages missing them via Workers AI. Before
+  // pagesRoute (its `/:id` matcher would else claim the non-integer segment).
+  // Absent env.AI it answers 503, so the Health panel hides the assist.
+  seoFixRoute({ table: pages, resolveEditor, ai: (env) => env.AI }),
   // `sections` (structured builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is

@@ -63,11 +63,11 @@ describe("HealthPanel", () => {
     await vi.waitFor(() => expect(host.textContent).toContain("https://x/gone"));
     expect(host.textContent).toContain("Returned 404");
     expect(host.textContent).toContain("2 images are missing a description");
-    expect(host.textContent).toContain("1 page missing SEO title or description");
+    expect(host.textContent).toContain("1 page is missing an SEO title or description");
 
     button("Review in Media")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "media" });
-    button("Fix in Pages")!.click();
+    button("Review in Pages")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "pages" });
     button("← Home")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "home" });
@@ -85,7 +85,7 @@ describe("HealthPanel", () => {
 
     await vi.waitFor(() => expect(host.textContent).toContain("No broken links found."));
     expect(host.textContent).toContain("Every image has a description.");
-    expect(host.textContent).toContain("All good."); // SEO row's all-clear
+    expect(host.textContent).toContain("Every page has search info."); // SEO all-clear
     expect(button("Fix with AI")).toBeUndefined();
     expect(button("Review in Media")).toBeUndefined();
   });
@@ -165,5 +165,27 @@ describe("HealthPanel — one-click AI alt fix", () => {
     // The assist removes itself; the manual "Review in Media" path stays.
     expect(button("Fix with AI")).toBeUndefined();
     expect(button("Review in Media")).toBeTruthy();
+  });
+
+  it("generates SEO with AI and refreshes on success", async () => {
+    let gaps = 3;
+    const fetchMock = vi.fn((input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/generate-seo") && (init?.method ?? "GET").toUpperCase() === "POST") {
+        gaps = 0;
+        return Promise.resolve(jsonRes({ fixed: 3, results: [] }));
+      }
+      // missingAlt 0 → the only "Fix with AI" on screen is the SEO one.
+      return Promise.resolve(jsonRes({ summary: { ...healthSummary(0), seoGaps: gaps } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    mount(() => <HealthPanel navigate={() => {}} />);
+
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("3 pages are missing an SEO title or description"),
+    );
+    button("Fix with AI")!.click();
+    await vi.waitFor(() => expect(host.textContent).toContain("Every page has search info"));
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/generate-seo"))).toBe(true);
   });
 });
