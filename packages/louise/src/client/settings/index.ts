@@ -24,6 +24,18 @@ export {
   OPEN_SETTINGS_EVENT,
 } from "./shell.jsx";
 
+// Drawer action footer — the active panel/editor pushes its save/cancel/publish
+// actions here; site-registered tab panels use `usePanelActions` too.
+export {
+  type ActionKind,
+  DrawerFooter,
+  type PanelAction,
+  PanelActionsProvider,
+  type PanelActionsApi,
+  type SaveStatus,
+  usePanelActions,
+} from "./panel-actions.jsx";
+
 // Framework panels (top strip) + the default Inquiries panel (a bottom tab).
 export { MediaPanel, type MediaItem } from "./media-panel.jsx";
 export {

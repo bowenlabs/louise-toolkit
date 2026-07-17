@@ -9,12 +9,14 @@ import { render } from "solid-js/web";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createSettingsQueryClient,
+  DrawerFooter,
   Settings,
   ImageField,
   InquiriesPanel,
   MediaPanel,
   OPEN_SETTINGS_EVENT,
   PagesPanel,
+  PanelActionsProvider,
   SettingsPanel,
 } from "../../src/client/settings/index.js";
 
@@ -27,6 +29,22 @@ function mount(ui: () => JSX.Element) {
   document.body.appendChild(host);
   dispose = render(() => <QueryClientProvider client={qc}>{ui()}</QueryClientProvider>, host);
 }
+
+// A framework panel mounted outside the full shell still needs the action-footer
+// provider (it pushes Save/Revert there) — wrap it like the shell does, with the
+// footer rendered after the body, so tests can assert against the real footer.
+function mountPanel(ui: () => JSX.Element) {
+  mount(() => (
+    <PanelActionsProvider>
+      {ui()}
+      <DrawerFooter />
+    </PanelActionsProvider>
+  ));
+}
+
+/** The footer's Save action button (the migrated home for panel Save). */
+const footSave = () =>
+  host.querySelector<HTMLButtonElement>('.louise-drawer-foot [data-action="save"]');
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -143,7 +161,8 @@ describe("Settings shell — two-group registry split", () => {
     openDrawer();
 
     frameButton("Settings")!.click();
-    await vi.waitFor(() => expect(host.textContent).toContain("Save settings"));
+    // The Settings panel's Save now lives in the shell's action footer.
+    await vi.waitFor(() => expect(footSave()).not.toBeNull());
     // The framework overlay replaces the tab body.
     expect(host.textContent).not.toContain("inq-body");
   });
@@ -186,25 +205,28 @@ describe("SettingsPanel — base groups + declarative extension", () => {
       }
       return jsonResponse({ ok: true });
     });
-    mount(() => (
+    mountPanel(() => (
       <SettingsPanel
         extension={[{ title: "Coffee", fields: [{ key: "roastNote", label: "Roast note" }] }]}
       />
     ));
 
-    await vi.waitFor(() => expect(host.textContent).toContain("Save settings"));
+    await vi.waitFor(() => expect(host.textContent).toContain("Roast note"));
     // Framework base groups.
     for (const g of ["Identity", "Appearance", "Navigation", "Contact", "SEO"]) {
       expect(host.textContent).toContain(g);
     }
     // Site extension group + its field, seeded from the loaded settings.
     expect(host.textContent).toContain("Coffee");
-    expect(host.textContent).toContain("Roast note");
 
-    const save = Array.from(host.querySelectorAll<HTMLButtonElement>("button")).find(
-      (b) => b.textContent?.trim() === "Save settings",
-    )!;
-    save.click();
+    // Save is dirty-gated in the footer: idle until a field changes.
+    expect(footSave()!.disabled).toBe(true);
+    const roast = host.querySelector<HTMLInputElement>("#louise-set-roastNote")!;
+    roast.value = "dark";
+    // Solid delegates `input` from the document root, so the event must bubble.
+    roast.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(footSave()!.disabled).toBe(false);
+    footSave()!.click();
 
     await vi.waitFor(() => {
       const post = fetchMock.mock.calls.find(
@@ -212,9 +234,10 @@ describe("SettingsPanel — base groups + declarative extension", () => {
       );
       expect(post).toBeTruthy();
       const body = JSON.parse(String(post![1]!.body));
-      // Base column key and the site-declared custom key both go in the patch.
+      // Base column key (untouched, from load) and the site-declared custom key
+      // (edited) both go in the patch.
       expect(body.siteName).toBe("Coracle");
-      expect(body.roastNote).toBe("medium");
+      expect(body.roastNote).toBe("dark");
     });
   });
 
@@ -224,15 +247,14 @@ describe("SettingsPanel — base groups + declarative extension", () => {
         ? jsonResponse({ settings: {} })
         : jsonResponse({ ok: true }),
     );
-    mount(() => (
+    mountPanel(() => (
       <SettingsPanel
         baseGroups={[
           { title: "Navigation", fields: [{ key: "navLinks", label: "Nav", type: "links" }] },
         ]}
       />
     ));
-    await vi.waitFor(() => expect(host.textContent).toContain("Save settings"));
-    expect(host.textContent).toContain("Navigation");
+    await vi.waitFor(() => expect(host.textContent).toContain("Navigation"));
     // Default framework groups the site didn't include are gone.
     expect(host.textContent).not.toContain("Appearance");
     expect(host.textContent).not.toContain("Identity");
@@ -244,7 +266,7 @@ describe("SettingsPanel — base groups + declarative extension", () => {
         ? jsonResponse({ settings: { tagline: "Prints & goods" } })
         : jsonResponse({ ok: true }),
     );
-    mount(() => (
+    mountPanel(() => (
       <SettingsPanel
         baseGroups={[]}
         extension={[
@@ -271,12 +293,10 @@ describe("SettingsPanel — base groups + declarative extension", () => {
     ));
     await vi.waitFor(() => expect(host.textContent).toContain("custom:Prints & goods"));
 
-    // The render field drives onChange → the new value lands in the save payload.
+    // The render field drives onChange → dirties the panel → the new value lands
+    // in the save payload once the footer's Save is clicked.
     host.querySelector<HTMLButtonElement>('[data-testid="custom-field"]')!.click();
-    const save = Array.from(host.querySelectorAll<HTMLButtonElement>("button")).find(
-      (b) => b.textContent?.trim() === "Save settings",
-    )!;
-    save.click();
+    footSave()!.click();
     await vi.waitFor(() => {
       const post = fetchMock.mock.calls.find(
         (c) => (c[1]?.method ?? "GET").toUpperCase() === "POST",

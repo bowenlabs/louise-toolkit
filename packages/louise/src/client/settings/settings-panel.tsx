@@ -13,7 +13,7 @@
 // so a key the site didn't declare is ignored, never written.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
-import { createSignal, For, type JSX, Show } from "solid-js";
+import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../icons.jsx";
 import {
   Section,
@@ -21,6 +21,7 @@ import {
   type SettingsFieldDef,
   type SettingsFieldGroup,
 } from "./fields.jsx";
+import { type SaveStatus, usePanelActions } from "./panel-actions.jsx";
 import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
 
 /**
@@ -116,7 +117,12 @@ export interface SettingsPanelProps {
 
 export function SettingsPanel(props: SettingsPanelProps) {
   const qc = useQueryClient();
+  const actions = usePanelActions();
   const [values, setValues] = createSignal<Record<string, unknown>>({});
+  // The last-loaded (or last-saved) snapshot — the target Revert restores to,
+  // and the baseline the dirty flag is measured against.
+  const [loaded, setLoaded] = createSignal<Record<string, unknown>>({});
+  const [dirty, setDirty] = createSignal(false);
   const [status, setStatus] = createSignal<"idle" | "saving" | "saved" | "error">("idle");
 
   const groups = () => [...(props.baseGroups ?? SETTINGS_BASE_GROUPS), ...(props.extension ?? [])];
@@ -124,6 +130,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
   const setField = (key: string, value: unknown) => {
     setValues({ ...values(), [key]: value });
+    setDirty(true);
     setStatus("idle");
   };
 
@@ -139,6 +146,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
         seeded[def.key] = def.render ? settings[def.key] : coerce(settings[def.key], def.type);
       }
       setValues(seeded);
+      setLoaded({ ...seeded });
+      setDirty(false);
       return settings;
     },
   }));
@@ -151,6 +160,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
     },
     onSuccess: async () => {
       setStatus("saved");
+      setLoaded({ ...values() });
+      setDirty(false);
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.settings });
     },
     onError: (err) => {
@@ -158,10 +169,50 @@ export function SettingsPanel(props: SettingsPanelProps) {
       setStatus("error");
     },
   }));
-  const save = () => {
+  const save = async () => {
     setStatus("saving");
-    saveMutation.mutate();
+    // mutateAsync rejects on error; onError already flips status → swallow so the
+    // footer button's busy state just settles (the status pill shows the error).
+    await saveMutation.mutateAsync().catch(() => {});
   };
+  const revert = () => {
+    setValues({ ...loaded() });
+    setDirty(false);
+    setStatus("idle");
+  };
+
+  // The footer owns Save/Revert (the single, always-visible home for them). The
+  // primary busyLabel shows "Saving…"; the status pill carries the terminal
+  // saved/error feedback (idle while saving so it isn't shown twice).
+  onMount(() =>
+    onCleanup(
+      actions.push(
+        [
+          {
+            id: "save",
+            label: "Save",
+            kind: "primary",
+            busyLabel: "Saving…",
+            disabled: () => !dirty(),
+            onClick: save,
+          },
+          {
+            id: "revert",
+            label: "Revert",
+            kind: "ghost",
+            disabled: () => !dirty(),
+            onClick: revert,
+          },
+        ],
+        (): SaveStatus =>
+          status() === "saved"
+            ? { state: "saved" }
+            : status() === "error"
+              ? { state: "error", message: "Couldn’t save" }
+              : { state: "idle" },
+      ),
+    ),
+  );
 
   return (
     <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
@@ -180,23 +231,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
           </Section>
         )}
       </For>
-
-      <div class="louise-form-actions">
-        <button
-          class="louise-btn louise-btn-primary"
-          type="button"
-          disabled={status() === "saving"}
-          onClick={save}
-        >
-          {status() === "saving" ? "Saving…" : "Save settings"}
-        </button>
-        <Show when={status() === "saved"}>
-          <span class="louise-muted">Saved</span>
-        </Show>
-        <Show when={status() === "error"}>
-          <span class="louise-muted">Couldn’t save</span>
-        </Show>
-      </div>
 
       <Show when={props.extras}>{props.extras?.()}</Show>
 

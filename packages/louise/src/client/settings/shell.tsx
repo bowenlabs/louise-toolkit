@@ -26,6 +26,7 @@ import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
 import { MediaPanel } from "./media-panel.jsx";
+import { DrawerFooter, PanelActionsProvider } from "./panel-actions.jsx";
 import { type BuiltInPageRef, type PageTemplate, PagesPanel } from "./pages-panel.jsx";
 import { createSettingsQueryClient } from "./query.js";
 import { SettingsPanel } from "./settings-panel.jsx";
@@ -165,33 +166,40 @@ export function Settings(props: SettingsConfig) {
             </nav>
           </Show>
 
-          <div class="louise-drawer-body">
-            <Show when={overlay() === "users"}>
-              <UsersPanel endpoint={props.usersEndpoint} />
-            </Show>
-            <Show when={overlay() === "media"}>
-              <MediaPanel />
-            </Show>
-            <Show when={overlay() === "pages"}>
-              <PagesPanel
-                builtInPages={props.builtInPages}
-                pageTemplates={props.pageTemplates}
-                ogCard={props.ogCard}
-              />
-            </Show>
-            <Show when={overlay() === "settings"}>
-              <SettingsPanel
-                baseGroups={props.settingsBaseGroups}
-                extension={props.settingsExtension}
-                extras={props.settingsExtras}
-              />
-            </Show>
-            <Show when={overlay() === null}>
-              <For each={tabs()} fallback={<p class="louise-muted">Pick a section above.</p>}>
-                {(t) => <Show when={tab() === t.id}>{t.panel()}</Show>}
-              </For>
-            </Show>
-          </div>
+          {/* The action footer is shell-owned: the active panel/editor pushes its
+              save/cancel/publish actions onto the stack and they render in the
+              sticky louise-drawer-foot. The provider wraps both the body (where
+              panels push) and the footer (which reads the top frame). */}
+          <PanelActionsProvider>
+            <div class="louise-drawer-body">
+              <Show when={overlay() === "users"}>
+                <UsersPanel endpoint={props.usersEndpoint} />
+              </Show>
+              <Show when={overlay() === "media"}>
+                <MediaPanel />
+              </Show>
+              <Show when={overlay() === "pages"}>
+                <PagesPanel
+                  builtInPages={props.builtInPages}
+                  pageTemplates={props.pageTemplates}
+                  ogCard={props.ogCard}
+                />
+              </Show>
+              <Show when={overlay() === "settings"}>
+                <SettingsPanel
+                  baseGroups={props.settingsBaseGroups}
+                  extension={props.settingsExtension}
+                  extras={props.settingsExtras}
+                />
+              </Show>
+              <Show when={overlay() === null}>
+                <For each={tabs()} fallback={<p class="louise-muted">Pick a section above.</p>}>
+                  {(t) => <Show when={tab() === t.id}>{t.panel()}</Show>}
+                </For>
+              </Show>
+            </div>
+            <DrawerFooter />
+          </PanelActionsProvider>
         </aside>
       </Show>
     </div>

@@ -1124,6 +1124,24 @@ const CSS = `
   margin-top: 4px;
 }
 
+/* ── Drawer action footer (#109) ──────────────────────────────────────
+   Shell-owned, always-visible home for the active panel/editor's actions +
+   "did it save?" status. Pinned below the scrolling body (both are flex
+   children of the drawer column); collapses when the active view has none. */
+.louise-drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+}
+/* Status on the left, actions pinned right (works with or without a status). */
+.louise-foot-actions { display: flex; gap: 8px; margin-left: auto; }
+.louise-foot-status { font-size: 13px; color: #64748b; }
+.louise-foot-status[data-state="saved"] { color: var(--louise-green); }
+.louise-foot-status[data-state="error"] { color: #dc2626; }
+
 /* ── Responsive: Louise on tablet & mobile ────────────────────────────
    LOUISE.md: the explorer is a side drawer on desktop and a bottom
    sheet on mobile. Chrome only — page/site styles are untouched. */
@@ -1190,6 +1208,8 @@ const CSS = `
   .louise-tab { white-space: nowrap; flex: none; }
   /* Two-column form rows collapse. */
   .louise-grid-2 { grid-template-columns: 1fr !important; }
+  /* Keep the action footer clear of the home indicator on the bottom sheet. */
+  .louise-drawer-foot { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   /* Edit bar: dock it to the TOP on mobile, so the contextual sections sheet
      can own the bottom (thumb zone) without the two floating bars colliding. */
   .louise-bar {
