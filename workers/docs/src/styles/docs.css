@@ -1,10 +1,20 @@
 /* Louise brand for the Starlight docs — matched to the louisetoolkit.com
    marketing site. BowenLabs palette: blue #1481ef primary, gold #f3ae29 accent,
-   green #8ebe59 success. Type is the site's display system: Roboto Flex
-   (variable weight + width axes) for body AND headings — heavy and a touch wide
-   for headings, echoing the marketing hero — and JetBrains Mono for code. The
-   package's fonts.css only loads the Roboto Flex weight axis, so pull the full
-   axes + JetBrains Mono here. */
+   light-green #8ebe59 success, orange #db6327. Type is the site's display
+   system: Roboto Flex (variable weight + width axes) for body AND headings —
+   heavy and a touch wide for headings, echoing the marketing hero — and
+   JetBrains Mono for code.
+
+   Beyond type + accent, this file carries the FULL brand: Phosphor icons (the
+   same family the marketing site uses via @phosphor-icons/core), brand-colored
+   asides, a refined sidebar, and the lightning brand mark in the header. Phosphor
+   glyphs are inlined as mask-image data URIs so they tint to any brand color and
+   need no extra dependency or component override — authentic Phosphor paths,
+   delivered through CSS.
+
+   Everything here is UNLAYERED, so it wins over Starlight's own styles: Starlight
+   ≥0.34 moves all of its CSS into cascade layers, and unlayered declarations take
+   precedence over any layered rule regardless of specificity. */
 @import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 :root {
@@ -14,17 +24,49 @@
   --sl-color-accent: #1481ef;
   --sl-color-accent-high: #a9d1ff;
   --sl-color-white: #ffffff;
+
+  /* Brand palette — the pure BowenLabs hues (bowenlabs/branding). Used for
+     borders, backgrounds and icon fills, where saturation reads well on both
+     themes. */
+  --lt-blue: #1481ef;
+  --lt-gold: #f3ae29;
+  --lt-green: #8ebe59;
+  --lt-orange: #db6327;
+
+  /* Aside accents — theme-aware so the title text stays legible. `:root` is
+     Starlight's DARK theme; the light overrides live below. */
+  --lt-note: #4ba3ff;
+  --lt-tip: #a6d977;
+  --lt-caution: #f7c14e;
+  --lt-danger: #ef8a5a;
+
+  /* Phosphor glyphs (@phosphor-icons/core, 256×256 viewBox) inlined for
+     mask-image. `bold` weight for UI glyphs, `fill` for the lightning accent —
+     matching the marketing site's icon convention. */
+  --lt-ph-lightning: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z'/%3E%3C/svg%3E");
+  --lt-ph-info: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M108,84a16,16,0,1,1,16,16A16,16,0,0,1,108,84Zm128,44A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Zm-72,36.68V132a20,20,0,0,0-20-20,12,12,0,0,0-4,23.32V168a20,20,0,0,0,20,20,12,12,0,0,0,4-23.32Z'/%3E%3C/svg%3E");
+  --lt-ph-lightbulb: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M180,232a12,12,0,0,1-12,12H88a12,12,0,0,1,0-24h80A12,12,0,0,1,180,232Zm40-128a91.51,91.51,0,0,1-35.17,72.35A12.26,12.26,0,0,0,180,186v2a20,20,0,0,1-20,20H96a20,20,0,0,1-20-20v-2a12,12,0,0,0-4.7-9.51A91.57,91.57,0,0,1,36,104.52C35.73,54.69,76,13.2,125.79,12A92,92,0,0,1,220,104Zm-24,0a68,68,0,0,0-69.65-68C89.56,36.88,59.8,67.55,60,104.38a67.71,67.71,0,0,0,26.1,53.19A35.87,35.87,0,0,1,100,184h56.1A36.13,36.13,0,0,1,170,157.49,67.68,67.68,0,0,0,196,104Zm-20.07-5.32a48.5,48.5,0,0,0-31.91-40,12,12,0,0,0-8,22.62,24.31,24.31,0,0,1,16.09,20,12,12,0,0,0,23.86-2.64Z'/%3E%3C/svg%3E");
+  --lt-ph-warning: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M240.26,186.1,152.81,34.23h0a28.74,28.74,0,0,0-49.62,0L15.74,186.1a27.45,27.45,0,0,0,0,27.71A28.31,28.31,0,0,0,40.55,228h174.9a28.31,28.31,0,0,0,24.79-14.19A27.45,27.45,0,0,0,240.26,186.1Zm-20.8,15.7a4.46,4.46,0,0,1-4,2.2H40.55a4.46,4.46,0,0,1-4-2.2,3.56,3.56,0,0,1,0-3.73L124,46.2a4.77,4.77,0,0,1,8,0l87.44,151.87A3.56,3.56,0,0,1,219.46,201.8ZM116,136V104a12,12,0,0,1,24,0v32a12,12,0,0,1-24,0Zm28,40a16,16,0,1,1-16-16A16,16,0,0,1,144,176Z'/%3E%3C/svg%3E");
+  --lt-ph-siren: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M116,20V12a12,12,0,0,1,24,0v8a12,12,0,0,1-24,0Zm84,36a12,12,0,0,0,8.49-3.51l8-8a12,12,0,1,0-17-17l-8,8A12,12,0,0,0,200,56ZM47.51,52.49a12,12,0,0,0,17-17l-8-8a12,12,0,0,0-17,17ZM236,176v24a20,20,0,0,1-20,20H40a20,20,0,0,1-20-20V176a20,20,0,0,1,16-19.6V140a92,92,0,0,1,92-92h.71C179,48.38,220,90.1,220,141v15.4A20,20,0,0,1,236,176ZM60,140v16H196V141c0-37.77-30.27-68.72-67.48-69H128a68,68,0,0,0-68,68Zm152,40H44v16H212Zm-75.6-66.72a28,28,0,0,1,18.32,18.32,12,12,0,0,0,22.9-7.2,52,52,0,0,0-34-34,12,12,0,0,0-7.2,22.9Z'/%3E%3C/svg%3E");
+  --lt-ph-compass: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M128,20A108,108,0,1,0,236,128,108.12,108.12,0,0,0,128,20Zm0,192a84,84,0,1,1,84-84A84.09,84.09,0,0,1,128,212ZM163.27,77l-56,24a12,12,0,0,0-6.3,6.3l-24,56A12,12,0,0,0,92.73,179l56-24a12,12,0,0,0,6.3-6.3l24-56A12,12,0,0,0,163.27,77Zm-28.41,57.89-24,10.29,10.29-24,24-10.29Z'/%3E%3C/svg%3E");
+  --lt-ph-code: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M71.68,97.22,34.74,128l36.94,30.78a12,12,0,1,1-15.36,18.44l-48-40a12,12,0,0,1,0-18.44l48-40A12,12,0,0,1,71.68,97.22Zm176,21.56-48-40a12,12,0,1,0-15.36,18.44L221.26,128l-36.94,30.78a12,12,0,1,0,15.36,18.44l48-40a12,12,0,0,0,0-18.44ZM164.1,28.72a12,12,0,0,0-15.38,7.18l-64,176a12,12,0,0,0,7.18,15.37A11.79,11.79,0,0,0,96,228a12,12,0,0,0,11.28-7.9l64-176A12,12,0,0,0,164.1,28.72Z'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="light"] {
   --sl-color-accent-low: #d3e6ff;
   --sl-color-accent: #1069d6;
   --sl-color-accent-high: #0a3a78;
+
+  /* Darker aside accents for legibility on light surfaces. */
+  --lt-note: #1069d6;
+  --lt-tip: #4f7d2e;
+  --lt-caution: #96690d;
+  --lt-danger: #b8471d;
 }
 
 /* Slightly warmer code accents to match the brand yellow. */
 .sl-markdown-content :not(pre) > code {
-  border-color: color-mix(in srgb, #1481ef 25%, transparent);
+  border-color: color-mix(in srgb, var(--lt-blue) 25%, transparent);
 }
 
 /* Headings in the brand display face: Roboto Flex, heavy + a little wide, tight
@@ -45,9 +87,116 @@ h1#_top {
   font-stretch: 120%;
 }
 
-/* Site title in the header — the "LOUISE" wordmark treatment beside the mark. */
+/* Site title in the header — the "LOUISE" wordmark treatment beside the mark,
+   with the Phosphor lightning brand mark trailing it (the marketing marquee /
+   V8-native badge motif). */
 a.site-title {
   font-weight: 900;
   font-stretch: 120%;
   letter-spacing: -0.01em;
+}
+a.site-title::after {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-inline-start: 0.1em;
+  background-color: var(--lt-gold);
+  -webkit-mask: var(--lt-ph-lightning) center / contain no-repeat;
+  mask: var(--lt-ph-lightning) center / contain no-repeat;
+  opacity: 0.9;
+}
+
+/* Content links — brand-blue underline (Starlight already tints the text with
+   the accent; give the rule a touch of brand personality). */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-underline-offset: 0.15em;
+  text-decoration-color: color-mix(in srgb, var(--lt-blue) 45%, transparent);
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--lt-blue) 28%, transparent);
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────
+   Quieter nav so the page content leads: inactive links lighter and dimmer,
+   the current page kept at Starlight's accent treatment, and a little more air
+   between the two top-level groups. Each top-level group heading gets its
+   Phosphor brand glyph (Guide → compass, Reference → code). */
+.top-level a:not([aria-current="page"]) {
+  font-weight: 400;
+  color: var(--sl-color-gray-2);
+}
+.top-level a:not([aria-current="page"]):hover {
+  color: var(--sl-color-white);
+}
+.top-level a[aria-current="page"] {
+  font-weight: 600;
+}
+.top-level > li + li {
+  margin-top: 1rem;
+}
+
+/* Brand glyph before each top-level group label (Starlight marks these with
+   `.large`). Order-based (config = Guide then Reference); if Starlight's markup
+   shifts, the glyph simply doesn't render — no layout breakage. */
+.top-level > li:nth-child(1) .large::before,
+.top-level > li:nth-child(2) .large::before {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-inline-end: 0.4em;
+  vertical-align: -0.12em;
+  -webkit-mask: center / contain no-repeat;
+  mask: center / contain no-repeat;
+}
+.top-level > li:nth-child(1) .large::before {
+  background-color: var(--lt-blue);
+  -webkit-mask-image: var(--lt-ph-compass);
+  mask-image: var(--lt-ph-compass);
+}
+.top-level > li:nth-child(2) .large::before {
+  background-color: var(--lt-gold);
+  -webkit-mask-image: var(--lt-ph-code);
+  mask-image: var(--lt-ph-code);
+}
+
+/* ── Asides / callouts ────────────────────────────────────────────────────
+   Recolored to the brand palette (note → blue, tip → green, caution → gold,
+   danger → orange) with Phosphor glyphs swapped in for Starlight's defaults.
+   The glyph is masked onto Starlight's `.starlight-aside__icon` element and
+   inherits the aside's accent color; its built-in <svg> path is hidden. */
+.starlight-aside__icon {
+  background-color: currentColor;
+  -webkit-mask: var(--lt-aside-icon) center / contain no-repeat;
+  mask: var(--lt-aside-icon) center / contain no-repeat;
+}
+.starlight-aside__icon > * {
+  display: none;
+}
+
+.starlight-aside--note {
+  --lt-aside-icon: var(--lt-ph-info);
+  --sl-color-asides-text-accent: var(--lt-note);
+  --sl-color-asides-border: var(--lt-note);
+  background-color: color-mix(in srgb, var(--lt-blue) 10%, transparent);
+}
+.starlight-aside--tip {
+  --lt-aside-icon: var(--lt-ph-lightbulb);
+  --sl-color-asides-text-accent: var(--lt-tip);
+  --sl-color-asides-border: var(--lt-tip);
+  background-color: color-mix(in srgb, var(--lt-green) 12%, transparent);
+}
+.starlight-aside--caution {
+  --lt-aside-icon: var(--lt-ph-warning);
+  --sl-color-asides-text-accent: var(--lt-caution);
+  --sl-color-asides-border: var(--lt-caution);
+  background-color: color-mix(in srgb, var(--lt-gold) 12%, transparent);
+}
+.starlight-aside--danger {
+  --lt-aside-icon: var(--lt-ph-siren);
+  --sl-color-asides-text-accent: var(--lt-danger);
+  --sl-color-asides-border: var(--lt-danger);
+  background-color: color-mix(in srgb, var(--lt-orange) 10%, transparent);
 }

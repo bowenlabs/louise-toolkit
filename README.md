@@ -8,8 +8,8 @@ No separate admin app. No JSON forms for prose. Log in, and the live site
 becomes editable in place — text where the text is, structured sections through
 your own components, and back-office work in Louise Settings.
 
-[Documentation](https://louisetoolkit.com/docs) ·
-[Getting started](https://louisetoolkit.com/docs/guide/getting-started) ·
+[Documentation](https://docs.louisetoolkit.com) ·
+[Getting started](https://docs.louisetoolkit.com/guide/getting-started) ·
 [`louise-toolkit`](packages/louise)
 
 </div>
@@ -71,7 +71,7 @@ pnpm dev            # run louisetoolkit.com locally (marketing + Starlight docs)
 
 The library is packaged with `vp pack` (tsdown/Rolldown under the hood: multi-entry
 `.d.ts` generation, tree-shaking). See [`packages/louise`](packages/louise) for the package
-readme and [louisetoolkit.com/docs](https://louisetoolkit.com/docs) for the full guide and API
+readme and [docs.louisetoolkit.com](https://docs.louisetoolkit.com) for the full guide and API
 reference.
 
 ## Roadmap

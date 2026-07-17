@@ -11,7 +11,7 @@ contributions are grounded in real usage, and correctness matters more than volu
 - **Pick up an issue** — the [Platform features push](https://github.com/bowenlabs/louise-toolkit/milestone/1)
   milestone tracks the active work; issues labelled **good first issue** are the
   gentlest entry points. Comment before you start so we don't double up.
-- **Improve the docs** — [docs.louisetoolkit.com](https://louisetoolkit.com/docs)
+- **Improve the docs** — [docs.louisetoolkit.com](https://docs.louisetoolkit.com)
   is built from `workers/docs` (Starlight); fixes there are always welcome.
 
 ## Project layout
