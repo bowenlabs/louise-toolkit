@@ -16,6 +16,7 @@ import {
   formRoute,
   inquiriesRoute,
   mediaRoute,
+  overviewRoute,
   pagesRoute,
   saveRoute,
   searchRoute,
@@ -33,6 +34,7 @@ import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
+import { overviewContent, overviewInbox } from "./lib/louise/overview.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesDraftDeps } from "./lib/louise/versioned-pages.js";
 import { syncPageVector } from "./lib/louise/vectors.js";
@@ -138,6 +140,15 @@ const contactForm = defineForm({
 // #endregion example:inquiries-form
 
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
+  // Owner Home dashboard (#108): one editor-only GET the drawer's Home landing
+  // reads for its at-a-glance cards. Content + Inbox counts are live; the health
+  // slice is omitted until #106 persists the link-check feed (the card hides
+  // itself until then). A throwing resolver is dropped, never 500s the dashboard.
+  overviewRoute<WorkerEnv>({
+    resolveEditor,
+    content: overviewContent,
+    inbox: overviewInbox,
+  }),
   // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
   // publish,unpublish}. Saves stage drafts (live row untouched); publish promotes
   // a draft and sets published_version_id. Same sections validation on drafts.
