@@ -40,6 +40,7 @@ export const louiseQueryKeys = {
   settings: ["louise", "settings"],
   inquiries: ["louise", "inquiries"],
   editors: ["louise", "editors"],
+  overview: ["louise", "overview"],
 } as const;
 
 /** GET JSON, throwing on a non-2xx status. */

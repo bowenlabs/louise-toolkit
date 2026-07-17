@@ -1142,6 +1142,58 @@ const CSS = `
 .louise-foot-status[data-state="saved"] { color: var(--louise-green); }
 .louise-foot-status[data-state="error"] { color: #dc2626; }
 
+/* ── Owner Home dashboard (#108) ──────────────────────────────────────
+   Attention-first landing: a traffic-light summary over a grid of cards. */
+.louise-dashboard { display: flex; flex-direction: column; gap: 16px; }
+.louise-dashboard-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+.louise-dashboard-summary[data-state="attention"] {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.28);
+}
+.louise-dashboard-summary-text {
+  font-family: var(--louise-font-head);
+  font-weight: 700;
+  font-size: 15px;
+}
+/* A card's at-a-glance status dot (also used inline in the summary). */
+.louise-card-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+.louise-card-dot[data-state="ok"] { background: var(--louise-green); }
+.louise-card-dot[data-state="attention"] { background: var(--louise-yellow); }
+
+.louise-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.louise-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+.louise-card-head { display: flex; align-items: center; gap: 8px; }
+.louise-card-title { font-size: 14px; margin: 0; }
+.louise-card-body { font-size: 14px; color: #334155; line-height: 1.45; }
+/* One verb per card; sits at the bottom-left, self-sized. */
+.louise-card-action { align-self: flex-start; margin-top: auto; }
+
 /* ── Responsive: Louise on tablet & mobile ────────────────────────────
    LOUISE.md: the explorer is a side drawer on desktop and a bottom
    sheet on mobile. Chrome only — page/site styles are untouched. */

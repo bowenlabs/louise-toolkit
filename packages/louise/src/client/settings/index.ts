@@ -36,6 +36,19 @@ export {
   usePanelActions,
 } from "./panel-actions.jsx";
 
+// Owner Home dashboard (#108) — the card registry + built-ins, so a site can
+// register its own cards (`dashboard.cards`) with the same shape.
+export { Card } from "./dashboard/Card.jsx";
+export { BUILTIN_CARDS } from "./dashboard/cards.jsx";
+export { HomePanel } from "./dashboard/home-panel.jsx";
+export type {
+  CardStatus,
+  DashboardApi,
+  DashboardCard,
+  DashboardPanelTarget,
+  OverviewData,
+} from "./dashboard/types.js";
+
 // Framework panels (top strip) + the default Inquiries panel (a bottom tab).
 export { MediaPanel, type MediaItem } from "./media-panel.jsx";
 export {

@@ -24,6 +24,9 @@ import { render } from "solid-js/web";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
+import { BUILTIN_CARDS } from "./dashboard/cards.jsx";
+import { HomePanel } from "./dashboard/home-panel.jsx";
+import type { DashboardApi, DashboardCard } from "./dashboard/types.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
 import { MediaPanel } from "./media-panel.jsx";
 import { DrawerFooter, PanelActionsProvider } from "./panel-actions.jsx";
@@ -73,15 +76,24 @@ export interface SettingsConfig {
   users?: boolean;
   /** Override the Users panel editors endpoint. Default `/api/louise/editors`. */
   usersEndpoint?: string;
+  /** Owner Home dashboard (#108). Omit for the built-in cards only. */
+  dashboard?: {
+    /** Site cards appended to the grid (rendered alongside the built-ins). */
+    cards?: DashboardCard[];
+    /** Hide built-in cards by id, e.g. `["health"]`. */
+    hide?: string[];
+  };
+  /** `false` → open on Pages (no Home landing), as before. Default `true`. */
+  home?: boolean;
 }
 
-/** The framework panels, keyed by their top-strip icon. Media/Pages/Settings
+/** The framework panels, keyed by their top-strip icon. Home/Media/Pages/Settings
  *  are always present; `users` is opt-in (config.users + a wired editorsRoute). */
-type FrameworkPanel = "users" | "media" | "pages" | "settings";
+type FrameworkPanel = "home" | "users" | "media" | "pages" | "settings";
 const BASE_FRAMEWORK_BUTTONS: {
   id: FrameworkPanel;
   label: string;
-  icon: "user" | "image" | "fileText" | "gear";
+  icon: "user" | "image" | "fileText" | "gear" | "house";
 }[] = [
   { id: "media", label: "Media", icon: "image" },
   { id: "pages", label: "Pages", icon: "fileText" },
@@ -90,17 +102,26 @@ const BASE_FRAMEWORK_BUTTONS: {
 
 export function Settings(props: SettingsConfig) {
   const tabs = () => props.tabs ?? [];
-  // The top strip: Media/Pages/Settings always, Users first when opted in.
-  const frameworkButtons = () =>
-    props.users
-      ? [{ id: "users" as const, label: "Users", icon: "user" as const }, ...BASE_FRAMEWORK_BUTTONS]
-      : BASE_FRAMEWORK_BUTTONS;
+  const showHome = () => props.home !== false;
+  // The top strip: Home first (unless disabled), then Users (opt-in), then the
+  // fixed Media/Pages/Settings.
+  const frameworkButtons = () => [
+    ...(showHome() ? [{ id: "home" as const, label: "Home", icon: "house" as const }] : []),
+    ...(props.users ? [{ id: "users" as const, label: "Users", icon: "user" as const }] : []),
+    ...BASE_FRAMEWORK_BUTTONS,
+  ];
+  // The built-in cards a site didn't hide, plus the site's own cards.
+  const allCards = (): DashboardCard[] => [
+    ...BUILTIN_CARDS.filter((c) => !(props.dashboard?.hide ?? []).includes(c.id)),
+    ...(props.dashboard?.cards ?? []),
+  ];
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<string | undefined>(tabs()[0]?.id);
   // Framework panels aren't tabs — they open over the tabs via the top strip.
-  // With no site tabs, open Pages by default so the body isn't empty.
+  // Default landing is Home; with Home disabled, open Pages (no tabs) so the
+  // body isn't empty, else the first tab.
   const [overlay, setOverlay] = createSignal<FrameworkPanel | null>(
-    tabs().length === 0 ? "pages" : null,
+    showHome() ? "home" : tabs().length === 0 ? "pages" : null,
   );
 
   const openDrawer = () => setOpen(true);
@@ -112,6 +133,9 @@ export function Settings(props: SettingsConfig) {
     setTab(id);
     setOverlay(null);
   };
+  // A card's deep-link: a framework panel opens over the tabs; a tab selects it.
+  const navigate: DashboardApi["open"] = (target) =>
+    "panel" in target ? setOverlay(target.panel) : selectTab(target.tab);
 
   return (
     <div data-theme="louise">
@@ -172,6 +196,9 @@ export function Settings(props: SettingsConfig) {
               panels push) and the footer (which reads the top frame). */}
           <PanelActionsProvider>
             <div class="louise-drawer-body">
+              <Show when={overlay() === "home"}>
+                <HomePanel cards={allCards()} navigate={navigate} />
+              </Show>
               <Show when={overlay() === "users"}>
                 <UsersPanel endpoint={props.usersEndpoint} />
               </Show>

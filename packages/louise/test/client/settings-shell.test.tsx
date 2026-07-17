@@ -116,8 +116,8 @@ describe("Settings shell — two-group registry split", () => {
     ));
     openDrawer();
 
-    // Framework panels are fixed in the top strip, in order.
-    expect(frameLabels()).toEqual(["Media", "Pages", "Settings"]);
+    // Framework panels are fixed in the top strip, in order (Home leads).
+    expect(frameLabels()).toEqual(["Home", "Media", "Pages", "Settings"]);
     // Site collections (including Inquiries) are the bottom tabs.
     expect(tabLabels()).toEqual(["Inquiries", "Products"]);
     // The split can't collapse: Inquiries is never a top-strip button, and the
@@ -127,11 +127,12 @@ describe("Settings shell — two-group registry split", () => {
     expect(tabLabels()).not.toContain("Pages");
   });
 
-  it("shows the first tab by default and switches on tab click", () => {
+  it("shows the first tab by default and switches on tab click (home disabled)", () => {
     stubFetch(() => jsonResponse({}));
     mount(() => (
       <Settings
         userName="Baylee"
+        home={false}
         tabs={[
           { id: "inquiries", label: "Inquiries", panel: () => <div>inq-body</div> },
           { id: "products", label: "Products", panel: () => <div>prod-body</div> },
@@ -167,11 +168,21 @@ describe("Settings shell — two-group registry split", () => {
     expect(host.textContent).not.toContain("inq-body");
   });
 
-  it("defaults to the Pages panel when a site registers no tabs", async () => {
-    stubFetch(() => jsonResponse({ pages: [] }));
+  it("defaults to the Home dashboard", async () => {
+    stubFetch(() => jsonResponse({}));
     mount(() => <Settings userName="Baylee" />);
     openDrawer();
+    // Home is the default landing — the traffic-light summary, not a CRUD panel.
+    await vi.waitFor(() => expect(host.querySelector(".louise-dashboard")).not.toBeNull());
+    expect(host.textContent).toContain("Your site is healthy");
+  });
+
+  it("opens Pages (no Home) when home is disabled and a site registers no tabs", async () => {
+    stubFetch(() => jsonResponse({ pages: [] }));
+    mount(() => <Settings userName="Baylee" home={false} />);
+    openDrawer();
     expect(host.querySelector(".louise-drawer-tabs")).toBeNull();
+    expect(frameLabels()).not.toContain("Home");
     await vi.waitFor(() => expect(host.textContent).toContain("New page"));
   });
 

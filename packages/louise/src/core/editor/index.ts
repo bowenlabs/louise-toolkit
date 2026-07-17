@@ -40,6 +40,14 @@ export {
   type SaveRouteConfig,
   saveRoute,
 } from "./save.js";
+export {
+  type OverviewContent,
+  type OverviewData,
+  type OverviewHealth,
+  type OverviewInbox,
+  type OverviewRouteConfig,
+  overviewRoute,
+} from "./overview.js";
 export { DEFAULT_PAGE_FIELDS, type PagesRouteConfig, pagesRoute, pickFields } from "./pages.js";
 export { type SearchRouteConfig, type SearchVectorConfig, searchRoute } from "./search.js";
 export { type AiRouteConfig, aiRoute } from "./ai.js";
