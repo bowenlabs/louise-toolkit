@@ -9,7 +9,7 @@ SolidJS + ProseKit inline-edit client, Louise Settings (a registry-driven settin
 surface), the generic `api/louise/*` handlers, and the daisyUI editor theme — as
 granular, tree-shakeable subpath exports.
 
-> Full guide and API reference: **[louisetoolkit.com/docs](https://louisetoolkit.com/docs)**
+> Full guide and API reference: **[docs.louisetoolkit.com](https://docs.louisetoolkit.com)**
 
 ## Install
 
@@ -90,7 +90,7 @@ import { mountLouise } from "louise-toolkit/client";
 mountLouise(); // no-op unless the page rendered edit-mode markers
 ```
 
-See the [Getting Started guide](https://louisetoolkit.com/docs/guide/getting-started) for
+See the [Getting Started guide](https://docs.louisetoolkit.com/guide/getting-started) for
 the full wiring (edit mode, the save endpoint, rich text, Louise Settings, media, theme).
 
 ## Contributing / building
