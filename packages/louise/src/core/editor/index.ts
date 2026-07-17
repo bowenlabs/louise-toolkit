@@ -18,6 +18,7 @@ export {
 } from "./shared.js";
 export { type EditorsRouteConfig, editorsRoute } from "./editors.js";
 export { type FormRouteConfig, type FormRouteEnv, formRoute } from "./form.js";
+export { type HealthRouteConfig, healthRoute } from "./health.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {

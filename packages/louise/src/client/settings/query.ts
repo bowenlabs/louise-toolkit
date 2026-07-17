@@ -41,6 +41,7 @@ export const louiseQueryKeys = {
   inquiries: ["louise", "inquiries"],
   editors: ["louise", "editors"],
   overview: ["louise", "overview"],
+  health: ["louise", "health"],
 } as const;
 
 /** GET JSON, throwing on a non-2xx status. */

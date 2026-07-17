@@ -121,7 +121,7 @@ function HealthCard(props: { api: DashboardApi }) {
         <Card
           title="Site health"
           status={status()}
-          action={{ label: "Review", onClick: () => props.api.open({ panel: "pages" }) }}
+          action={{ label: "Review", onClick: () => props.api.open({ panel: "health" }) }}
         >
           {message(h())}
         </Card>

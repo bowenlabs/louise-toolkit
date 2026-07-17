@@ -25,6 +25,7 @@ import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
 import { BUILTIN_CARDS } from "./dashboard/cards.jsx";
+import { HealthPanel } from "./dashboard/health-panel.jsx";
 import { HomePanel } from "./dashboard/home-panel.jsx";
 import type { DashboardApi, DashboardCard } from "./dashboard/types.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
@@ -82,14 +83,19 @@ export interface SettingsConfig {
     cards?: DashboardCard[];
     /** Hide built-in cards by id, e.g. `["health"]`. */
     hide?: string[];
+    /** Override the health-detail endpoint the Health drill-in reads.
+     *  Default `/api/louise/health` (wire `healthRoute` server-side). */
+    healthEndpoint?: string;
   };
   /** `false` → open on Pages (no Home landing), as before. Default `true`. */
   home?: boolean;
 }
 
 /** The framework panels, keyed by their top-strip icon. Home/Media/Pages/Settings
- *  are always present; `users` is opt-in (config.users + a wired editorsRoute). */
-type FrameworkPanel = "home" | "users" | "media" | "pages" | "settings";
+ *  are always present; `users` is opt-in (config.users + a wired editorsRoute).
+ *  `health` is a hidden drill-in (reached from the Home Health card, not a
+ *  top-strip button). */
+type FrameworkPanel = "home" | "users" | "media" | "pages" | "settings" | "health";
 const BASE_FRAMEWORK_BUTTONS: {
   id: FrameworkPanel;
   label: string;
@@ -198,6 +204,9 @@ export function Settings(props: SettingsConfig) {
             <div class="louise-drawer-body">
               <Show when={overlay() === "home"}>
                 <HomePanel cards={allCards()} navigate={navigate} />
+              </Show>
+              <Show when={overlay() === "health"}>
+                <HealthPanel navigate={navigate} endpoint={props.dashboard?.healthEndpoint} />
               </Show>
               <Show when={overlay() === "users"}>
                 <UsersPanel endpoint={props.usersEndpoint} />

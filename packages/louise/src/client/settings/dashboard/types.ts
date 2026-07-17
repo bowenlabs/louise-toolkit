@@ -8,8 +8,9 @@
 
 import type { JSX } from "solid-js";
 
-/** A framework panel (top strip) a card can deep-link into. */
-export type DashboardPanelTarget = "home" | "pages" | "media" | "settings" | "users";
+/** A framework panel a card can deep-link into. `health` is a hidden drill-in
+ *  (reachable from the Health card's action, not a top-strip button). */
+export type DashboardPanelTarget = "home" | "pages" | "media" | "settings" | "users" | "health";
 
 /** What a card reports up so the summary header can aggregate a traffic light. */
 export type CardStatus =

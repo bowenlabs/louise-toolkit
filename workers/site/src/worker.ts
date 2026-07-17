@@ -14,6 +14,7 @@ import { checkLinks, ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/brows
 import {
   DEFAULT_PAGE_FIELDS,
   formRoute,
+  healthRoute,
   inquiriesRoute,
   mediaRoute,
   overviewRoute,
@@ -34,7 +35,7 @@ import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
-import { runHealthScan } from "./lib/louise/health.js";
+import { readSiteHealth, runHealthScan } from "./lib/louise/health.js";
 import { overviewContent, overviewHealth, overviewInbox } from "./lib/louise/overview.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesDraftDeps } from "./lib/louise/versioned-pages.js";
@@ -151,6 +152,9 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     inbox: overviewInbox,
     health: overviewHealth,
   }),
+  // The Health card's drill-in (#106 Phase 2): the full persisted summary,
+  // including the broken-link details the overview count doesn't carry.
+  healthRoute<WorkerEnv>({ resolveEditor, read: readSiteHealth }),
   // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
   // publish,unpublish}. Saves stage drafts (live row untouched); publish promotes
   // a draft and sets published_version_id. Same sections validation on drafts.

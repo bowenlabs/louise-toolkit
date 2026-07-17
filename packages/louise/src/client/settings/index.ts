@@ -40,6 +40,7 @@ export {
 // register its own cards (`dashboard.cards`) with the same shape.
 export { Card } from "./dashboard/Card.jsx";
 export { BUILTIN_CARDS } from "./dashboard/cards.jsx";
+export { HealthPanel } from "./dashboard/health-panel.jsx";
 export { HomePanel } from "./dashboard/home-panel.jsx";
 export type {
   CardStatus,

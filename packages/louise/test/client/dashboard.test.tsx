@@ -123,6 +123,16 @@ describe("HomePanel — built-in cards + summary", () => {
     // The hidden built-in (content) never renders.
     expect(cardTitles()).not.toContain("Content");
   });
+
+  it("the Health card drills into the health detail panel", async () => {
+    const navigate = vi.fn<DashboardApi["open"]>();
+    stubOverview({ health: { brokenLinks: 2, missingAlt: 1, seoGaps: 0 } });
+    mount(() => <HomePanel cards={BUILTIN_CARDS} navigate={navigate} />);
+
+    await vi.waitFor(() => expect(cardTitles()).toContain("Site health"));
+    cardActionByLabel("Review")!.click();
+    expect(navigate).toHaveBeenCalledWith({ panel: "health" });
+  });
 });
 
 describe("HomePanel — footer empty slot (#109)", () => {

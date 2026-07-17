@@ -9,7 +9,12 @@
 // hidden until the first scan writes one (overviewHealth reads the same key).
 
 import { checkLinks } from "louise-toolkit/browser";
-import { type HealthSummary, summarizeHealth, writeHealthSummary } from "louise-toolkit/health";
+import {
+  type HealthSummary,
+  readHealthSummary,
+  summarizeHealth,
+  writeHealthSummary,
+} from "louise-toolkit/health";
 import { count } from "./overview.js";
 
 const SITE_ORIGIN = "https://louisetoolkit.com";
@@ -37,4 +42,9 @@ export async function runHealthScan(env: CloudflareEnv): Promise<HealthSummary> 
   const summary = summarizeHealth({ brokenLinks, missingAlt, seoGaps });
   await writeHealthSummary(env.RL, summary);
   return summary;
+}
+
+/** Read the persisted summary for the Health detail panel (#106 Phase 2). */
+export function readSiteHealth(env: CloudflareEnv): Promise<HealthSummary | null> {
+  return readHealthSummary(env.RL);
 }
