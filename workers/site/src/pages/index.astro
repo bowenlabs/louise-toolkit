@@ -54,7 +54,7 @@ const sections = draft ?? published;
 if (editMode || !home || !LOUISE_EDGE_CACHE) {
   Astro.cache.set(false);
 } else {
-  Astro.cache.set(publishedPageCache());
+  Astro.cache.set(publishedPageCache(home.id));
 }
 
 const NAV = [

@@ -60,8 +60,3 @@ export function composeWorker<Env = unknown>(
 // its own file; re-exported here so it's part of the `louise-toolkit/worker`
 // subpath alongside `composeWorker`.
 export * from "./healing.js";
-
-// `withEdgeCache` — cookie-aware Worker Cache API layer for the SSR fallback
-// (#163), so public pages edge-cache while personalized (editor) requests always
-// run fresh. Its own file; re-exported here alongside `composeWorker`.
-export * from "./edge-cache.js";

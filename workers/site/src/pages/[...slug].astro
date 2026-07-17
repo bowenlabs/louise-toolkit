@@ -36,7 +36,7 @@ if (!page || (page.status !== "published" && !Astro.locals.editMode)) {
 if (Astro.locals.editMode || !LOUISE_EDGE_CACHE) {
   Astro.cache.set(false);
 } else {
-  Astro.cache.set(publishedPageCache());
+  Astro.cache.set(publishedPageCache(page.id));
 }
 
 // View mode renders the published body; edit mode resumes the latest still-draft

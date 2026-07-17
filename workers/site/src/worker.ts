@@ -28,11 +28,10 @@ import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
 import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
 import { realtimeRoute } from "louise-toolkit/realtime";
-import { composeWorker, withEdgeCache, type WorkerRoute } from "louise-toolkit/worker";
+import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";
 import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
-import { isEditRequest } from "./lib/louise/cache.js";
 import { getEditorGate } from "./lib/louise/gate.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesDraftDeps } from "./lib/louise/versioned-pages.js";
@@ -289,16 +288,7 @@ export default composeWorker<WorkerEnv>({
   // docs host first (never touches the content); then the editor API, media, OG;
   // everything else falls through to Astro SSR.
   routes: [docsRoute, ...editorRoutes, mediaAssetRoute, ogRoute],
-  // Route caching (#95/#163): a cookie-aware Worker Cache API layer over the Astro
-  // SSR fallback. Public GETs edge-cache (keyed by URL); an edit-mode request
-  // (the `louise_edit` cookie) bypasses the cache entirely and always renders
-  // fresh — so a cached public page can never be served to an editor. Which
-  // renders are cacheable is still decided per-route by `Astro.cache.set(...)`
-  // (gated on LOUISE_EDGE_CACHE); with the flag off every render is `no-store`,
-  // so this wrapper caches nothing and is a transparent pass-through.
-  fetch: withEdgeCache((request, env, ctx) => handle(request, env, ctx), {
-    bypass: isEditRequest,
-  }),
+  fetch: (request, env, ctx) => handle(request, env, ctx),
   // Side-effect consumer (#77): drain the deferred reindex jobs enqueued on the
   // publish path. processBatch acks each message on success and retries on a
   // thrown error; Cloudflare Queues owns the backoff/DLQ (wrangler.jsonc).

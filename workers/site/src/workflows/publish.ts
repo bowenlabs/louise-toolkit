@@ -73,16 +73,16 @@ const runPublish = defineWorkflow<CloudflareEnv, PublishParams, PublishState>([
       return { embedded: true };
     },
   },
-  // Drop the just-published page's cached render (#95/#163) so the update shows
-  // sooner than its `maxAge`. Best-effort inside invalidatePageCache (never
-  // throws); `caches.default.delete` is per-colo, so this only clears the data
-  // center this run executes in — the short `maxAge` is the global freshness
-  // floor. Needs the slug (from the load step), which the URL cache key is built
-  // from; skipped if the row had no slug.
+  // Purge the just-published page's edge cache (#95) so the new render is live
+  // immediately instead of waiting out its `maxAge`. Best-effort inside
+  // invalidatePageCache (no-ops without the Workers cache API), so the step never
+  // fails the pipeline; the short `maxAge` is the freshness floor if it doesn't
+  // land. The purge is a global cache op keyed by the page tag, so it needs only
+  // the id, not `env`.
   {
     name: "invalidate-cache",
-    run: async ({ state }) => {
-      if (state.slug) await invalidatePageCache(state.slug);
+    run: async ({ payload }) => {
+      await invalidatePageCache(payload.id);
       return { cachePurged: true };
     },
   },
