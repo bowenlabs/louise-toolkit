@@ -65,7 +65,14 @@ export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
   altText?: (env: Env) => AiRunner | undefined;
   /** Model/prompt/token options for {@link altText} generation. */
   altTextOptions?: AltTextOptions;
+  /** Max images the one-click alt backfill (`POST /generate-alt`) fixes per call,
+   *  so a big library can't blow the Worker's subrequest/AI budget in one go —
+   *  the client re-runs until the count reaches zero. Default {@link DEFAULT_ALT_FIX_BATCH}. */
+  altFixBatch?: number;
 }
+
+/** Default per-call cap for the alt backfill (#106 Phase 2b). */
+export const DEFAULT_ALT_FIX_BATCH = 12;
 
 // PATCH body: `key` identifies the asset; `alt`/`caption` are the only editable
 // fields and are coerced (any value → string), so they stay `unknown` here.
@@ -90,8 +97,12 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
   const { name } = tableMeta(config.table);
 
   return async (request, env) => {
-    if (!matchPath(request, path)) return undefined;
     const method = request.method;
+    // One-click AI alt backfill (#106 Phase 2b): a sub-path action off the base.
+    if (new URL(request.url).pathname === `${path}/generate-alt`) {
+      return generateAltFix(request, env, config, name);
+    }
+    if (!matchPath(request, path)) return undefined;
 
     if (method === "GET") {
       const g = await guardEditor(request, env, config.resolveEditor, false);
@@ -212,4 +223,52 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
 
     return json({ error: "Method not allowed" }, 405);
   };
+}
+
+/**
+ * One-click AI alt backfill (#106 Phase 2b): fill `alt` for images that lack it,
+ * capped at {@link MediaRouteConfig.altFixBatch} per call so a big library can't
+ * exhaust the Worker's subrequest/AI budget in one go. An optional `{ key }` in
+ * the body fixes a single asset (the rest is a bulk backfill, newest-first).
+ * Editor-guarded mutation; 503 when no AI runner is wired (the client hides the
+ * assist). Returns `{ fixed, results }` — the client refreshes its counts and,
+ * for a bulk run, re-invokes until `fixed` is 0.
+ */
+async function generateAltFix<Env extends MediaRouteEnv>(
+  request: Request,
+  env: Env,
+  config: MediaRouteConfig<Env>,
+  name: string,
+): Promise<Response> {
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const g = await guardEditor(request, env, config.resolveEditor, true);
+  if ("response" in g) return g.response;
+  const runner = config.altText?.(env);
+  if (!runner) return json({ error: "unavailable" }, 503);
+
+  const body = (await request.json().catch(() => ({}))) as { key?: unknown };
+  const onlyKey = typeof body.key === "string" ? body.key : undefined;
+  const batch = config.altFixBatch ?? DEFAULT_ALT_FIX_BATCH;
+  const missing = `("alt" IS NULL OR "alt" = '')`;
+  const sql = onlyKey
+    ? `SELECT "key","content_type" FROM ${ident(name)} WHERE "key" = ?1 AND ${missing}`
+    : `SELECT "key","content_type" FROM ${ident(name)} WHERE ${missing} ORDER BY "uploaded_at" DESC LIMIT ?1`;
+  const { results } = await env.DB.prepare(sql)
+    .bind(onlyKey ?? batch)
+    .all<{ key: string; content_type?: string | null }>();
+
+  const fixed: { key: string; alt: string }[] = [];
+  for (const row of results) {
+    // Skip non-images — a stored PDF/font has no visual alt to generate.
+    if (row.content_type && !row.content_type.startsWith("image/")) continue;
+    const object = await env.MEDIA.get(row.key);
+    if (!object) continue; // registry row without its R2 object — nothing to read
+    const alt = await generateAltText(runner, await object.arrayBuffer(), config.altTextOptions);
+    if (!alt) continue; // model returned nothing → leave it for a manual fix
+    await env.DB.prepare(`UPDATE ${ident(name)} SET "alt" = ?1 WHERE "key" = ?2`)
+      .bind(alt, row.key)
+      .run();
+    fixed.push({ key: row.key, alt });
+  }
+  return json({ fixed: fixed.length, results: fixed });
 }
