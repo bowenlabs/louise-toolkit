@@ -10,6 +10,7 @@
 
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";
+import type { CwvSummary } from "../../../core/analytics/index.js";
 import type { HealthSummary } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
 import { apiGet, louiseQueryKeys } from "../query.js";
@@ -172,11 +173,53 @@ export function HealthPanel(props: {
                 onReview={() => props.navigate({ panel: "pages" })}
                 unavailableNote="AI SEO isn’t set up for this site — add titles/descriptions by hand in Pages."
               />
+
+              <PerformanceSection cwv={s().cwv} />
             </>
           )}
         </Show>
       </Show>
     </div>
+  );
+}
+
+const fmtTime = (v?: number) =>
+  v == null ? "—" : v < 1000 ? `${Math.round(v)}ms` : `${(v / 1000).toFixed(1)}s`;
+const RATING_LABEL: Record<CwvSummary["rating"], string> = {
+  good: "Fast",
+  "needs-improvement": "Could be faster",
+  poor: "Slow",
+  none: "",
+};
+
+/** Real-visitor Core Web Vitals as a plain-language badge (#106 CWV). Owner
+ *  wording, not jargon; "not measured yet" until field data arrives. */
+function PerformanceSection(props: { cwv?: CwvSummary }) {
+  return (
+    <section class="louise-settings-group">
+      <h3 class="louise-settings-title">Performance</h3>
+      <Show
+        when={props.cwv && props.cwv.rating !== "none" ? props.cwv : undefined}
+        fallback={
+          <p class="louise-muted">
+            Not measured yet — real-visitor speed appears here once traffic comes in.
+          </p>
+        }
+      >
+        {(cwv) => (
+          <>
+            <span class="louise-cwv-badge" data-rating={cwv().rating}>
+              {RATING_LABEL[cwv().rating]}
+            </span>
+            <div class="louise-cwv-metrics louise-muted">
+              <span>Loading: {fmtTime(cwv().lcp)}</span>
+              <span>Responsiveness: {fmtTime(cwv().inp)}</span>
+              <span>Visual stability: {cwv().cls == null ? "—" : cwv().cls!.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+      </Show>
+    </section>
   );
 }
 

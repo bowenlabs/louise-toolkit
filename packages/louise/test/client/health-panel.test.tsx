@@ -113,6 +113,35 @@ describe("HealthPanel", () => {
     expect(host.textContent).toContain("and 10 more");
     expect(host.textContent).toContain("Didn’t respond");
   });
+
+  it("shows a performance badge from CWV field data", async () => {
+    stubHealth({
+      brokenLinks: 0,
+      missingAlt: 0,
+      seoGaps: 0,
+      checkedAt: new Date().toISOString(),
+      brokenLinkDetails: [],
+      cwv: { lcp: 2100, inp: 180, cls: 0.05, rating: "good", sampleSize: 50 },
+    });
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Performance"));
+    expect(host.textContent).toContain("Fast");
+    expect(host.textContent).toContain("2.1s"); // LCP formatted
+    expect(host.querySelector(".louise-cwv-badge")?.getAttribute("data-rating")).toBe("good");
+  });
+
+  it("shows 'not measured yet' when there's no CWV data", async () => {
+    stubHealth({
+      brokenLinks: 0,
+      missingAlt: 0,
+      seoGaps: 0,
+      checkedAt: new Date().toISOString(),
+      brokenLinkDetails: [],
+    });
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("No broken links found."));
+    expect(host.textContent).toContain("Not measured yet");
+  });
 });
 
 const jsonRes = (body: unknown, status = 200) =>

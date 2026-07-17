@@ -1179,6 +1179,21 @@ const CSS = `
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
 }
+
+/* Core Web Vitals badge (#106) — plain "Fast / Slow" pill + the three metrics. */
+.louise-cwv-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #64748b;
+}
+.louise-cwv-badge[data-rating="good"] { background: var(--louise-green); }
+.louise-cwv-badge[data-rating="needs-improvement"] { background: var(--louise-yellow); }
+.louise-cwv-badge[data-rating="poor"] { background: #dc2626; }
+.louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
 .louise-card {
   display: flex;
   flex-direction: column;

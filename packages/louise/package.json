@@ -82,6 +82,11 @@
       "import": "./dist/core/ai/index.js",
       "default": "./dist/core/ai/index.js"
     },
+    "./analytics": {
+      "types": "./dist/core/analytics/index.d.ts",
+      "import": "./dist/core/analytics/index.js",
+      "default": "./dist/core/analytics/index.js"
+    },
     "./commerce": {
       "types": "./dist/core/commerce/index.d.ts",
       "import": "./dist/core/commerce/index.js",

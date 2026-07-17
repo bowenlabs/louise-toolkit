@@ -11,6 +11,7 @@
 // owner-facing Health card (#108) and `overview.health` read the stored summary,
 // so it stays "absent" (card hidden) until the first scan writes one.
 
+import type { CwvSummary } from "../analytics/index.js";
 import type { BrokenLink } from "../browser/link-check.js";
 
 /** The KV surface the health store needs — structural so the real `KVNamespace`
@@ -41,6 +42,9 @@ export interface HealthSummary {
   checkedAt: string;
   /** A capped sample of the broken links found, for a detail view. */
   brokenLinkDetails?: BrokenLink[];
+  /** Real-visitor Core Web Vitals (#106 CWV) — present once the scan folds in a
+   *  p75 snapshot from Analytics Engine; absent → the panel shows "not measured yet". */
+  cwv?: CwvSummary;
 }
 
 /** The raw parts of a scan, assembled by {@link summarizeHealth}. */
