@@ -34,7 +34,8 @@ import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
 import { OG_FONT_FAMILY, ogRenderer } from "./lib/og/render.js";
 import { getEditorGate } from "./lib/louise/gate.js";
-import { overviewContent, overviewInbox } from "./lib/louise/overview.js";
+import { runHealthScan } from "./lib/louise/health.js";
+import { overviewContent, overviewHealth, overviewInbox } from "./lib/louise/overview.js";
 import { resolveEditorFromCookie } from "./lib/louise/session.js";
 import { pagesDraftDeps } from "./lib/louise/versioned-pages.js";
 import { syncPageVector } from "./lib/louise/vectors.js";
@@ -44,7 +45,6 @@ import { SECTIONS } from "./sections/catalog.js";
 
 type WorkerEnv = CloudflareEnv;
 
-const SITE_ORIGIN = "https://louisetoolkit.com";
 const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
 /* ── OG image (louise-toolkit/browser, #85) ────────────────────────────────── */
@@ -142,12 +142,14 @@ const contactForm = defineForm({
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Owner Home dashboard (#108): one editor-only GET the drawer's Home landing
   // reads for its at-a-glance cards. Content + Inbox counts are live; the health
-  // slice is omitted until #106 persists the link-check feed (the card hides
-  // itself until then). A throwing resolver is dropped, never 500s the dashboard.
+  // slice reads the summary the cron scan persists (#106) — undefined until the
+  // first scan, so the card hides itself till then. A throwing resolver is
+  // dropped, never 500s the dashboard.
   overviewRoute<WorkerEnv>({
     resolveEditor,
     content: overviewContent,
     inbox: overviewInbox,
+    health: overviewHealth,
   }),
   // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
   // publish,unpublish}. Saves stage drafts (live row untouched); publish promotes
@@ -315,16 +317,20 @@ export default composeWorker<WorkerEnv>({
     });
   },
   // Cron Trigger (wrangler.jsonc): crawl both hosts and log any broken links.
-  async scheduled(_event, _env, ctx) {
+  async scheduled(_event, env, ctx) {
     ctx.waitUntil(
       (async () => {
-        const broken = [
-          ...(await checkLinks({ base: SITE_ORIGIN, paths: ["/"] })),
-          ...(await checkLinks({ base: DOCS_ORIGIN, paths: ["/"] })),
-        ];
-        if (broken.length > 0)
-          console.warn(`[link-check] ${broken.length} broken link(s):`, broken);
-        else console.log("[link-check] all links OK");
+        // Site-health scan (#106): crawl for broken links + count alt/SEO gaps,
+        // then persist the summary for the owner dashboard's Health card.
+        const summary = await runHealthScan(env);
+        console.log(
+          `[health] ${summary.brokenLinks} broken link(s), ${summary.missingAlt} missing alt, ${summary.seoGaps} SEO gap(s)`,
+        );
+        // The docs host is a separate static bundle (not owner-editable content),
+        // so its links are logged for us, not folded into the owner summary.
+        const docsBroken = await checkLinks({ base: DOCS_ORIGIN, paths: ["/"] });
+        if (docsBroken.length > 0)
+          console.warn(`[link-check] docs: ${docsBroken.length} broken link(s):`, docsBroken);
       })(),
     );
   },

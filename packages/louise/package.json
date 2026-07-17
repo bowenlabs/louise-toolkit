@@ -117,6 +117,11 @@
       "import": "./dist/core/forms/index.js",
       "default": "./dist/core/forms/index.js"
     },
+    "./health": {
+      "types": "./dist/core/health/index.d.ts",
+      "import": "./dist/core/health/index.js",
+      "default": "./dist/core/health/index.js"
+    },
     "./media": {
       "types": "./dist/core/media/index.d.ts",
       "import": "./dist/core/media/index.js",

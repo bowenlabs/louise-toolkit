@@ -58,6 +58,7 @@ export default {
       "src/core/browser/index.ts",
       "src/core/email/index.ts",
       "src/core/forms/index.ts",
+      "src/core/health/index.ts",
       "src/core/media/index.ts",
       "src/core/queues/index.ts",
       "src/core/realtime/index.ts",
