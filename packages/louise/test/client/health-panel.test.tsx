@@ -62,10 +62,10 @@ describe("HealthPanel", () => {
 
     await vi.waitFor(() => expect(host.textContent).toContain("https://x/gone"));
     expect(host.textContent).toContain("Returned 404");
-    expect(host.textContent).toContain("2 images missing a description");
+    expect(host.textContent).toContain("2 images are missing a description");
     expect(host.textContent).toContain("1 page missing SEO title or description");
 
-    button("Fix in Media")!.click();
+    button("Review in Media")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "media" });
     button("Fix in Pages")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "pages" });
@@ -84,8 +84,10 @@ describe("HealthPanel", () => {
     mount(() => <HealthPanel navigate={() => {}} />);
 
     await vi.waitFor(() => expect(host.textContent).toContain("No broken links found."));
-    expect(host.textContent).toContain("All good.");
-    expect(button("Fix in Media")).toBeUndefined();
+    expect(host.textContent).toContain("Every image has a description.");
+    expect(host.textContent).toContain("All good."); // SEO row's all-clear
+    expect(button("Fix with AI")).toBeUndefined();
+    expect(button("Review in Media")).toBeUndefined();
   });
 
   it("renders a not-checked-yet state when no scan has run", async () => {
@@ -110,5 +112,58 @@ describe("HealthPanel", () => {
     // Count is 12 but only 2 details shipped → "…and 10 more."
     expect(host.textContent).toContain("and 10 more");
     expect(host.textContent).toContain("Didn’t respond");
+  });
+});
+
+const jsonRes = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const healthSummary = (missingAlt: number) => ({
+  brokenLinks: 0,
+  missingAlt,
+  seoGaps: 0,
+  checkedAt: new Date().toISOString(),
+  brokenLinkDetails: [],
+});
+
+describe("HealthPanel — one-click AI alt fix", () => {
+  it("generates alt with AI, then refreshes the count on success", async () => {
+    let missing = 3;
+    const fetchMock = vi.fn((input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/generate-alt") && (init?.method ?? "GET").toUpperCase() === "POST") {
+        missing = 0; // the backfill cleared them; the next health read reflects it
+        return Promise.resolve(jsonRes({ fixed: 3, results: [] }));
+      }
+      return Promise.resolve(jsonRes({ summary: healthSummary(missing) }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    mount(() => <HealthPanel navigate={() => {}} />);
+
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("3 images are missing a description"),
+    );
+    button("Fix with AI")!.click();
+
+    // POST to the backfill fired, and the refreshed health read shows all-clear.
+    await vi.waitFor(() => expect(host.textContent).toContain("Every image has a description"));
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/generate-alt"))).toBe(true);
+  });
+
+  it("hides the AI button and explains when AI isn't set up (503)", async () => {
+    const fetchMock = vi.fn((input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/generate-alt")) return Promise.resolve(jsonRes({ error: "x" }, 503));
+      return Promise.resolve(jsonRes({ summary: healthSummary(2) }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    mount(() => <HealthPanel navigate={() => {}} />);
+
+    await vi.waitFor(() => expect(button("Fix with AI")).toBeTruthy());
+    button("Fix with AI")!.click();
+    await vi.waitFor(() => expect(host.textContent).toContain("aren’t set up"));
+    // The assist removes itself; the manual "Review in Media" path stays.
+    expect(button("Fix with AI")).toBeUndefined();
+    expect(button("Review in Media")).toBeTruthy();
   });
 });
