@@ -22,7 +22,7 @@
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { createStore, unwrap } from "solid-js/store";
+import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import { Icon } from "./icons.jsx";
@@ -617,6 +617,56 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       set("items", i, key, (arr: Record<string, unknown>[]) => arr.filter((_, z) => z !== k)),
     );
 
+  // Discriminated arrays (#182 Phase 0): an item's `key` field holds its variant.
+  // `add` pre-fills the shared `itemFields` + the chosen variant's blank fields +
+  // the key; `switch` keeps the shared field values and swaps in a new variant's
+  // blanks. Both mirror what `validateSections` expects (base ∪ variant fields).
+  const variantKeys = (field: SectionField): string[] =>
+    Object.keys(field.discriminator?.variants ?? {});
+  const variantLabel = (field: SectionField, v: string): string =>
+    field.discriminator?.variantsAdmin?.[v]?.label ?? humanize(v);
+  const variantIcon = (field: SectionField, v: string): string | undefined =>
+    field.discriminator?.variantsAdmin?.[v]?.icon;
+  const variantOf = (field: SectionField, item: Record<string, unknown>): string =>
+    String(item[field.discriminator?.key ?? ""] ?? "");
+  const addVariantItem = (i: number, key: string, field: SectionField, variant: string) =>
+    void structural(() =>
+      set("items", i, key, (arr: unknown) => [
+        ...(Array.isArray(arr) ? arr : []),
+        {
+          ...blankRecord(field.itemFields ?? {}),
+          ...blankRecord(field.discriminator?.variants[variant] ?? {}),
+          [field.discriminator?.key ?? "_variant"]: variant,
+        },
+      ]),
+    );
+  const switchVariant = (i: number, key: string, k: number, field: SectionField, variant: string) =>
+    void structural(() => {
+      const disc = field.discriminator;
+      const cur =
+        (
+          (unwrap(state).items[i] as Record<string, unknown>)[key] as
+            | Record<string, unknown>[]
+            | undefined
+        )?.[k] ?? {};
+      // Preserve the shared itemFields' values; reset the variant-specific ones.
+      const shared: Record<string, unknown> = {};
+      for (const bk of Object.keys(field.itemFields ?? {})) shared[bk] = cur[bk];
+      // `reconcile` (not a plain set, which shallow-*merges*) so the previous
+      // variant's fields are dropped rather than lingering on the item.
+      set(
+        "items",
+        i,
+        key,
+        k,
+        reconcile({
+          ...shared,
+          ...blankRecord(disc?.variants[variant] ?? {}),
+          [disc?.key ?? "_variant"]: variant,
+        }),
+      );
+    });
+
   /** Fields edited in the dock (not visible text you can point at). */
   const dockFields = (item: SectionItem): [string, SectionField][] =>
     Object.entries(props.catalog[item._type]?.fields ?? {}).filter(
@@ -791,17 +841,37 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   )}
                 </For>
 
-                {/* Array membership — the text of each item is edited in place. */}
+                {/* Array membership — the text of each item is edited in place.
+                    A discriminated array swaps the plain "Item N" label + single
+                    add for a per-item variant switcher + one add per variant. */}
                 <For each={arrayFields(item)}>
                   {([key, field]) => (
                     <div class="louise-arr">
                       <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                      <For each={(item[key] as unknown[]) ?? []}>
-                        {(_, k) => (
+                      <For each={(item[key] as Record<string, unknown>[]) ?? []}>
+                        {(arrItem, k) => (
                           <div class="louise-arr-row">
-                            <span>
-                              {field.itemLabel ?? "Item"} {k() + 1}
-                            </span>
+                            <Show
+                              when={field.discriminator}
+                              fallback={
+                                <span>
+                                  {field.itemLabel ?? "Item"} {k() + 1}
+                                </span>
+                              }
+                            >
+                              <select
+                                class="louise-variant-switch"
+                                title="Block type"
+                                value={variantOf(field, arrItem)}
+                                onChange={(e) =>
+                                  switchVariant(i(), key, k(), field, e.currentTarget.value)
+                                }
+                              >
+                                <For each={variantKeys(field)}>
+                                  {(v) => <option value={v}>{variantLabel(field, v)}</option>}
+                                </For>
+                              </select>
+                            </Show>
                             <button
                               class="louise-btn louise-btn-xs louise-btn-danger"
                               type="button"
@@ -813,13 +883,35 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           </div>
                         )}
                       </For>
-                      <button
-                        class="louise-btn louise-btn-xs"
-                        type="button"
-                        onClick={() => addItem(i(), key, field.itemFields ?? {})}
+                      <Show
+                        when={field.discriminator}
+                        fallback={
+                          <button
+                            class="louise-btn louise-btn-xs"
+                            type="button"
+                            onClick={() => addItem(i(), key, field.itemFields ?? {})}
+                          >
+                            <Icon name="plus" /> {field.itemLabel ?? "item"}
+                          </button>
+                        }
                       >
-                        <Icon name="plus" /> {field.itemLabel ?? "item"}
-                      </button>
+                        <div class="louise-variant-add">
+                          <For each={variantKeys(field)}>
+                            {(v) => (
+                              <button
+                                class="louise-btn louise-btn-xs"
+                                type="button"
+                                onClick={() => addVariantItem(i(), key, field, v)}
+                              >
+                                <Show when={variantIcon(field, v)} fallback={<Icon name="plus" />}>
+                                  <i class={variantIcon(field, v)} aria-hidden="true" />
+                                </Show>{" "}
+                                {variantLabel(field, v)}
+                              </button>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
                     </div>
                   )}
                 </For>
