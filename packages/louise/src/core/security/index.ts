@@ -8,7 +8,12 @@
 export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from "./sanitize";
 export { matchRateRule, rateLimit, type RateLimitResult, type RateRule } from "./rate-limit";
 export { getSessionSecret } from "./secrets";
-export { louiseSecurityHeaders, rewriteCspStyleSrc, type SecurityHeaderOptions } from "./headers";
+export {
+  allowCspDataFonts,
+  louiseSecurityHeaders,
+  rewriteCspStyleSrc,
+  type SecurityHeaderOptions,
+} from "./headers";
 export type {
   KVLike,
   LouiseEnv,

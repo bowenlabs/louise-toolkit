@@ -13,13 +13,15 @@
 //   });
 //
 // (The brand font is bundled + base64-inlined — no Google Fonts host to allow.
-// A strict `font-src` must permit `data:` for the inlined @font-face.)
+// The middleware auto-allows `data:` fonts in the response CSP, so a strict
+// `font-src` needs no manual change for the inlined @font-face.)
 //
 // This subpath is the ONE place Louise touches Astro's types — `astro` is an
 // optional peer, pulled in only by sites that import `louise-toolkit/astro`.
 
 import type { APIContext, MiddlewareHandler } from "astro";
 import {
+  allowCspDataFonts,
   louiseSecurityHeaders,
   matchRateRule,
   type RateLimitBackend,
@@ -155,6 +157,10 @@ export function createLouiseMiddleware<TEditor = unknown>(
     }
 
     if (config.cspStyleSrc) rewriteCspStyleSrc(response, config.cspStyleSrc);
+    // Louise's bundled brand font is an inlined `data:` @font-face (loaded on
+    // every edit surface), so guarantee the CSP permits data: fonts — no-op
+    // without a CSP header or when already allowed. Saves consumers a font-src edit.
+    allowCspDataFonts(response);
     if (config.securityHeaders !== false) {
       louiseSecurityHeaders(response, { hostname: context.url.hostname });
     }

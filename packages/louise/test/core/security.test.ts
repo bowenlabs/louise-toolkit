@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowCspDataFonts,
   getSessionSecret,
   louiseSecurityHeaders,
   matchRateRule,
@@ -10,6 +11,60 @@ import {
   type RateLimiterBinding,
   type RateRule,
 } from "../../src/core/security/index.js";
+
+/** Build a Response carrying the given CSP (or none), for the CSP helpers. */
+function withCsp(csp?: string): Response {
+  const headers = new Headers();
+  if (csp !== undefined) headers.set("content-security-policy", csp);
+  return new Response(null, { headers });
+}
+const cspOf = (r: Response) => r.headers.get("content-security-policy");
+
+describe("allowCspDataFonts", () => {
+  it("adds data: to an existing font-src that lacks it", () => {
+    const res = allowCspDataFonts(withCsp("default-src 'self'; font-src 'self'"));
+    expect(cspOf(res)).toBe("default-src 'self'; font-src 'self' data:");
+  });
+
+  it("is idempotent when data: is already allowed", () => {
+    const res = allowCspDataFonts(withCsp("font-src 'self' data:"));
+    expect(cspOf(res)).toBe("font-src 'self' data:");
+  });
+
+  it("derives a font-src from default-src when none is present", () => {
+    const res = allowCspDataFonts(withCsp("default-src 'self'; img-src 'self' data:"));
+    expect(cspOf(res)).toBe("default-src 'self'; img-src 'self' data:; font-src 'self' data:");
+  });
+
+  it("drops 'none' when deriving from a default-src 'none'", () => {
+    const res = allowCspDataFonts(withCsp("default-src 'none'"));
+    expect(cspOf(res)).toBe("default-src 'none'; font-src data:");
+  });
+
+  it("leaves other directives untouched", () => {
+    const res = allowCspDataFonts(
+      withCsp("default-src 'self'; script-src 'self' 'sha256-abc'; font-src 'self'"),
+    );
+    expect(cspOf(res)).toBe(
+      "default-src 'self'; script-src 'self' 'sha256-abc'; font-src 'self' data:",
+    );
+  });
+
+  it("no-ops when there is no CSP header", () => {
+    const res = allowCspDataFonts(withCsp());
+    expect(cspOf(res)).toBeNull();
+  });
+
+  it("no-ops when fonts are already unrestricted (no font-src and no default-src)", () => {
+    const res = allowCspDataFonts(withCsp("img-src 'self'"));
+    expect(cspOf(res)).toBe("img-src 'self'");
+  });
+
+  it("does not false-match a source that merely ends in 'data:'", () => {
+    const res = allowCspDataFonts(withCsp("font-src 'self' https://mydata:443"));
+    expect(cspOf(res)).toBe("font-src 'self' https://mydata:443 data:");
+  });
+});
 
 describe("sanitizeRichHtml", () => {
   it("drops disallowed elements with their contents", () => {

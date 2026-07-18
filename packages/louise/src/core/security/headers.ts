@@ -51,3 +51,51 @@ export function rewriteCspStyleSrc(response: Response, styleSrc: string): Respon
   response.headers.set("content-security-policy", rewritten);
   return response;
 }
+
+/** Does a CSP source list already permit the `data:` scheme? */
+function allowsDataScheme(directive: string): boolean {
+  return /(?:^|\s)data:(?:\s|$)/.test(directive);
+}
+
+/**
+ * Ensure the response CSP allows `data:` fonts, so Louise's bundled brand font —
+ * an inlined `data:` `@font-face` (see `theme/fonts.css`), loaded on every edit
+ * surface — isn't blocked by a strict `font-src`. `createLouiseMiddleware` calls
+ * this for you, so consuming sites need no `font-src` change.
+ *
+ * Adds `data:` to an existing `font-src`; if the policy has no `font-src` but a
+ * `default-src` (which fonts fall back to), it appends a `font-src` derived from
+ * `default-src` + `data:` so nothing else is loosened. No-op when there is no CSP
+ * header (e.g. `astro dev`) or when fonts are already unrestricted (neither
+ * directive present). Idempotent.
+ */
+export function allowCspDataFonts(response: Response): Response {
+  const csp = response.headers.get("content-security-policy");
+  if (!csp) return response;
+  const directives = csp
+    .split(";")
+    .map((d) => d.trim())
+    .filter(Boolean);
+
+  let sawFontSrc = false;
+  const out = directives.map((d) => {
+    if (d === "font-src" || d.startsWith("font-src ")) {
+      sawFontSrc = true;
+      return allowsDataScheme(d) ? d : `${d} data:`;
+    }
+    return d;
+  });
+
+  if (!sawFontSrc) {
+    const defaultSrc = directives.find((d) => d === "default-src" || d.startsWith("default-src "));
+    // No font-src and no default-src ⇒ fonts are unrestricted; leave it alone.
+    if (!defaultSrc) return response;
+    const sources = defaultSrc.replace(/^default-src\s*/, "").trim();
+    // `'none'` can't combine with other tokens; a data: font means "not none".
+    const base = sources && sources !== "'none'" ? `${sources} ` : "";
+    out.push(`font-src ${base}data:`);
+  }
+
+  response.headers.set("content-security-policy", out.join("; "));
+  return response;
+}
