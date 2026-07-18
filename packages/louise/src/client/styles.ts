@@ -3,6 +3,11 @@
 // Injected once at mount (only ever loaded in edit mode) so nothing ships to
 // public page loads.
 
+// The brand font (@font-face for Roboto Flex) is base64-inlined into this CSS —
+// no Google Fonts, no runtime fetch — and pulled in with `?raw` so it's baked
+// into the bundle exactly like the Phosphor icons (see icons.tsx).
+import brandFontsCss from "../theme/fonts.css?raw";
+
 const LOUISE_BLUE = "#1481ef";
 
 const CSS = `
@@ -12,8 +17,8 @@ const CSS = `
   --louise-orange: #ea7317;
   --louise-yellow: #ca8a04;
   /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
-     the same family, just a heavier weight. Loaded via a <link> in
-     injectStyles() — only on Louise surfaces. */
+     the same family, just a heavier weight. The @font-face is bundled (base64)
+     via brandFontsCss in injectStyles() — only on Louise surfaces. */
   --louise-font-head: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
@@ -1537,28 +1542,13 @@ const CSS = `
 .louise-grammar-popover-none { padding: 4px 8px 6px; color: #94a3b8; font-size: 12px; }
 `;
 
-/** Google Fonts request for the brand type — Roboto Flex (variable). */
-const FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap";
-
 export function injectStyles(): void {
   if (document.getElementById("louise-styles")) return;
-  // Brand fonts, loaded only on Louise surfaces (edit mode) — never on public
-  // page loads. preconnect first so the CSS + font files fetch without a chain.
-  for (const [rel, href, cross] of [
-    ["preconnect", "https://fonts.googleapis.com", false],
-    ["preconnect", "https://fonts.gstatic.com", true],
-    ["stylesheet", FONTS_HREF, false],
-  ] as const) {
-    const link = document.createElement("link");
-    link.rel = rel;
-    link.href = href;
-    if (cross) link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-  }
-
+  // Brand font (bundled @font-face, base64) + chrome CSS, injected only on Louise
+  // surfaces (edit mode) — never on public page loads. The font is self-contained
+  // in brandFontsCss, so there's no third-party request and nothing to preconnect.
   const style = document.createElement("style");
   style.id = "louise-styles";
-  style.textContent = CSS;
+  style.textContent = `${brandFontsCss}\n${CSS}`;
   document.head.appendChild(style);
 }

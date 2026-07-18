@@ -40,7 +40,7 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "reference" } }],
         },
       ],
-      customCss: ["louise-toolkit/theme/fonts.css", "./src/styles/docs.css"],
+      customCss: ["./src/styles/docs.css"],
     }),
   ],
 });
