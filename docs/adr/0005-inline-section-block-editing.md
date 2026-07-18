@@ -1,4 +1,4 @@
-# ADR 0004 — Inline section & block editing: on-canvas chrome, a block layer, and the fragment-render contract
+# ADR 0005 — Inline section & block editing: on-canvas chrome, a block layer, and the fragment-render contract
 
 - **Status:** Proposed (2026-07-18)
 - **Deciders:** Baylee (solo maintainer)
