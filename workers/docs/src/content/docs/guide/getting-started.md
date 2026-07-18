@@ -5,8 +5,12 @@ sidebar:
   order: 1
 ---
 
-Louise is a library, not a scaffold — you add it to a Cloudflare Workers app
-(Astro, Hono, or a bare Worker) and wire the pieces you need.
+Louise is a toolkit for building sites on **Astro + Cloudflare Workers** — content,
+commerce, media, forms, auth, and AI as composable primitives, with editing the live
+page in place as the headline. It's a library, not a scaffold: you add it to a
+Cloudflare Workers app and wire the pieces you need. The core primitives are
+framework-agnostic (they run under Astro, Hono, a bare Worker, or a unit test); the
+batteries — the client, theme, and Astroid — target Astro on Cloudflare.
 
 :::tip[See it running first]
 Two live surfaces let you try Louise before wiring it in. The

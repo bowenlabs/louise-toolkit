@@ -20,7 +20,8 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Louise Toolkit",
-      description: "A V8-native toolkit for building editable sites on Cloudflare Workers.",
+      description:
+        "The V8-native toolkit for building editable sites on Astro + Cloudflare Workers — content, commerce, media, forms, auth, and AI as composable primitives.",
       logo: { src: "./src/assets/louise-monogram.svg", replacesTitle: false },
       social: [
         {

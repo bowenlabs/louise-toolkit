@@ -1,13 +1,18 @@
 # louise-toolkit
 
-**A V8-native toolkit for building editable sites on Cloudflare Workers.**
+**Everything you need to build editable sites on Astro + Cloudflare Workers —
+content, commerce, media, forms, auth, and AI, as composable V8-native primitives.**
 
-Louise makes the live site editable in place: no separate admin app, no JSON forms
-for prose. It ships as framework-agnostic core primitives (`content`, `db`, `media`,
-`forms`, `commerce`, `email`, `queues`, `worker`, plus opt-in `auth`/`security`), a
-SolidJS + ProseKit inline-edit client, Louise Settings (a registry-driven settings
-surface), the generic `api/louise/*` handlers, and the daisyUI editor theme — as
-granular, tree-shakeable subpath exports.
+Louise is the toolkit for building sites on **Astro + Cloudflare Workers** — the
+whole surface, not just content. Editing the live page in place is the headline
+(no separate admin app, no JSON forms for prose), but it's one of ~two dozen
+primitives: `content`, `db`, `media`, `forms`, `commerce`, `email`, `queues`,
+`ai`, `analytics`, `realtime`, `workflows`, `health`, `worker`, plus opt-in
+`auth`/`security` — alongside a SolidJS + ProseKit inline-edit client, Louise
+Settings (a registry-driven settings surface), the generic `api/louise/*`
+handlers, and the daisyUI editor theme, as granular, tree-shakeable subpath
+exports. The core primitives are framework-agnostic (they run in any Worker or a
+unit test); the batteries target Astro on Cloudflare.
 
 > Full guide and API reference: **[docs.louisetoolkit.com](https://docs.louisetoolkit.com)**
 
@@ -28,7 +33,8 @@ you use require:
 | `louise-toolkit/auth`                                               | `better-auth` (`@better-auth/passkey` for passkeys) |
 | `louise-toolkit/browser`                                            | `@cloudflare/puppeteer`                             |
 | `louise-toolkit/stega`                                              | `@vercel/stega`                                     |
-| `/security`, `/worker`, `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_                                        |
+| `louise-toolkit/astro`                                              | `astro`                                             |
+| `/security`, `/worker`, `/email`, `/queues`, `/errors`, `/commerce`, `/ai`, `/analytics`, `/realtime`, `/workflows`, `/health`, `/schema` | _(no peers)_ |
 
 The core primitives are dependency-injected — you pass in your Cloudflare bindings
 (D1, R2, Queues, Email); Louise never reaches for `cloudflare:workers` itself.
@@ -46,7 +52,14 @@ The core primitives are dependency-injected — you pass in your Cloudflare bind
 | `louise-toolkit/media`                                | R2 media: magic-byte-sniffed uploads, asset registry (alt/caption/dims), `cfImage` transforms, delete-safety scan |
 | `louise-toolkit/auth`                                 | Better Auth factory + guard/handler + `generateAuthSchemaSql` (and the `louise` CLI)                              |
 | `louise-toolkit/security`                             | `sanitize`, rate-limit, secrets, security headers                                                                 |
-| `louise-toolkit/worker`                               | `composeWorker` — compose editor + site routes over an SSR fallthrough                                            |
+| `louise-toolkit/worker`                               | `composeWorker` — compose editor + site routes over an SSR fallthrough; `withEdgeCache`, `withHealing`            |
+| `louise-toolkit/ai`                                   | Workers AI helpers: alt text, rewrite, SEO suggestions, embeddings + semantic search (best-effort; no-op without `env.AI`) |
+| `louise-toolkit/analytics`                            | Cookieless Core Web Vitals beacon + Analytics Engine query helpers (real-user monitoring)                        |
+| `louise-toolkit/realtime`                             | Per-page live editing session over a Durable Object — presence + the authed WebSocket upgrade route              |
+| `louise-toolkit/workflows`                            | Cloudflare Workflows helpers — durable, resumable multi-step pipelines (e.g. the publish pipeline)               |
+| `louise-toolkit/health`                               | Site-health summary — broken links, alt/SEO gaps, Core Web Vitals — persisted over KV                            |
+| `louise-toolkit/schema`                               | Standard Schema validator: the `s` builder + `standardValidate` (hand-rolled, zero-dependency)                   |
+| `louise-toolkit/astro`                                | Optional Astro glue: edit-mode middleware factory, catalog loader, form → `astro:env` schema                     |
 | `louise-toolkit/browser`                              | Cache-first OG-image render + link checker (Cloudflare Browser Rendering)                                         |
 | `louise-toolkit/commerce`                             | Shared commerce primitives: money helpers + webhook-signature crypto                                              |
 | `louise-toolkit/commerce/stripe`                      | Stripe glue: Payment Element / PaymentIntents, invoices, webhooks (raw `fetch`, no SDK)                           |
@@ -90,8 +103,9 @@ import { mountLouise } from "louise-toolkit/client";
 mountLouise(); // no-op unless the page rendered edit-mode markers
 ```
 
-See the [Getting Started guide](https://docs.louisetoolkit.com/guide/getting-started) for
-the full wiring (edit mode, the save endpoint, rich text, Louise Settings, media, theme).
+See the [Quickstart](https://docs.louisetoolkit.com/guide/quickstart) to go from zero
+to editable, then the [Getting Started guide](https://docs.louisetoolkit.com/guide/getting-started)
+for the full wiring (edit mode, the save endpoint, rich text, Louise Settings, media, theme).
 
 ## Contributing / building
 

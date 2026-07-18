@@ -56,7 +56,8 @@ const DOCS_ORIGIN = "https://docs.louisetoolkit.com";
 
 async function handleOgImage(url: URL): Promise<Response> {
   const slug = url.searchParams.get("slug") ?? "/";
-  const title = url.searchParams.get("title") ?? "The V8-native toolkit for Cloudflare Workers";
+  const title =
+    url.searchParams.get("title") ?? "The V8-native toolkit for editable sites on Astro + Cloudflare";
   const cacheKey = await ogCacheKey(slug, title);
   const { bytes, cached } = await ogImage({
     cacheKey,
