@@ -121,12 +121,14 @@ export function blockRefOf(node: Node | null): BlockRef | null {
  */
 
 /** Actions the block toolbar exposes, keyed by the block's {@link BlockRef}.
- *  Duplicate/add are deferred to the fragment-render route (Phase 3), so v1 is
- *  move-within-section + delete only. */
+ *  `onAdd` (add a block after `ref`) is optional — supplied once the section
+ *  re-renders through the fragment route (#182 Phase 3); when omitted, the
+ *  toolbar shows move + delete only. */
 export interface BlockChromeActions {
   onMoveUp(ref: BlockRef): void;
   onMoveDown(ref: BlockRef): void;
   onDelete(ref: BlockRef): void;
+  onAdd?(ref: BlockRef): void;
 }
 
 /** Actions the section toolbar exposes. Duplicate/add are deferred to the
@@ -221,7 +223,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     b.title = title;
     return b;
   };
-  const makeToolbar = (block: boolean, delTitle: string) => {
+  const makeToolbar = (block: boolean, delTitle: string, addTitle?: string) => {
     const toolbar = doc.createElement("div");
     toolbar.className = block
       ? "louise-chrome-toolbar louise-block-toolbar"
@@ -230,14 +232,19 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     const up = button("↑", "Move up");
     const down = button("↓", "Move down");
     const del = button("✕", delTitle);
-    for (const b of [up, down, del]) toolbar.appendChild(b);
+    // `+` (add after) only when the layer supports it — the block toolbar once
+    // the fragment route is wired (#182 Phase 3).
+    const add = addTitle ? button("+", addTitle) : null;
+    for (const b of [up, down, del, ...(add ? [add] : [])]) toolbar.appendChild(b);
     doc.body.appendChild(toolbar);
-    return { toolbar, up, down, del };
+    return { toolbar, up, down, del, add };
   };
 
   const section = makeToolbar(false, "Delete section");
   const blockActions = opts.blocks;
-  const block = blockActions ? makeToolbar(true, "Delete block") : null;
+  const block = blockActions
+    ? makeToolbar(true, "Delete block", blockActions.onAdd ? "Add block after" : undefined)
+    : null;
 
   let activeSection: { index: number; el: HTMLElement } | null = null;
   let activeBlock: { ref: BlockRef; el: HTMLElement } | null = null;
@@ -325,6 +332,9 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     block.up.addEventListener("click", blockAct(blockActions.onMoveUp));
     block.down.addEventListener("click", blockAct(blockActions.onMoveDown));
     block.del.addEventListener("click", blockAct(blockActions.onDelete));
+    if (block.add && blockActions.onAdd) {
+      block.add.addEventListener("click", blockAct(blockActions.onAdd));
+    }
   }
   doc.addEventListener("mouseover", onOver, true);
 
@@ -415,6 +425,24 @@ export function insertSectionElement(el: HTMLElement, index: number, container: 
   const existing = marked();
   container.insertBefore(el, existing[index] ?? null);
   marked().forEach((s, i) => restampSection(s, i));
+}
+
+/**
+ * Replace the section at `index` in place with a freshly server-rendered element
+ * and re-stamp it to `index` — the instant reflection of an in-section change
+ * that alters *this* section's markup (e.g. a block **add**, #182 Phase 3, where
+ * the fragment route re-renders the whole section with the new block). Only this
+ * section's index changes, so siblings are untouched. No-op if not found.
+ */
+export function replaceSectionElement(
+  index: number,
+  el: HTMLElement,
+  root: ParentNode = document,
+): void {
+  const target = readSectionMarkers(root).find((s) => s.index === index);
+  if (!target) return;
+  target.el.replaceWith(el);
+  restampSection(el, index);
 }
 
 /* ── Instant block structural ops (ADR 0005 §4) ────────────────────────────

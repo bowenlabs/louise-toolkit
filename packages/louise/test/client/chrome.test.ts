@@ -19,6 +19,7 @@ import {
   parseBlockMarker,
   readBlockMarkers,
   readSectionMarkers,
+  replaceSectionElement,
   restampBlock,
   restampSection,
   SECTION_MARKER_ATTR,
@@ -264,6 +265,20 @@ describe("chrome — instant structural ops (#182 Phase 1)", () => {
     expect(domTitles()).toEqual(["First"]);
     expect(domMarkers()).toEqual(["0"]);
   });
+
+  it("replaceSectionElement swaps the section at an index in place, re-stamped", () => {
+    hostWithFields(3); // Title 0, 1, 2
+    replaceSectionElement(1, fragment("Replaced"));
+    expect(domTitles()).toEqual(["Title 0", "Replaced", "Title 2"]);
+    expect(domMarkers()).toEqual(["0", "1", "2"]);
+    expect(sfieldOf("Replaced")).toBe("1.title"); // fragment stamped 0 → 1
+  });
+
+  it("replaceSectionElement is a no-op when the index isn't found", () => {
+    hostWithFields(2);
+    replaceSectionElement(9, fragment("Nope"));
+    expect(domTitles()).toEqual(["Title 0", "Title 1"]);
+  });
 });
 
 /** Sections, each carrying `blocksPer` marked blocks. A section has an `<h1>`
@@ -451,6 +466,33 @@ describe("chrome — two-layer toolbar / deepest-boundary (#182 Phase 2)", () =>
     over(el.querySelector(`[${BLOCK_MARKER_ATTR}]`)?.querySelector("h2") as Node);
     // Hovering a block falls back to ringing its enclosing section.
     expect(el.querySelector("section")?.classList.contains("louise-chrome-active")).toBe(true);
+  });
+
+  it("omits the block + button unless onAdd is supplied", () => {
+    setup(1, 2); // block actions without onAdd
+    expect(blockButtons()).toHaveLength(3); // ↑ ↓ ✕ only
+  });
+
+  it("shows a block + button when onAdd is supplied and calls it with the ref", () => {
+    const added: BlockRef[] = [];
+    const el = hostWithBlocks(1, 2);
+    dispose = mountSectionChrome({
+      onMoveUp: () => {},
+      onMoveDown: () => {},
+      onDelete: () => {},
+      blocks: {
+        onMoveUp: () => {},
+        onMoveDown: () => {},
+        onDelete: () => {},
+        onAdd: (r) => added.push(r),
+      },
+    });
+    over(el.querySelectorAll(`[${BLOCK_MARKER_ATTR}]`)[0].querySelector("h2") as Node); // block 0
+    const buttons = blockButtons();
+    expect(buttons).toHaveLength(4); // ↑ ↓ ✕ +
+    expect(buttons[3].textContent).toBe("+");
+    buttons[3].click();
+    expect(added).toEqual([{ section: 0, block: 0 }]);
   });
 });
 

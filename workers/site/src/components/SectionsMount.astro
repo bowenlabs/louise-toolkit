@@ -26,11 +26,18 @@
     } catch {
       initial = [];
     }
-    Promise.all([import("louise-toolkit/client"), import("../sections/catalog")]).then(
-      ([client, cat]) => {
-        teardown = client.mountSections(el, { catalog: cat.SECTIONS, pageId, initial });
-      },
-    );
+    Promise.all([
+      import("louise-toolkit/client"),
+      import("../sections/catalog"),
+      import("../sections/blocks"),
+    ]).then(([client, cat, blk]) => {
+      teardown = client.mountSections(el, {
+        catalog: cat.SECTIONS,
+        blocks: blk.BLOCKS,
+        pageId,
+        initial,
+      });
+    });
   }
 
   // Bundled scripts run once; re-boot after every view-transition navigation so
