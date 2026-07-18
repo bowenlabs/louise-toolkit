@@ -5,11 +5,31 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  deleteSectionElement,
+  moveSectionElement,
   mountSectionChrome,
   readSectionMarkers,
+  restampSection,
   SECTION_MARKER_ATTR,
   sectionIndexOf,
 } from "../../src/client/chrome.js";
+
+/** Sections with an inner `<h1 data-louise-sfield="<i>.title">` so restamping of
+ *  both the section marker and its field paths is observable. */
+function hostWithFields(count: number): HTMLElement {
+  const el = document.createElement("div");
+  for (let i = 0; i < count; i++) {
+    const sec = document.createElement("section");
+    sec.setAttribute(SECTION_MARKER_ATTR, String(i));
+    const h = document.createElement("h1");
+    h.setAttribute("data-louise-sfield", `${i}.title`);
+    h.textContent = `Title ${i}`;
+    sec.appendChild(h);
+    el.appendChild(sec);
+  }
+  document.body.appendChild(el);
+  return el;
+}
 
 /** A host with one marked `<section>` per given marker value (each wrapping a
  *  `<p>` so descendant hit-testing has something to resolve from). */
@@ -145,5 +165,56 @@ describe("chrome — on-canvas section toolbar (#182 Phase 1)", () => {
     expect(document.getElementById("louise-chrome-style")).toBeNull();
     over(el.querySelectorAll("p")[0]); // no listener → nothing recreated
     expect(document.querySelector(".louise-chrome-toolbar")).toBeNull();
+  });
+});
+
+describe("chrome — instant structural ops (#182 Phase 1)", () => {
+  const domTitles = () => [...document.querySelectorAll("section h1")].map((h) => h.textContent);
+  const domMarkers = () =>
+    [...document.querySelectorAll("section")].map((s) => s.getAttribute(SECTION_MARKER_ATTR));
+  const sfieldOf = (title: string) =>
+    [...document.querySelectorAll("section")]
+      .find((s) => s.querySelector("h1")?.textContent === title)
+      ?.querySelector("h1")
+      ?.getAttribute("data-louise-sfield");
+
+  it("restampSection re-stamps the marker and inner sfield leading index", () => {
+    const el = hostWithFields(3);
+    const sec = el.querySelectorAll("section")[2];
+    restampSection(sec, 0);
+    expect(sec.getAttribute(SECTION_MARKER_ATTR)).toBe("0");
+    expect(sec.querySelector("h1")?.getAttribute("data-louise-sfield")).toBe("0.title");
+  });
+
+  it("moveSectionElement relocates the node and re-stamps 0…n-1 in the new order", () => {
+    hostWithFields(3); // Title 0, 1, 2
+    moveSectionElement(0, 2);
+    expect(domTitles()).toEqual(["Title 1", "Title 2", "Title 0"]);
+    expect(domMarkers()).toEqual(["0", "1", "2"]); // stamped by new position
+    expect(sfieldOf("Title 0")).toBe("2.title"); // moved section's field re-pathed
+    expect(sfieldOf("Title 1")).toBe("0.title");
+  });
+
+  it("moveSectionElement handles an adjacent swap (move up)", () => {
+    hostWithFields(3);
+    moveSectionElement(2, 1); // move the last up one
+    expect(domTitles()).toEqual(["Title 0", "Title 2", "Title 1"]);
+    expect(sfieldOf("Title 2")).toBe("1.title");
+  });
+
+  it("deleteSectionElement removes the node and re-stamps survivors gaplessly", () => {
+    hostWithFields(3);
+    deleteSectionElement(1); // remove Title 1
+    expect(domTitles()).toEqual(["Title 0", "Title 2"]);
+    expect(domMarkers()).toEqual(["0", "1"]);
+    expect(sfieldOf("Title 2")).toBe("1.title"); // shifted 2 → 1
+  });
+
+  it("out-of-range ops are no-ops", () => {
+    hostWithFields(2);
+    moveSectionElement(0, 5);
+    moveSectionElement(-1, 0);
+    deleteSectionElement(9);
+    expect(domTitles()).toEqual(["Title 0", "Title 1"]);
   });
 });

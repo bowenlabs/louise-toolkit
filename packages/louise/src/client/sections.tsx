@@ -22,7 +22,7 @@
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { mountSectionChrome } from "./chrome.js";
+import { deleteSectionElement, mountSectionChrome, moveSectionElement } from "./chrome.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
@@ -194,7 +194,10 @@ function wireInline(
       });
     }
     node.addEventListener("input", () => {
-      set("items", ...pathToArgs(path), node.textContent ?? "");
+      // Re-read the marker (don't close over `path`): an instant reorder/delete
+      // re-stamps `data-louise-sfield`, so the current attribute is the source of
+      // truth for which store path this node now writes to (#182 Phase 1).
+      set("items", ...pathToArgs(node.dataset.louiseSfield ?? path), node.textContent ?? "");
       onEdit();
     });
     // Flush a pending auto-save when the editor tabs out of this field.
@@ -607,18 +610,27 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       set("items", (a: SectionItem[]) => [...a, { _type: type, ...blankRecord(def.fields) }]),
     );
   };
-  const removeSection = (i: number) =>
-    void structural(() => set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i)));
-  const moveSection = (i: number, delta: number) =>
-    void structural(() =>
-      set("items", (a: SectionItem[]) => {
-        const j = i + delta;
-        if (j < 0 || j >= a.length) return a;
-        const next = a.slice();
-        [next[i], next[j]] = [next[j], next[i]];
-        return next;
-      }),
-    );
+  // Reorder + delete are INSTANT (#182 Phase 1 / ADR 0005 §4): reconcile the
+  // store, mirror the change on the already-rendered DOM (move/remove the marked
+  // section element + re-stamp markers), and stage a draft via autosave — no
+  // save-and-reload round-trip. (Add / array-item ops still reload — they need
+  // markup that doesn't exist yet, i.e. the Phase 3 fragment-render route.)
+  const removeSection = (i: number) => {
+    set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i));
+    deleteSectionElement(i);
+    touched();
+  };
+  const moveSection = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= state.items.length) return;
+    set("items", (a: SectionItem[]) => {
+      const next = a.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    moveSectionElement(i, j);
+    touched();
+  };
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
     void structural(() =>
       set("items", i, key, (arr: unknown) => [

@@ -197,3 +197,56 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     doc.getElementById(CHROME_STYLE_ID)?.remove();
   };
 }
+
+/* ── Instant structural ops (ADR 0005 §4) ──────────────────────────────────
+ * Reorder/delete move DOM nodes that are *already rendered* and reconcile the
+ * store — no server round-trip, no reload. The catch: a section's index is
+ * baked into its own marker AND the leading segment of every `data-louise-sfield`
+ * path inside it (`"<i>.<key>[.<j>.<sub>]"`). After a move/delete those indices
+ * shift, so re-stamp them here to keep markers — and thus the inline store-write
+ * paths — aligned with the new order. (`wireInline`'s input handler re-reads the
+ * marker, so re-stamping is enough — no re-wiring.)
+ */
+
+/** Re-stamp a section element to `newIndex`: its own `data-louise-section` plus
+ *  the leading index of every `data-louise-sfield` descendant. */
+export function restampSection(el: HTMLElement, newIndex: number): void {
+  el.setAttribute(SECTION_MARKER_ATTR, String(newIndex));
+  for (const node of el.querySelectorAll<HTMLElement>("[data-louise-sfield]")) {
+    const path = node.getAttribute("data-louise-sfield");
+    if (!path) continue;
+    const dot = path.indexOf(".");
+    node.setAttribute(
+      "data-louise-sfield",
+      dot >= 0 ? `${newIndex}${path.slice(dot)}` : String(newIndex),
+    );
+  }
+}
+
+/**
+ * Relocate the section at `from` to `to` among its marked siblings and re-stamp
+ * every section to its new index — the instant reflection of a reorder. No-op if
+ * either index is out of range. Assumes the marked sections share a parent (the
+ * render nests each in the sections container).
+ */
+export function moveSectionElement(from: number, to: number, root: ParentNode = document): void {
+  const els = readSectionMarkers(root).map((s) => s.el);
+  if (from === to || from < 0 || to < 0 || from >= els.length || to >= els.length) return;
+  const [moving] = els.splice(from, 1);
+  els.splice(to, 0, moving);
+  const parent = moving.parentNode;
+  if (!parent) return;
+  parent.insertBefore(moving, els[to + 1] ?? null);
+  els.forEach((el, i) => restampSection(el, i));
+}
+
+/**
+ * Remove the section at `index` from the DOM and re-stamp the survivors to a
+ * gapless 0…n-1 — the instant reflection of a delete. No-op if not found.
+ */
+export function deleteSectionElement(index: number, root: ParentNode = document): void {
+  const target = readSectionMarkers(root).find((s) => s.index === index);
+  if (!target) return;
+  target.el.remove();
+  readSectionMarkers(root).forEach((s, i) => restampSection(s.el, i));
+}
