@@ -42,6 +42,21 @@ export const SECTIONS: SectionCatalog = {
       headingLine2: { type: "text", label: "Heading (line 2)", placeholder: "Second line" },
     },
     blocks: { allow: ["feature"] },
+    // Inspector layout + settings (#182 Phase 4 / ADR 0005 §5). Louise stores the
+    // chosen tokens; FeatureGrid.astro maps them to grid columns + a background.
+    layouts: {
+      two: { label: "2 columns" },
+      three: { label: "3 columns" },
+      four: { label: "4 columns" },
+    },
+    settings: {
+      background: {
+        type: "text",
+        label: "Background (none / muted / dark)",
+        placeholder: "none",
+        inline: false,
+      },
+    },
   },
   editDemo: {
     label: "Edit-in-place demo",
