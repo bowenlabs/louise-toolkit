@@ -380,10 +380,7 @@ function Toolbar() {
           </button>
           <Show when={aiOpen()}>
             <div class="louise-tb-ai-menu" role="menu">
-              <Show
-                when={!aiBusy()}
-                fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}
-              >
+              <Show when={!aiBusy()} fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}>
                 <For each={REWRITE_ACTIONS}>
                   {(a) => (
                     <button
