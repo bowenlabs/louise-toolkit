@@ -52,3 +52,148 @@ export function sectionIndexOf(node: Node | null): number | null {
   const index = Number(el.getAttribute(SECTION_MARKER_ATTR));
   return Number.isInteger(index) && index >= 0 ? index : null;
 }
+
+/* ── On-canvas section chrome ──────────────────────────────────────────────
+ * A ring + floating toolbar drawn over the hovered section (ADR 0005 §3). Kept
+ * vanilla (no Solid) so it bundles into a standalone harness and unit-tests
+ * without the editor. The ring is a `box-shadow` on the section element itself,
+ * so it's never clipped by an `overflow` ancestor. Structural actions are
+ * callbacks — the editor wires them to its store + save; a harness stubs them.
+ */
+
+/** Actions the section toolbar exposes. Duplicate/add are deferred to the
+ *  fragment-render route (Phase 3), so v1 is move + delete only. */
+export interface SectionChromeActions {
+  onMoveUp(index: number): void;
+  onMoveDown(index: number): void;
+  onDelete(index: number): void;
+}
+
+const CHROME_STYLE_ID = "louise-chrome-style";
+const CHROME_CSS = `
+[${SECTION_MARKER_ATTR}].louise-chrome-active {
+  box-shadow: 0 0 0 2px var(--louise-orange, #ea7317);
+  border-radius: 4px;
+}
+.louise-chrome-toolbar {
+  position: fixed;
+  z-index: 2147483200;
+  display: none;
+  gap: 2px;
+  padding: 3px;
+  background: var(--louise-orange, #ea7317);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.louise-chrome-toolbar[data-open="1"] { display: inline-flex; }
+.louise-chrome-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.louise-chrome-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.3); }
+.louise-chrome-btn:disabled { opacity: 0.4; cursor: default; }
+`;
+
+/**
+ * Mount the on-canvas section chrome over the marked sections under `root`.
+ * Hovering a section rings it and floats a toolbar (↑ move up, ↓ move down, ✕
+ * delete) at its top-right; the buttons call the supplied actions with the
+ * section's index. Hit-testing is deepest-boundary (via {@link sectionIndexOf}),
+ * and hovering the toolbar keeps its section active so it doesn't flicker away.
+ * Returns a disposer that removes the listeners, toolbar, and injected style.
+ */
+export function mountSectionChrome(opts: SectionChromeActions): () => void {
+  const doc = document;
+
+  if (!doc.getElementById(CHROME_STYLE_ID)) {
+    const style = doc.createElement("style");
+    style.id = CHROME_STYLE_ID;
+    style.textContent = CHROME_CSS;
+    doc.head.appendChild(style);
+  }
+
+  const toolbar = doc.createElement("div");
+  toolbar.className = "louise-chrome-toolbar";
+  toolbar.dataset.open = "0";
+  const button = (label: string, title: string): HTMLButtonElement => {
+    const b = doc.createElement("button");
+    b.type = "button";
+    b.className = "louise-chrome-btn";
+    b.textContent = label;
+    b.title = title;
+    return b;
+  };
+  const upBtn = button("↑", "Move up");
+  const downBtn = button("↓", "Move down");
+  const delBtn = button("✕", "Delete section");
+  for (const b of [upBtn, downBtn, delBtn]) toolbar.appendChild(b);
+  doc.body.appendChild(toolbar);
+
+  let active: number | null = null;
+  let activeEl: HTMLElement | null = null;
+
+  const deactivate = (): void => {
+    activeEl?.classList.remove("louise-chrome-active");
+    active = null;
+    activeEl = null;
+    toolbar.dataset.open = "0";
+  };
+
+  const activate = (index: number, el: HTMLElement): void => {
+    if (activeEl && activeEl !== el) activeEl.classList.remove("louise-chrome-active");
+    active = index;
+    activeEl = el;
+    el.classList.add("louise-chrome-active");
+    const count = readSectionMarkers().length;
+    upBtn.disabled = index <= 0;
+    downBtn.disabled = index >= count - 1;
+    const box = el.getBoundingClientRect();
+    toolbar.style.top = `${Math.max(4, box.top + 6)}px`;
+    toolbar.style.left = `${Math.max(4, box.right - 90)}px`;
+    toolbar.dataset.open = "1";
+  };
+
+  const onOver = (e: Event): void => {
+    const target = e.target as Node | null;
+    if (target && toolbar.contains(target)) return; // over the toolbar → keep active
+    const from = target instanceof Element ? target : (target?.parentElement ?? null);
+    const el = from?.closest<HTMLElement>(`[${SECTION_MARKER_ATTR}]`) ?? null;
+    if (!el) {
+      deactivate();
+      return;
+    }
+    const index = Number(el.getAttribute(SECTION_MARKER_ATTR));
+    if (Number.isInteger(index) && index >= 0) activate(index, el);
+  };
+
+  const act = (fn: (i: number) => void) => (e: Event) => {
+    e.preventDefault();
+    if (active !== null) fn(active);
+  };
+  const onUp = act(opts.onMoveUp);
+  const onDown = act(opts.onMoveDown);
+  const onDel = act(opts.onDelete);
+  upBtn.addEventListener("click", onUp);
+  downBtn.addEventListener("click", onDown);
+  delBtn.addEventListener("click", onDel);
+  doc.addEventListener("mouseover", onOver, true);
+
+  return () => {
+    doc.removeEventListener("mouseover", onOver, true);
+    deactivate();
+    toolbar.remove();
+    doc.getElementById(CHROME_STYLE_ID)?.remove();
+  };
+}

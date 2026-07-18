@@ -22,6 +22,7 @@
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { mountSectionChrome } from "./chrome.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
@@ -346,6 +347,19 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       autoCfg.enabled ? () => auto?.flush() : undefined,
     );
     void loadVersions();
+
+    // On-canvas section chrome (#182 Phase 1): rings + a per-section toolbar over
+    // the marked sections, wired to the same structural ops the dock uses (still
+    // save+reload for now — instant DOM ops come with the marker re-index slice).
+    // Markers are stamped by the render in edit mode; on an unmarked host the
+    // chrome simply finds nothing. Disposed with the dock.
+    onCleanup(
+      mountSectionChrome({
+        onMoveUp: (i) => moveSection(i, -1),
+        onMoveDown: (i) => moveSection(i, 1),
+        onDelete: (i) => removeSection(i),
+      }),
+    );
 
     // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` /
     // `pagehide` are the reliable "leaving" signals; the keepalive draft POST
