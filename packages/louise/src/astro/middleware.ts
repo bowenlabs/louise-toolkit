@@ -9,8 +9,11 @@
 //     resolveEditor: (req) =>
 //       resolveEditorSession(getLouiseAuth(env, new URL(req.url).origin), req),
 //     rateLimit: { rules: RATE_RULES, kv: env.KV },
-//     cspStyleSrc: "'self' 'unsafe-inline' https://fonts.googleapis.com",
+//     cspStyleSrc: "'self' 'unsafe-inline'",
 //   });
+//
+// (The brand font is bundled + base64-inlined — no Google Fonts host to allow.
+// A strict `font-src` must permit `data:` for the inlined @font-face.)
 //
 // This subpath is the ONE place Louise touches Astro's types — `astro` is an
 // optional peer, pulled in only by sites that import `louise-toolkit/astro`.

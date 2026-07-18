@@ -15,7 +15,27 @@
    Everything here is UNLAYERED, so it wins over Starlight's own styles: Starlight
    ≥0.34 moves all of its CSS into cascade layers, and unlayered declarations take
    precedence over any layered rule regardless of specificity. */
-@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+/* Self-hosted brand type — served from our own edge, no Google Fonts request
+   (matches the marketing site's approach in workers/site/public/fonts). Roboto
+   Flex keeps the `wght` + `wdth` axes the headings' `font-stretch` display type
+   uses; JetBrains Mono is weight-only. See workers/site/public/fonts/README.md
+   for how the subsets are built. */
+@font-face {
+  font-family: "Roboto Flex";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-stretch: 25% 151%;
+  font-display: swap;
+  src: url("/fonts/RobotoFlex-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2");
+}
 
 :root {
   --sl-font: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
