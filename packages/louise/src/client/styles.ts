@@ -797,6 +797,17 @@ const CSS = `
   border-radius: 8px;
 }
 .louise-arr-ops { display: inline-flex; gap: 4px; align-items: center; }
+/* Discriminated array (#182 Phase 0): a per-variant "add" row + the per-item
+   variant switcher select. */
+.louise-variant-add { display: flex; flex-wrap: wrap; gap: 4px; }
+.louise-variant-switch {
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+}
 /* The currently-live version in history — a solid success-green accent so it
    stands out from the other (also "published") rows. */
 .louise-arr-row[data-live] {
