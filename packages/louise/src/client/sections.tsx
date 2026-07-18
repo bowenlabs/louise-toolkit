@@ -642,6 +642,46 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // Re-render section `i` in place through the fragment route — the single seam
+  // every in-section structural change routes through (#182 Phase 3 / ADR 0005
+  // §4): block add, array item add/remove, and variant swap-type. The store is
+  // already mutated; this swaps the section's element for a fresh server render
+  // and re-wires it. Falls back to save-and-reload when the section isn't on the
+  // live rendered page (e.g. a headless dock) or the fragment can't render, so
+  // the change is never lost.
+  const rerenderSection = async (i: number): Promise<void> => {
+    const item = state.items[i];
+    const onPage = !!props.host.querySelector(`[data-louise-section="${i}"]`);
+    const html = item && onPage ? await renderSectionFragment(unwrap(item) as SectionItem) : null;
+    const tmp = html ? document.createElement("div") : null;
+    if (tmp) tmp.innerHTML = html as string;
+    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
+    if (!el) {
+      auto?.cancel();
+      setStatus("saving");
+      if ((await saveDraft()) !== null) location.reload();
+      else setStatus("error");
+      return;
+    }
+    replaceSectionElement(i, el);
+    wireInline(
+      el,
+      props.catalog,
+      state.items,
+      set,
+      touched,
+      autoCfg.enabled ? () => auto?.flush() : undefined,
+    );
+    touched();
+  };
+
+  // Apply an in-section structural mutation, then re-render that section in place.
+  // Replaces the old `structural()` (save-and-reload) for array/variant/block ops.
+  const restructureSection = (i: number, mutate: () => void): void => {
+    mutate();
+    void rerenderSection(i);
+  };
+
   // Add is INSTANT (#182 Phase 3 / ADR 0005 §4): optimistically splice the item
   // into the store, fetch its server-rendered fragment, insert + re-stamp it in
   // place (no reload), wire its inline fields, then stage a draft via autosave.
@@ -732,49 +772,29 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // their section's bespoke component, not standalone), swap the section element
   // in place, re-stamp + re-wire, then autosave. The section's `blocks.allow`
   // picks the type (single-type sections); a multi-type picker is a later slice.
-  const addBlock = async (section: number, block: number) => {
+  const addBlock = (section: number, block: number) => {
     const item = state.items[section];
     const type = props.catalog[item?._type ?? ""]?.blocks?.allow?.[0];
     const def = type ? props.blocks?.[type] : undefined;
     if (!type || !def) return; // ambiguous/unknown block type → no-op
     const at = block + 1;
-    set("items", section, "blocks", (b: unknown) => {
-      const next = (Array.isArray(b) ? b : []).slice();
-      next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
-      return next;
-    });
-
-    const html = await renderSectionFragment(unwrap(state.items[section]) as SectionItem);
-    const tmp = html ? document.createElement("div") : null;
-    if (tmp) tmp.innerHTML = html as string;
-    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
-    if (!el) {
-      auto?.cancel();
-      setStatus("saving");
-      if ((await saveDraft()) !== null) location.reload();
-      else setStatus("error");
-      return;
-    }
-    replaceSectionElement(section, el);
-    wireInline(
-      el,
-      props.catalog,
-      state.items,
-      set,
-      touched,
-      autoCfg.enabled ? () => auto?.flush() : undefined,
+    restructureSection(section, () =>
+      set("items", section, "blocks", (b: unknown) => {
+        const next = (Array.isArray(b) ? b : []).slice();
+        next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
+        return next;
+      }),
     );
-    touched();
   };
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
-    void structural(() =>
+    restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
         ...(Array.isArray(arr) ? arr : []),
         blankRecord(itemFields),
       ]),
     );
   const removeItem = (i: number, key: string, k: number) =>
-    void structural(() =>
+    restructureSection(i, () =>
       set("items", i, key, (arr: Record<string, unknown>[]) => arr.filter((_, z) => z !== k)),
     );
 
@@ -791,7 +811,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const variantOf = (field: SectionField, item: Record<string, unknown>): string =>
     String(item[field.discriminator?.key ?? ""] ?? "");
   const addVariantItem = (i: number, key: string, field: SectionField, variant: string) =>
-    void structural(() =>
+    restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
         ...(Array.isArray(arr) ? arr : []),
         {
@@ -802,7 +822,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       ]),
     );
   const switchVariant = (i: number, key: string, k: number, field: SectionField, variant: string) =>
-    void structural(() => {
+    restructureSection(i, () => {
       const disc = field.discriminator;
       const cur =
         (
@@ -996,7 +1016,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       <ImageDockField
                         label={field.label ?? humanize(key)}
                         value={String(item[key] ?? "")}
-                        onSet={(url) => void structural(() => set("items", i(), key, url))}
+                        onSet={(url) => restructureSection(i(), () => set("items", i(), key, url))}
                       />
                     </Show>
                   )}
