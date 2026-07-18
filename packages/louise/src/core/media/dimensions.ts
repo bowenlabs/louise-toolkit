@@ -5,9 +5,9 @@
 // Reads width/height out of the leading bytes without decoding the pixels, so an
 // upload can record its dimensions cheaply on a Worker (no image library). Pairs
 // with `sniffImageType`: the same magic bytes that identify the format also tell
-// us where the size lives. Covers the common raster formats; returns `null` for
-// anything it can't read confidently (incl. TIFF/AVIF, whose sizes need real box
-// parsing) so `width`/`height` stay honestly "when known".
+// us where the size lives. Covers PNG, GIF, WebP, JPEG, plus the box-structured
+// AVIF/HEIF (`ispe`) and TIFF (IFD) formats; returns `null` for anything it can't
+// read confidently so `width`/`height` stay honestly "when known".
 
 export interface ImageDimensions {
   width: number;
@@ -22,11 +22,13 @@ function bytesToStream(bytes: Uint8Array | ArrayBuffer): ReadableStream<Uint8Arr
 
 /**
  * Read intrinsic pixel dimensions via the Cloudflare Images binding's `.info()`,
- * which sizes the formats the header parser returns `null` for (AVIF, TIFF) —
- * and every other raster format too. Returns `null` for vector input (SVG, which
- * has no intrinsic pixel size) or on any Images error, so a caller can fall back
- * to {@link imageDimensions} (the binding-free header parser). Prefer this in the
- * upload path when an `IMAGES` binding is available.
+ * a real decode that sizes every raster format robustly (and applies EXIF
+ * orientation). Returns `null` for vector input (SVG, which has no intrinsic
+ * pixel size) or on any Images error, so a caller can fall back to
+ * {@link imageDimensions} (the binding-free header parser, which now also covers
+ * AVIF/HEIF and TIFF). Prefer this in the upload path when an `IMAGES` binding is
+ * available; it's the authoritative path, the header parser the lightweight
+ * fallback.
  */
 export async function imageInfo(
   images: ImagesBinding,
@@ -47,12 +49,12 @@ export async function imageInfo(
 
 /**
  * Parse intrinsic pixel dimensions from an image's header bytes (PNG, GIF,
- * JPEG, WebP). Pass enough of the file to include the header — the first few KB
- * is always plenty; the whole buffer is fine. Returns `null` when the size can't
- * be read (unsupported format, or a truncated/odd header).
+ * JPEG, WebP, AVIF/HEIF, TIFF). Pass enough of the file to include the header —
+ * the first few KB is always plenty; the whole buffer is fine. Returns `null`
+ * when the size can't be read (unsupported format, or a truncated/odd header).
  */
 export function imageDimensions(bytes: Uint8Array): ImageDimensions | null {
-  const d = png(bytes) ?? gif(bytes) ?? webp(bytes) ?? jpeg(bytes);
+  const d = png(bytes) ?? gif(bytes) ?? webp(bytes) ?? jpeg(bytes) ?? avif(bytes) ?? tiff(bytes);
   // A valid image is never 0-sized; treat a zero (truncated/odd header) as
   // unknown rather than persisting a bogus 0×N.
   return d && d.width > 0 && d.height > 0 ? d : null;
@@ -141,8 +143,110 @@ function jpeg(b: Uint8Array): ImageDimensions | null {
   return null;
 }
 
+// AVIF / HEIF (ISO base media / box format): the pixel size lives in an `ispe`
+// (image spatial extents) property, nested meta → iprp → ipco → ispe. Walk the
+// box tree to it rather than scanning for the "ispe" fourcc (which could collide
+// with payload bytes). A file may carry several `ispe` boxes (e.g. a thumbnail
+// alongside the primary image); take the largest by area — the full-resolution
+// one — without resolving the full pitm/ipma item graph. Best-effort: returns
+// `null` if the structure isn't found.
+function avif(b: Uint8Array): ImageDimensions | null {
+  // Cheap guard: an ISOBMFF file opens with an `ftyp` box (type at offset 4).
+  // The brand ("avif"/"heic"/"mif1"/…) isn't checked — the `ispe` walk is the
+  // real test, and it covers every ftyp brand that carries one.
+  if (b.length < 12 || b[4] !== 0x66 || b[5] !== 0x74 || b[6] !== 0x79 || b[7] !== 0x70)
+    return null;
+  const meta = firstBox(b, 0, b.length, "meta");
+  if (!meta) return null;
+  // `meta` is a FullBox: skip its 4-byte version+flags to reach child boxes.
+  const iprp = firstBox(b, meta.start + 4, meta.end, "iprp");
+  if (!iprp) return null;
+  const ipco = firstBox(b, iprp.start, iprp.end, "ipco");
+  if (!ipco) return null;
+  let best: ImageDimensions | null = null;
+  for (const box of boxes(b, ipco.start, ipco.end)) {
+    if (box.type !== "ispe" || box.end - box.start < 12) continue;
+    // `ispe` is a FullBox: width/height are big-endian u32 after version+flags.
+    const width = u32be(b, box.start + 4);
+    const height = u32be(b, box.start + 8);
+    if (width > 0 && height > 0 && (!best || width * height > best.width * best.height)) {
+      best = { width, height };
+    }
+  }
+  return best;
+}
+
+/** An ISOBMFF box's fourcc `type` and its content byte range `[start, end)`. */
+interface Box {
+  type: string;
+  start: number;
+  end: number;
+}
+
+// Iterate the ISOBMFF boxes in `[from, to)`, yielding each box's type and content
+// range. Handles the 32-bit size, the 64-bit `largesize` escape (size === 1) and
+// size === 0 (box runs to the end). Stops on a malformed/overrunning box.
+function* boxes(b: Uint8Array, from: number, to: number): Generator<Box> {
+  let p = from;
+  while (p + 8 <= to) {
+    let size = u32be(b, p);
+    const type = String.fromCharCode(b[p + 4]!, b[p + 5]!, b[p + 6]!, b[p + 7]!);
+    let header = 8;
+    if (size === 1) {
+      // 64-bit largesize. We only address bytes within a Uint8Array (< 2^32), so
+      // the high word must be zero; read the low word as the size.
+      if (p + 16 > to || u32be(b, p + 8) !== 0) return;
+      size = u32be(b, p + 12);
+      header = 16;
+    } else if (size === 0) {
+      size = to - p;
+    }
+    if (size < header || p + size > to) return;
+    yield { type, start: p + header, end: p + size };
+    p += size;
+  }
+}
+
+/** The first box of `type` in `[from, to)`, or `null`. */
+function firstBox(b: Uint8Array, from: number, to: number, type: string): Box | null {
+  for (const box of boxes(b, from, to)) if (box.type === type) return box;
+  return null;
+}
+
+// TIFF: an "II" (little-endian) or "MM" (big-endian) byte-order mark, the magic
+// 42, then the offset to the first IFD. Read ImageWidth (tag 0x0100) and
+// ImageLength (tag 0x0101) from that IFD — both are SHORT or LONG values that fit
+// in the entry's 4-byte value field, so no second seek is needed.
+function tiff(b: Uint8Array): ImageDimensions | null {
+  if (b.length < 8) return null;
+  const le = b[0] === 0x49 && b[1] === 0x49;
+  if (!le && !(b[0] === 0x4d && b[1] === 0x4d)) return null;
+  const u16 = (i: number) => (le ? u16le(b, i) : u16be(b, i));
+  const u32 = (i: number) => (le ? u32le(b, i) : u32be(b, i));
+  if (u16(2) !== 42) return null;
+  const ifd = u32(4);
+  if (ifd + 2 > b.length) return null;
+  const count = u16(ifd);
+  let width = 0;
+  let height = 0;
+  for (let i = 0; i < count; i++) {
+    const e = ifd + 2 + i * 12;
+    if (e + 12 > b.length) break;
+    const tag = u16(e);
+    // type 3 = SHORT (u16), 4 = LONG (u32); the value sits in the entry itself.
+    const value = u16(e + 2) === 3 ? u16(e + 8) : u32(e + 8);
+    if (tag === 0x0100) width = value;
+    else if (tag === 0x0101) height = value;
+    if (width > 0 && height > 0) break;
+  }
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
 function u16le(b: Uint8Array, i: number): number {
   return b[i]! | (b[i + 1]! << 8);
+}
+function u32le(b: Uint8Array, i: number): number {
+  return (b[i]! | (b[i + 1]! << 8) | (b[i + 2]! << 16) | (b[i + 3]! << 24)) >>> 0;
 }
 function u16be(b: Uint8Array, i: number): number {
   return (b[i]! << 8) | b[i + 1]!;

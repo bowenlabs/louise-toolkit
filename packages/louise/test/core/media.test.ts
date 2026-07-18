@@ -165,12 +165,56 @@ describe("imageDimensions", () => {
     expect(imageDimensions(vp8x)).toEqual({ width: 1200, height: 630 });
   });
 
+  it("reads AVIF/HEIF size from the ispe box, largest of several (thumbnail + primary)", () => {
+    const u32 = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+    const box = (type: string, body: number[]) => [
+      ...u32(8 + body.length),
+      ...[...type].map((c) => c.charCodeAt(0)),
+      ...body,
+    ];
+    const ispe = (w: number, h: number) => box("ispe", [0, 0, 0, 0, ...u32(w), ...u32(h)]);
+    // ipco holds a small thumbnail ispe + the full-res one; the larger wins.
+    const ipco = box("ipco", [...ispe(320, 180), ...ispe(1920, 1080)]);
+    const meta = box("meta", [0, 0, 0, 0, ...box("iprp", ipco)]); // meta is a FullBox
+    const ftyp = box("ftyp", [...[..."avif"].map((c) => c.charCodeAt(0)), 0, 0, 0, 0]);
+    expect(imageDimensions(new Uint8Array([...ftyp, ...meta]))).toEqual({
+      width: 1920,
+      height: 1080,
+    });
+  });
+
+  it("reads TIFF ImageWidth/Length from the first IFD (both byte orders + SHORT/LONG)", () => {
+    const buildTiff = (le: boolean, w: number, h: number, type: number) => {
+      const u16 = (n: number) => (le ? [n & 0xff, (n >> 8) & 0xff] : [(n >> 8) & 0xff, n & 0xff]);
+      const u32 = (n: number) =>
+        le
+          ? [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff]
+          : [(n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+      const val = (v: number) => (type === 3 ? [...u16(v), 0, 0] : u32(v));
+      const entry = (tag: number, v: number) => [...u16(tag), ...u16(type), ...u32(1), ...val(v)];
+      return new Uint8Array([
+        ...(le ? [0x49, 0x49] : [0x4d, 0x4d]),
+        ...u16(42),
+        ...u32(8), // first IFD at offset 8
+        ...u16(2), // 2 entries
+        ...entry(0x0100, w),
+        ...entry(0x0101, h),
+        ...u32(0), // no next IFD
+      ]);
+    };
+    expect(imageDimensions(buildTiff(true, 1024, 768, 3))).toEqual({ width: 1024, height: 768 }); // LE, SHORT
+    expect(imageDimensions(buildTiff(false, 4096, 2160, 4))).toEqual({ width: 4096, height: 2160 }); // BE, LONG
+  });
+
   it("returns null for unreadable/unsupported headers", () => {
     expect(imageDimensions(new Uint8Array([1, 2, 3, 4]))).toBeNull(); // garbage
     // All-zero PNG body → 0×0, treated as unknown rather than a bogus size.
     const zeroPng = new Uint8Array(24);
     zeroPng.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
     expect(imageDimensions(zeroPng)).toBeNull();
+    // An `ftyp` box (AVIF brand) with no `meta`/`ispe` → unknown, not a crash.
+    const bareFtyp = new Uint8Array([0, 0, 0, 12, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]);
+    expect(imageDimensions(bareFtyp)).toBeNull();
   });
 });
 
