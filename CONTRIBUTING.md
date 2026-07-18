@@ -60,9 +60,12 @@ biome lint .                               # .astro component scripts (Biome)
 npx oxlint@1.73.0 packages/louise/src/client   # SolidJS client (oxlint + eslint-plugin-solid)
 ```
 
-The lint split is deliberate: **Oxlint/Oxfmt for `.ts`**, **Biome for `.astro`**
-(oxlint doesn't parse Astro; oxlint has no Solid plugin, so the client is linted
-separately with `eslint-plugin-solid`).
+The lint split is deliberate (see [ADR 0007](docs/adr/0007-lint-toolchain.md)):
+**Oxlint/Oxfmt for `.ts`**, **Biome for `.astro`** (oxlint can't parse Astro).
+The SolidJS client is linted by a **direct** `oxlint` run that loads
+`eslint-plugin-solid` via oxlint's `jsPlugins` — a separate step because `vp`'s
+bundled oxlint drops `jsPlugins`. Biome 2 can't absorb these (it runs no ESLint
+plugins and has no Solid rules), so the split stays.
 
 ## Changesets
 
