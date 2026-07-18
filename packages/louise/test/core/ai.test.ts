@@ -184,6 +184,24 @@ describe("suggestSeo", () => {
     expect(await suggestSeo(r, "x")).toEqual({ title: "T", description: "D" });
   });
 
+  it("reads a JSON-mode object response (response is already parsed)", async () => {
+    // Workers AI structured outputs return `response` as an OBJECT, not a string —
+    // the shape that silently broke SEO on the model swap (extractText expected a
+    // string). This is the case JSON mode + extractJsonObject now handle.
+    const r = runner({ response: { title: "Structured", description: "From JSON mode." } }).runner;
+    expect(await suggestSeo(r, "x")).toEqual({
+      title: "Structured",
+      description: "From JSON mode.",
+    });
+  });
+
+  it("requests JSON mode (response_format json_schema)", async () => {
+    const r = runner({ response: { title: "T", description: "D" } });
+    await suggestSeo(r.runner, "x");
+    const fmt = r.calls[0].inputs.response_format as { type?: string } | undefined;
+    expect(fmt?.type).toBe("json_schema");
+  });
+
   it("caps title/description and nulls missing or empty fields", async () => {
     const title = "x".repeat(200);
     const r = runner({ response: JSON.stringify({ title, description: "  " }) }).runner;

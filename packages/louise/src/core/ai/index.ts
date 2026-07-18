@@ -37,7 +37,11 @@ export async function runAi(
   if (!runner) return null;
   try {
     return await runner.run(model, inputs, options);
-  } catch {
+  } catch (err) {
+    // Best-effort still, but not *silent*: a bare swallow hid two real prod
+    // failures (a retired model; an unmet JSON schema). Log so the cause shows in
+    // `wrangler tail` — the return contract (null on failure) is unchanged.
+    console.error(`[louise-toolkit/ai] model run failed (${model})`, err);
     return null;
   }
 }
@@ -269,11 +273,26 @@ export async function suggestSeo(
         { role: "user", content: input.slice(0, opts.maxContentChars ?? 4000) },
       ],
       max_tokens: opts.maxTokens ?? 256,
+      // JSON mode (Workers AI structured outputs): force a valid
+      // `{title, description}` object regardless of the model's prose habits.
+      // Without it, `parseJsonObject` had to salvage JSON from freeform text —
+      // which silently broke on a model swap (a chattier model wrapped/annotated
+      // the JSON). The system prompt is kept as a belt-and-braces hint.
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+          },
+          required: ["title", "description"],
+        },
+      },
     },
     gatewayRun(opts.gateway),
   );
-  const text = extractText(out);
-  const parsed = text ? parseJsonObject(text) : null;
+  const parsed = extractJsonObject(out);
   if (!parsed) return null;
   const title = nonEmptyString(parsed.title) ? capLength(parsed.title.trim(), SEO_TITLE_MAX) : null;
   const description = nonEmptyString(parsed.description)
@@ -310,6 +329,22 @@ function parseJsonObject(text: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** Coerce a Workers AI response into a plain object, tolerating every shape a
+ *  JSON-producing call can take: JSON mode (a parsed object under `response`), a
+ *  JSON *string* (via {@link extractText} → {@link parseJsonObject}), or freeform
+ *  text a model returned when it ignored the schema. So structured parsing (SEO)
+ *  survives a model swap or a partial JSON-mode implementation. */
+function extractJsonObject(out: unknown): Record<string, unknown> | null {
+  if (out && typeof out === "object") {
+    const resp = (out as Record<string, unknown>).response;
+    if (resp && typeof resp === "object" && !Array.isArray(resp)) {
+      return resp as Record<string, unknown>;
+    }
+  }
+  const text = extractText(out);
+  return text ? parseJsonObject(text) : null;
 }
 
 function capLength(s: string, max: number): string {
