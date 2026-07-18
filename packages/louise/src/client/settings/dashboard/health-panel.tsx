@@ -39,7 +39,14 @@ interface Fixer {
 /** A one-click AI fix: POST the backfill endpoint, then refresh the counts it
  *  changed (always health + the dashboard overview, plus the fixed collection).
  *  A 503 means the site has no AI binding wired, so the assist hides itself. */
-function createFixer(qc: QueryClient, endpoint: string, extraKeys: readonly unknown[][]): Fixer {
+function createFixer(
+  qc: QueryClient,
+  endpoint: string,
+  // `readonly` inner arrays so the `as const` query-key tuples (louiseQueryKeys.*)
+  // fit; they're only read (mapped into invalidateQueries, which takes a readonly
+  // QueryKey).
+  extraKeys: readonly (readonly unknown[])[],
+): Fixer {
   const [fixing, setFixing] = createSignal(false);
   const [unavailable, setUnavailable] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
