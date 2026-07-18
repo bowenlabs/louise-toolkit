@@ -5,6 +5,7 @@
 // section-chrome path one level down.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { BlockCatalog } from "../../src/core/content/sections.js";
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
 import { mountSections } from "../../src/client/sections.jsx";
 
@@ -14,6 +15,10 @@ const CATALOG: SectionCatalog = {
     fields: { heading: { type: "text" } },
     blocks: { allow: ["feature"] },
   },
+};
+
+const BLOCK_CATALOG: BlockCatalog = {
+  feature: { label: "Feature", fields: { name: { type: "text" } } },
 };
 
 interface Call {
@@ -29,7 +34,25 @@ function stubFetch(): Call[] {
     vi.fn((input: string | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       const method = (init?.method ?? "GET").toUpperCase();
-      calls.push({ url, method, body: init?.body ? JSON.parse(init.body as string) : undefined });
+      const body = init?.body ? JSON.parse(init.body as string) : undefined;
+      calls.push({ url, method, body });
+      // Fragment route: re-render the posted section from its `blocks`, exactly as
+      // the Astro partial would (one `[data-louise-section]` with a card per block).
+      if (url === "/louise-fragment") {
+        const item = (body as { item?: { blocks?: Array<{ name?: string }> } })?.item;
+        const cards = (item?.blocks ?? [])
+          .map(
+            (b, j) =>
+              `<article data-louise-block="0.blocks.${j}"><div data-louise-sfield="0.blocks.${j}.name">${b.name ?? ""}</div></article>`,
+          )
+          .join("");
+        return Promise.resolve(
+          new Response(`<section data-louise-section="0">${cards}</section>`, {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          }),
+        );
+      }
       const payload =
         method === "GET" ? { versions: [], publishedVersionId: null } : { version: { id: 2 } };
       return Promise.resolve(
@@ -73,6 +96,7 @@ function mount(host: HTMLElement, names: string[]): () => void {
   vi.spyOn(window.location, "reload").mockImplementation(() => {});
   return mountSections(host, {
     catalog: CATALOG,
+    blocks: BLOCK_CATALOG,
     pageId: 1,
     initial: initial(names),
     autoSave: { debounceMs: 0 },
@@ -137,5 +161,30 @@ describe("mountSections — block chrome wiring (#182 Phase 2)", () => {
     expect(domBlockNames(host)).toEqual(["B", "A", "C"]);
     expect(domBlockMarkers(host)).toEqual(["0.blocks.0", "0.blocks.1", "0.blocks.2"]);
     expect(lastDraftBlocks(calls).map((b) => b.name)).toEqual(["B", "A", "C"]);
+  });
+
+  it("adding a block re-renders the section via the fragment route and swaps it in", async () => {
+    const calls = stubFetch();
+    const host = pageHost(["A", "B"]);
+    dispose = mount(host, ["A", "B"]);
+    await flush();
+
+    over(host.querySelectorAll("[data-louise-block]")[0].querySelector("div") as Node); // hover A
+    blockToolbarButtons()[3].click(); // + add block after A
+    await flush();
+    await flush();
+
+    // The fragment route re-rendered the section with the new (blank) block...
+    const frag = calls.find((c) => c.url === "/louise-fragment" && c.method === "POST");
+    expect((frag?.body as { item?: { blocks?: unknown[] } })?.item?.blocks).toHaveLength(3);
+
+    // ...and the section was swapped in place (no reload): 3 blocks, re-stamped,
+    // the blank inserted after A.
+    expect(domBlockMarkers(host)).toEqual(["0.blocks.0", "0.blocks.1", "0.blocks.2"]);
+    expect(domBlockNames(host)).toEqual(["A", "", "B"]);
+    expect(window.location.reload).not.toHaveBeenCalled();
+
+    // A draft was staged for the new shape.
+    expect(lastDraftBlocks(calls)).toHaveLength(3);
   });
 });

@@ -23,12 +23,14 @@
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
+  type BlockRef,
   deleteBlockElement,
   deleteSectionElement,
   insertSectionElement,
   moveBlockElement,
   mountSectionChrome,
   moveSectionElement,
+  replaceSectionElement,
 } from "./chrome.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
@@ -42,6 +44,7 @@ import { injectStyles } from "./styles.js";
 // validateSections). Type-only import — no server/validation code enters the
 // client bundle.
 import type {
+  BlockCatalog,
   SectionCatalog,
   SectionDef,
   SectionField,
@@ -58,6 +61,9 @@ function isInline(field: SectionField): boolean {
 
 export interface SectionsEditorProps {
   catalog: SectionCatalog;
+  /** The block palette (ADR 0005) — enables adding blocks to a section whose
+   *  `blocks` policy allows a type. Optional: omit for a sections-only site. */
+  blocks?: BlockCatalog;
   pageId: number;
   initial: SectionItem[];
   /** Auto-save inline section edits as a draft on an idle debounce — never
@@ -375,6 +381,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           onMoveUp: (r) => moveBlock(r.section, r.block, -1),
           onMoveDown: (r) => moveBlock(r.section, r.block, 1),
           onDelete: (r) => removeBlock(r.section, r.block),
+          // `+` add only when a block catalog is available (it needs the block's
+          // field shape to seed a blank); gates the toolbar's add button too.
+          ...(props.blocks ? { onAdd: (r: BlockRef) => void addBlock(r.section, r.block) } : {}),
         },
       }),
     );
@@ -716,6 +725,45 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       return next;
     });
     moveBlockElement(section, block, to);
+    touched();
+  };
+  // Block add (#182 Phase 3 / ADR 0005 §4): insert a blank block after `block`,
+  // re-render the WHOLE section through the fragment route (blocks render inside
+  // their section's bespoke component, not standalone), swap the section element
+  // in place, re-stamp + re-wire, then autosave. The section's `blocks.allow`
+  // picks the type (single-type sections); a multi-type picker is a later slice.
+  const addBlock = async (section: number, block: number) => {
+    const item = state.items[section];
+    const type = props.catalog[item?._type ?? ""]?.blocks?.allow?.[0];
+    const def = type ? props.blocks?.[type] : undefined;
+    if (!type || !def) return; // ambiguous/unknown block type → no-op
+    const at = block + 1;
+    set("items", section, "blocks", (b: unknown) => {
+      const next = (Array.isArray(b) ? b : []).slice();
+      next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
+      return next;
+    });
+
+    const html = await renderSectionFragment(unwrap(state.items[section]) as SectionItem);
+    const tmp = html ? document.createElement("div") : null;
+    if (tmp) tmp.innerHTML = html as string;
+    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
+    if (!el) {
+      auto?.cancel();
+      setStatus("saving");
+      if ((await saveDraft()) !== null) location.reload();
+      else setStatus("error");
+      return;
+    }
+    replaceSectionElement(section, el);
+    wireInline(
+      el,
+      props.catalog,
+      state.items,
+      set,
+      touched,
+      autoCfg.enabled ? () => auto?.flush() : undefined,
+    );
     touched();
   };
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
