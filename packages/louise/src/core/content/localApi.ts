@@ -772,6 +772,17 @@ export interface VersionedLocalApi<
   ): Promise<FieldChange[]>;
 }
 
+/** A driver that exposes D1/libsql's atomic `batch([...])`. The generic
+ *  `BaseSQLiteDatabase` type doesn't declare it (it's driver-specific), so the
+ *  publish path feature-detects it: batch atomically where available, fall back
+ *  to sequential writes on any driver that lacks it. */
+interface BatchableDb {
+  batch(statements: readonly unknown[]): Promise<unknown[]>;
+}
+function canBatch(db: unknown): db is BatchableDb {
+  return typeof (db as Partial<BatchableDb>).batch === "function";
+}
+
 export function createVersionedLocalApi<
   TTable extends AnyTable,
   TVersionsTable extends AnyTable,
@@ -815,24 +826,49 @@ export function createVersionedLocalApi<
       table,
       registry,
     });
+    // Guard the parent row's existence BEFORE writing. Publish flips the version
+    // to "published" and promotes its snapshot onto the live row; when those two
+    // writes batch atomically (below), a blind batch against a missing parent
+    // would still mark the version published against a row that isn't there — so
+    // check first, outside the batch.
+    const [existing] = await db.select({ id: idColumn }).from(table).where(eq(idColumn, parentId));
+    if (!existing) notFound(config, parentId);
+
+    // The two writes that make a publish: promote the snapshot onto the live row
+    // (+ point `publishedVersionId` at this version) and mark the version row
+    // "published". Built as (unexecuted) statements so they can either batch or
+    // run sequentially.
+    const promoteLiveRow = db
+      .update(table)
+      // oxlint-disable-next-line typescript/no-explicit-any -- see createLocalApi.update's .set() cast
+      .set({ ...data, publishedVersionId: versionId } as any)
+      .where(eq(idColumn, parentId))
+      .returning();
+    const markVersionPublished = db
+      .update(versionsTable)
+      // oxlint-disable-next-line typescript/no-explicit-any -- status is a fixed enum column; scheduledAt is cleared so a re-scheduled republish needs a fresh draft
+      .set({ status: "published", scheduledAt: null } as any)
+      .where(eq(versionsIdColumn, versionId));
+
     let doc: InferSelectModel<TTable> | undefined;
     try {
-      const [row] = await db
-        .update(table)
-        // oxlint-disable-next-line typescript/no-explicit-any -- see createLocalApi.update's .set() cast
-        .set({ ...data, publishedVersionId: versionId } as any)
-        .where(eq(idColumn, parentId))
-        .returning();
+      let row: unknown;
+      if (canBatch(db)) {
+        // Atomic on D1/libsql: both writes commit as one implicit transaction, so
+        // a mid-write failure can never leave the row published while its version
+        // still reads "draft" (or vice versa).
+        const results = await db.batch([promoteLiveRow, markVersionPublished]);
+        row = (results[0] as unknown[])[0];
+      } else {
+        // Fallback for a driver without `batch`: the prior sequential behavior.
+        row = ((await promoteLiveRow) as unknown[])[0];
+        await markVersionPublished;
+      }
       if (!row) notFound(config, parentId);
       doc = row as InferSelectModel<TTable>;
     } catch (error) {
       wrapWriteError(config, error);
     }
-    await db
-      .update(versionsTable)
-      // oxlint-disable-next-line typescript/no-explicit-any -- status is a fixed enum column; scheduledAt is cleared so a re-scheduled republish needs a fresh draft
-      .set({ status: "published", scheduledAt: null } as any)
-      .where(eq(versionsIdColumn, versionId));
     await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
     // publish() writes to an already-existing row, never a new one —
     // counts as "update" the same way createLocalApi.update() does.
