@@ -16,7 +16,13 @@
   function boot() {
     teardown?.();
     teardown = null;
-    if (document.body.dataset.louiseEdit !== "1") return;
+    // Gate on the server-rendered sections marker, NOT `body.dataset.louiseEdit`.
+    // That flag is stamped CLIENT-side by the deferred edit island (server:defer),
+    // so gating on it raced the island: if boot() ran first, this one-shot check
+    // returned and the sections editor silently never mounted (rings + inline dead
+    // until a reload). `data-louise-sections` is emitted server-side ONLY in edit
+    // mode, so it's already in the DOM at parse time — an edit-mode signal with no
+    // cross-island race.
     const el = document.querySelector<HTMLElement>("[data-louise-sections]");
     if (!el?.dataset.louiseSections) return;
     const pageId = Number(el.dataset.louiseSections);
