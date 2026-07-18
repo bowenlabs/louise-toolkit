@@ -14,6 +14,7 @@ import { vitalsRoute } from "louise-toolkit/analytics";
 import { checkLinks, ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/browser";
 import {
   DEFAULT_PAGE_FIELDS,
+  aiRoute,
   formRoute,
   healthRoute,
   inquiriesRoute,
@@ -207,6 +208,11 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // pagesRoute (its `/:id` matcher would else claim the non-integer segment).
   // Absent env.AI it answers 503, so the Health panel hides the assist.
   seoFixRoute({ table: pages, resolveEditor, ai: (env) => env.AI }),
+  // Interactive editorial assists (#75/#166): the client posts here for the
+  // toolbar "rewrite" action (/ai/rewrite) and the pages-panel SEO "suggest"
+  // button (/ai/seo). The AI binding is server-only, so these must round-trip.
+  // Absent env.AI it answers 503, so both client controls hide themselves.
+  aiRoute({ resolveEditor, ai: (env) => env.AI }),
   // `sections` (structured builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is

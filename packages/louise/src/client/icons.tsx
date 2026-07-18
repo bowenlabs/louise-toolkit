@@ -30,6 +30,9 @@ import house from "@phosphor-icons/core/assets/regular/house.svg?raw";
 import user from "@phosphor-icons/core/assets/regular/user.svg?raw";
 import star from "@phosphor-icons/core/assets/regular/star.svg?raw";
 import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw";
+// The four-point sparkle — the conventional "AI assist" affordance (rewrite /
+// SEO suggest, #75/#166).
+import sparkle from "@phosphor-icons/core/assets/regular/star-four.svg?raw";
 
 export const icons = {
   bold,
@@ -61,6 +64,7 @@ export const icons = {
   user,
   star,
   starFill,
+  sparkle,
 } as const;
 
 export type IconName = keyof typeof icons;

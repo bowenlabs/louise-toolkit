@@ -417,6 +417,19 @@ const CSS = `
 .louise-btn-primary:hover { background: #0072e0; }
 .louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 .louise-btn-block { width: 100%; justify-content: center; }
+/* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
+.louise-btn-ai { padding: 5px 10px; font-size: 12px; gap: 4px; }
+.louise-btn-ai:disabled { opacity: 0.55; cursor: default; }
+.louise-btn-ai:disabled:hover { background: #fff; }
+/* Header row above the SEO fields: the "Search engine listing" label with the
+   Suggest button pushed to the trailing edge. */
+.louise-seo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
 
 /* ── Media panel ──────────────────────────────────────────────── */
 /* File picker styled as the block primary button (real input is visually
@@ -983,6 +996,45 @@ const CSS = `
   background: #fff;
   color: #64748b;
   font-size: 13px;
+}
+/* AI rewrite menu (#75/#166) — same click-toggled popover as the color swatches,
+   as a vertical list of rewrite modes. Anchored right so it stays on-screen at
+   the toolbar's trailing edge. */
+.louise-tb-btn:disabled { opacity: 0.4; cursor: default; }
+.louise-tb-btn:disabled:hover { background: transparent; }
+.louise-tb-ai { position: relative; display: inline-flex; }
+.louise-tb-ai-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+.louise-tb-ai-item {
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.louise-tb-ai-item:hover { background: rgba(15, 23, 42, 0.06); }
+.louise-tb-ai-busy {
+  padding: 6px 10px;
+  color: #64748b;
+  font-size: 13px;
+  white-space: nowrap;
 }
 /* Hidden file input backing the toolbar image button. */
 .louise-hidden-file {

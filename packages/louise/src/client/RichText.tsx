@@ -59,6 +59,19 @@ const TEXT_COLORS = [
 ] as const;
 
 /**
+ * AI rewrite modes offered by the toolbar sparkle menu (#75/#166). The `mode`
+ * values match the server's `/api/louise/ai/rewrite` enum (core/ai `RewriteMode`);
+ * kept as a small local list so the browser bundle doesn't pull in the `core/ai`
+ * barrel (which re-exports the embeddings helpers).
+ */
+const REWRITE_ACTIONS = [
+  { mode: "tighten", label: "Tighten" },
+  { mode: "rephrase", label: "Rephrase" },
+  { mode: "simplify", label: "Simplify" },
+  { mode: "fix", label: "Fix grammar" },
+] as const;
+
+/**
  * Resizable image node view: wraps the image node's DOM in ProseKit's
  * resizable custom element so editors can drag the corner to set explicit
  * width/height. The dimensions persist onto the node's attrs, which serialize
@@ -147,6 +160,9 @@ function Toolbar() {
     bullet: e.nodes.list.isActive({ kind: "bullet" }),
     ordered: e.nodes.list.isActive({ kind: "ordered" }),
     quote: e.nodes.blockquote.isActive(),
+    // `e.view` throws before mount (see ToolbarDock); `e.mounted` never does, so
+    // gate the selection read. Drives the AI-rewrite button's enabled state.
+    hasSelection: e.mounted && !e.view.state.selection.empty,
   }));
 
   // Swatch popover visibility is click-toggled state, not CSS :hover. The old
@@ -154,6 +170,52 @@ function Toolbar() {
   // crossing it dropped :hover and hid the popover before a swatch could be
   // clicked — which is why text color never applied (#14).
   const [colorOpen, setColorOpen] = createSignal(false);
+
+  // AI rewrite (#75/#166): opt-in, degrade-gracefully. The sparkle menu POSTs the
+  // selected text to /api/louise/ai/rewrite and swaps in the result. `aiAvailable`
+  // starts true and flips off on the first 503 (the AI binding isn't provisioned),
+  // retiring the control for the session; a 502/model hiccup leaves the original
+  // text untouched.
+  const [aiOpen, setAiOpen] = createSignal(false);
+  const [aiBusy, setAiBusy] = createSignal(false);
+  const [aiAvailable, setAiAvailable] = createSignal(true);
+
+  const runRewrite = async (mode: string) => {
+    const view = editor().view;
+    const { from, to, empty } = view.state.selection;
+    if (empty) return;
+    const text = view.state.doc.textBetween(from, to, " ").trim();
+    if (!text) return;
+    setAiBusy(true);
+    try {
+      const res = await fetch("/api/louise/ai/rewrite", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, mode }),
+      });
+      // 503 → the AI binding is absent; hide the control for the rest of the
+      // session. 502/4xx → a model hiccup or bad response; keep the original text.
+      if (res.status === 503) {
+        setAiAvailable(false);
+        return;
+      }
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => null)) as { text?: string } | null;
+      const next = data?.text?.trim();
+      if (!next) return;
+      // Re-read state at apply time — the doc may have changed during the request.
+      // Bail if the captured range no longer fits (avoids an out-of-range insert).
+      const size = editor().view.state.doc.content.size;
+      if (from > size || to > size) return;
+      const tr = editor().view.state.tr.insertText(next, from, to);
+      editor().view.dispatch(tr);
+    } catch {
+      // Network error → quiet no-op, keeping the original text.
+    } finally {
+      setAiBusy(false);
+      setAiOpen(false);
+    }
+  };
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned by Solid's `ref` binding below
   let imageInput!: HTMLInputElement;
@@ -296,6 +358,50 @@ function Toolbar() {
           </div>
         </Show>
       </div>
+      {/* AI rewrite (#75/#166). Hidden once we learn the AI binding is absent
+          (first 503). Enabled only over a real selection — there's nothing to
+          rewrite at a bare caret. Anchored to the right so the menu stays
+          on-screen at the toolbar's trailing edge. */}
+      <Show when={aiAvailable()}>
+        <span class="louise-tb-sep" />
+        <div class="louise-tb-ai">
+          <button
+            type="button"
+            class="louise-tb-btn"
+            classList={{ "is-active": aiOpen() }}
+            title="Rewrite with AI"
+            aria-label="Rewrite with AI"
+            aria-expanded={aiOpen()}
+            disabled={!active().hasSelection || aiBusy()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setAiOpen((v) => !v)}
+          >
+            <Icon name="sparkle" />
+          </button>
+          <Show when={aiOpen()}>
+            <div class="louise-tb-ai-menu" role="menu">
+              <Show
+                when={!aiBusy()}
+                fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}
+              >
+                <For each={REWRITE_ACTIONS}>
+                  {(a) => (
+                    <button
+                      type="button"
+                      class="louise-tb-ai-item"
+                      role="menuitem"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => runRewrite(a.mode)}
+                    >
+                      {a.label}
+                    </button>
+                  )}
+                </For>
+              </Show>
+            </div>
+          </Show>
+        </div>
+      </Show>
     </div>
   );
 }

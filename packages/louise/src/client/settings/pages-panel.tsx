@@ -223,6 +223,13 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   const [ogImage, setOgImage] = createSignal(p.ogImage ?? "");
   const [noindex, setNoindex] = createSignal(Boolean(p.noindex));
   const [error, setError] = createSignal<string | null>(null);
+  // Page body HTML, kept only to feed the AI SEO suggestion (#75/#166) — not an
+  // editable field here (content is edited on the canvas). Refreshed from the row.
+  const [bodyHtml, setBodyHtml] = createSignal(p.body ?? "");
+  // AI SEO "suggest" (#75/#166): opt-in, degrade-gracefully. `seoAvailable` starts
+  // true and flips off on the first 503 (the AI binding isn't provisioned).
+  const [seoBusy, setSeoBusy] = createSignal(false);
+  const [seoAvailable, setSeoAvailable] = createSignal(true);
   // The footer Save is dirty-gated. A fresh load (below) and a successful save
   // clear it; every field edit sets it via `edited`.
   const [dirty, setDirty] = createSignal(false);
@@ -247,6 +254,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       setSeoDescription(row.seoDescription ?? "");
       setOgImage(row.ogImage ?? "");
       setNoindex(Boolean(row.noindex));
+      setBodyHtml(row.body ?? "");
       setDirty(false);
       return row;
     },
@@ -285,6 +293,47 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       props.onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn’t delete");
+    }
+  };
+
+  // AI SEO suggestion (#75/#166): POST the page's title + body text to
+  // /api/louise/ai/seo and pre-fill the SEO fields for review. The fields are
+  // set through `edited(...)` so they mark the form dirty — the suggestion is
+  // never auto-committed; the owner still presses Save. Degrades quietly: a 503
+  // (no AI binding) retires the button; a 502/model hiccup shows a soft notice.
+  const suggestSeo = async () => {
+    // Flatten the body HTML to plain text for the prompt (the server caps length).
+    const bodyText = bodyHtml()
+      ? (new DOMParser().parseFromString(bodyHtml(), "text/html").body.textContent ?? "")
+      : "";
+    const content = [title(), bodyText].filter(Boolean).join("\n\n").trim();
+    if (!content) return;
+    setError(null);
+    setSeoBusy(true);
+    try {
+      const res = await fetch("/api/louise/ai/seo", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.status === 503) {
+        setSeoAvailable(false);
+        return;
+      }
+      if (!res.ok) {
+        setError("Couldn’t suggest SEO right now — leaving your fields as they are.");
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as {
+        title?: string | null;
+        description?: string | null;
+      } | null;
+      if (data?.title) edited(setSeoTitle)(data.title);
+      if (data?.description) edited(setSeoDescription)(data.description);
+    } catch {
+      setError("Couldn’t suggest SEO right now — leaving your fields as they are.");
+    } finally {
+      setSeoBusy(false);
     }
   };
 
@@ -370,6 +419,22 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
             <option value="noindex">Hidden (noindex)</option>
           </select>
         </div>
+      </div>
+
+      <div class="louise-seo-head">
+        <span class="louise-field-label">Search engine listing</span>
+        {/* Hidden once we learn the AI binding is absent (first 503). */}
+        <Show when={seoAvailable()}>
+          <button
+            type="button"
+            class="louise-btn louise-btn-ai"
+            disabled={seoBusy()}
+            onClick={suggestSeo}
+          >
+            <Icon name="sparkle" />
+            {seoBusy() ? "Suggesting…" : "Suggest"}
+          </button>
+        </Show>
       </div>
 
       <div class="louise-grid-2">
