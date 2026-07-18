@@ -7,6 +7,7 @@ import {
   stegaEncode,
 } from "../../src/core/content/stega.js";
 import type { JsonValue } from "../../src/core/content/types.js";
+import { cleanCopiedStega } from "../../src/core/content/visual-editing.js";
 
 const ref = { collection: "pages", id: 7, field: "title" };
 
@@ -33,6 +34,28 @@ describe("stegaClean", () => {
 
   it("is a no-op on clean strings", () => {
     expect(stegaClean("nothing to strip")).toBe("nothing to strip");
+  });
+});
+
+describe("cleanCopiedStega", () => {
+  it("strips the payload from copied text and flags the change", () => {
+    const result = cleanCopiedStega(stegaEncode(ref, "Welcome"), "");
+    expect(result.changed).toBe(true);
+    expect(result.text).toBe("Welcome");
+  });
+
+  it("strips a payload hiding in the copied HTML", () => {
+    const html = `<h1>${stegaEncode(ref, "Welcome")}</h1>`;
+    const result = cleanCopiedStega("Welcome", html);
+    expect(result.changed).toBe(true);
+    expect(result.html).toBe("<h1>Welcome</h1>");
+  });
+
+  it("reports no change and leaves clean text/html untouched (native copy)", () => {
+    const result = cleanCopiedStega("Welcome", "<h1>Welcome</h1>");
+    expect(result.changed).toBe(false);
+    expect(result.text).toBe("Welcome");
+    expect(result.html).toBe("<h1>Welcome</h1>");
   });
 });
 

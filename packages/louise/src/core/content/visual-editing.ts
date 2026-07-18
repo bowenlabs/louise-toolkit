@@ -7,7 +7,7 @@
  * came from, and an overlay turns those regions into click targets that tell
  * the editor which field to focus.
  *
- * This module ships the two reusable, framework-agnostic primitives:
+ * This module ships the reusable, framework-agnostic primitives:
  * 1. **Encoding** — `editAttr({ collection, id, field })` produces a data
  *    attribute the server renderer spreads onto an element; `decodeEditRef`
  *    reads it back. Pure, testable.
@@ -15,11 +15,16 @@
  *    lazily, so importing it server-side is harmless) highlights tagged
  *    elements on hover and, on click, calls `onSelect` and `postMessage`s the
  *    ref to the parent window (the editor shell hosting the preview iframe).
+ * 3. **Clipboard guard** — `mountStegaClipboardGuard()` strips the invisible
+ *    stega payload from copied text so an editor never pastes zero-width chars
+ *    into another app. Uses the dependency-free `stegaClean` (no `@vercel/stega`).
  *
  * The editor side listens for that message and navigates to
  * `/admin/<collection>/<id>` (and may focus `<field>`); that wiring is
  * consumer-side and not prescribed here.
  */
+
+import { stegaClean } from "./stega-clean.js";
 
 /** A reference from a rendered region back to the field that produced it. */
 export interface EditRef {
@@ -322,5 +327,77 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
     }
     document.removeEventListener("mouseover", onOver, true);
     document.removeEventListener("click", onClick, true);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Clipboard guard: in edit/preview mode, rendered text carries an invisible
+// stega payload (its source pointer). If an editor selects that text and copies
+// it, the zero-width characters ride along into whatever they paste it into.
+// Strip them on the way out — the same footgun Sanity's visual editing guards.
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip stega payloads from a copied selection's `text`/`html`, and report
+ * whether anything was removed — so {@link mountStegaClipboardGuard} only
+ * overrides the clipboard when a payload was actually present (an ordinary copy
+ * is left to the browser). Pure, so the decision is testable without a live
+ * `Selection`/`ClipboardEvent`.
+ */
+export function cleanCopiedStega(
+  text: string,
+  html: string,
+): { text: string; html: string; changed: boolean } {
+  const cleanText = stegaClean(text);
+  const cleanHtml = stegaClean(html);
+  return {
+    text: cleanText,
+    html: cleanHtml,
+    changed: cleanText !== text || cleanHtml !== html,
+  };
+}
+
+/** Dataset flag marking the copy guard as installed on a document. */
+const STEGA_GUARD_FLAG = "louiseStegaGuard";
+
+/**
+ * Mount the clipboard guard (browser-only). Installs a capturing `copy` listener
+ * that rewrites the copied `text/plain` (+ `text/html`) through {@link stegaClean}
+ * — but only when a stega payload is present, so a normal copy is untouched.
+ *
+ * Idempotent: installs a single listener per document (which survives Astro soft
+ * navigation, since the document persists), so it's safe to call on every mount.
+ * References `document` lazily, so importing it server-side is harmless. Returns
+ * a cleanup function. The edit client mounts this automatically; call it yourself
+ * only if you wire visual editing by hand.
+ */
+export function mountStegaClipboardGuard(target: Document = document): () => void {
+  const root = target.documentElement;
+  if (root.dataset[STEGA_GUARD_FLAG] === "1") return () => {};
+  root.dataset[STEGA_GUARD_FLAG] = "1";
+
+  const onCopy = (event: ClipboardEvent) => {
+    const data = event.clipboardData;
+    const selection = target.getSelection();
+    if (!data || !selection || selection.isCollapsed) return;
+
+    // Stega can hide in the markup too — clean the selection's HTML, not just its
+    // plain text. Build that HTML from the selected range(s).
+    const fragment = target.createElement("div");
+    for (let i = 0; i < selection.rangeCount; i++) {
+      fragment.appendChild(selection.getRangeAt(i).cloneContents());
+    }
+    const { text, html, changed } = cleanCopiedStega(selection.toString(), fragment.innerHTML);
+    if (!changed) return; // no payload — let the browser copy natively
+
+    event.preventDefault();
+    data.setData("text/plain", text);
+    if (html) data.setData("text/html", html);
+  };
+
+  target.addEventListener("copy", onCopy, true);
+  return () => {
+    delete root.dataset[STEGA_GUARD_FLAG];
+    target.removeEventListener("copy", onCopy, true);
   };
 }

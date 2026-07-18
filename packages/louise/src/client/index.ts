@@ -10,6 +10,7 @@
 // edit mode) it does nothing, so the bootstrap can lazy-import it safely.
 
 import { stegaClean } from "../core/content/stega-clean.js";
+import { mountStegaClipboardGuard } from "../core/content/visual-editing.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
@@ -317,6 +318,10 @@ export function mountLouise(opts: MountLouiseOptions): void {
   document.documentElement.dataset.louiseMounted = "1";
 
   injectStyles();
+  // In edit mode, rendered text may carry an invisible stega source pointer;
+  // strip it from clipboard copies so an editor never pastes zero-width chars.
+  // Idempotent, so re-mounting after a soft nav doesn't stack listeners.
+  mountStegaClipboardGuard();
 
   // The unified bar mounts for ANY editor page (it hosts the manage cog +
   // sign-out), independent of whether this page has inline fields.
