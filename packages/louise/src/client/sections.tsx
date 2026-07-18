@@ -399,7 +399,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           onInspect: (r) => openInspector({ kind: "block", section: r.section, block: r.block }),
           // `+` add only when a block catalog is available (it needs the block's
           // field shape to seed a blank); gates the toolbar's add button too.
-          ...(props.blocks ? { onAdd: (r: BlockRef) => void addBlock(r.section, r.block) } : {}),
+          ...(props.blocks ? { onAdd: (r: BlockRef) => addBlock(r.section, r.block) } : {}),
         },
       }),
     );

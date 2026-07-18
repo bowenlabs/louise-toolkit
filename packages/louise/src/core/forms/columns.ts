@@ -17,19 +17,16 @@ export function columnName(key: string): string {
 /** The Drizzle column builder for one field. `required` → `NOT NULL`. */
 function fieldColumn(key: string, field: FormField) {
   const name = columnName(key);
-  let column: ReturnType<typeof text> | ReturnType<typeof real> | ReturnType<typeof integer>;
-  switch (field.type) {
-    case "checkbox":
-      column = integer(name, { mode: "boolean" });
-      break;
-    case "number":
-      column = real(name);
-      break;
-    default:
-      // text/email/tel/url/textarea/select/date are all stored as text.
-      column = text(name);
-      break;
-  }
+  // checkbox → boolean integer, number → real; text/email/tel/url/textarea/select/
+  // date are all stored as text. Inferred (not an explicit `text | real | …` union
+  // annotation, which collapses to `any` under Drizzle's overloads and trips
+  // `typescript/no-redundant-type-constituents`).
+  const column =
+    field.type === "checkbox"
+      ? integer(name, { mode: "boolean" })
+      : field.type === "number"
+        ? real(name)
+        : text(name);
   return field.required ? column.notNull() : column;
 }
 

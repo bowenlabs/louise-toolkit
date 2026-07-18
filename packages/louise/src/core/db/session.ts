@@ -36,7 +36,10 @@ export const D1_BOOKMARK_COOKIE = "louise_d1_bookmark";
  */
 export function openD1Session(
   DB: D1Database,
-  constraintOrBookmark: D1SessionConstraint | D1SessionBookmark = "first-unconstrained",
+  // `D1SessionBookmark` is `string`, which would swallow the two constraint
+  // literals in a plain union; `& {}` keeps them visible to autocomplete while
+  // still accepting any bookmark string (mirrors `DB.withSession`'s parameter).
+  constraintOrBookmark: D1SessionConstraint | (D1SessionBookmark & {}) = "first-unconstrained",
 ): D1Client {
   return typeof DB.withSession === "function" ? DB.withSession(constraintOrBookmark) : DB;
 }

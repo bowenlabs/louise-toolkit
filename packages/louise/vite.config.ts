@@ -41,6 +41,45 @@ const rawLoader = {
 // which both breaks the raw-SVG inlining and rewrites the peer imports into
 // non-portable `../node_modules/.pnpm/...` relative paths.
 export default {
+  // Vite+'s lint pipeline (`vp check` / `vp lint`). `typeAware` turns on the
+  // Oxlint rules that need type information and `typeCheck` runs a full type
+  // check — both via tsgolint on the TypeScript-Go toolchain (TS7 native), the
+  // same engine as the `tsgo` typecheck script. `vite.config.ts` is excluded:
+  // it is authored as an untyped plain object (no Vite/Rollup typings to import,
+  // see below) and isn't part of the `src`/`test` tsconfig scope.
+  lint: {
+    ignorePatterns: ["vite.config.ts"],
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
+    rules: {
+      // Louise's content layer coerces intentionally-`unknown` values — CMS field
+      // and setting values, form submissions, error causes, FTS index text — into
+      // display/serialized strings (`String(value)`, `` `${value}` ``). That is the
+      // design, and several sites are already `typeof`-guarded (see codegen.ts).
+      // Type *correctness* is enforced by the authoritative `tsgo` typecheck; these
+      // two stylistic guards only add noise over that deliberate pattern.
+      "typescript/no-base-to-string": "off",
+      "typescript/restrict-template-expressions": "off",
+    },
+    overrides: [
+      {
+        // Tests reference Vitest spy methods unbound (`expect(spy)`), spread
+        // strings, keep compile-only type-assertion expressions, and optional-chain
+        // on values a passing assertion already guarantees. These type-aware rules
+        // assume production intent and are noise in tests — full type-checking
+        // still runs; only the lint rules relax.
+        files: ["test/**"],
+        rules: {
+          "typescript/unbound-method": "off",
+          "typescript/no-misused-spread": "off",
+          "no-unused-expressions": "off",
+          "no-unsafe-optional-chaining": "off",
+        },
+      },
+    ],
+  },
   pack: {
     entry: [
       "src/core/ai/index.ts",

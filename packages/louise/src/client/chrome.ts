@@ -125,12 +125,15 @@ export function blockRefOf(node: Node | null): BlockRef | null {
  *  re-renders through the fragment route (#182 Phase 3); when omitted, the
  *  toolbar shows move + delete only. */
 export interface BlockChromeActions {
-  onMoveUp(ref: BlockRef): void;
-  onMoveDown(ref: BlockRef): void;
-  onDelete(ref: BlockRef): void;
-  onAdd?(ref: BlockRef): void;
+  // Property (arrow) form, not method shorthand: these are referenced unbound
+  // (`sectionAct(opts.onMoveUp)`), so the strict-checked property type is both
+  // correct and what `typescript/unbound-method` expects.
+  onMoveUp: (ref: BlockRef) => void;
+  onMoveDown: (ref: BlockRef) => void;
+  onDelete: (ref: BlockRef) => void;
+  onAdd?: (ref: BlockRef) => void;
   /** Open the inspector for this block (#182 Phase 4) — adds a ⚙ to the toolbar. */
-  onInspect?(ref: BlockRef): void;
+  onInspect?: (ref: BlockRef) => void;
 }
 
 /** Actions the section toolbar exposes. Duplicate/add are deferred to the
@@ -138,11 +141,12 @@ export interface BlockChromeActions {
  *  to also light the block layer (blue ring + toolbar) with deepest-boundary-wins
  *  hit-testing; omit it for a section-only chrome (Phase 1 behaviour). */
 export interface SectionChromeActions {
-  onMoveUp(index: number): void;
-  onMoveDown(index: number): void;
-  onDelete(index: number): void;
+  // Property (arrow) form — see BlockChromeActions above.
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onDelete: (index: number) => void;
   /** Open the inspector for this section (#182 Phase 4) — adds a ⚙ to the toolbar. */
-  onInspect?(index: number): void;
+  onInspect?: (index: number) => void;
   blocks?: BlockChromeActions;
 }
 

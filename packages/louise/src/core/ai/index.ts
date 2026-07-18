@@ -33,7 +33,7 @@ export async function runAi(
   model: string,
   inputs: Record<string, unknown>,
   options?: Record<string, unknown>,
-): Promise<unknown | null> {
+): Promise<unknown> {
   if (!runner) return null;
   try {
     return await runner.run(model, inputs, options);

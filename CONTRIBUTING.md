@@ -51,14 +51,20 @@ CI runs exactly these; run them locally first so review stays about the change:
 
 ```sh
 # from packages/louise
-vp check                                   # Oxlint + Oxfmt over the library's TypeScript
+vp check                                   # Oxlint + Oxfmt + type-aware lint & type-check (TS7)
 vp test                                    # Vitest (happy-dom for the client)
-tsgo --noEmit                              # type-check
+tsgo --noEmit                              # type-check (authoritative gate, whole src+test scope)
 
 # from the repo root
 biome lint .                               # .astro component scripts (Biome)
 npx oxlint@1.73.0 packages/louise/src/client   # SolidJS client (oxlint + eslint-plugin-solid)
 ```
+
+`vp check` also runs Vite+'s **type-aware lint + full type-check** (tsgolint on
+the TypeScript-Go toolchain — the same TS7 engine as `tsgo`); the standalone
+`tsgo --noEmit` stays as the authoritative whole-program gate. See
+[ADR 0008](docs/adr/0008-type-aware-lint-typecheck.md) for the enabled rule set
+and why a couple of rules are scoped off.
 
 The lint split is deliberate (see [ADR 0007](docs/adr/0007-lint-toolchain.md)):
 **Oxlint/Oxfmt for `.ts`**, **Biome for `.astro`** (oxlint can't parse Astro).

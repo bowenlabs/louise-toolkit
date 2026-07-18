@@ -143,7 +143,12 @@ export function louiseLoader(config: LouiseLoaderConfig): Loader {
   return {
     name,
     schema: collectionToAstroSchema(config.collection),
-    async load({ store, parseData, generateDigest, logger }) {
+    async load(context) {
+      // `parseData`/`generateDigest` are called on `context` rather than
+      // destructured: pulling them out unbinds them from the loader context
+      // (`typescript/unbound-method`); Astro binds them, but the bound call keeps
+      // the intent explicit.
+      const { store, logger } = context;
       let rows: LouiseRow[];
       try {
         rows = await config.read();
@@ -158,8 +163,8 @@ export function louiseLoader(config: LouiseLoaderConfig): Loader {
       store.clear();
       for (const row of rows) {
         const id = String(idOf(row));
-        const data = await parseData({ id, data: row });
-        store.set({ id, data, digest: generateDigest(data) });
+        const data = await context.parseData({ id, data: row });
+        store.set({ id, data, digest: context.generateDigest(data) });
       }
       logger.info(`loaded ${rows.length} published ${rows.length === 1 ? "entry" : "entries"}`);
     },
