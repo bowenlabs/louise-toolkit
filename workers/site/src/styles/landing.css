@@ -101,21 +101,23 @@
 
 /* ── Edit-in-place demo ────────────────────────────────────────────────────
  * A self-contained illustration of Louise's on-page editing (its own toggle,
- * independent of real Louise edit mode). State is a single `data-demo-edit`
- * attribute on the demo root; everything visual keys off it so the toggle JS
- * only flips one flag (plus contentEditable on the sample fields). */
+ * independent of real Louise edit mode). The mock's content keys off a single
+ * `data-demo-edit` attribute on the demo root; the switch itself reflects the
+ * toggle button's own `aria-checked` — the track/knob live inside that button, a
+ * sibling of the mock, so they can't key off the mock's `data-demo-edit`. The
+ * toggle JS flips both (plus contentEditable on the sample fields). */
 .lt-demo-track {
   background: var(--color-neutral);
   transition: background 0.18s;
 }
-[data-demo-edit="1"] .lt-demo-track {
+[data-lt-demo-toggle][aria-checked="true"] .lt-demo-track {
   background: var(--color-success);
 }
 .lt-demo-knob {
   left: 3px;
   transition: left 0.18s;
 }
-[data-demo-edit="1"] .lt-demo-knob {
+[data-lt-demo-toggle][aria-checked="true"] .lt-demo-knob {
   left: 19px;
 }
 /* Field outlines + labels appear only while the demo is "editing". */
