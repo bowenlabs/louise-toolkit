@@ -2,35 +2,43 @@
 
 # Louise Toolkit
 
-**A V8-native toolkit for building editable sites on Cloudflare Workers.**
+**Everything you need to build editable sites on Astro + Cloudflare Workers —
+content, commerce, media, forms, auth, and AI, as composable V8-native primitives.**
 
-No separate admin app. No JSON forms for prose. Log in, and the live site
-becomes editable in place — text where the text is, structured sections through
-your own components, and back-office work in Louise Settings.
+Editing is the headline: no separate admin app, no JSON forms for prose. Log in
+and the live site becomes editable in place — text where the text is, structured
+sections through your own components, and back-office work in Louise Settings.
 
 [Documentation](https://docs.louisetoolkit.com) ·
-[Getting started](https://docs.louisetoolkit.com/guide/getting-started) ·
+[Quickstart](https://docs.louisetoolkit.com/guide/quickstart) ·
+[Is Louise for you?](https://docs.louisetoolkit.com/guide/comparison) ·
 [`louise-toolkit`](packages/louise)
 
 </div>
 
 ---
 
-Louise is a standalone toolkit for Cloudflare Workers: framework-agnostic core
-primitives — content, db, media, forms, commerce, email, queues, auth — a SolidJS +
-ProseKit inline-edit client, and the editor theme. Everything you need to make a live
-site editable in place, published as one package.
+Louise is a toolkit for building sites on **Astro + Cloudflare Workers** — the whole
+surface, not just content. Dependency-injected primitives — content, db, media, forms,
+commerce, email, queues, auth, AI, analytics, realtime, workflows — plus a SolidJS +
+ProseKit inline-edit client and the editor theme, published as one tree-shakeable
+package. The core primitives are framework-agnostic (they run in any Worker or a unit
+test); the batteries — the client, the theme, and the opinionated **Astroid** framework
+([coming](#roadmap)) — target Astro on Cloudflare.
 
 ## Why Louise
 
-- **V8-native.** No Node runtime, no React. Everything runs in workerd / Cloudflare
-  Workers and deploys to the edge.
+- **A whole toolkit, not a plugin.** Commerce, forms, media, auth, AI, queues, email,
+  realtime, and workflows are first-party primitives — not third-party add-ons. Editable
+  content is one of them.
+- **V8-native.** No Node runtime, no React on the server. Everything runs in workerd /
+  Cloudflare Workers and deploys to the edge; published pages ship no editor JS.
 - **Edit in place.** Editable regions carry a `data-louise-field` marker; in edit mode
   the client makes each one editable where it lives. Rich text is a real ProseKit editor.
-- **Bring your own everything.** Bindings (D1, R2, Queues, Email) are passed in — Louise
-  has no opinion about your schema, your auth, or your framework.
+- **Bring your own bindings.** D1, R2, Queues, Email are passed in — Louise has no
+  opinion about your schema or your auth, and never dictates your markup.
 - **Tree-shakeable.** One ESM package with granular subpath exports; import only the
-  primitive you need.
+  primitive you need, and pull peers only for what you use.
 
 ## Repository layout
 
@@ -40,12 +48,14 @@ This is a [pnpm](https://pnpm.io) workspace driven by the
 ```
 packages/
   louise/          # louise-toolkit — the published library
-    src/core/      # content, db, media, forms, auth, security, worker, editor, commerce, email, queues, browser, errors
+    src/core/      # content, db, media, forms, auth, commerce, email, queues, ai, analytics, realtime, workflows, browser, security, health, worker, editor, errors
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
+  astroid/         # astroidjs — the opinionated meta-framework over Louise + Astro (experimental; unpublished)
 workers/
   site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
   docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
+  sandbox/         # sandbox.louisetoolkit.com — a live, write-capable demo that resets nightly
 ```
 
 ## Develop
@@ -77,8 +87,9 @@ reference.
 ## Roadmap
 
 Louise is **pre-1.0** and dogfooded on 4 production sites. The current push —
-Cloudflare platform depth, Astro-native APIs, and an agent-editable MCP server —
-is tracked in the open:
+Cloudflare platform depth, Astro-native APIs, an agent-editable MCP server, and
+**Astroid** (the opinionated framework + `create-astroid` scaffold layered over
+Louise) — is tracked in the open:
 
 - [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1) — the active milestone.
 - [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102) — the umbrella issue tying the work together.

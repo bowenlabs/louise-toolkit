@@ -119,6 +119,30 @@ const year = new Date().getFullYear();
           ships it. This whole site is built with Louise, so the demos are the product.
         </p>
 
+        {/* Sandbox promotion — the "kick the wheels" acquisition CTA (#105). */}
+        <a
+          href="https://sandbox.louisetoolkit.com"
+          target="_blank"
+          rel="noreferrer"
+          class="mt-8 flex flex-col gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-6 transition hover:border-primary hover:bg-primary/10 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div class="flex items-center gap-2">
+              <i class="ph ph-flask text-2xl text-primary" aria-hidden="true"></i>
+              <h2 class="text-xl font-black tracking-tight">Kick the wheels in the live sandbox</h2>
+            </div>
+            <p class="mt-1 max-w-xl text-sm text-base-content/70">
+              A real, write-capable Louise site that resets nightly. Toggle edit mode, type in
+              real ProseKit fields, upload media, submit the form — nothing you change sticks
+              around.
+            </p>
+          </div>
+          <span class="btn btn-primary shrink-0 self-start sm:self-auto">
+            Open the sandbox
+            <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+          </span>
+        </a>
+
         <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {
             EXAMPLES.map((ex) => {
