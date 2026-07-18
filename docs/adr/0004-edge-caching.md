@@ -38,7 +38,8 @@ The mechanism ships **behind `LOUISE_EDGE_CACHE` (default false)**. Flag off ⇒
 ## Consequences
 
 - Anonymous published pages can be served from `caches.default` without a D1 round-trip; editors always render fresh. Correctness (never leak drafts, editors never stale) is prioritized over a true edge short-circuit (the Worker still runs per request).
-- **The bypass correctness is unit-testable** (the Worker always runs; `bypass` is an in-code branch) — see `test/core/edge-cache.test.ts`, incl. *"an editor is never served an entry a public visitor cached."* But the previous attempt passed its unit tests and still failed in prod, so **activation is gated on live verification**, not tests.
+- **The bypass correctness is unit-testable** (the Worker always runs; `bypass` is an in-code branch) — see `test/core/edge-cache.test.ts`, incl. *"an editor is never served an entry a public visitor cached."*
+- The flag-on **Worker-cache logic** was additionally verified against **real workerd `caches.default`** (Miniflare): anon GET stores + the 2nd is served from cache, an editor cookie bypasses, the wire is `no-store`, and the `sealed()` reconstruct correctly rewrites `cache.match`'s *immutable* headers (which the fake-cache unit tests can't exercise). Astro's `cacheCloudflare()` provider was confirmed to emit `public, max-age=<n>` (matches `isCacheableDirective`). So the Worker layer is proven; **what remains gated on a preview deploy is only the Cloudflare *edge* layer** (the automatic cache / Cache Rules), which Miniflare doesn't model — and which is exactly what the previous attempt (passing unit tests) got wrong in prod (#165).
 - Browser HTML caching of published pages is given up (wire `no-store`); repeat views are served from `caches.default` instead.
 
 ## Activation runbook — verify on a preview deploy before flipping the flag
