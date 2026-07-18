@@ -82,6 +82,21 @@ export interface SectionDef {
    * unchanged — `blocks` rides in the same `sections` JSON column.
    */
   blocks?: { allow?: string[]; min?: number; max?: number };
+  /**
+   * Named layout variants for this section (ADR 0005 §5), surfaced in the
+   * inspector rail as a picker. A stored {@link SectionItem._layout} must be one
+   * of these keys. Louise stores only the chosen **token** — the site component
+   * maps it to actual grid/flex/CSS, so layout stays 100% site-owned.
+   */
+  layouts?: Record<string, { label: string }>;
+  /**
+   * Non-inline **settings** fields (background, spacing, columns, alignment …),
+   * edited in the inspector rail rather than in place (ADR 0005 §5). Reuse
+   * {@link SectionField}, so they validate exactly like regular fields; their
+   * values live under {@link SectionItem._settings}. Louise stores tokens/values
+   * only, never CSS — the site component reads them and switches its own styles.
+   */
+  settings?: Record<string, SectionField>;
 }
 
 /** The site's catalog of preconfigured section types (schema only — the bespoke
@@ -96,6 +111,10 @@ export interface BlockDef {
   label: string;
   icon?: string;
   fields: Record<string, SectionField>;
+  /** Inspector-rail settings for this block (ADR 0005 §5) — the block-level
+   *  analogue of {@link SectionDef.settings}; values live under
+   *  {@link BlockItem._settings}. Blocks carry settings but not layouts. */
+  settings?: Record<string, SectionField>;
 }
 
 /** The site's catalog of block types (schema only — bespoke renders live on the
@@ -107,6 +126,9 @@ export type BlockCatalog = Record<string, BlockDef>;
  *  nest blocks in v1 (named slots / cross-section moves are deferred). */
 export interface BlockItem {
   _type: string;
+  /** Inspector-rail setting values for this block (ADR 0005 §5), validated
+   *  against {@link BlockDef.settings}. Tokens/values only, never CSS. */
+  _settings?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -121,6 +143,16 @@ export interface SectionItem {
    * during a transition.
    */
   blocks?: BlockItem[];
+  /**
+   * A named layout token (ADR 0005 §5) — one of {@link SectionDef.layouts}'
+   * keys. Louise stores only the token; the site component maps it to CSS.
+   */
+  _layout?: string;
+  /**
+   * Inspector-rail setting values for this section (ADR 0005 §5), validated
+   * against {@link SectionDef.settings}. Tokens/values only, never CSS.
+   */
+  _settings?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -158,6 +190,8 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  - for a section that declares a `blocks` policy, its `blocks` array (count vs.
  *    `min`/`max`, each block's `_type` against the policy `allow` + the
  *    `blockCatalog`, then that block's fields — ADR 0005);
+ *  - `_layout` (must be a declared layout token) and `_settings` (validated
+ *    against the def's `settings` fields), on sections and blocks — ADR 0005 §5;
  *  - any field's `validation` Rule chain (reused from the content validator).
  * Absent/`undefined` (the field wasn't part of a partial update) is a no-op —
  * presence is the route allowlist's job, not this validator's.
@@ -201,8 +235,59 @@ export async function validateSections(
     if (def.blocks) {
       violations.push(...(await validateBlocks(def.blocks, item.blocks, `${at}.blocks`, options)));
     }
+    // Layout token + inspector settings (ADR 0005 §5).
+    violations.push(...validateLayout(def.layouts, item._layout, `${at}._layout`));
+    violations.push(
+      ...(await validateSettings(def.settings, item._settings, `${at}._settings`, options)),
+    );
   }
   return violations;
+}
+
+/**
+ * A stored `_layout` must be one of the section's declared {@link SectionDef.layouts}
+ * (ADR 0005 §5) — an unknown/undeclared layout is rejected like an unknown section
+ * `_type`. Absent `_layout` is a no-op; Louise stores the token, the site owns the CSS.
+ */
+function validateLayout(
+  layouts: Record<string, { label: string }> | undefined,
+  value: unknown,
+  path: string,
+): ValidationViolation[] {
+  if (value === undefined || value === null) return [];
+  const ok = typeof value === "string" && !!layouts && Object.hasOwn(layouts, value);
+  return ok
+    ? []
+    : [
+        {
+          path,
+          message: `${path} has an unknown layout ${JSON.stringify(value)}`,
+          severity: "error",
+        },
+      ];
+}
+
+/**
+ * Validate an item's `_settings` object against a def's `settings` field map
+ * (ADR 0005 §5) — the same {@link validateSectionField} machinery as regular
+ * fields, one level in. Undeclared setting keys are ignored (like undeclared
+ * fields); absent `_settings` is a no-op. Shared by sections and blocks.
+ */
+async function validateSettings(
+  settings: Record<string, SectionField> | undefined,
+  value: unknown,
+  path: string,
+  options: ValidateSectionsOptions,
+): Promise<ValidationViolation[]> {
+  if (value === undefined || value === null) return [];
+  if (!isPlainObject(value)) {
+    return [{ path, message: `${path} must be an object`, severity: "error" }];
+  }
+  const out: ValidationViolation[] = [];
+  for (const [key, field] of Object.entries(settings ?? {})) {
+    out.push(...(await validateSectionField(field, value[key], `${path}.${key}`, value, options)));
+  }
+  return out;
 }
 
 /**
@@ -270,6 +355,10 @@ async function validateBlocks(
     for (const [key, field] of Object.entries(def.fields)) {
       out.push(...(await validateSectionField(field, block[key], `${at}.${key}`, block, options)));
     }
+    // Block inspector settings (ADR 0005 §5) — blocks carry `_settings`, not `_layout`.
+    out.push(
+      ...(await validateSettings(def.settings, block._settings, `${at}._settings`, options)),
+    );
   }
   return out;
 }
