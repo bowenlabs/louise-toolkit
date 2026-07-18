@@ -25,6 +25,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
   deleteBlockElement,
   deleteSectionElement,
+  insertSectionElement,
   moveBlockElement,
   mountSectionChrome,
   moveSectionElement,
@@ -616,13 +617,62 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     void structural(() => set("items", structuredClone(sections)));
   };
 
-  const addSection = (type: string) => {
+  // POST one section item to the fragment-render route and return its
+  // server-rendered HTML (an Astro partial — the same `<Sections>` markup the
+  // page uses), or null on any failure so the caller can fall back to reload.
+  const renderSectionFragment = async (item: SectionItem): Promise<string | null> => {
+    try {
+      const res = await fetch("/louise-fragment", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ item }),
+      });
+      return res.ok ? await res.text() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Add is INSTANT (#182 Phase 3 / ADR 0005 §4): optimistically splice the item
+  // into the store, fetch its server-rendered fragment, insert + re-stamp it in
+  // place (no reload), wire its inline fields, then stage a draft via autosave.
+  // Falls back to the save-and-reload path if the fragment can't be rendered, so
+  // the item is never lost.
+  const addSection = async (type: string) => {
     const def = props.catalog[type];
     if (!def) return;
     setAdding(false);
-    void structural(() =>
-      set("items", (a: SectionItem[]) => [...a, { _type: type, ...blankRecord(def.fields) }]),
+    const item = { _type: type, ...blankRecord(def.fields) } as SectionItem;
+    const index = state.items.length; // appended at the end
+    set("items", (a: SectionItem[]) => {
+      const next = a.slice();
+      next.splice(index, 0, item);
+      return next;
+    });
+
+    const html = await renderSectionFragment(item);
+    const tmp = html ? document.createElement("div") : null;
+    if (tmp) tmp.innerHTML = html as string;
+    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
+    if (!el) {
+      // Fragment unavailable → persist the (already-mutated) store and reload so
+      // the server re-renders the new shape from the draft.
+      auto?.cancel();
+      setStatus("saving");
+      if ((await saveDraft()) !== null) location.reload();
+      else setStatus("error");
+      return;
+    }
+    insertSectionElement(el, index, props.host);
+    wireInline(
+      el,
+      props.catalog,
+      state.items,
+      set,
+      touched,
+      autoCfg.enabled ? () => auto?.flush() : undefined,
     );
+    touched();
   };
   // Reorder + delete are INSTANT (#182 Phase 1 / ADR 0005 §4): reconcile the
   // store, mirror the change on the already-rendered DOM (move/remove the marked

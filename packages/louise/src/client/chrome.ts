@@ -397,6 +397,26 @@ export function deleteSectionElement(index: number, root: ParentNode = document)
   readSectionMarkers(root).forEach((s, i) => restampSection(s.el, i));
 }
 
+/**
+ * Insert a server-rendered section element at `index` among `container`'s marked
+ * section children and re-stamp every section to its new 0…n position — the
+ * instant reflection of a structural **add** (#182 Phase 3), the store having
+ * already spliced the new item at `index`. `el` is the fragment-render route's
+ * one `[data-louise-section]` element (stamped at 0 by that route); this places
+ * it and fixes all indices so its markers — and every shifted section's — line
+ * up with the store. Sections are the container's direct marker-bearing children
+ * (as the render nests them); appends when `index` is past the end.
+ */
+export function insertSectionElement(el: HTMLElement, index: number, container: Element): void {
+  const marked = (): HTMLElement[] =>
+    [...container.children].filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute(SECTION_MARKER_ATTR),
+    );
+  const existing = marked();
+  container.insertBefore(el, existing[index] ?? null);
+  marked().forEach((s, i) => restampSection(s, i));
+}
+
 /* ── Instant block structural ops (ADR 0005 §4) ────────────────────────────
  * The block-layer analogue of the section ops above, scoped *within* one
  * section: reorder/delete blocks that are already rendered and re-stamp the

@@ -1,0 +1,50 @@
+---
+// Per-item fragment-render route (#182 Phase 3 / ADR 0005 §4). The editor POSTs a
+// single section item — `{ item: { _type, ...fields } }` — and gets back JUST that
+// item's server-rendered HTML (an Astro **partial**: no document shell), rendered
+// through the SAME `<Sections>` component the page uses. The client splices it in
+// and re-stamps it to the target index, so a structural *add* no longer needs a
+// full save-and-reload — and the editor still authors zero markup (the site owns
+// every pixel, ADR 0001).
+//
+// Editor-gated: only a signed-in editor (`locals.editor`) may render draft markup.
+// We force edit-mode render so `<Sections>` stamps the `data-louise-section` /
+// `data-louise-sfield` markers the chrome + inline wiring need; the client owns
+// the real array index and re-stamps on splice, so this always renders at 0.
+import Sections from "../components/Sections.astro";
+
+export const prerender = false;
+export const partial = true;
+
+let item: Record<string, unknown> | null = null;
+let status = 200;
+
+if (!Astro.locals.editor) {
+  status = 403;
+} else if (Astro.request.method !== "POST") {
+  status = 405;
+} else {
+  try {
+    const body = (await Astro.request.json()) as { item?: unknown };
+    if (body.item && typeof body.item === "object" && !Array.isArray(body.item)) {
+      item = body.item as Record<string, unknown>;
+    } else {
+      status = 400;
+    }
+  } catch {
+    status = 400;
+  }
+}
+
+if (status !== 200 || !item) {
+  return new Response(status === 200 ? "Bad Request" : String(status), {
+    status: status === 200 ? 400 : status,
+  });
+}
+
+// Force the edit-mode render path so the markers are stamped on the fragment.
+Astro.locals.editMode = true;
+const sections = [item];
+---
+
+<Sections sections={sections} />

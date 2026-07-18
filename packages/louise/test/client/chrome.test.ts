@@ -12,6 +12,7 @@ import {
   blockRefOf,
   deleteBlockElement,
   deleteSectionElement,
+  insertSectionElement,
   moveBlockElement,
   moveSectionElement,
   mountSectionChrome,
@@ -226,6 +227,42 @@ describe("chrome — instant structural ops (#182 Phase 1)", () => {
     moveSectionElement(-1, 0);
     deleteSectionElement(9);
     expect(domTitles()).toEqual(["Title 0", "Title 1"]);
+  });
+
+  /** A fragment-route section element (stamped at 0, as the route renders it). */
+  const fragment = (title: string): HTMLElement => {
+    const sec = document.createElement("section");
+    sec.setAttribute(SECTION_MARKER_ATTR, "0");
+    const h = document.createElement("h1");
+    h.setAttribute("data-louise-sfield", "0.title");
+    h.textContent = title;
+    sec.appendChild(h);
+    return sec;
+  };
+
+  it("insertSectionElement splices at an index and re-stamps 0…n", () => {
+    const host = hostWithFields(2); // Title 0, Title 1
+    insertSectionElement(fragment("Inserted"), 1, host);
+    expect(domTitles()).toEqual(["Title 0", "Inserted", "Title 1"]);
+    expect(domMarkers()).toEqual(["0", "1", "2"]);
+    expect(sfieldOf("Inserted")).toBe("1.title"); // stamped to its new index
+    expect(sfieldOf("Title 1")).toBe("2.title"); // shifted 1 → 2
+  });
+
+  it("insertSectionElement appends when index is past the end", () => {
+    const host = hostWithFields(2);
+    insertSectionElement(fragment("Appended"), 2, host);
+    expect(domTitles()).toEqual(["Title 0", "Title 1", "Appended"]);
+    expect(domMarkers()).toEqual(["0", "1", "2"]);
+    expect(sfieldOf("Appended")).toBe("2.title");
+  });
+
+  it("insertSectionElement adds the first section of an empty container", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    insertSectionElement(fragment("First"), 0, host);
+    expect(domTitles()).toEqual(["First"]);
+    expect(domMarkers()).toEqual(["0"]);
   });
 });
 
