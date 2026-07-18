@@ -192,12 +192,22 @@ const CHROME_CSS = `
 .louise-chrome-btn:disabled { opacity: 0.4; cursor: default; }
 `;
 
-/** Position a floating toolbar at the top-right of `el` and open it. */
+/** Position a floating toolbar at the top-right of `el`, clamped to the viewport,
+ *  and open it. */
 function placeToolbar(toolbar: HTMLElement, el: HTMLElement): void {
-  const box = el.getBoundingClientRect();
-  toolbar.style.top = `${Math.max(4, box.top + 6)}px`;
-  toolbar.style.left = `${Math.max(4, box.right - 90)}px`;
+  // Open first: while `display:none` the toolbar has no measurable size, and we
+  // need its real width/height to keep it on-screen.
   toolbar.dataset.open = "1";
+  const box = el.getBoundingClientRect();
+  const w = toolbar.offsetWidth;
+  const h = toolbar.offsetHeight;
+  // Right-align to the element's top-right (`box.right - w`), but clamp so the
+  // whole bar stays in the viewport. The right/bottom clamps are the fix: a
+  // full-bleed section has `box.right ≈ innerWidth`, and the old fixed 90px
+  // offset (from before the gear/add buttons widened the bar) ran the delete +
+  // gear buttons off the right edge.
+  toolbar.style.left = `${Math.min(Math.max(4, box.right - w), window.innerWidth - w - 4)}px`;
+  toolbar.style.top = `${Math.min(Math.max(4, box.top + 6), window.innerHeight - h - 4)}px`;
 }
 
 /**
