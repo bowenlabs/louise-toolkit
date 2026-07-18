@@ -707,6 +707,44 @@ const CSS = `
 .louise-btn-xs { padding: 1px 6px; font-size: 11px; line-height: 1.4; }
 .louise-row-sep { width: 1px; align-self: stretch; margin: 0 2px; background: rgba(15, 23, 42, 0.12); }
 .louise-row-count { color: #64748b; font-weight: 600; }
+
+/* ── Inspector popover (#182 Phase 4) — contextual layout + settings ──────── */
+.louise-inspector-scrim { position: fixed; inset: 0; z-index: 2147483300; }
+.louise-inspector {
+  position: fixed;
+  z-index: 2147483301;
+  width: 264px;
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
+  font-family: var(--louise-font-body);
+  font-size: 13px;
+  color: #0f172a;
+}
+.louise-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.louise-inspector-title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
+.louise-inspector-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #64748b;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.louise-inspector-close:hover { background: rgba(15, 23, 42, 0.06); }
+.louise-inspector-group { display: flex; flex-direction: column; gap: 8px; }
+.louise-inspector-layouts { display: flex; flex-wrap: wrap; gap: 6px; }
+.louise-inspector-active { background: var(--louise-blue); color: #fff; border-color: transparent; }
+.louise-inspector-empty { margin: 0; color: #64748b; font-size: 12px; }
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

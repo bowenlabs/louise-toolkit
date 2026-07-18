@@ -494,6 +494,44 @@ describe("chrome — two-layer toolbar / deepest-boundary (#182 Phase 2)", () =>
     buttons[3].click();
     expect(added).toEqual([{ section: 0, block: 0 }]);
   });
+
+  it("adds a ⚙ inspect button to both toolbars when onInspect is wired (#182 Phase 4)", () => {
+    const inspectedSection: number[] = [];
+    const inspectedBlock: BlockRef[] = [];
+    const el = hostWithBlocks(1, 1);
+    dispose = mountSectionChrome({
+      onMoveUp: () => {},
+      onMoveDown: () => {},
+      onDelete: () => {},
+      onInspect: (i) => inspectedSection.push(i),
+      blocks: {
+        onMoveUp: () => {},
+        onMoveDown: () => {},
+        onDelete: () => {},
+        onInspect: (r) => inspectedBlock.push(r),
+      },
+    });
+    // Section ⚙ — hover the section-level field (outside any block).
+    over(el.querySelector("h1") as Node);
+    const secCog = [...(sectionToolbar()?.querySelectorAll("button") ?? [])].find(
+      (b) => b.textContent === "⚙",
+    );
+    secCog?.click();
+    expect(inspectedSection).toEqual([0]);
+    // Block ⚙.
+    over(el.querySelector(`[${BLOCK_MARKER_ATTR}]`)?.querySelector("h2") as Node);
+    const blkCog = blockButtons().find((b) => b.textContent === "⚙");
+    blkCog?.click();
+    expect(inspectedBlock).toEqual([{ section: 0, block: 0 }]);
+  });
+
+  it("omits the ⚙ when onInspect is not wired", () => {
+    setup(1, 1); // no onInspect on section or block actions
+    expect(
+      [...(sectionToolbar()?.querySelectorAll("button") ?? [])].some((b) => b.textContent === "⚙"),
+    ).toBe(false);
+    expect(blockButtons().some((b) => b.textContent === "⚙")).toBe(false);
+  });
 });
 
 describe("chrome — instant block ops (#182 Phase 2)", () => {

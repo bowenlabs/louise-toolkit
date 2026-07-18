@@ -129,6 +129,8 @@ export interface BlockChromeActions {
   onMoveDown(ref: BlockRef): void;
   onDelete(ref: BlockRef): void;
   onAdd?(ref: BlockRef): void;
+  /** Open the inspector for this block (#182 Phase 4) — adds a ⚙ to the toolbar. */
+  onInspect?(ref: BlockRef): void;
 }
 
 /** Actions the section toolbar exposes. Duplicate/add are deferred to the
@@ -139,6 +141,8 @@ export interface SectionChromeActions {
   onMoveUp(index: number): void;
   onMoveDown(index: number): void;
   onDelete(index: number): void;
+  /** Open the inspector for this section (#182 Phase 4) — adds a ⚙ to the toolbar. */
+  onInspect?(index: number): void;
   blocks?: BlockChromeActions;
 }
 
@@ -223,7 +227,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     b.title = title;
     return b;
   };
-  const makeToolbar = (block: boolean, delTitle: string, addTitle?: string) => {
+  const makeToolbar = (block: boolean, delTitle: string, addTitle?: string, inspect?: boolean) => {
     const toolbar = doc.createElement("div");
     toolbar.className = block
       ? "louise-chrome-toolbar louise-block-toolbar"
@@ -235,15 +239,24 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     // `+` (add after) only when the layer supports it — the block toolbar once
     // the fragment route is wired (#182 Phase 3).
     const add = addTitle ? button("+", addTitle) : null;
-    for (const b of [up, down, del, ...(add ? [add] : [])]) toolbar.appendChild(b);
+    // `⚙` opens the inspector (layout + settings) — only when wired (#182 Phase 4).
+    const cog = inspect ? button("⚙", "Layout & settings") : null;
+    for (const b of [up, down, del, ...(add ? [add] : []), ...(cog ? [cog] : [])]) {
+      toolbar.appendChild(b);
+    }
     doc.body.appendChild(toolbar);
-    return { toolbar, up, down, del, add };
+    return { toolbar, up, down, del, add, cog };
   };
 
-  const section = makeToolbar(false, "Delete section");
+  const section = makeToolbar(false, "Delete section", undefined, !!opts.onInspect);
   const blockActions = opts.blocks;
   const block = blockActions
-    ? makeToolbar(true, "Delete block", blockActions.onAdd ? "Add block after" : undefined)
+    ? makeToolbar(
+        true,
+        "Delete block",
+        blockActions.onAdd ? "Add block after" : undefined,
+        !!blockActions.onInspect,
+      )
     : null;
 
   let activeSection: { index: number; el: HTMLElement } | null = null;
@@ -328,12 +341,17 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
   section.up.addEventListener("click", sectionAct(opts.onMoveUp));
   section.down.addEventListener("click", sectionAct(opts.onMoveDown));
   section.del.addEventListener("click", sectionAct(opts.onDelete));
+  if (section.cog && opts.onInspect)
+    section.cog.addEventListener("click", sectionAct(opts.onInspect));
   if (block && blockActions) {
     block.up.addEventListener("click", blockAct(blockActions.onMoveUp));
     block.down.addEventListener("click", blockAct(blockActions.onMoveDown));
     block.del.addEventListener("click", blockAct(blockActions.onDelete));
     if (block.add && blockActions.onAdd) {
       block.add.addEventListener("click", blockAct(blockActions.onAdd));
+    }
+    if (block.cog && blockActions.onInspect) {
+      block.cog.addEventListener("click", blockAct(blockActions.onInspect));
     }
   }
   doc.addEventListener("mouseover", onOver, true);

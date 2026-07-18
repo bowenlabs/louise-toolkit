@@ -45,6 +45,8 @@ import { injectStyles } from "./styles.js";
 // client bundle.
 import type {
   BlockCatalog,
+  BlockDef,
+  BlockItem,
   SectionCatalog,
   SectionDef,
   SectionField,
@@ -288,6 +290,11 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
  * in-place text editing and mounts its own control dock. `mountSections` renders
  * this into a body-level container so the page's own layout is untouched.
  */
+/** What the inspector popover is editing — a whole section, or a block within one. */
+type InspectTarget =
+  | { kind: "section"; index: number }
+  | { kind: "block"; section: number; block: number };
+
 function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [state, setState] = createStore<{ items: SectionItem[] }>({
     items: structuredClone(props.initial),
@@ -309,6 +316,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // status alone can't, since multiple versions read "published" over time.
   const [liveVersionId, setLiveVersionId] = createSignal<number | null>(null);
   const [showHistory, setShowHistory] = createSignal(false);
+  // The inspector popover (#182 Phase 4): which section/block is being inspected,
+  // and where to anchor the popover (viewport coords near the selected element).
+  const [inspecting, setInspecting] = createSignal<
+    (InspectTarget & { top: number; left: number }) | null
+  >(null);
   const hasDraft = () => versions().some((v) => v.status === "draft");
 
   // A leading slot injected into the shared edit bar (`.louise-bar`) that hosts
@@ -374,6 +386,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         onMoveUp: (i) => moveSection(i, -1),
         onMoveDown: (i) => moveSection(i, 1),
         onDelete: (i) => removeSection(i),
+        // ⚙ opens the inspector popover (layout + settings) for the section
+        // (#182 Phase 4 / ADR 0005 §5).
+        onInspect: (i) => openInspector({ kind: "section", index: i }),
         // Block layer (#182 Phase 2 / ADR 0005): reorder/delete a section's
         // blocks in place — the block analogue of the section ops. Block add/swap
         // still need the fragment-render route (Phase 3).
@@ -381,6 +396,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           onMoveUp: (r) => moveBlock(r.section, r.block, -1),
           onMoveDown: (r) => moveBlock(r.section, r.block, 1),
           onDelete: (r) => removeBlock(r.section, r.block),
+          onInspect: (r) => openInspector({ kind: "block", section: r.section, block: r.block }),
           // `+` add only when a block catalog is available (it needs the block's
           // field shape to seed a blank); gates the toolbar's add button too.
           ...(props.blocks ? { onAdd: (r: BlockRef) => void addBlock(r.section, r.block) } : {}),
@@ -786,6 +802,49 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       }),
     );
   };
+
+  // ── Inspector popover (#182 Phase 4 / ADR 0005 §5) ─────────────────────────
+  // Edit a section's `_layout` + `_settings` (or a block's `_settings`) contextually.
+  // A layout/settings change alters the render, so it re-renders the section via
+  // the fragment route (the same seam as block add / swap-type).
+  const inspectSection = (t: InspectTarget) => (t.kind === "section" ? t.index : t.section);
+  const inspectItem = (t: InspectTarget): (SectionItem & BlockItem) | undefined =>
+    (t.kind === "section" ? state.items[t.index] : state.items[t.section]?.blocks?.[t.block]) as
+      | (SectionItem & BlockItem)
+      | undefined;
+  const inspectDef = (t: InspectTarget): SectionDef | BlockDef | undefined => {
+    const type = inspectItem(t)?._type ?? "";
+    return t.kind === "section" ? props.catalog[type] : props.blocks?.[type];
+  };
+
+  const openInspector = (t: InspectTarget) => {
+    const sel =
+      t.kind === "section"
+        ? `[data-louise-section="${t.index}"]`
+        : `[data-louise-block="${t.section}.blocks.${t.block}"]`;
+    const box = props.host.querySelector(sel)?.getBoundingClientRect();
+    const top = box ? Math.min(Math.max(box.top + 8, 8), window.innerHeight - 340) : 80;
+    const left = box ? Math.min(Math.max(box.right + 8, 8), window.innerWidth - 300) : 80;
+    setInspecting({ ...t, top, left });
+  };
+  const closeInspector = () => setInspecting(null);
+
+  const setLayout = (index: number, layout: string) => {
+    set("items", index, "_layout", layout);
+    void rerenderSection(index);
+  };
+  const setSetting = (t: InspectTarget, key: string, value: unknown) => {
+    const merge = (s: unknown) => ({
+      ...(s && typeof s === "object" && !Array.isArray(s) ? (s as Record<string, unknown>) : {}),
+      [key]: value,
+    });
+    if (t.kind === "section") set("items", t.index, "_settings", merge);
+    else set("items", t.section, "blocks", t.block, "_settings", merge);
+    touched();
+  };
+  // Re-render the section (settings/layout affect the bespoke render) once the
+  // value is committed — on `change`/blur, not every keystroke.
+  const commitSetting = (t: InspectTarget) => void rerenderSection(inspectSection(t));
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
     restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
@@ -1207,6 +1266,101 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         <Portal mount={barSlot()!}>
           <SaveActions />
         </Portal>
+      </Show>
+
+      {/* Inspector popover (#182 Phase 4 / ADR 0005 §5): layout picker + settings
+          for the selected section/block, anchored near it. A scrim behind it
+          closes on outside click. Changes re-render the section (fragment route). */}
+      <Show when={inspecting()}>
+        {(insp) => {
+          const target = insp();
+          const sectionDef = () => inspectDef(target) as SectionDef | undefined;
+          const settings = () => inspectDef(target)?.settings ?? {};
+          const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
+          const hasSettings = () => Object.keys(settings()).length > 0;
+          return (
+            <Portal>
+              <div class="louise-inspector-scrim" onClick={closeInspector} />
+              <div
+                class="louise-inspector"
+                style={{ top: `${insp().top}px`, left: `${insp().left}px` }}
+              >
+                <div class="louise-inspector-head">
+                  <span class="louise-inspector-title">
+                    {inspectDef(target)?.label ?? inspectItem(target)?._type}
+                  </span>
+                  <button
+                    type="button"
+                    class="louise-inspector-close"
+                    aria-label="Close"
+                    onClick={closeInspector}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <Show when={layouts()}>
+                  <div class="louise-inspector-group">
+                    <span class="louise-field-label">Layout</span>
+                    <div class="louise-inspector-layouts">
+                      <For each={Object.entries(layouts() ?? {})}>
+                        {([lk, l]) => (
+                          <button
+                            type="button"
+                            class="louise-btn louise-btn-xs"
+                            classList={{
+                              "louise-inspector-active": inspectItem(target)?._layout === lk,
+                            }}
+                            onClick={() => target.kind === "section" && setLayout(target.index, lk)}
+                          >
+                            {l.label}
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={hasSettings()}>
+                  <div class="louise-inspector-group">
+                    <For each={Object.entries(settings())}>
+                      {([sk, field]) => (
+                        <label class="louise-field">
+                          <span class="louise-field-label">{field.label ?? humanize(sk)}</span>
+                          <Show
+                            when={field.type === "textarea"}
+                            fallback={
+                              <input
+                                class="louise-input"
+                                value={String(inspectItem(target)?._settings?.[sk] ?? "")}
+                                placeholder={field.placeholder}
+                                onInput={(e) => setSetting(target, sk, e.currentTarget.value)}
+                                onChange={() => commitSetting(target)}
+                              />
+                            }
+                          >
+                            <textarea
+                              class="louise-input louise-dock-textarea"
+                              rows={2}
+                              value={String(inspectItem(target)?._settings?.[sk] ?? "")}
+                              placeholder={field.placeholder}
+                              onInput={(e) => setSetting(target, sk, e.currentTarget.value)}
+                              onChange={() => commitSetting(target)}
+                            />
+                          </Show>
+                        </label>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+
+                <Show when={!layouts() && !hasSettings()}>
+                  <p class="louise-inspector-empty">Nothing to configure here yet.</p>
+                </Show>
+              </div>
+            </Portal>
+          );
+        }}
       </Show>
     </div>
   );
