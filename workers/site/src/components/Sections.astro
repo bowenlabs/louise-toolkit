@@ -63,6 +63,12 @@ const withAssetAlt = (s: Item): Item => {
   sections.map((s, i) => {
     const r = withAssetAlt(s);
     const Comp = r._type ? COMPONENTS[r._type as keyof typeof COMPONENTS] : undefined;
-    return Comp ? <Comp {...r} _editIndex={i} _editMode={editMode} /> : null;
+    if (!Comp) return null;
+    const rendered = <Comp {...r} _editIndex={i} _editMode={editMode} />;
+    // Phase 1 marker contract (#182 / ADR 0005): in edit mode, wrap each section
+    // in a per-section marker element so the on-canvas chrome can attach rings /
+    // toolbars to the real element (via louise-toolkit/client's readSectionMarkers).
+    // Public renders skip the wrapper entirely, so nothing changes off the editor.
+    return editMode ? <div data-louise-section={i}>{rendered}</div> : rendered;
   })
 }
