@@ -36,8 +36,26 @@ export interface SectionField {
   inline?: boolean;
   /** `array` only — label for each repeated item (e.g. "Feature"). */
   itemLabel?: string;
-  /** `array` only — the fields of each repeated item. */
+  /** `array` only — the fields of each repeated item. With a {@link SectionField.discriminator}
+   *  these are the fields shared by *every* variant; the variant adds more on top. */
   itemFields?: Record<string, SectionField>;
+  /**
+   * `array` only — makes the array a *discriminated union* of item shapes
+   * (blocks: image vs. quote vs. embed …) instead of one fixed `itemFields`
+   * shape, mirroring `ArrayFieldConfig.discriminator` (`core/content/types.ts`)
+   * one level down — the proving slice for a first-class `blocks` layer (ADR 0005).
+   * `key` names the field holding each item's variant (set by the type-switcher,
+   * not typed in place); `variants` maps each variant value to the *additional*
+   * fields layered on top of `itemFields`, validated/shown only for items whose
+   * `key` field holds that value. `variantsAdmin` gives the "add"/switch picker a
+   * per-variant `label` + opaque `icon` string. Storage is unchanged — `array`
+   * stays one JSON column; this only changes the item's field set.
+   */
+  discriminator?: {
+    key: string;
+    variants: Record<string, Record<string, SectionField>>;
+    variantsAdmin?: Record<string, { label?: string; icon?: string }>;
+  };
   /** Optional per-field validation, reusing the content `Rule` builder — e.g.
    *  `validation: (r) => r.required().max(120)`. Enforced server-side by
    *  {@link validateSections}. */
@@ -142,6 +160,7 @@ async function validateSectionField(
       if (!Array.isArray(value)) {
         out.push({ path, message: `${path} must be an array`, severity: "error" });
       } else {
+        const disc = field.discriminator;
         for (let j = 0; j < value.length; j++) {
           const subPath = `${path}[${j}]`;
           const sub = value[j];
@@ -149,7 +168,24 @@ async function validateSectionField(
             out.push({ path: subPath, message: `${subPath} must be an object`, severity: "error" });
             continue;
           }
-          for (const [subKey, subField] of Object.entries(field.itemFields ?? {})) {
+          // Base fields (shared by every variant). With a discriminator, the
+          // item's `key` value selects a variant whose fields layer on top; an
+          // absent or unknown variant is rejected (like an unknown section `_type`).
+          let itemFields = field.itemFields ?? {};
+          if (disc) {
+            const variant = sub[disc.key];
+            const variantFields = typeof variant === "string" ? disc.variants[variant] : undefined;
+            if (!variantFields) {
+              out.push({
+                path: `${subPath}.${disc.key}`,
+                message: `${subPath} has an unknown variant ${JSON.stringify(variant)}`,
+                severity: "error",
+              });
+              continue;
+            }
+            itemFields = { ...itemFields, ...variantFields };
+          }
+          for (const [subKey, subField] of Object.entries(itemFields)) {
             out.push(
               ...(await validateSectionField(
                 subField,
