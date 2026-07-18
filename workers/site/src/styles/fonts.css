@@ -1,0 +1,55 @@
+/*
+ * Self-hosted brand type for louisetoolkit.com (#194) — the first-party site's
+ * replacement for `louise-toolkit/theme/fonts.css`, which loads Roboto Flex from
+ * Google Fonts. The package file stays Google-backed (a sensible default for
+ * downstream consumers); this site serves its own subset from the Cloudflare
+ * edge, so a public page load makes NO request to fonts.googleapis.com /
+ * fonts.gstatic.com — a privacy win, on brand for an edge-native toolkit, and no
+ * third-party connection on the LCP path.
+ *
+ * Both faces are latin-subset variable woff2 built from the OFL originals (see
+ * public/fonts/README.md for the exact regeneration command):
+ *   - Roboto Flex — keeps the `wght` (100–1000) AND `wdth` (25–151%) axes; the
+ *     landing's signature wide display type sets `font-stretch: 125–140%` (the
+ *     `wdth` axis) on every heading + the logo. The 11 axes the design never uses
+ *     (opsz, GRAD, slnt, X/YOPQ, XTRA, YT*) are instanced away, which is what
+ *     makes the self-hosted file (~55 KB) far smaller than Google's all-axis
+ *     latin block (~191 KB) — so this is a net LCP win, not the regression a
+ *     naive "ship the whole variable font" self-host would be.
+ *   - JetBrains Mono — variable `wght` (100–800), for `font-mono` in the landing.
+ */
+
+@font-face {
+  font-family: "Roboto Flex";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-stretch: 25% 151%;
+  font-display: swap;
+  src: url("/fonts/RobotoFlex-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono-latin.woff2") format("woff2");
+}
+
+/* The `.louise-type` contract, mirrored from `louise-toolkit/theme/fonts.css`
+ * (minus its Google `@import`) so pages opting in via the class render the same
+ * — Roboto Flex throughout, headings a touch heavier. */
+.louise-type {
+  font-family:
+    "Roboto Flex",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+.louise-type :is(h1, h2, h3, .louise-heading) {
+  font-weight: 800;
+}
+.louise-type :is(h4, h5, h6, .louise-subheading) {
+  font-weight: 600;
+}
