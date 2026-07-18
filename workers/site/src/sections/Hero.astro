@@ -1,23 +1,40 @@
 ---
 // Bespoke hero — the SITE owns this design (Tailwind + daisyUI `louise-dark`
 // tokens, the real brand look). It renders from section props; editors never
-// touch its markup or classes, only its fields (badge/heading/tagline/CTA/
-// install command). The animated edge-network globe, the install-copy button
-// and the primitives marquee are baked-in chrome, not editable content.
+// touch its markup or classes, only its fields (badge/heading/tagline) and the
+// action-row blocks. The animated edge-network globe and the primitives marquee
+// are baked-in chrome, not editable content.
 //
-// In edit mode it stamps `data-louise-sfield` markers on the visible text nodes
-// so the client can make them editable in place, and always renders those nodes
-// (even when empty) so there's something to click into. `ctaHref` and the
-// install command have no clean visible node to click, so they're edited in the
-// dock (non-inline).
+// Action row = a first-class `blocks` layer (#182 / ADR 0005): an ordered, mixed
+// list of `cta` (button) / `install` (copy-command chip) blocks, each on-canvas
+// (blue ring/toolbar) and reorderable in place — the reference slice proving a
+// *heterogeneous* block catalog (vs featureGrid's homogeneous cards). A legacy
+// hero (flat ctaLabel/ctaHref/installCommand) still renders via a fallback while
+// the shared DB is re-seeded.
+//
+// In edit mode it stamps `data-louise-sfield` on the visible text nodes so the
+// client can make them editable in place, and always renders those nodes (even
+// when empty) so there's something to click into. `ctaHref` and the install
+// command have no clean visible node, so they're edited in the block's dock
+// fields (non-inline).
 import Icon from "../components/Icon.astro";
 import { lightningFillSvg } from "../lib/landing-icons.js";
 
+// One action-row item — a `cta` (button) or `install` (copy-command chip) block.
+interface ActionBlock {
+  _type?: string;
+  label?: string;
+  href?: string;
+  command?: string;
+}
 interface Props {
   badge?: string;
   heading?: string;
   headingAccent?: string;
   tagline?: string;
+  blocks?: ActionBlock[];
+  // Legacy direct fields — accepted while the shared DB still carries the
+  // pre-block hero (expand/contract seed); `blocks` wins when present.
   ctaLabel?: string;
   ctaHref?: string;
   installCommand?: string;
@@ -29,6 +46,7 @@ const {
   heading = "",
   headingAccent = "",
   tagline = "",
+  blocks,
   ctaLabel = "",
   ctaHref = "",
   installCommand = "pnpm add louise-toolkit",
@@ -36,6 +54,22 @@ const {
   _editMode: edit = false,
 } = Astro.props;
 const idx = _editIndex;
+
+const DEFAULT_INSTALL = "pnpm add louise-toolkit";
+// `blocks` is the first-class action layer (#182); fall back to the legacy direct
+// fields (one CTA + one install chip) while an un-migrated hero row still carries
+// them. Block markers are stamped only for the block path.
+const useBlocks = Array.isArray(blocks) && blocks.length > 0;
+const actions: ActionBlock[] = useBlocks
+  ? (blocks as ActionBlock[])
+  : [
+      { _type: "cta", label: ctaLabel, href: ctaHref },
+      { _type: "install", command: installCommand },
+    ];
+// A CTA label is edited in place; its path is the block path (blocks) or the
+// equivalent legacy field (a legacy hero has exactly one CTA).
+const ctaLabelPath = (j: number) => (useBlocks ? `${idx}.blocks.${j}.label` : `${idx}.ctaLabel`);
+const blockAttr = (j: number) => (edit && useBlocks ? `${idx}.blocks.${j}` : undefined);
 
 // Marquee tokens — the eight primitives, colored on a 4-step brand cycle
 // (blue → orange → green → gold). Rendered twice so the -50% loop is seamless.
@@ -90,26 +124,35 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
     </p>
 
     <div class="flex flex-wrap items-center justify-center gap-[14px]">
-      <a
-        class="inline-block rounded-full bg-primary px-[34px] py-4 text-[17px] font-extrabold text-primary-content transition hover:-translate-y-0.5 hover:bg-[#2f92f5]"
-        href={ctaHref || "https://docs.louisetoolkit.com/guide/getting-started"}
-        data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
-      >
-        {ctaLabel || (edit ? "" : "Get started")}
-      </a>
-      <button
-        type="button"
-        data-lt-copy
-        data-lt-copy-text={installCommand}
-        aria-label={`Copy install command: ${installCommand}`}
-        class="inline-flex cursor-pointer items-center gap-3 rounded-full border-[1.5px] border-neutral bg-white/[0.06] px-[22px] py-[15px] font-mono text-[15px] text-base-content transition hover:border-accent"
-      >
-        <span class="font-bold text-success">$</span>
-        <span data-lt-copy-cmd>{installCommand}</span>
-        <span data-lt-copy-label aria-live="polite" class="text-[12px] font-bold text-accent"
-          >Copy</span
-        >
-      </button>
+      {
+        actions.map((a, j) =>
+          a._type === "install" ? (
+            <button
+              type="button"
+              data-louise-block={blockAttr(j)}
+              data-lt-copy
+              data-lt-copy-text={a.command || DEFAULT_INSTALL}
+              aria-label={`Copy install command: ${a.command || DEFAULT_INSTALL}`}
+              class="inline-flex cursor-pointer items-center gap-3 rounded-full border-[1.5px] border-neutral bg-white/[0.06] px-[22px] py-[15px] font-mono text-[15px] text-base-content transition hover:border-accent"
+            >
+              <span class="font-bold text-success">$</span>
+              <span data-lt-copy-cmd>{a.command || DEFAULT_INSTALL}</span>
+              <span data-lt-copy-label aria-live="polite" class="text-[12px] font-bold text-accent">
+                Copy
+              </span>
+            </button>
+          ) : (
+            <a
+              data-louise-block={blockAttr(j)}
+              class="inline-block rounded-full bg-primary px-[34px] py-4 text-[17px] font-extrabold text-primary-content transition hover:-translate-y-0.5 hover:bg-[#2f92f5]"
+              href={a.href || "https://docs.louisetoolkit.com/guide/getting-started"}
+              data-louise-sfield={edit ? ctaLabelPath(j) : undefined}
+            >
+              {a.label || (edit ? "" : "Get started")}
+            </a>
+          ),
+        )
+      }
     </div>
   </div>
 </section>

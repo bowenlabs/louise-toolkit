@@ -6,6 +6,11 @@ import type { SectionCatalog } from "louise-toolkit/client";
 // block-builder (SectionsMount → mountSections) reads to render each section's
 // edit form and the "+ Add section" palette.
 export const SECTIONS: SectionCatalog = {
+  // The action row (button + install chip) is now a first-class `blocks` layer
+  // (#182 / ADR 0005): a mixed, ordered list of `cta` / `install` blocks (see
+  // ./blocks.ts), each on-canvas (blue ring/toolbar), reorderable in place —
+  // rather than the flat ctaLabel/ctaHref/installCommand fields. badge/heading/
+  // headingAccent/tagline stay direct section fields.
   hero: {
     label: "Hero",
     icon: "ph ph-rocket",
@@ -18,17 +23,8 @@ export const SECTIONS: SectionCatalog = {
         placeholder: "Colored second line",
       },
       tagline: { type: "textarea", label: "Tagline", placeholder: "Add a tagline" },
-      ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
-      // Edited in the dock — a link target has no visible text to click on.
-      ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
-      // Edited in the dock — it lives inside the copy button, not a free text node.
-      installCommand: {
-        type: "text",
-        label: "Install command",
-        placeholder: "pnpm add louise-toolkit",
-        inline: false,
-      },
     },
+    blocks: { allow: ["cta", "install"] },
   },
   // Reference slice for the first-class block layer (#182 / ADR 0005): the grid's
   // cards are now `feature` blocks (see ./blocks.ts) rather than a homogeneous
