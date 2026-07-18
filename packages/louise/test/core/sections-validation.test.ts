@@ -70,6 +70,17 @@ const catalog: SectionCatalog = {
     fields: {},
     blocks: {},
   },
+  // Layout + inspector settings (ADR 0005 §5): `_layout` must be one of `layouts`;
+  // `_settings` validates against `settings` (reusing SectionField rules).
+  panel: {
+    label: "Panel",
+    fields: { heading: { type: "text" } },
+    layouts: { wide: { label: "Wide" }, boxed: { label: "Boxed" } },
+    settings: {
+      background: { type: "text", inline: false },
+      columns: { type: "text", inline: false, validation: (r) => r.required() },
+    },
+  },
 };
 
 // The site's block palette (schema only) resolved against by the `page` section.
@@ -77,6 +88,8 @@ const blockCatalog: BlockCatalog = {
   heading: {
     label: "Heading",
     fields: { text: { type: "text", validation: (r) => r.required().max(120) } },
+    // Block-level inspector settings (ADR 0005 §5) — `align` is required.
+    settings: { align: { type: "text", inline: false, validation: (r) => r.required() } },
   },
   image: {
     label: "Image",
@@ -424,5 +437,74 @@ describe("validateSections — first-class blocks layer (ADR 0005)", () => {
     expect(e).toHaveLength(1);
     expect(e[0].path).toBe("sections[0].blocks[0]._type");
     expect(e[0].message).toContain("unknown block type");
+  });
+});
+
+describe("validateSections — layout token (#182 Phase 4 / ADR 0005 §5)", () => {
+  it("accepts a declared layout and treats absent as a no-op", async () => {
+    expect(await errors([{ _type: "panel", _layout: "wide" }])).toEqual([]);
+    expect(await errors([{ _type: "panel", _layout: "boxed" }])).toEqual([]);
+    expect(await errors([{ _type: "panel" }])).toEqual([]);
+  });
+
+  it("rejects an unknown layout", async () => {
+    const e = await errors([{ _type: "panel", _layout: "nope" }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0]._layout");
+    expect(e[0].message).toContain("unknown layout");
+  });
+
+  it("rejects a layout on a section that declares none", async () => {
+    const e = await errors([{ _type: "hero", heading: "x", _layout: "wide" }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0]._layout");
+  });
+});
+
+describe("validateSections — inspector settings (#182 Phase 4 / ADR 0005 §5)", () => {
+  it("validates declared setting fields, reusing their rules", async () => {
+    // `columns` is required; present + valid → ok.
+    expect(
+      await errors([{ _type: "panel", _settings: { background: "dark", columns: "3" } }]),
+    ).toEqual([]);
+    // `columns` missing → the required rule fires under the settings path.
+    const e = await errors([{ _type: "panel", _settings: { background: "dark" } }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0]._settings.columns");
+  });
+
+  it("rejects a non-object _settings", async () => {
+    const e = await errors([{ _type: "panel", _settings: "nope" }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0]._settings");
+    expect(e[0].message).toContain("must be an object");
+  });
+
+  it("ignores undeclared setting keys and a section with no settings declared", async () => {
+    // Unknown `foo` ignored (columns still present); hero declares no settings at
+    // all, so any `_settings` is ignored free-form data.
+    expect(await errors([{ _type: "panel", _settings: { foo: "x", columns: "3" } }])).toEqual([]);
+    expect(await errors([{ _type: "hero", heading: "x", _settings: { anything: 1 } }])).toEqual([]);
+  });
+
+  it("treats an absent _settings as a no-op (required setting only fires when present)", async () => {
+    expect(await errors([{ _type: "panel" }])).toEqual([]);
+  });
+
+  it("validates a block's _settings against its block def", async () => {
+    // heading block declares a required `align` setting.
+    const ok = await blockErrors([
+      { _type: "page", blocks: [{ _type: "heading", text: "Hi", _settings: { align: "center" } }] },
+    ]);
+    expect(ok).toEqual([]);
+    const e = await blockErrors([
+      { _type: "page", blocks: [{ _type: "heading", text: "Hi", _settings: { other: "x" } }] },
+    ]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0].blocks[0]._settings.align");
+    // No `_settings` at all → the required setting isn't enforced (no-op).
+    expect(
+      await blockErrors([{ _type: "page", blocks: [{ _type: "heading", text: "Hi" }] }]),
+    ).toEqual([]);
   });
 });
