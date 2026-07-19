@@ -869,6 +869,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Re-render the section (settings/layout affect the bespoke render) once the
   // value is committed — on `change`/blur, not every keystroke.
   const commitSetting = (t: InspectTarget) => void rerenderSection(inspectSection(t));
+  // Write a top-level field value — the non-inline "dock" fields (a link URL, an
+  // image, a token), now edited in the inspector (#182) rather than the dock.
+  const setField = (t: InspectTarget, key: string, value: unknown) => {
+    if (t.kind === "section") set("items", t.index, key, value);
+    else set("items", t.section, "blocks", t.block, key, value);
+    touched();
+  };
+  const commitField = (t: InspectTarget) => void rerenderSection(inspectSection(t));
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
     restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
@@ -1302,6 +1310,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           const settings = () => inspectDef(target)?.settings ?? {};
           const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
           const hasSettings = () => Object.keys(settings()).length > 0;
+          // The non-inline "dock" fields (link URL, image, token) — edited here in
+          // the inspector (#182) instead of the floating dock. Inline text/rich-text
+          // fields are edited on the page; arrays stay their own membership UI.
+          const editFields = () =>
+            Object.entries(inspectDef(target)?.fields ?? {}).filter(
+              ([, f]) => f.type !== "array" && !isInline(f),
+            );
           return (
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} />
@@ -1322,6 +1337,55 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     ✕
                   </button>
                 </div>
+
+                {/* Field editing (#182): the section/block's non-inline fields —
+                    formerly the floating dock's form — now live in the gear. */}
+                <Show when={editFields().length > 0}>
+                  <div class="louise-inspector-group">
+                    <For each={editFields()}>
+                      {([key, field]) => (
+                        <Show
+                          when={field.type === "image"}
+                          fallback={
+                            <label class="louise-field">
+                              <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                              <Show
+                                when={field.type === "textarea"}
+                                fallback={
+                                  <input
+                                    class="louise-input"
+                                    value={String(inspectItem(target)?.[key] ?? "")}
+                                    placeholder={field.placeholder}
+                                    onInput={(e) => setField(target, key, e.currentTarget.value)}
+                                    onChange={() => commitField(target)}
+                                  />
+                                }
+                              >
+                                <textarea
+                                  class="louise-input louise-dock-textarea"
+                                  rows={2}
+                                  value={String(inspectItem(target)?.[key] ?? "")}
+                                  placeholder={field.placeholder}
+                                  onInput={(e) => setField(target, key, e.currentTarget.value)}
+                                  onChange={() => commitField(target)}
+                                />
+                              </Show>
+                            </label>
+                          }
+                        >
+                          <ImageDockField
+                            label={field.label ?? humanize(key)}
+                            value={String(inspectItem(target)?.[key] ?? "")}
+                            onSet={(url) => {
+                              setField(target, key, url);
+                              commitField(target);
+                            }}
+                          />
+                        </Show>
+                      )}
+                    </For>
+                  </div>
+                </Show>
 
                 <Show when={layouts()}>
                   <div class="louise-inspector-group">
@@ -1378,7 +1442,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   </div>
                 </Show>
 
-                <Show when={!layouts() && !hasSettings()}>
+                <Show when={editFields().length === 0 && !layouts() && !hasSettings()}>
                   <p class="louise-inspector-empty">Nothing to configure here yet.</p>
                 </Show>
               </div>
