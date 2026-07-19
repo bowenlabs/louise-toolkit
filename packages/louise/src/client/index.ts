@@ -12,6 +12,16 @@
 import { stegaClean } from "../core/content/stega-clean.js";
 import { mountStegaClipboardGuard } from "../core/content/visual-editing.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
+import {
+  connectRealtime,
+  initials,
+  otherPeers,
+  type RealtimeLocks,
+  type RealtimeOption,
+  type RealtimePeer,
+  type RealtimeSession,
+  resolveRealtime,
+} from "./realtime.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
@@ -38,6 +48,14 @@ export { injectStyles } from "./styles.js";
 // The auto-save option shape, re-exported so consumers can type a shared config
 // object passed to both `mountLouise` and `mountSections`.
 export { type AutoSaveOption } from "./autosave.js";
+// The realtime opt-in shape + the WS client, re-exported so a host can type the
+// shared config and (if it wants) drive a session directly.
+export {
+  connectRealtime,
+  type RealtimeOption,
+  type RealtimePeer,
+  type RealtimeSession,
+} from "./realtime.js";
 // Structured "sections" editor — hybrid in-place editing for bespoke,
 // component-rendered pages (site owns rendering; this owns editing).
 export {
@@ -82,6 +100,8 @@ interface Chrome {
   setStatus: (status: ChromeStatus) => void;
   /** Versioned pages only: whether an unpublished draft exists (Publish enable). */
   setHasDraft: (hasDraft: boolean) => void;
+  /** Realtime only: render the other editors currently in the session (avatars). */
+  setPresence: (peers: RealtimePeer[]) => void;
 }
 
 interface ChromeOptions {
@@ -145,6 +165,12 @@ function createChrome(opts: ChromeOptions): Chrome {
       : null;
   const status = opts.hasFields ? document.createElement("span") : null;
 
+  // Presence avatars (realtime): a compact strip of the other editors in the
+  // session, rendered leading so it reads as "who else is here". Empty at rest.
+  const presence = document.createElement("span");
+  presence.className = "louise-presence";
+  presence.setAttribute("aria-live", "polite");
+
   const settings = document.createElement("button");
   settings.type = "button";
   settings.className = "louise-settings";
@@ -167,7 +193,8 @@ function createChrome(opts: ChromeOptions): Chrome {
   // appendChild (single node), not the variadic append(): the latter's DOM
   // signature collides with @cloudflare/workers-types' HTMLRewriter `append`
   // when both type libs are in scope.
-  for (const el of [saveDraft, publish, save, settings, exit, status]) if (el) bar.appendChild(el);
+  for (const el of [presence, saveDraft, publish, save, settings, exit, status])
+    if (el) bar.appendChild(el);
   document.body.appendChild(bar);
 
   const savedText = opts.versioned ? "Draft saved" : "Saved";
@@ -203,7 +230,31 @@ function createChrome(opts: ChromeOptions): Chrome {
                 ? "Couldn’t save"
                 : "";
     },
+    setPresence: (peers) => {
+      presence.replaceChildren();
+      for (const peer of peers) {
+        const dot = document.createElement("span");
+        dot.className = "louise-avatar";
+        dot.textContent = initials(peer.name);
+        dot.title = `${peer.name} is editing`;
+        presence.appendChild(dot);
+      }
+    },
   };
+}
+
+/** Toggle a field's soft-lock UI: read-only + a "locked by X" badge when held by a
+ *  peer, cleared when free/mine. Advisory only — the server enforces the lock. */
+function setFieldLock(el: HTMLElement, byName: string | null): void {
+  if (byName) {
+    el.classList.add("louise-locked");
+    el.setAttribute("aria-disabled", "true");
+    el.dataset.louiseLockedBy = `🔒 ${byName} is editing`;
+  } else {
+    el.classList.remove("louise-locked");
+    el.removeAttribute("aria-disabled");
+    delete el.dataset.louiseLockedBy;
+  }
 }
 
 export interface MountLouiseOptions {
@@ -225,6 +276,14 @@ export interface MountLouiseOptions {
    *  never leaves the browser) and issues are underlined with click-to-apply
    *  suggestions. English-only for now. */
   grammar?: boolean;
+  /** Opt this page into a real-time multi-editor session (ADR 0002 / #71):
+   *  connect to the per-page Durable Object for presence, live field echo, and a
+   *  rich-text soft-lock. **Versioned pages only** (realtime persists as drafts), so
+   *  it's ignored unless `versionedPageId` is set. Degradation-first: if the socket
+   *  can't open (no `EDIT_SESSION` binding → the route 503s) editing silently falls
+   *  back to the debounced-fetch auto-save. Off by default; `{ throttleMs }` tunes
+   *  the outbound change rate. */
+  realtime?: RealtimeOption;
   /**
    * Typed Astro Action callables for the **normal** (debounced) auto-save path
    * (#138). The site injects `actions.louise.save` / `actions.louise.saveDraft`
@@ -265,6 +324,9 @@ interface ActiveInline {
   setUnloading: (leaving: boolean) => void;
 }
 let activeInline: ActiveInline | null = null;
+// The current page's realtime session (if any), closed on a soft nav so the DO
+// socket doesn't leak across a view-transition re-mount.
+let activeRealtime: RealtimeSession | null = null;
 let leaveHandlersWired = false;
 
 /**
@@ -308,6 +370,10 @@ function ensureLeaveHandlers(): void {
   document.addEventListener("astro:after-swap", () => {
     delete document.documentElement.dataset.louiseMounted;
     activeInline = null;
+    // Tear down the realtime socket for the page being navigated away from; the
+    // next page's mountLouise opens a fresh one for its own DO.
+    activeRealtime?.close();
+    activeRealtime = null;
   });
 }
 
@@ -333,6 +399,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   let chrome: Chrome;
 
   const { enabled: autoSaveOn, debounceMs } = resolveAutoSave(opts.autoSave);
+  const { enabled: realtimeOn, throttleMs: realtimeThrottleMs } = resolveRealtime(opts.realtime);
   // Bumped on every edit. A save captures it up front and only clears `dirty` if
   // it's unchanged when the save resolves — so a field edited *during* an
   // in-flight save is never cleared unsaved (the auto-saver reschedules).
@@ -340,14 +407,39 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // Assigned once the save fns exist (below); markDirty only runs on user input,
   // long after, so the null window is never hit in practice.
   let auto: Autosave | null = null;
+  // The realtime session (assigned after the field loop, once we know the
+  // collection slug); null when realtime is off or the socket can't open.
+  let rt: RealtimeSession | null = null;
+  // Per-field appliers for inbound remote edits (plain-text fields only — the DO
+  // never broadcasts lock-guarded rich fields), and the lock-guarded field
+  // elements, both keyed by field name. Populated in the field loop.
+  const remoteAppliers = new Map<string, (value: unknown) => void>();
+  const lockEls = new Map<string, HTMLElement>();
+  // Every field's current-value getter, keyed by field name — used to force the
+  // latest realtime edits into a fresh draft right before Publish (the DO's own
+  // coalesced flush might not have fired yet). Populated in the field loop.
+  const fieldGetters = new Map<string, ValueGetter>();
   // True while the page is hiding/unloading (set by the leave handlers below).
   // The save fns fall back to a raw `keepalive` fetch then — an Astro Action
   // can't keepalive, so its request would be aborted mid-navigation (#138).
   let unloading = false;
 
   const markDirty = (fieldKey: string, getter: ValueGetter) => {
-    dirty.set(fieldKey, getter);
     editGen++;
+    // Realtime connected → the DO is the coalescer/persister. Publish the change
+    // and DON'T retain local dirty: the DO stores it durably on receipt (so a
+    // quick tab-close won't lose it) and flushes it as a draft, so the save bar +
+    // unload guard shouldn't nag. On a dropped socket we fall through to the
+    // debounced-fetch path below.
+    if (rt?.connected()) {
+      rt.publish(fieldKey.split(":")[2], getter());
+      chrome.setStatus("saved");
+      // A draft is (being) created in the DO — enable Publish even though we don't
+      // track local dirty on the realtime path.
+      chrome.setHasDraft(true);
+      return;
+    }
+    dirty.set(fieldKey, getter);
     chrome.setDirty(dirty.size > 0);
     chrome.setStatus("idle");
     if (autoSaveOn) auto?.schedule();
@@ -433,12 +525,46 @@ export function mountLouise(opts: MountLouiseOptions): void {
     }
   };
 
+  // Realtime: force the CURRENT field values into a fresh draft before publishing.
+  // Edits published over the socket are coalesced in the DO and flushed on its
+  // alarm (≤10s), so at publish time the newest keystrokes may not be in a draft
+  // yet — this snapshot guarantees Publish promotes the latest, not a stale draft.
+  const flushRealtimeDraft = async (): Promise<boolean> => {
+    const data: Record<string, unknown> = {};
+    for (const [field, getter] of fieldGetters) data[field] = getter();
+    chrome.setStatus("saving");
+    try {
+      if (opts.actions?.saveDraft && pageId !== undefined) {
+        await opts.actions.saveDraft({ id: pageId, data });
+      } else {
+        const res = await fetch(`/api/louise/pages/${pageId}/versions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error(`draft failed: ${res.status}`);
+      }
+      chrome.setStatus("saved");
+      return true;
+    } catch (err) {
+      console.error("[louise] realtime pre-publish draft failed", err);
+      chrome.setStatus("error");
+      return false;
+    }
+  };
+
   // Versioned: flush pending edits to a draft, then promote it to live. Reload so
   // the server re-renders the published content authoritatively.
   const publish = async () => {
     // Supersede any queued auto-save so it can't fire a draft mid-publish.
     auto?.cancel();
-    if (dirty.size > 0 && !(await saveDraft())) return;
+    // Realtime → snapshot the live values into a fresh draft; otherwise flush the
+    // locally-tracked dirty fields. Either way, bail if the draft write fails.
+    if (rt?.connected()) {
+      if (!(await flushRealtimeDraft())) return;
+    } else if (dirty.size > 0 && !(await saveDraft())) {
+      return;
+    }
     chrome.setStatus("publishing");
     try {
       const res = await fetch(`/api/louise/pages/${pageId}/publish`, {
@@ -485,9 +611,14 @@ export function mountLouise(opts: MountLouiseOptions): void {
       .catch(() => {});
   }
 
+  // The collection slug all inline fields on this page share (from the marker) —
+  // the realtime DO is addressed by `<slug>/<id>`.
+  let collectionSlug: string | undefined;
+
   for (const el of fieldEls) {
     const ref = parseMarker(el);
     if (!ref) continue;
+    collectionSlug ??= ref.collection;
     const fieldKey = `${ref.collection}:${ref.key}:${ref.field}`;
     el.classList.add("louise-editable");
 
@@ -514,12 +645,22 @@ export function mountLouise(opts: MountLouiseOptions): void {
           undefined,
           { blocks, grammar: opts.grammar },
         );
+        fieldGetters.set(ref.field, () => stegaClean(field.getHTML()));
       } catch (err) {
         console.error(`[louise] rich-text editor failed to mount for ${fieldKey}`, err);
       }
       // Flush on tab-out. blur doesn't bubble and ProseKit's editable is a child,
       // so listen for focusout on the field container.
       if (autoSaveOn) el.addEventListener("focusout", () => auto?.flush());
+      // Realtime: the rich body is soft-locked — claim it on focus so peers see
+      // it as taken, release on blur. The server enforces the lock (drops a
+      // non-holder change) and never broadcasts the body, so peers never receive
+      // raw rich-text; onLocks (below) reflects a peer's hold read-only.
+      if (realtimeOn) {
+        lockEls.set(ref.field, el);
+        el.addEventListener("focusin", () => rt?.claim(ref.field));
+        el.addEventListener("focusout", () => rt?.release(ref.field));
+      }
     } else {
       // Plain-text field: contenteditable, single line.
       el.setAttribute("contenteditable", "plaintext-only");
@@ -527,11 +668,58 @@ export function mountLouise(opts: MountLouiseOptions): void {
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter") e.preventDefault();
       });
-      el.addEventListener("input", () =>
-        markDirty(fieldKey, () => stegaClean(el.textContent?.trim() ?? "")),
-      );
+      const plainGetter = () => stegaClean(el.textContent?.trim() ?? "");
+      fieldGetters.set(ref.field, plainGetter);
+      el.addEventListener("input", () => markDirty(fieldKey, plainGetter));
       if (autoSaveOn) el.addEventListener("blur", () => auto?.flush());
+      // Realtime: apply a peer's edit to this plain-text field — unless it's
+      // focused locally, where clobbering the caret would be jarring (LWW still
+      // holds; the echo reconciles on the next blur).
+      if (realtimeOn) {
+        remoteAppliers.set(ref.field, (value) => {
+          if (document.activeElement !== el) el.textContent = value == null ? "" : String(value);
+        });
+      }
     }
+  }
+
+  // Realtime session (ADR 0002 / #71). Versioned pages only (realtime persists as
+  // drafts), and only when the page has inline fields to sync. Degradation-first:
+  // if the socket can't open (no EDIT_SESSION binding → the route 503s) nothing
+  // breaks — `rt.connected()` stays false and markDirty keeps using the fetch path.
+  if (realtimeOn && versioned && collectionSlug && pageId !== undefined && fieldEls.length > 0) {
+    // The latest peer list, so a lock holder's id can be shown as their name.
+    let currentPeers: RealtimePeer[] = [];
+    // Reflect a peer's held soft-locks: a lock-guarded field held by someone else
+    // goes read-only with a badge; a field I hold (or that's free) is editable.
+    const applyLocks = (locks: RealtimeLocks) => {
+      const meId = rt?.you()?.id ?? "";
+      for (const [field, el] of lockEls) {
+        const holder = locks[field];
+        const byName = currentPeers.find((p) => p.id === holder)?.name ?? "Someone";
+        setFieldLock(el, holder && holder !== meId ? byName : null);
+      }
+    };
+    rt = connectRealtime({
+      slug: collectionSlug,
+      id: pageId,
+      throttleMs: realtimeThrottleMs,
+      onPresence: (peers) => {
+        currentPeers = peers;
+        chrome.setPresence(otherPeers(peers, rt?.you()?.id));
+      },
+      onRemoteChange: (field, value) => remoteAppliers.get(field)?.(value),
+      onLocks: applyLocks,
+      onStatus: (connected) => {
+        if (!connected) {
+          // Socket down — clear presence + any lock UI; edits fall back to fetch.
+          currentPeers = [];
+          chrome.setPresence([]);
+          for (const el of lockEls.values()) setFieldLock(el, null);
+        }
+      },
+    });
+    activeRealtime = rt;
   }
 
   // Point the shared leave/flush handlers (wired once, below) at this mount, so a

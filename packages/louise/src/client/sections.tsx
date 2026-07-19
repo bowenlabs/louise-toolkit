@@ -40,6 +40,15 @@ import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { stegaClean } from "../core/content/stega-clean.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
+import {
+  connectRealtime,
+  initials,
+  otherPeers,
+  type RealtimeOption,
+  type RealtimePeer,
+  type RealtimeSession,
+  resolveRealtime,
+} from "./realtime.js";
 import { Icon } from "./icons.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
@@ -81,6 +90,14 @@ export interface SectionsEditorProps {
    *  publishes, and structural changes keep their own save+reload. On by default;
    *  pass `false` to opt out (manual Save draft button), or `{ debounceMs }`. */
   autoSave?: AutoSaveOption;
+  /** The collection slug this sections page belongs to (for the realtime DO
+   *  address `<slug>/<id>`). Default `"pages"`. */
+  collection?: string;
+  /** Opt this sections page into a real-time session (ADR 0002 / #71) — **presence
+   *  only** for now: the shared bar shows the other editors on the page. Sections
+   *  persistence stays on the proven debounced-fetch draft path (a live canvas sync
+   *  is a follow-up). Off by default; degrades silently when the socket can't open. */
+  realtime?: RealtimeOption;
 }
 
 function humanize(key: string): string {
@@ -322,8 +339,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // shows ONE action bar. Null until the bar is found (it mounts separately); the
   // controls fall back to a fixed strip while so.
   const [barSlot, setBarSlot] = createSignal<HTMLElement | null>(null);
+  // Realtime presence (ADR 0002 / #71): the other editors currently on this page.
+  const [peers, setPeers] = createSignal<RealtimePeer[]>([]);
 
   const autoCfg = resolveAutoSave(props.autoSave);
+  const realtimeCfg = resolveRealtime(props.realtime);
   // Bumped on every edit; `save()` captures it and only marks clean if it's
   // unchanged when the draft POST resolves — so an edit made during an in-flight
   // save keeps the surface dirty and the auto-saver reschedules.
@@ -363,6 +383,25 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       autoCfg.enabled ? () => auto?.flush() : undefined,
     );
     void loadVersions();
+
+    // Realtime presence (ADR 0002 / #71): connect to the page's edit-session DO so
+    // the shared bar shows who else is editing. Presence only for now — sections
+    // persistence stays on the debounced-fetch draft path below (a live canvas sync
+    // is a follow-up). Degrades silently: if the socket can't open, `peers` stays
+    // empty and nothing else changes. Closed on cleanup so the socket doesn't leak.
+    if (realtimeCfg.enabled) {
+      let rt: RealtimeSession | null = null;
+      rt = connectRealtime({
+        slug: props.collection ?? "pages",
+        id: props.pageId,
+        throttleMs: realtimeCfg.throttleMs,
+        onPresence: (all) => setPeers(otherPeers(all, rt?.you()?.id)),
+        onStatus: (connected) => {
+          if (!connected) setPeers([]);
+        },
+      });
+      onCleanup(() => rt?.close());
+    }
 
     // On-canvas section chrome (#182 Phase 1): rings + a per-section toolbar over
     // the marked sections, wired to the same structural ops the dock uses (still
@@ -905,6 +944,18 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // the Save/Publish actions. Mounts into the bar slot, or a fixed fallback strip.
   const BarControls = () => (
     <>
+      {/* Realtime presence — the other editors on this page (empty strip hides). */}
+      <Show when={peers().length > 0}>
+        <span class="louise-presence" aria-live="polite">
+          <For each={peers()}>
+            {(peer) => (
+              <span class="louise-avatar" title={`${peer.name} is editing`}>
+                {initials(peer.name)}
+              </span>
+            )}
+          </For>
+        </span>
+      </Show>
       <span
         class="louise-sections-status"
         data-status={status()}

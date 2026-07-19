@@ -16,7 +16,14 @@ const { editMode, editor } = Astro.locals;
 // A versioned page (its inline body edits stage drafts + publish). Pages that own
 // their own versioned surface (the sections dock) leave this undefined so the bar
 // doesn't add a second Publish.
-const { versionedPageId } = Astro.props as { versionedPageId?: number };
+const { versionedPageId, realtime } = Astro.props as {
+  versionedPageId?: number;
+  // Opt this page into a real-time multi-editor session (ADR 0002 / #71). Only
+  // meaningful on a versioned page (realtime persists as drafts); wire it from the
+  // collection's `realtime` flag. Degrades to the debounced-fetch auto-save when
+  // the EDIT_SESSION binding is absent.
+  realtime?: boolean;
+};
 ---
 
 {
@@ -28,6 +35,8 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
         define:vars={{
           userName: editor?.name ?? "Editor",
           versionedPageId: versionedPageId ?? null,
+          // Realtime only makes sense on a versioned page (persists as drafts).
+          realtime: Boolean(realtime) && versionedPageId != null,
         }}
       >
         // `data-astro-rerun` so a view-transition nav (#74) re-stamps the freshly
@@ -37,6 +46,8 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
         if (versionedPageId != null)
           document.body.dataset.louiseVersionedPage = String(versionedPageId);
         else delete document.body.dataset.louiseVersionedPage;
+        if (realtime) document.body.dataset.louiseRealtime = "1";
+        else delete document.body.dataset.louiseRealtime;
       </script>
       <script>
         import { actions } from "astro:actions";
@@ -55,6 +66,10 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
               client.mountLouise({
                 onOpenSettings: () => window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
                 versionedPageId: versioned ? Number(versioned) : undefined,
+                // Real-time multi-editor session (#71), stamped from the collection
+                // flag. A no-op when off or when the EDIT_SESSION binding is absent
+                // (the socket fails to open → falls back to the debounced fetch).
+                realtime: document.body.dataset.louiseRealtime === "1",
                 // Route the normal debounced auto-save through the typed Astro
                 // Actions (#138). The client keeps its raw keepalive fetch for the
                 // page-hide / unload / before-swap flush only (an Action can't

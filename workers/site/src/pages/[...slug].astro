@@ -8,6 +8,7 @@ import LouiseEditIsland from "../components/LouiseEditIsland.astro";
 import SiteChrome from "../components/SiteChrome.astro";
 import { publishedPageCache } from "../lib/louise/cache.js";
 import { latestDraftBody, resumeReadSession } from "../lib/louise/drafts.js";
+import { pagesCollection } from "../pages-collection.js";
 import { pages } from "../schema.js";
 import "../styles/fonts.css";
 import "../styles/louise.css";
@@ -91,6 +92,6 @@ const title = page.seoTitle || page.title;
         }
       </main>
     </SiteChrome>
-    <LouiseEditIsland server:defer versionedPageId={page.id} />
+    <LouiseEditIsland server:defer versionedPageId={page.id} realtime={pagesCollection.realtime} />
   </body>
 </html>

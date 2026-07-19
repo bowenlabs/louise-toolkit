@@ -24,6 +24,7 @@ import Sections from "../components/Sections.astro";
 import SectionsMount from "../components/SectionsMount.astro";
 import { publishedPageCache } from "../lib/louise/cache.js";
 import { latestDraftSections, resumeReadSession } from "../lib/louise/drafts.js";
+import { pagesCollection } from "../pages-collection.js";
 import { pages } from "../schema.js";
 
 // SSR: the marketing app is `output: server` for Louise, and a prerendered
@@ -139,6 +140,9 @@ const FOOTER_NAV = [
         <div
           data-louise-sections={editMode && home ? String(home.id) : undefined}
           data-louise-sections-initial={editMode && home ? JSON.stringify(sections) : undefined}
+          data-louise-sections-realtime={
+            editMode && home && pagesCollection.realtime ? "1" : undefined
+          }
         >
           <Sections sections={sections} />
         </div>

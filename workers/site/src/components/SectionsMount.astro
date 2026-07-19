@@ -26,6 +26,9 @@
     const el = document.querySelector<HTMLElement>("[data-louise-sections]");
     if (!el?.dataset.louiseSections) return;
     const pageId = Number(el.dataset.louiseSections);
+    // Stamped server-side (edit mode only) from the collection's realtime flag —
+    // opts the sections page into a presence session (#71). Off → no socket.
+    const realtime = el.dataset.louiseSectionsRealtime === "1";
     let initial: SectionItem[] = [];
     try {
       initial = JSON.parse(el.dataset.louiseSectionsInitial || "[]");
@@ -42,6 +45,7 @@
         blocks: blk.BLOCKS,
         pageId,
         initial,
+        realtime,
       });
     });
   }

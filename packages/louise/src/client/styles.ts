@@ -166,6 +166,52 @@ const CSS = `
 .louise-exit { color: var(--louise-orange); }
 .louise-exit:hover { background: rgba(234, 115, 23, 0.12); }
 
+/* Realtime presence (ADR 0002 / #71): a compact strip of the OTHER editors in the
+   session, leading the bar. Empty at rest, so a solo editor sees nothing. */
+.louise-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.louise-presence:empty { display: none; }
+.louise-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--louise-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* A rich field a peer holds (soft-lock): dimmed + non-interactive + a badge naming
+   the holder. Advisory only — the server also drops a non-holder's change. */
+.louise-editable.louise-locked {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.6;
+}
+.louise-editable.louise-locked::before {
+  content: attr(data-louise-locked-by);
+  position: absolute;
+  top: -10px;
+  left: 8px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--louise-orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* The sections editor injects its Save-draft / Publish actions here — a leading
    slot on the shared edit bar. display:contents so the buttons participate
    directly in the bar's flex row, sharing its gap + alignment with Settings/Done
