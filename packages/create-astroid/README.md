@@ -4,7 +4,7 @@ Scaffold a new **Astroid** site — an editable, multi-editor Astro app on
 Cloudflare Workers — in one command.
 
 ```sh
-npm create astroid my-site
+pnpm create astroid my-site
 ```
 
 > **Status: pre-1.0, experimental.** The scaffold's output will change between
@@ -28,7 +28,7 @@ Anything you don't pass is prompted for. In a non-TTY every prompt takes its
 default, so the command is CI-safe. The target directory must be empty.
 
 ```
-npm create astroid [directory] [options]
+pnpm create astroid [directory] [options]
 
   --dir <path>          Target directory (also the first positional)
   --name <name>         Brand / site name
@@ -36,6 +36,8 @@ npm create astroid [directory] [options]
   --archetype <type>    marketing | storefront | wholesale | portfolio
   --color <hex>         Brand color
   --host <domain>       Primary domain, e.g. example.com
+  --commerce <provider> square | stripe | fourthwall — also adds the queue
+                        consumer, webhook receiver, and cron safety net
   -h, --help            Show help
   -v, --version         Show the version
 ```
@@ -44,13 +46,13 @@ npm create astroid [directory] [options]
 
 ```sh
 cd my-site
-npm install
-npx wrangler d1 create <name>      # then paste the ids into wrangler.jsonc
-npm run doctor                     # validates config, bindings, generated files
-npm run dev
+pnpm install
+pnpm exec wrangler d1 create <name>   # then paste the ids into wrangler.jsonc
+pnpm doctor                           # validates config, bindings, generated files
+pnpm dev
 ```
 
-`npm run doctor` flags any binding id you haven't filled in yet, plus generated
+`pnpm doctor` flags any binding id you haven't filled in yet, plus generated
 files that have drifted from the config.
 
 ## How the pieces relate

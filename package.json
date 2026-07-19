@@ -12,7 +12,7 @@
     "check": "vp run louise#check",
     "lint:astro": "biome lint .",
     "lint:astro:fix": "biome lint --write .",
-    "lint:solid": "npx --yes -p oxlint@1.73.0 -p eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
+    "lint:solid": "corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
     "knip": "knip",
     "test": "vp run louise#test && vp run astroid#test",
     "dev": "vp run site#dev",

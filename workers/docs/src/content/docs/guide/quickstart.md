@@ -42,9 +42,9 @@ then, add Louise to an app you already have.
 ### 1. Install
 
 ```sh
-npm install louise-toolkit
+pnpm add louise-toolkit
 # peers for what this quickstart uses: Drizzle (db) + the inline-edit client
-npm install drizzle-orm solid-js prosekit @prosekit/pm
+pnpm add drizzle-orm solid-js prosekit @prosekit/pm
 ```
 
 Louise's heavier dependencies are **optional peers** — a route that only imports

@@ -21,7 +21,10 @@
     ".": {
       "entry": ["scripts/*.sh"],
       // eslint-plugin-solid is loaded by oxlint through .oxlintrc.json's
-      // `jsPlugins`, which knip doesn't parse.
+      // `jsPlugins`, which knip doesn't parse. The `lint:solid` script names it
+      // too, but behind `corepack pnpm dlx` — which knip doesn't recognize as a
+      // package reference the way it does a bare `pnpm dlx`. Either way it's a
+      // real dependency: oxlint resolves the plugin from node_modules.
       "ignoreDependencies": ["eslint-plugin-solid"]
     },
 

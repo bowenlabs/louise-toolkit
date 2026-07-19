@@ -128,7 +128,7 @@ expects. One command:
 
 ```sh
 # print to stdout, or write with --out
-npx louise gen-auth-schema --out drizzle/0002_auth.sql
+pnpm exec louise gen-auth-schema --out drizzle/0002_auth.sql
 ```
 
 `gen-auth-schema` takes an optional `--config <path>` (a module default-exporting

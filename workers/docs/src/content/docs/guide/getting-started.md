@@ -25,7 +25,7 @@ nightly, so you can poke at real saves without leaving anything behind.
 ## Install
 
 ```sh
-npm install louise-toolkit
+pnpm add louise-toolkit
 ```
 
 Louise's heavier dependencies are **optional peers**, so a route that only uses
@@ -39,8 +39,8 @@ exports you actually use:
 | `/email`, `/queues`, `/errors`, `/commerce` | _(no peers)_                     |
 
 ```sh
-npm install drizzle-orm            # for /db and /content
-npm install solid-js prosekit @prosekit/pm   # for the /client editor
+pnpm add drizzle-orm            # for /db and /content
+pnpm add solid-js prosekit @prosekit/pm   # for the /client editor
 ```
 
 ## The mental model
