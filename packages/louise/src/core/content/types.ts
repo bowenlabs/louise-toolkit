@@ -471,6 +471,17 @@ export interface CollectionConfig {
     maxPerDoc?: number;
   };
   /**
+   * Opts this collection into real-time multi-editor sessions (ADR 0002 / #71):
+   * a per-page Durable Object (the `EDIT_SESSION` binding) broadcasts presence +
+   * field changes and coalesces edits to D1 as drafts. Requires
+   * `versions.drafts` (the DO persists through the versioned draft path) —
+   * `defineCollection` rejects `realtime` without it. Off by default; when a site
+   * hasn't provisioned the DO binding the realtime route 503s and the client
+   * silently falls back to the debounced-fetch auto-save, so this stays a no-op
+   * everywhere it isn't fully wired.
+   */
+  realtime?: boolean;
+  /**
    * Opts this collection into full-text search (issue #29). `fields` names
    * which of this collection's own `text`/`richText`/`upload` fields are
    * indexed — `defineContentConfig`/`defineCollection` reject any other field

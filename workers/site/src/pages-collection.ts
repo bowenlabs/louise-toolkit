@@ -69,6 +69,12 @@ export const pagesCollection = defineCollection({
     publish: (ctx) => Boolean(ctx?.session),
   },
   versions: { drafts: true },
+  // Real-time multi-editor sessions (ADR 0002 / #71): the EditSessionDO broadcasts
+  // presence + field changes and coalesces edits to D1 through the draft path
+  // above. A no-op until the client opts in (mountLouise({ realtime })) and the
+  // EDIT_SESSION binding is provisioned; otherwise the route 503s and the editor
+  // falls back to the debounced-fetch auto-save.
+  realtime: true,
   // Full-text search over the page title, body, and (flattened) sections content
   // — indexed into a `pages_fts` FTS5 table, kept in sync on publish.
   search: { fields: ["title", "body", "sections"] },

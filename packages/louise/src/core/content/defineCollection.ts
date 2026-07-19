@@ -89,6 +89,15 @@ function validateCollectionConfig(config: CollectionConfig): void {
       );
     }
   }
+
+  // Real-time sessions persist coalesced edits through the versioned draft path
+  // (ADR 0002 / #71), so `realtime` is meaningless — and would have nowhere to
+  // write — without draft versioning.
+  if (config.realtime && !config.versions?.drafts) {
+    throw new LouiseContentError(
+      `Collection "${config.slug}" sets realtime: true but not versions.drafts — realtime persists as drafts, so it requires draft versioning`,
+    );
+  }
 }
 
 function validateUniqueSlugs(collections: readonly CollectionConfig[]): void {
