@@ -19,11 +19,13 @@
 
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.sh"]
-      // `eslint-plugin-solid` used to need an `ignoreDependencies` entry: oxlint
-      // loaded it through .oxlintrc.json's `jsPlugins`, which knip doesn't parse.
-      // The `lint:solid` script now names it explicitly (`pnpm dlx --package=…`),
-      // so knip resolves it from there.
+      "entry": ["scripts/*.sh"],
+      // eslint-plugin-solid is loaded by oxlint through .oxlintrc.json's
+      // `jsPlugins`, which knip doesn't parse. The `lint:solid` script names it
+      // too, but behind `corepack pnpm dlx` — which knip doesn't recognize as a
+      // package reference the way it does a bare `pnpm dlx`. Either way it's a
+      // real dependency: oxlint resolves the plugin from node_modules.
+      "ignoreDependencies": ["eslint-plugin-solid"]
     },
 
     // The library's package.json `exports` map points at ./dist/*, which only
