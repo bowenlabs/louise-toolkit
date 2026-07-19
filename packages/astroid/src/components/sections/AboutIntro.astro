@@ -1,0 +1,46 @@
+---
+// A portrait beside an introduction — the "about the maker" opener.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, mediaAlt, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import MediaSlot from "../MediaSlot.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const heading = field(item, "heading");
+const body = field(item, "body");
+const image = field(item, "image");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto grid max-w-5xl items-start gap-10 px-6 md:grid-cols-[minmax(0,18rem)_1fr]">
+    {image && (
+      <MediaSlot
+        src={image}
+        alt={mediaAlt(mediaMeta, image, field(item, "alt"))}
+        width={576}
+        sizes="(max-width: 48rem) 100vw, 18rem"
+        ratio="3/4"
+      />
+    )}
+    <div>
+      <Editable as="h2" base={base} field="heading" edit={edit} class="text-3xl font-bold">
+        {heading}
+      </Editable>
+      {body && (
+        <Editable
+          as="div"
+          base={base}
+          field="body"
+          type="richtext"
+          edit={edit}
+          class="prose mt-4 max-w-none"
+        >
+          <Fragment set:html={body} />
+        </Editable>
+      )}
+    </div>
+  </div>
+</section>

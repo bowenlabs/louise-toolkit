@@ -210,5 +210,20 @@ jobs:
           corepack pnpm exec astro check
           corepack pnpm exec astro build
 
+          # Type-check ASTROID'S OWN .astro components.
+          #
+          # `astro check` only diagnoses files inside the project, so components
+          # imported from node_modules/astroidjs are invisible to it — verified
+          # with a deliberate type error, which passed straight through. That
+          # left the whole section library compiling nowhere: tsgo doesn't read
+          # .astro, vitest doesn't either, and a scaffold only surfaces errors in
+          # its OWN files (which is how the mountSections bug was caught).
+          #
+          # Copying them under src/ makes them project files for one check pass.
+          # Run after the build so the copies can't reach the output.
+          cp -r node_modules/astroidjs/src/components src/_astroid_probe
+          corepack pnpm exec astro check
+          rm -rf src/_astroid_probe
+
       - name: Build the site
         run: vp run "site#build"

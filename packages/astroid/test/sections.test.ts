@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { SectionCatalog, SectionItem } from "louise-toolkit/content";
 import { describe, expect, it } from "vitest";
 import {
@@ -18,11 +19,73 @@ import {
   setting,
 } from "../src/components/sections.js";
 
+/**
+ * The dispatcher's COMPONENTS map, read out of `Section.astro`.
+ *
+ * Reading the source is deliberate. A `.astro` file can't be imported from a
+ * vitest run, but the failure this guards is real and silent: a catalog entry
+ * with no arm in the dispatcher renders NOTHING — a hole in the page, no error
+ * anywhere — and adding a section type means touching two files.
+ */
+function dispatcherTypes(): string[] {
+  const src = readFileSync(
+    new URL("../src/components/Section.astro", import.meta.url),
+    "utf8",
+  );
+  const start = src.indexOf("const COMPONENTS");
+  if (start === -1) throw new Error("Section.astro no longer declares a COMPONENTS map");
+  // Up to the line that closes the object literal, tolerating `};` or
+  // `} as const;` — the guard should survive a cosmetic edit to the map.
+  const rest = src.slice(start);
+  const end = rest.search(/^\};?\s*(as const;)?\s*$/m);
+  const block = end === -1 ? rest : rest.slice(0, end);
+  const keys = [...block.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+  if (keys.length === 0) throw new Error("could not parse any keys from the COMPONENTS map");
+  return keys;
+}
+
 describe("astroidSectionCatalog", () => {
   it("declares a def for every type the dispatcher renders", () => {
     for (const type of ["hero", "featureGrid", "cta", "contact"]) {
       expect(isRenderableSection(type)).toBe(true);
       expect(astroidSectionCatalog[type].label).toBeTruthy();
+    }
+  });
+
+  it("keeps the catalog and the dispatcher in exact correspondence", () => {
+    // Both directions matter. A catalog entry with no component is an invisible
+    // section; a component with no catalog entry can never be added or edited,
+    // because the palette and the validator are both driven by the catalog.
+    expect(dispatcherTypes().sort()).toEqual(Object.keys(astroidSectionCatalog).sort());
+  });
+
+  it("ships the section types #260 called for", () => {
+    for (const type of [
+      "gallery",
+      "media",
+      "splitImage",
+      "steps",
+      "banner",
+      "faq",
+      "pricingTiers",
+      "testimonial",
+      "aboutIntro",
+      "productGrid",
+      "locationHours",
+    ]) {
+      expect(isRenderableSection(type)).toBe(true);
+    }
+  });
+
+  it("declares every image as an image field, so the page lookup can find it", () => {
+    // A media field typed as `text` is invisible to collectSectionMediaUrls, so
+    // its alt/caption would silently never resolve.
+    const imageFields = (fields: Record<string, { type: string }>) =>
+      Object.entries(fields).filter(([k]) => k === "image");
+    for (const [name, def] of Object.entries(astroidSectionCatalog)) {
+      for (const [, f] of imageFields(def.fields as Record<string, { type: string }>)) {
+        expect(f.type, `${name}.image should be an image field`).toBe("image");
+      }
     }
   });
 

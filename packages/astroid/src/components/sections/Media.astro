@@ -1,0 +1,44 @@
+---
+// A single full-width image, with an optional heading and caption.
+//
+// The alt/caption resolution is the point of `<Sections>`' one-query media
+// lookup: the section's own `alt` is a per-usage override, and an empty one
+// falls back to what the editor typed against the asset in the media library.
+// So fixing alt text is one edit that reaches every page showing that image.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, mediaAlt, mediaCaption, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import MediaSlot from "../MediaSlot.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const heading = field(item, "heading");
+const image = field(item, "image");
+const caption = mediaCaption(mediaMeta, image, field(item, "caption"));
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-5xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-6 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    {image && (
+      <MediaSlot
+        src={image}
+        alt={mediaAlt(mediaMeta, image, field(item, "alt"))}
+        width={1600}
+        sizes="(max-width: 64rem) 100vw, 64rem"
+        ratio="16/9"
+      />
+    )}
+    {caption && (
+      <Editable as="p" base={base} field="caption" edit={edit} class="mt-3 text-sm opacity-70">
+        {caption}
+      </Editable>
+    )}
+  </div>
+</section>

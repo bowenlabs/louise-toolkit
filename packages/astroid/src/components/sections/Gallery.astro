@@ -1,0 +1,46 @@
+---
+// A gallery section over the justified-grid primitive (#257).
+//
+// The layout maths lives in `<JustifiedGallery>`; what this adds is the mapping
+// from stored section rows to gallery items, including the asset-level alt and
+// caption fallback that the page's single media lookup makes cheap.
+import type { GalleryItem } from "../justify.js";
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, mediaAlt, mediaCaption, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import JustifiedGallery from "../JustifiedGallery.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const heading = field(item, "heading");
+
+// Rows with no image are dropped rather than rendered as a gap: an editor who
+// adds a row and hasn't picked the picture yet shouldn't see a broken tile.
+const items: GalleryItem[] = list(item, "items").flatMap((row) => {
+  const src = itemField(row, "image");
+  if (!src) return [];
+  const caption = mediaCaption(mediaMeta, src, itemField(row, "caption"));
+  const href = itemField(row, "href");
+  return [
+    {
+      src,
+      alt: mediaAlt(mediaMeta, src, itemField(row, "alt")),
+      ...(caption ? { caption } : {}),
+      ...(href ? { href } : {}),
+    },
+  ];
+});
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-6xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-8 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    {items.length > 0 && <JustifiedGallery items={items} />}
+  </div>
+</section>

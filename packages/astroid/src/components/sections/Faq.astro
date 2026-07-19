@@ -1,0 +1,50 @@
+---
+// Frequently-asked questions on native <details>/<summary>.
+//
+// Native rather than a JS accordion on purpose: it is keyboard-accessible and
+// screen-reader-correct with no script, it works before hydration, and browser
+// find-in-page can open a collapsed answer — which a div-based accordion
+// silently breaks.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const items = list(item, "items");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-3xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-8 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    <div class="divide-y divide-base-300">
+      {items.map((row, i) => (
+        /* `open` while editing: a collapsed answer is unreachable for in-place
+           editing, and the editor can't be expected to expand each one first. */
+        <details class="group py-4" open={edit}>
+          <summary class="cursor-pointer list-none font-semibold marker:content-none">
+            <Editable as="span" sfield={`${base}.items.${i}.question`} edit={edit}>
+              {itemField(row, "question")}
+            </Editable>
+          </summary>
+          <Editable
+            as="div"
+            sfield={`${base}.items.${i}.answer`}
+            type="richtext"
+            edit={edit}
+            class="prose mt-3 max-w-none"
+          >
+            <Fragment set:html={itemField(row, "answer") ?? ""} />
+          </Editable>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

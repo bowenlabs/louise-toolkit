@@ -1,0 +1,73 @@
+---
+// A grid of products as authored content.
+//
+// Deliberately NOT a live catalog read. A section is stored content that an
+// editor curates; the commerce mirror has its own loader (`readCatalog`) with
+// its own freshness story. A site that wants the live catalog renders it in a
+// page, not through the page-builder — mixing the two would make a section's
+// stored value and what it displays disagree, and the editor would be editing
+// something that isn't there.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, mediaAlt, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import MediaSlot from "../MediaSlot.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const heading = field(item, "heading");
+const items = list(item, "items");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-6xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-8 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((row, i) => {
+        const src = itemField(row, "image");
+        const href = itemField(row, "href");
+        return (
+          <article class="card bg-base-100 text-base-content shadow-sm">
+            {/* The link wraps the media only; the name and price stay outside it
+                so they remain in-place editable rather than being swallowed by
+                a navigation target. */}
+            {src && (
+              href ? (
+                <a href={href}>
+                  <MediaSlot
+                    src={src}
+                    alt={mediaAlt(mediaMeta, src, itemField(row, "alt"))}
+                    width={640}
+                    sizes="(max-width: 40rem) 100vw, 20rem"
+                    ratio="1/1"
+                  />
+                </a>
+              ) : (
+                <MediaSlot
+                  src={src}
+                  alt={mediaAlt(mediaMeta, src, itemField(row, "alt"))}
+                  width={640}
+                  sizes="(max-width: 40rem) 100vw, 20rem"
+                  ratio="1/1"
+                />
+              )
+            )}
+            <div class="card-body">
+              <Editable as="h3" sfield={`${base}.items.${i}.name`} edit={edit} class="card-title text-base">
+                {itemField(row, "name")}
+              </Editable>
+              <Editable as="p" sfield={`${base}.items.${i}.price`} edit={edit} class="opacity-80">
+                {itemField(row, "price")}
+              </Editable>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,51 @@
+---
+// A single quote with optional portrait.
+//
+// <blockquote> + <figcaption> rather than styled divs: the attribution is
+// semantically tied to the quote, which is what a screen reader needs to say
+// who said it.
+import type { SectionRenderProps } from "../sections.js";
+import { alignClass, colorwayClass, field, mediaAlt, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import MediaSlot from "../MediaSlot.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const quote = field(item, "quote");
+const attribution = field(item, "attribution");
+const role = field(item, "role");
+const image = field(item, "image");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <figure
+    class:list={[
+      "mx-auto flex max-w-3xl flex-col gap-6 px-6",
+      alignClass(setting(item, "align", "center")),
+    ]}
+  >
+    {image && (
+      <MediaSlot src={image} alt={mediaAlt(mediaMeta, image, field(item, "alt"))} shape="circle" size={80} />
+    )}
+    <blockquote>
+      <Editable as="p" base={base} field="quote" edit={edit} multiline class="text-2xl italic">
+        {quote}
+      </Editable>
+    </blockquote>
+    {(attribution || role) && (
+      <figcaption class="opacity-80">
+        <Editable as="span" base={base} field="attribution" edit={edit} class="font-semibold">
+          {attribution}
+        </Editable>
+        {role && (
+          <>
+            {attribution && <span aria-hidden="true"> — </span>}
+            <Editable as="span" base={base} field="role" edit={edit}>{role}</Editable>
+          </>
+        )}
+      </figcaption>
+    )}
+  </figure>
+</section>

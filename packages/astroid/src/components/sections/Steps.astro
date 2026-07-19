@@ -1,0 +1,58 @@
+---
+// A numbered sequence — "how it works", a commission process, an onboarding
+// flow. The number is generated from position rather than stored, so reordering
+// steps in the inspector renumbers them with no content edit.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const items = list(item, "items");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-4xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-10 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    <ol class="grid gap-8">
+      {items.map((row, i) => (
+        <li class="flex gap-5">
+          {/* aria-hidden: the marker duplicates the <ol> semantics a screen
+              reader already conveys, so announcing "1" twice is noise. */}
+          <span
+            aria-hidden="true"
+            class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-content font-bold"
+          >
+            {i + 1}
+          </span>
+          <div>
+            <Editable
+              as="h3"
+              sfield={`${base}.items.${i}.title`}
+              edit={edit}
+              class="text-lg font-semibold"
+            >
+              {itemField(row, "title")}
+            </Editable>
+            <Editable
+              as="p"
+              sfield={`${base}.items.${i}.body`}
+              edit={edit}
+              multiline
+              class="mt-1 opacity-80"
+            >
+              {itemField(row, "body")}
+            </Editable>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>

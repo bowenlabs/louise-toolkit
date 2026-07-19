@@ -1,0 +1,79 @@
+---
+// Pricing tiers. Each tier's feature list is a nested array, so a feature's
+// marker path is `<base>.items.<i>.features.<j>.text` — two levels of position,
+// which the client's path parser handles because it splits on `.` and coerces
+// every numeric segment.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const tiers = list(item, "items");
+
+/** A tier's nested feature rows. Untrusted like any stored array. */
+const featuresOf = (row: Record<string, unknown>) =>
+  Array.isArray(row.features)
+    ? row.features.filter(
+        (f): f is Record<string, unknown> =>
+          typeof f === "object" && f !== null && !Array.isArray(f),
+      )
+    : [];
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto max-w-6xl px-6">
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-10 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
+    <div class="grid gap-6 md:grid-cols-3">
+      {tiers.map((row, i) => (
+        <div
+          class:list={[
+            "card bg-base-100 text-base-content shadow-sm",
+            itemField(row, "featured") === "yes" && "ring-2 ring-primary",
+          ]}
+        >
+          <div class="card-body">
+            <Editable as="h3" sfield={`${base}.items.${i}.name`} edit={edit} class="card-title">
+              {itemField(row, "name")}
+            </Editable>
+            <p class="mt-2">
+              <Editable as="span" sfield={`${base}.items.${i}.price`} edit={edit} class="text-3xl font-bold">
+                {itemField(row, "price")}
+              </Editable>
+              <Editable as="span" sfield={`${base}.items.${i}.period`} edit={edit} class="opacity-70">
+                {itemField(row, "period")}
+              </Editable>
+            </p>
+            <ul class="mt-4 grid gap-2">
+              {featuresOf(row).map((feature, j) => (
+                <li>
+                  <Editable
+                    as="span"
+                    sfield={`${base}.items.${i}.features.${j}.text`}
+                    edit={edit}
+                  >
+                    {itemField(feature, "text")}
+                  </Editable>
+                </li>
+              ))}
+            </ul>
+            {itemField(row, "ctaLabel") && (
+              <a class="btn btn-primary mt-6" href={itemField(row, "ctaHref") || "#"}>
+                <Editable as="span" sfield={`${base}.items.${i}.ctaLabel`} edit={edit}>
+                  {itemField(row, "ctaLabel")}
+                </Editable>
+              </a>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

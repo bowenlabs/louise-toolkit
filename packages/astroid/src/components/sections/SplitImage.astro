@@ -1,0 +1,61 @@
+---
+// Image beside copy. Which side the image sits on is a `_layout` token, so an
+// editor flips it from the inspector and Louise stores `"imageEnd"` — never a
+// class name. The mapping from token to CSS is here, where it belongs.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, mediaAlt, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+import MediaSlot from "../MediaSlot.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const heading = field(item, "heading");
+const body = field(item, "body");
+const image = field(item, "image");
+const ctaLabel = field(item, "ctaLabel");
+const ctaHref = field(item, "ctaHref");
+
+// `imageStart` is the default. An unknown/absent token lands here too, so a
+// hand-edited layout can't produce an unstyled row.
+const imageEnd = item._layout === "imageEnd";
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto grid max-w-6xl items-center gap-10 px-6 md:grid-cols-2">
+    {image && (
+      <div class:list={[imageEnd && "md:order-2"]}>
+        <MediaSlot
+          src={image}
+          alt={mediaAlt(mediaMeta, image, field(item, "alt"))}
+          width={800}
+          sizes="(max-width: 48rem) 100vw, 32rem"
+          ratio="4/3"
+        />
+      </div>
+    )}
+    <div>
+      <Editable as="h2" base={base} field="heading" edit={edit} class="text-3xl font-bold">
+        {heading}
+      </Editable>
+      {body && (
+        <Editable
+          as="div"
+          base={base}
+          field="body"
+          type="richtext"
+          edit={edit}
+          class="prose mt-4 max-w-none"
+        >
+          <Fragment set:html={body} />
+        </Editable>
+      )}
+      {ctaLabel && (
+        <a class="btn btn-primary mt-6" href={ctaHref || "#"}>
+          <Editable as="span" base={base} field="ctaLabel" edit={edit}>{ctaLabel}</Editable>
+        </a>
+      )}
+    </div>
+  </div>
+</section>

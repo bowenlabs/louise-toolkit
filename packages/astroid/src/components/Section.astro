@@ -18,12 +18,22 @@
 // Blocks recurse through this same component with a deeper `base`. That's the
 // whole trick: a component never learns its own depth, so a type that renders as
 // a section renders unchanged as a block.
-import type { MediaMeta, SectionItem } from "./sections.js";
-import { isRenderableSection } from "./sections.js";
+import type { MediaMeta, SectionItem, SectionRenderProps } from "./sections.js";
+import AboutIntro from "./sections/AboutIntro.astro";
+import Banner from "./sections/Banner.astro";
 import Contact from "./sections/Contact.astro";
 import Cta from "./sections/Cta.astro";
+import Faq from "./sections/Faq.astro";
 import FeatureGrid from "./sections/FeatureGrid.astro";
+import Gallery from "./sections/Gallery.astro";
 import Hero from "./sections/Hero.astro";
+import LocationHours from "./sections/LocationHours.astro";
+import Media from "./sections/Media.astro";
+import PricingTiers from "./sections/PricingTiers.astro";
+import ProductGrid from "./sections/ProductGrid.astro";
+import SplitImage from "./sections/SplitImage.astro";
+import Steps from "./sections/Steps.astro";
+import Testimonial from "./sections/Testimonial.astro";
 
 interface Props {
   item: SectionItem;
@@ -35,6 +45,30 @@ interface Props {
   /** Page-wide media alt/caption, resolved once by `<Sections>`. */
   mediaMeta?: MediaMeta;
 }
+
+/**
+ * `_type` → render component. A map rather than a chain of `{type === "x" && …}`
+ * for one reason that matters: it can be checked. A catalog entry whose type is
+ * missing here renders NOTHING — a silent hole in the page rather than an error
+ * — so the test suite asserts these keys and the catalog's are the same set.
+ */
+const COMPONENTS: Record<string, ((props: SectionRenderProps) => unknown) | undefined> = {
+  hero: Hero,
+  featureGrid: FeatureGrid,
+  cta: Cta,
+  contact: Contact,
+  gallery: Gallery,
+  media: Media,
+  splitImage: SplitImage,
+  steps: Steps,
+  banner: Banner,
+  faq: Faq,
+  pricingTiers: PricingTiers,
+  testimonial: Testimonial,
+  aboutIntro: AboutIntro,
+  productGrid: ProductGrid,
+  locationHours: LocationHours,
+};
 
 const { item, base, edit, mediaMeta } = Astro.props;
 
@@ -56,15 +90,19 @@ const boundary = editing
   : {};
 
 const shared = { item, base, edit: editing, mediaMeta };
+
+// Resolved in the frontmatter so the template is one dynamic tag rather than a
+// ladder of comparisons. The map itself is the dispatch check — an unknown
+// `_type` (legitimate mid-migration, and already rejected on write) simply
+// finds nothing and renders nothing, which is why the lookup is typed as
+// possibly-undefined rather than asserted.
+const Component = COMPONENTS[type];
 ---
 
 {
-  isRenderableSection(type) && (
+  Component && (
     <div {...boundary} class="contents">
-      {type === "hero" && <Hero {...shared} />}
-      {type === "featureGrid" && <FeatureGrid {...shared} />}
-      {type === "cta" && <Cta {...shared} />}
-      {type === "contact" && <Contact {...shared} />}
+      <Component {...shared} />
 
       {blocks.map((block, j) => (
         <Astro.self item={block} base={`${base}.blocks.${j}`} edit={editing} mediaMeta={mediaMeta} />

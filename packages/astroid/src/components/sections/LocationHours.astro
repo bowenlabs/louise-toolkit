@@ -1,0 +1,59 @@
+---
+// Address, phone, and opening hours.
+//
+// Hours are a <dl>: each day is a term and its hours the description, which is
+// what the pairing actually is. A table would imply columns that don't exist,
+// and a list of "Monday 9–5" strings loses the association entirely.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const address = field(item, "address");
+const phone = field(item, "phone");
+const items = list(item, "items");
+---
+
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class="mx-auto grid max-w-4xl gap-10 px-6 sm:grid-cols-2">
+    <div>
+      {heading && (
+        <Editable as="h2" base={base} field="heading" edit={edit} class="text-3xl font-bold">
+          {heading}
+        </Editable>
+      )}
+      {address && (
+        <Editable as="address" base={base} field="address" edit={edit} multiline class="mt-4 not-italic opacity-80">
+          {address}
+        </Editable>
+      )}
+      {phone && (
+        /* The visible number stays editable; the tel: href is derived from it,
+           stripping the formatting a human reads but a dialler can't. */
+        <p class="mt-2">
+          <a href={`tel:${phone.replace(/[^\d+]/g, "")}`}>
+            <Editable as="span" base={base} field="phone" edit={edit}>{phone}</Editable>
+          </a>
+        </p>
+      )}
+    </div>
+    {items.length > 0 && (
+      <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+        {items.map((row, i) => (
+          <>
+            <Editable as="dt" sfield={`${base}.items.${i}.day`} edit={edit} class="font-medium">
+              {itemField(row, "day")}
+            </Editable>
+            <Editable as="dd" sfield={`${base}.items.${i}.hours`} edit={edit} class="opacity-80">
+              {itemField(row, "hours")}
+            </Editable>
+          </>
+        ))}
+      </dl>
+    )}
+  </div>
+</section>

@@ -71,7 +71,12 @@ const {
 const sectionPath = sfield ?? (base !== undefined && field ? `${base}.${field}` : undefined);
 
 const editing = edit ?? (Astro.locals as { editMode?: boolean }).editMode ?? false;
-const richText = type === "richtext" ? { "data-louise-type": "richtext" } : {};
+// Annotated rather than inferred: without it the ternary widens to a union of
+// two object shapes, one of which carries `"data-louise-type"?: undefined`, and
+// spreading that into `Record<string, string>` is a type error.
+const richText: Record<string, string> =
+  type === "richtext" ? { "data-louise-type": "richtext" } : {};
+const multilineMarker: Record<string, string> = multiline ? { "data-louise-multiline": "" } : {};
 
 let markers: Record<string, string> = {};
 if (editing) {
@@ -79,7 +84,7 @@ if (editing) {
     markers = {
       "data-louise-sfield": sectionPath,
       ...richText,
-      ...(multiline ? { "data-louise-multiline": "" } : {}),
+      ...multilineMarker,
     };
   } else if (collection && key !== undefined && field) {
     markers = { "data-louise-field": `${collection}:${key}:${field}`, ...richText };

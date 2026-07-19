@@ -169,6 +169,40 @@ export function itemField(row: Record<string, unknown>, key: string): string | u
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Alt text for an image, resolving the ASSET-LEVEL fallback.
+ *
+ * The precedence is the whole reason `<Sections>` does its media lookup: a
+ * per-usage `alt` on the section wins, because the same photo means something
+ * different in a hero than in a thumbnail strip — but when there isn't one, the
+ * alt an editor typed once in the media library is used. That's what makes
+ * fixing alt text a single edit that propagates everywhere the asset appears,
+ * instead of a hunt through every page that embeds it.
+ *
+ * Returns `""` rather than undefined when neither exists: an image with no
+ * description is decorative as far as a screen reader is concerned, and an
+ * empty alt says exactly that. A missing attribute makes it read the filename.
+ */
+export function mediaAlt(
+  mediaMeta: MediaMeta | undefined,
+  src: string | undefined,
+  override?: string,
+): string {
+  if (override !== undefined && override !== "") return override;
+  return (src ? mediaMeta?.[src]?.alt : undefined) ?? "";
+}
+
+/** Caption for an image, same precedence as {@link mediaAlt}. Undefined when
+ *  there is none — a missing caption renders nothing, unlike a missing alt. */
+export function mediaCaption(
+  mediaMeta: MediaMeta | undefined,
+  src: string | undefined,
+  override?: string,
+): string | undefined {
+  if (override !== undefined && override !== "") return override;
+  return src ? mediaMeta?.[src]?.caption : undefined;
+}
+
 // --- The catalog -----------------------------------------------------------
 // Schema only. Each entry declares what an editor can change and how it is
 // validated; the matching `.astro` component owns every pixel.
@@ -216,6 +250,212 @@ export const astroidSectionCatalog: SectionCatalog = {
     },
     settings: SECTION_SETTINGS,
   },
+  // --- media ---------------------------------------------------------------
+  // Every `image` field is declared as such rather than as text, which is what
+  // lets `collectSectionMediaUrls` find it and the page resolve alt/caption in
+  // one lookup. A per-usage `alt` sits beside each one as an OVERRIDE: left
+  // empty it falls back to the asset's own alt, so an editor fixes it once in
+  // the media library (see `mediaAlt`).
+  gallery: {
+    label: "Gallery",
+    icon: "gallery",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      items: {
+        type: "array",
+        label: "Images",
+        itemLabel: "Image",
+        itemFields: {
+          image: { type: "image", label: "Image" },
+          alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+          caption: { type: "text", label: "Caption" },
+          href: { type: "text", label: "Links to", inline: false },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  media: {
+    label: "Media",
+    icon: "image",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      image: { type: "image", label: "Image" },
+      alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+      caption: { type: "text", label: "Caption" },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  splitImage: {
+    label: "Split image",
+    icon: "columns",
+    fields: {
+      heading: { type: "text", label: "Heading", validation: (r) => r.required() },
+      body: { type: "richText", label: "Body" },
+      image: { type: "image", label: "Image" },
+      alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+      ctaLabel: { type: "text", label: "Button label" },
+      ctaHref: { type: "text", label: "Button link", inline: false },
+    },
+    // Which side the image sits on is a LAYOUT, not a setting: it's a named
+    // arrangement of the same content, which is exactly what `_layout` is for.
+    layouts: { imageStart: { label: "Image left" }, imageEnd: { label: "Image right" } },
+    settings: SECTION_SETTINGS,
+  },
+
+  // --- structured copy -----------------------------------------------------
+  steps: {
+    label: "Steps",
+    icon: "list-ordered",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      items: {
+        type: "array",
+        label: "Steps",
+        itemLabel: "Step",
+        itemFields: {
+          title: { type: "text", label: "Title", validation: (r) => r.required() },
+          body: { type: "textarea", label: "Body" },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  banner: {
+    label: "Banner",
+    icon: "megaphone",
+    fields: {
+      text: { type: "text", label: "Text", validation: (r) => r.required().max(200) },
+      ctaLabel: { type: "text", label: "Button label" },
+      ctaHref: { type: "text", label: "Button link", inline: false },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  faq: {
+    label: "FAQ",
+    icon: "help",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      items: {
+        type: "array",
+        label: "Questions",
+        itemLabel: "Question",
+        itemFields: {
+          question: { type: "text", label: "Question", validation: (r) => r.required() },
+          // richText, not textarea: an answer routinely wants a link.
+          answer: { type: "richText", label: "Answer" },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  pricingTiers: {
+    label: "Pricing tiers",
+    icon: "tag",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      items: {
+        type: "array",
+        label: "Tiers",
+        itemLabel: "Tier",
+        itemFields: {
+          name: { type: "text", label: "Name", validation: (r) => r.required() },
+          price: { type: "text", label: "Price" },
+          period: { type: "text", label: "Period (e.g. /mo)" },
+          // A list of strings isn't expressible — array items are objects — so
+          // each feature is a one-field row. That also leaves room to add an
+          // `included` flag later without a data migration.
+          features: {
+            type: "array",
+            label: "Features",
+            itemLabel: "Feature",
+            itemFields: { text: { type: "text", label: "Feature" } },
+          },
+          ctaLabel: { type: "text", label: "Button label" },
+          ctaHref: { type: "text", label: "Button link", inline: false },
+          featured: {
+            type: "select",
+            label: "Highlight this tier",
+            inline: false,
+            options: [
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+            ],
+          },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  testimonial: {
+    label: "Testimonial",
+    icon: "quote",
+    fields: {
+      quote: { type: "textarea", label: "Quote", validation: (r) => r.required() },
+      attribution: { type: "text", label: "Who said it" },
+      role: { type: "text", label: "Their role" },
+      image: { type: "image", label: "Portrait" },
+      alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  aboutIntro: {
+    label: "About intro",
+    icon: "user",
+    fields: {
+      heading: { type: "text", label: "Heading", validation: (r) => r.required() },
+      body: { type: "richText", label: "Body" },
+      image: { type: "image", label: "Image" },
+      alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+    },
+    settings: SECTION_SETTINGS,
+  },
+
+  // --- module-adjacent -----------------------------------------------------
+  productGrid: {
+    label: "Product grid",
+    icon: "shopping-bag",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      // Deliberately hand-authored rows rather than a live catalog read. A
+      // section is stored content, and the commerce mirror is a separate
+      // concern with its own loader — a site that wants the live catalog renders
+      // `readCatalog` in its own page, not through the page-builder.
+      items: {
+        type: "array",
+        label: "Products",
+        itemLabel: "Product",
+        itemFields: {
+          name: { type: "text", label: "Name", validation: (r) => r.required() },
+          price: { type: "text", label: "Price" },
+          image: { type: "image", label: "Image" },
+          alt: { type: "text", label: "Alt text (overrides the asset's)", inline: false },
+          href: { type: "text", label: "Links to", inline: false },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+  locationHours: {
+    label: "Location & hours",
+    icon: "map-pin",
+    fields: {
+      heading: { type: "text", label: "Heading" },
+      address: { type: "textarea", label: "Address" },
+      phone: { type: "text", label: "Phone" },
+      items: {
+        type: "array",
+        label: "Hours",
+        itemLabel: "Day",
+        itemFields: {
+          day: { type: "text", label: "Day", validation: (r) => r.required() },
+          hours: { type: "text", label: "Hours" },
+        },
+      },
+    },
+    settings: SECTION_SETTINGS,
+  },
+
   contact: {
     label: "Contact",
     icon: "mail",

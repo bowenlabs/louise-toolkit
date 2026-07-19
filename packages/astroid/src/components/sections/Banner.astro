@@ -1,0 +1,31 @@
+---
+// A single-line attention strip. Defaults to the brand colorway, since that's
+// what a banner is for.
+import type { SectionRenderProps } from "../sections.js";
+import { alignClass, colorwayClass, field, setting } from "../sections.js";
+import Editable from "../Editable.astro";
+
+type Props = SectionRenderProps;
+
+const { item, base, edit } = Astro.props;
+
+const text = field(item, "text");
+const ctaLabel = field(item, "ctaLabel");
+const ctaHref = field(item, "ctaHref");
+---
+
+<section class:list={["py-4", colorwayClass(setting(item, "colorway", "brand"))]}>
+  <div
+    class:list={[
+      "mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-6",
+      alignClass(setting(item, "align", "center")),
+    ]}
+  >
+    <Editable as="p" base={base} field="text" edit={edit} class="font-medium">{text}</Editable>
+    {ctaLabel && (
+      <a class="btn btn-sm" href={ctaHref || "#"}>
+        <Editable as="span" base={base} field="ctaLabel" edit={edit}>{ctaLabel}</Editable>
+      </a>
+    )}
+  </div>
+</section>
