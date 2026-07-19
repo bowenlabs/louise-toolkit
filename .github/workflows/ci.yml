@@ -83,6 +83,22 @@ jobs:
         run: NODE_PATH=node_modules vp pack
         working-directory: packages/louise
 
+      # Type-check Astroid against the BUILT library, which is why it runs after
+      # the pack above and not next to the louise typecheck.
+      #
+      # Astroid's vitest aliases `louise-toolkit/*` to source, so the test suite
+      # resolves imports that the published package may not actually expose —
+      # it cannot see an export-map problem. This step resolves through
+      # node_modules like a real consumer, so a subpath that isn't exported (or
+      # isn't emitted by the build) fails here instead of in someone's install.
+      #
+      # The gap this closes: `louise-toolkit/content/sections` was added as a new
+      # export, and nothing in CI would have caught it being missing from the
+      # export map or the build output.
+      - name: Type-check Astroid (against the built library)
+        run: node_modules/.bin/tsgo --noEmit
+        working-directory: packages/astroid
+
       # Build the Astroid CLI (tsgo → dist/) so its generators + bin are runnable.
       # Invoke tsgo directly (the package's `build` script) rather than via a `vp
       # run` task — this must actually produce dist/, like the louise pack above.
