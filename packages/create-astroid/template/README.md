@@ -16,29 +16,44 @@ cp .env.example .dev.vars   # local secrets for `astro dev`; fill SESSION_SECRET
 pnpm dev                    # astroid dev: regenerate, then astro dev
 ```
 
-## Provision (first deploy)
+## Deploy
 
-Astroid wrote `wrangler.jsonc` with placeholder binding ids. Create the bindings
-and fill them in:
+Astroid wrote `wrangler.jsonc` with placeholder binding ids. Pick a path to
+provision them and ship — then seed content + your first editor (below).
+
+### Zero-CLI — Deploy to Cloudflare
+
+Push this repo to GitHub and drop this button in place (swap in your repo URL).
+Cloudflare clones the repo, provisions the D1/R2/KV bindings declared in
+`wrangler.jsonc`, and deploys — no local tooling:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=<YOUR_GITHUB_REPO_URL>)
+
+### One command — `astroid deploy`
+
+Provisions the still-placeholder bindings, applies migrations, prompts for
+secrets, and deploys — through your local `wrangler`:
+
+```sh
+pnpm astroid deploy --dry-run   # preview the exact commands it will run
+pnpm astroid deploy             # provision + migrate + secrets + deploy (asks first)
+```
+
+### By hand
 
 ```sh
 wrangler d1 create __KEY__
 wrangler r2 bucket create __KEY__-media
-wrangler kv namespace create RL
-wrangler kv namespace create DRAFTS
-```
-
-Set the secret(s):
-
-```sh
-wrangler secret put SESSION_SECRET     # openssl rand -base64 32
-```
-
-Apply the migrations (content + Better Auth), seed the editable home page, then
-seed your first editor:
-
-```sh
+wrangler kv namespace create RL && wrangler kv namespace create DRAFTS
+# paste the printed ids into wrangler.jsonc, then:
+wrangler secret put SESSION_SECRET          # openssl rand -base64 32
 wrangler d1 migrations apply DB --remote
+wrangler deploy
+```
+
+### Seed content + your first editor
+
+```sh
 wrangler d1 execute DB --file seed/home.seed.sql --remote
 OWNER_EMAIL=you@example.com pnpm seed:editors
 ```
@@ -69,11 +84,13 @@ edit mode, so the public HTML stays clean. Wrap any page field in `<Editable
 collection="pages" key={page.id} field="…">` and pass `versionedPageId` to make it
 editable. Body HTML is sanitized on every save.
 
-## Deploy
+## Redeploy
+
+Once provisioned, shipping changes is just:
 
 ```sh
 pnpm doctor         # validate config, bindings, and generated-file freshness
-wrangler deploy
+wrangler deploy     # or: pnpm astroid deploy
 ```
 
 ## Layout
