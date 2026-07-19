@@ -15,4 +15,16 @@ export default defineConfig({
   adapter: cloudflare(),
   integrations: [solid()],
   vite: { plugins: [tailwindcss()] },
+  // Content-Security-Policy. Astro hashes every processed script + style and emits
+  // a `content-security-policy` response header on on-demand (SSR) pages — which is
+  // all of ours. The generated src/middleware.ts (createLouiseMiddleware) then
+  // rewrites `style-src` to `'self' 'unsafe-inline'` so Louise's data-driven
+  // `style=""` carriers and the editor's runtime-injected <style> are allowed, and
+  // permits the inlined `data:` brand font. This is why the inline scripts here
+  // (login.astro, LouiseEdit.astro) avoid is:inline/define:vars — those can't be
+  // hashed and would be blocked.
+  //
+  // Using Square Web Payments? Allow its SDK host in script-src:
+  //   security: { csp: { scriptDirective: { resources: ["'self'", "https://web.squarecdn.com"] } } }
+  security: { csp: true },
 });

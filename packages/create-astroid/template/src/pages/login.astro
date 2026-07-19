@@ -33,13 +33,17 @@ export const prerender = false;
     </div>
   </main>
 
-  <script is:inline>
+  {/* Processed (NOT is:inline) so Astro's security.csp hashes it into script-src.
+      Keep it dependency-free and static — an is:inline or define:vars script here
+      would be unhashable and CSP-blocked. */}
+  <script>
     const form = document.getElementById("magic");
     const msg = document.getElementById("msg");
-    form.addEventListener("submit", async (e) => {
+    form?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = document.getElementById("email").value.trim();
-      if (!email) return;
+      const input = document.getElementById("email") as HTMLInputElement | null;
+      const email = input?.value.trim();
+      if (!email || !msg) return;
       msg.textContent = "Sending…";
       try {
         await fetch("/api/auth/sign-in/magic-link", {

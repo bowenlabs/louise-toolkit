@@ -16,15 +16,19 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
 {
   editMode && (
     <>
-      <script
-        is:inline
-        define:vars={{ userName: editor?.name ?? "Editor", versionedPageId: versionedPageId ?? null }}
-      >
-        document.body.dataset.louiseEdit = "1";
-        document.body.dataset.louiseUser = userName;
-        if (versionedPageId != null) document.body.dataset.louiseVersionedPage = String(versionedPageId);
-        else delete document.body.dataset.louiseVersionedPage;
-      </script>
+      {/* Per-render values (editor name, versioned page id) ride as data-* on this
+          marker element rather than a define:vars inline script. define:vars forces
+          is:inline, whose content varies per request and so can't be hashed by
+          Astro's security.csp — it would be CSP-blocked. The boot script below
+          reads them from here; being static, it hashes cleanly into script-src.
+          The element also gates the editor: no marker (a non-edit page swapped in
+          by a view transition) → boot() no-ops. */}
+      <div
+        id="louise-boot"
+        hidden
+        data-louise-user={editor?.name ?? "Editor"}
+        data-louise-versioned-page={versionedPageId != null ? String(versionedPageId) : undefined}
+      />
       <script>
         // Lazy-import the editor client only in edit mode. `mountLouise` renders
         // the edit bar; `mountSettings` renders the drawer (Pages/Media/Settings +
@@ -32,17 +36,18 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
         // the bar gains Save draft + Publish, and this page's `<Editable>` fields
         // are edited in place — their changes stage a draft, promoted on Publish.
         function boot() {
-          if (document.body.dataset.louiseEdit !== "1") return;
+          const el = document.getElementById("louise-boot");
+          if (!el) return;
           Promise.all([
             import("louise-toolkit/client"),
             import("louise-toolkit/client/settings"),
           ])
             .then(([client, settings]) => {
               settings.mountSettings({
-                userName: document.body.dataset.louiseUser || "Editor",
+                userName: el.dataset.louiseUser || "Editor",
                 users: true,
               });
-              const versioned = document.body.dataset.louiseVersionedPage;
+              const versioned = el.dataset.louiseVersionedPage;
               client.mountLouise({
                 onOpenSettings: () =>
                   window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
