@@ -50,6 +50,11 @@ jobs:
       - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
         run: npx --yes -p oxlint@1.73.0 -p eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client
 
+      # Dead-code check: unused files and exports across the workspace. Runs on
+      # source (entry points mapped in knip.jsonc), so no build is needed.
+      - name: Dead-code check (Knip)
+        run: node_modules/.bin/knip
+
       - name: Type-check
         run: vp run "louise#typecheck"
 

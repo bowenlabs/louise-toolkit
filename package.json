@@ -13,6 +13,7 @@
     "lint:astro": "biome lint .",
     "lint:astro:fix": "biome lint --write .",
     "lint:solid": "npx --yes -p oxlint@1.73.0 -p eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
+    "knip": "knip",
     "test": "vp run louise#test",
     "dev": "vp run site#dev",
     "changeset": "changeset",
@@ -21,7 +22,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@changesets/cli": "^2.31.0",
-    "eslint-plugin-solid": "^0.14.5"
+    "eslint-plugin-solid": "^0.14.5",
+    "knip": "^5.88.1"
   },
   "engines": {
     "node": ">=26.0.0"
