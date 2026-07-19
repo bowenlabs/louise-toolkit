@@ -19,8 +19,82 @@
 
 import type { EmailSender, MailContent } from "louise-toolkit/email";
 import { sendEmail } from "louise-toolkit/email";
+import { type ModuleSecrets, resolveModuleSecrets, type SecretSource } from "../secrets.js";
 
 export type { EmailSender };
+
+/**
+ * The secrets the mailer needs. Just the envelope sender: the EMAIL binding is a
+ * binding, not a secret, so it's gated by presence rather than by value.
+ *
+ * Named here so `astroid doctor` and the scaffold's `.dev.vars` seed read the
+ * same list the runtime gate does.
+ */
+export const EMAIL_SECRET_NAMES = ["MAIL_FROM"] as const;
+
+/**
+ * The mailer's resolved gate. Deliberately NOT `ModuleSecrets<"MAIL_FROM">`:
+ * `missing` here can name `EMAIL`, which is a binding rather than a secret, so
+ * the key type is widened to plain strings.
+ */
+export interface MailerStatus {
+  /** True only when a binding AND a real sender address are both present. */
+  configured: boolean;
+  values: ModuleSecrets<"MAIL_FROM">["values"];
+  /** What's unprovisioned — secret names and/or `"EMAIL"`. */
+  missing: string[];
+  /** Whether an Email Sending binding is present at all. */
+  hasBinding: boolean;
+}
+
+/** The env members the mailer reads. Structural, so a project's env fits. */
+export interface MailerEnv {
+  EMAIL?: EmailSender | null;
+  MAIL_FROM?: SecretSource;
+}
+
+/**
+ * Resolve the email module's dormancy.
+ *
+ * Both halves are required, and for the same reason: a binding with no sender
+ * address can't build an envelope, and a sender address with no binding has
+ * nothing to send through. Either one missing means log-and-continue, which
+ * under `wrangler dev` (no EMAIL binding at all) is the normal case — and the
+ * reason the magic-link flow is still workable locally.
+ */
+export async function resolveMailerStatus(env: MailerEnv): Promise<MailerStatus> {
+  const secrets = await resolveModuleSecrets({ MAIL_FROM: env.MAIL_FROM });
+  const hasBinding = Boolean(env.EMAIL);
+  return {
+    configured: secrets.configured && hasBinding,
+    values: secrets.values,
+    missing: hasBinding ? [...secrets.missing] : [...secrets.missing, "EMAIL"],
+    hasBinding,
+  };
+}
+
+/**
+ * Build `MailerOptions` from an env, with dormancy already decided.
+ *
+ * The point of routing through {@link resolveMailerStatus} rather than checking
+ * `!env.EMAIL` inline is that the placeholder sentinel counts: a scaffold seeds
+ * `MAIL_FROM=DUMMY_REPLACE_ME`, and handing that to the Email API as an
+ * envelope sender is exactly the "called upstream with a dummy credential"
+ * failure the convention exists to prevent.
+ */
+export async function resolveMailer(
+  env: MailerEnv,
+  overrides: Partial<Omit<MailerOptions, "binding" | "from">> = {},
+): Promise<MailerOptions & { status: MailerStatus }> {
+  const status = await resolveMailerStatus(env);
+  return {
+    ...overrides,
+    binding: env.EMAIL ?? null,
+    from: status.values.MAIL_FROM ?? "noreply@localhost",
+    logOnly: overrides.logOnly || !status.configured,
+    status,
+  };
+}
 
 /** One message queued for delivery. */
 export interface OutgoingMail {

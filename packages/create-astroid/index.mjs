@@ -25,6 +25,7 @@ import {
   generateAstroidPortalLocals,
   generateAstroidProject,
   generateAstroidQueueSeam,
+  generateAstroidSecretsEnv,
   generateAstroidWebhookRoutes,
   generateAstroidWrangler,
 } from "astroidjs";
@@ -232,6 +233,11 @@ async function main() {
     // The portal session on App.Locals, or nothing — a project that types a
     // local it never sets invites a null-check nobody needs.
     ASTROID_PORTAL_LOCALS: portalLocals ? `\n${portalLocals}` : "",
+    // Placeholder-seeded secrets for whichever modules this project enabled, so
+    // a fresh clone has a COMPLETE binding set that all reads as unconfigured —
+    // every module takes its dormant path deliberately rather than tripping over
+    // an undefined binding. Empty for a project with no credentialed module.
+    ASTROID_MODULE_SECRETS: generateAstroidSecretsEnv(config),
   };
 
   // 1. The static floor (Astro app, auth seam, config files) with tokens filled.

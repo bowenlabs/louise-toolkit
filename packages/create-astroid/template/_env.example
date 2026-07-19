@@ -24,3 +24,4 @@ MAIL_FROM=no-reply@__KEY__.example
 # own sign-in. Get a real pair at dash.cloudflare.com → Turnstile.
 TURNSTILE_SECRET=DUMMY_REPLACE_ME
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
+__ASTROID_MODULE_SECRETS__

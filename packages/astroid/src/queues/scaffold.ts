@@ -11,10 +11,17 @@
 
 import { astroidCatalogMirror } from "../commerce/mirror.js";
 import { astroidCommerceProviders, astroidCommerceRoles } from "../commerce/roles.js";
+import { COMMERCE_PROVIDER_SECRETS } from "../commerce/secrets.js";
 import type { AstroidConfig, CommerceProvider } from "../config.js";
 import { ASTROID_QUEUE_BINDING } from "./messages.js";
 
-/** Per-provider webhook facts: the header, the verifier, and how it's called. */
+/**
+ * Per-provider webhook facts: the header, the verifier, and how it's called.
+ *
+ * The signing-secret NAME is deliberately not here — it's one field of a
+ * provider's secret set, which `commerce/secrets.ts` owns so the wrangler
+ * generator, the status report, and this scaffold all read the same list.
+ */
 const PROVIDERS: Record<
   CommerceProvider,
   {
@@ -23,8 +30,6 @@ const PROVIDERS: Record<
     header: string;
     /** The verifier call, given `secret` in scope. */
     call: string;
-    /** Secrets Store binding holding the signing secret. */
-    secretBinding: string;
     note: string;
   }
 > = {
@@ -35,7 +40,6 @@ const PROVIDERS: Record<
     // Square signs the notification URL CONCATENATED with the body, so the URL
     // has to match what's configured in the Square dashboard exactly.
     call: "verifySquareSignature(url.href, raw, headers.get(HEADER), secret)",
-    secretBinding: "SQUARE_WEBHOOK_SECRET",
     note: "Square signs `notificationUrl + body`, so url.href must match the endpoint you registered.",
   },
   stripe: {
@@ -45,7 +49,6 @@ const PROVIDERS: Record<
     // Stripe's header carries a timestamp; the verifier rejects replays outside
     // its tolerance, so it needs the current time.
     call: 'verifyStripeSignature(raw, headers.get(HEADER) ?? "", secret, Math.floor(Date.now() / 1000))',
-    secretBinding: "STRIPE_WEBHOOK_SECRET",
     note: "Stripe's signature is timestamped — the verifier rejects replays outside a 5-minute tolerance.",
   },
   fourthwall: {
@@ -53,7 +56,6 @@ const PROVIDERS: Record<
     verifier: "verifyFourthwallSignature",
     header: "x-fourthwall-hmac-sha256",
     call: "verifyFourthwallSignature(raw, headers.get(HEADER), secret)",
-    secretBinding: "FOURTHWALL_WEBHOOK_SECRET",
     note: "Fourthwall signs the raw body only.",
   },
 };
@@ -74,14 +76,19 @@ export function generateAstroidEnvBindings(config: AstroidConfig): string {
   return [
     "  /** Queue producer — verified webhooks + the cron re-sync (src/queue.ts). */",
     '  COMMERCE_QUEUE: Queue<import("astroidjs").AstroidQueueMessage>;',
-    // One secret per provider: a site running Stripe for invoicing and
-    // Fourthwall for the storefront receives webhooks from both, signed
-    // independently.
+    // One secret SET per provider: a site running Stripe for invoicing and
+    // Fourthwall for the storefront talks to both, credentialed and signed
+    // independently. Every one is optional, because every one is allowed to be
+    // absent — that's what leaves the module dormant rather than broken.
     ...providers.flatMap((provider) => [
-      `  /** ${provider} webhook signing secret. Seeded with the`,
-      "   *  DUMMY_REPLACE_ME sentinel, which reads as unconfigured — the receiver",
-      "   *  answers 503 until it holds a real value. */",
-      `  ${PROVIDERS[provider].secretBinding}?: string;`,
+      `  /** ${provider} API credentials. Absent or still holding the`,
+      "   *  DUMMY_REPLACE_ME sentinel reads as unconfigured, which leaves commerce",
+      "   *  dormant: the D1 mirror still serves, nothing calls upstream. */",
+      ...COMMERCE_PROVIDER_SECRETS[provider].credentials.map((name) => `  ${name}?: string;`),
+      `  /** ${provider} webhook signing secret. Until it holds a real value the`,
+      "   *  receiver answers 503, so the provider keeps retrying and events",
+      "   *  delivered before you provisioned it still land afterwards. */",
+      `  ${COMMERCE_PROVIDER_SECRETS[provider].webhook}?: string;`,
     ]),
   ].join("\n");
 }
@@ -184,7 +191,7 @@ export function generateAstroidWebhookRoute(
     "  const headers = request.headers;",
     "  return handleWebhook(request, url, {",
     `    provider: ${JSON.stringify(provider)},`,
-    `    secret: await readModuleSecret(env.${p.secretBinding}),`,
+    `    secret: await readModuleSecret(env.${COMMERCE_PROVIDER_SECRETS[provider].webhook}),`,
     `    queue: env.${ASTROID_QUEUE_BINDING},`,
     `    verify: ({ raw, secret }) => ${p.call},`,
     "  });",

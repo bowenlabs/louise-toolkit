@@ -99,6 +99,8 @@ async function cmdDoctor(cwd, flags) {
   const warn = (msg) => problems.push({ level: "warn", msg });
   const oks = [];
   const ok = (msg) => oks.push(msg);
+  // Neither pass nor problem: informational lines about what's switched on.
+  const notes = [];
 
   ok(`config loads and validates (${rel(cwd, configPath)})`);
 
@@ -141,8 +143,45 @@ async function cmdDoctor(cwd, flags) {
   if (existsSync(join(cwd, "migrations"))) ok("migrations/ directory present");
   else warn("no migrations/ directory — create your D1 schema migrations there.");
 
+  // 4. Local secret provisioning — which modules will run dormant under
+  //    `astroid dev`, and what to set to wake them.
+  //
+  //    Scoped deliberately to SECRETS, read from .dev.vars. Doctor is a static
+  //    CLI: it cannot see runtime bindings (EMAIL, the queue), so claiming
+  //    "email is dormant" here would be reporting its own blindness as the
+  //    project's state. What it CAN say for certain is whether a value is still
+  //    the placeholder — and that is the half developers actually forget.
+  //
+  //    A dormant module is never an error. It is the documented default, and a
+  //    fresh scaffold is expected to report every module dormant.
+  const { astroidSecretNames, ASTROID_SECRET_PLACEHOLDER } = await import(GENERATORS_URL);
+  const devVarsPath = join(cwd, ".dev.vars");
+  const devVars = existsSync(devVarsPath) ? parseDotEnv(readFileSync(devVarsPath, "utf8")) : null;
+
+  if (!devVars) {
+    warn(
+      "no .dev.vars — every module runs dormant (simulated) locally. " +
+        "Copy .env.example to .dev.vars to change that.",
+    );
+  }
+  for (const [moduleName, names] of Object.entries(astroidSecretNames(config))) {
+    if (names.length === 0) continue;
+    const unset = names.filter((name) => {
+      const value = (devVars?.[name] ?? "").trim();
+      return value === "" || value === ASTROID_SECRET_PLACEHOLDER;
+    });
+    // `core` is not a module — its secrets each gate their own thing (sessions
+    // fail closed off localhost, Turnstile needs a matched pair), so a blanket
+    // "dormant" line would be wrong. Report it as provisioning, not dormancy.
+    if (unset.length === 0) ok(`${moduleName}: all secrets provisioned in .dev.vars`);
+    else if (moduleName === "core")
+      notes.push(`core: ${unset.length} secret(s) unset locally (${unset.join(", ")})`);
+    else notes.push(`${moduleName}: dormant (simulated) — unprovisioned: ${unset.join(", ")}`);
+  }
+
   // --- report ---
   for (const m of oks) out(`  ✓ ${m}`);
+  for (const n of notes) out(`  · ${n}`);
   for (const p of problems) {
     if (p.level === "warn") out(`  ! ${p.msg}`);
     else out(`  ✗ ${p.msg}`);
@@ -359,6 +398,28 @@ async function cmdDeploy(cwd, flags, rest) {
 }
 
 // --- helpers ---------------------------------------------------------------
+/**
+ * Minimal KEY=VALUE reader for .dev.vars. Not a dotenv implementation — doctor
+ * only needs to know whether a value is absent, empty, or the placeholder, so
+ * expansion, multiline values, and `export` prefixes are out of scope. Quotes
+ * are stripped because wrangler accepts them and a quoted placeholder must
+ * still read as a placeholder.
+ */
+function parseDotEnv(text) {
+  const vars = {};
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (value.length >= 2 && /^(".*"|'.*')$/s.test(value)) value = value.slice(1, -1);
+    vars[key] = value;
+  }
+  return vars;
+}
+
 function out(s) {
   process.stdout.write(`${s}\n`);
 }

@@ -15,6 +15,12 @@
 //      NEVER clobber them, or it would wipe provisioned ids — so they live in a
 //      separate function the regenerate path doesn't call.
 
+import { astroidCommerceProviders } from "../commerce/roles.js";
+import {
+  COMMERCE_PROVIDER_SECRETS,
+  COMMERCE_PROVIDER_SETUP,
+  commerceSecretNames,
+} from "../commerce/secrets.js";
 import type { AstroidConfig } from "../config.js";
 import {
   ASTROID_QUEUE_BINDING,
@@ -22,6 +28,7 @@ import {
   astroidQueueNames,
   astroidUsesQueues,
 } from "../queues/messages.js";
+import { ASTROID_SECRET_PLACEHOLDER } from "../secrets.js";
 import { generateAstroidSchema } from "../schema/generate.js";
 import { generateAstroidMiddleware, generateAstroidWorker } from "../worker/generate.js";
 
@@ -44,6 +51,46 @@ export function generateAstroidProject(config: AstroidConfig): GeneratedFile[] {
     { path: "src/worker.ts", contents: generateAstroidWorker(config) },
     { path: "src/middleware.ts", contents: generateAstroidMiddleware(config) },
   ];
+}
+
+/**
+ * The module-secret block `create-astroid` substitutes into `.env.example`.
+ *
+ * Every name is seeded with the placeholder sentinel rather than left empty,
+ * which is the whole trick behind a scaffold that runs with no accounts: the
+ * bindings all EXIST and all read as unconfigured, so each module takes its
+ * dormant path deliberately instead of hitting an undefined-binding error. The
+ * names come from {@link commerceSecretNames}, the same declaration the runtime
+ * gate and the generated `env.d.ts` read.
+ *
+ * Empty string when the project enables no module that needs credentials — the
+ * core secrets (session, Turnstile, mail) are already in the template file, with
+ * their own prose.
+ */
+export function generateAstroidSecretsEnv(config: AstroidConfig): string {
+  const providers = astroidCommerceProviders(config.commerce);
+  if (providers.length === 0) return "";
+
+  const lines: string[] = [
+    "",
+    "# --- commerce -------------------------------------------------------------",
+    "#",
+    "# Seeded with the DUMMY_REPLACE_ME sentinel, which reads as NOT CONFIGURED.",
+    "# Commerce is dormant until every value below is real: the D1 catalog mirror",
+    "# still serves whatever it last synced, the webhook receiver answers 503 (so",
+    "# the provider retries rather than dropping events), and checkout is",
+    "# simulated. Nothing calls the provider with a placeholder credential.",
+  ];
+
+  for (const provider of providers) {
+    const spec = COMMERCE_PROVIDER_SECRETS[provider];
+    lines.push("#", `# ${provider}: ${COMMERCE_PROVIDER_SETUP[provider]}`);
+    for (const name of [...spec.credentials, spec.webhook]) {
+      lines.push(`${name}=${ASTROID_SECRET_PLACEHOLDER}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 // Pinned compatibility date for the emitted Worker. A literal (Astroid's
@@ -151,6 +198,19 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   p("    // The editor allowlist / owner. Wire this into your auth seam (src/auth.ts).");
   p('    "OWNER_EMAIL": "",');
   p("  },");
+  // Secrets are NOT vars: they belong in .dev.vars locally and in `wrangler
+  // secret put` / Secrets Store when deployed. Listing the names here is
+  // deliberate — this is the file someone opens when provisioning, and the list
+  // is generated from the same declaration the runtime dormancy gate reads.
+  const secretNames = commerceSecretNames(config.commerce);
+  if (secretNames.length > 0) {
+    p("  // Commerce secrets — set OUTSIDE this file (it's committed):");
+    p("  //   local:    .dev.vars (see .env.example, seeded with DUMMY_REPLACE_ME)");
+    p("  //   deployed: `wrangler secret put <NAME>`, or a Secrets Store binding");
+    p("  // Until each is real, commerce stays dormant: the D1 mirror serves, the");
+    p("  // webhook receiver answers 503, and nothing calls the provider.");
+    for (const name of secretNames) p(`  //   ${name}`);
+  }
   p('  "observability": { "enabled": true },');
   p("}");
   p();

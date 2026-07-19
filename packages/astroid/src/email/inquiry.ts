@@ -12,8 +12,9 @@
 // acknowledgement is indistinguishable from one that's broken.
 
 import type { AstroidConfig } from "../config.js";
+import type { SecretSource } from "../secrets.js";
 import type { EmailSender } from "./send.js";
-import { type DeliveryResult, sendTransactional } from "./send.js";
+import { type DeliveryResult, resolveMailer, sendTransactional } from "./send.js";
 import { inquiryConfirmationEmail, inquiryNotificationEmail } from "./templates.js";
 import { astroidMailTheme, type MailThemeOverrides } from "./theme.js";
 
@@ -22,8 +23,12 @@ import { astroidMailTheme, type MailThemeOverrides } from "./theme.js";
 export interface AstroidMailEnv {
   /** Cloudflare Email Sending binding. */
   EMAIL?: EmailSender;
-  /** Envelope sender; its domain must be onboarded for Email Sending. */
-  MAIL_FROM?: string;
+  /**
+   * Envelope sender; its domain must be onboarded for Email Sending. A
+   * `SecretSource` rather than a plain string so a Secrets Store binding works
+   * here too — and so the placeholder sentinel reads as unconfigured.
+   */
+  MAIL_FROM?: SecretSource;
   /** Where owner notifications go. Also the first editor's address. */
   OWNER_EMAIL?: string;
 }
@@ -62,7 +67,6 @@ export async function sendInquiryMail(
   };
 
   const owner = str(env.OWNER_EMAIL);
-  const from = str(env.MAIL_FROM);
 
   const mails = [
     ...(owner
@@ -81,14 +85,8 @@ export async function sendInquiryMail(
       : []),
   ];
 
-  return sendTransactional(
-    {
-      binding: env.EMAIL,
-      from: from ?? "noreply@localhost",
-      // No sender address is as unconfigured as no binding — send nothing, log
-      // everything, rather than hand the Email API a placeholder envelope.
-      logOnly: !from,
-    },
-    mails,
-  );
+  // One resolver decides dormancy for the whole module: no binding, no sender
+  // address, or a sender still holding the placeholder sentinel all come back
+  // as `logOnly`, so nothing hands the Email API a dummy envelope.
+  return sendTransactional(await resolveMailer(env), mails);
 }
