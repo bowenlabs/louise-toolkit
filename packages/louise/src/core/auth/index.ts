@@ -9,10 +9,20 @@ export {
   getLouiseAuth,
   type LouiseAuth,
   type LouiseAuthConfig,
+  type LouiseOrganizationsConfig,
   type MagicLinkEmail,
   type SessionKV,
 } from "./auth.js";
 export { defaultResolveAdmins, isAllowedSignInEmail } from "./admins.js";
+export {
+  activeOrganizationId,
+  DEFAULT_ACCEPT_INVITATION_PATH,
+  DEFAULT_ORG_EDITOR_ROLES,
+  invitationAcceptUrl,
+  type OrgEditorSession,
+  resolveOrgEditor,
+  type ResolveOrgEditorOptions,
+} from "./org.js";
 export { resolveEditorSession, resolveSession } from "./session.js";
 export { handleAuthRequest } from "./handler.js";
 export { authSchemaOptions, type AuthSchemaConfig, generateAuthSchemaSql } from "./schema-gen.js";

@@ -1,0 +1,13 @@
+---
+"louise-toolkit": minor
+---
+
+Add multi-editor tenancy to `louise-toolkit/auth` via the Better Auth organization plugin (#100) — multiple editors/roles per organization and a path to multi-tenant hosting, gated by the same generated-never-hand-rolled schema contract as the rest of auth.
+
+- **`LouiseAuthConfig.organizations`** (`{ teams?, allowUserToCreateOrganization? }`) enables the `organization` plugin in the request-scoped factory. When set, its `organization`/`member`/`invitation` tables (plus `team`/`teamMember` with `teams`) are namespaced under `tablePrefix` alongside user/session, so the runtime queries exactly the tables the generator emits.
+- **`AuthSchemaConfig.organizations`** (`{ teams? }`) threads the same plugin into `authSchemaOptions`, so `generateAuthSchemaSql` (and `louise gen-auth-schema`) emit the org tables + the `activeOrganizationId`/`activeTeamId` session columns, FKs resolving to the prefixed targets. Only `teams` affects the schema; the runtime-only knob is omitted. Mirror this on the CLI config whenever `LouiseAuthConfig.organizations` is set.
+- **`resolveOrgEditor(auth, db, request, { organizationId, editorRoles?, tablePrefix? })`** — a second editor-access axis beside the global admin allowlist: it returns an `OrgEditorSession` when the signed-in user holds an editor role (`owner`/`admin` by default, `DEFAULT_ORG_EDITOR_ROLES`) in the given org, else `null`. Membership is read from the Better Auth `member` table over D1 (no version-specific server API), so it drops straight into `editorsRoute`/`guardEditor` as a `resolveEditor`. The site decides which org a request maps to — the sole org for a single site, or per-hostname for multi-tenant hosting.
+- **`activeOrganizationId(auth, request)`** — convenience reader for the session's active organization (single-site case).
+- **Member-invitation email** — set `organizations.renderInvitationEmail` (mirrors `renderMagicLinkEmail`) to turn on invite emails: the factory builds the accept `url` from the invitation id + `acceptInvitationPath` (default `/organization/accept-invitation`), renders with the site's branding, and sends over the `EMAIL` binding; dev logs the link. Omit it and invitations are still created and acceptable through the API. The URL builder is exported as `invitationAcceptUrl` (Better Auth hands back only the invitation id, so the app constructs the link).
+
+Enabling `organizations` is additive and opt-in: a single-editor site is unchanged, and a newly-invited org member gets the global role `user` while their edit rights come from membership — the two access tiers coexist.

@@ -49,6 +49,42 @@ describe("generateAuthSchemaSql", () => {
     expect(sql).toContain("CREATE TABLE `user`");
   });
 
+  it("emits the organization tables when organizations is enabled (teams off)", () => {
+    const sql = generateAuthSchemaSql({ organizations: {} });
+    for (const t of ["organization", "member", "invitation"]) {
+      expect(sql).toContain(`CREATE TABLE \`${t}\``);
+    }
+    // member links back to both user and organization.
+    expect(sql).toContain('references "user" ("id")');
+    expect(sql).toContain('references "organization" ("id")');
+    // teams off → no team tables.
+    expect(sql).not.toMatch(/CREATE TABLE `team`/);
+    expect(sql).not.toMatch(/CREATE TABLE `teamMember`/);
+  });
+
+  it("adds the team tables when organizations.teams is set", () => {
+    const sql = generateAuthSchemaSql({ organizations: { teams: true } });
+    expect(sql).toContain("CREATE TABLE `team`");
+    expect(sql).toContain("CREATE TABLE `teamMember`");
+  });
+
+  it("namespaces the organization tables + their foreign keys under tablePrefix", () => {
+    const sql = generateAuthSchemaSql({ organizations: {}, tablePrefix: "auth_" });
+    expect(sql).toContain("CREATE TABLE `auth_organization`");
+    expect(sql).toContain("CREATE TABLE `auth_member`");
+    expect(sql).toContain("CREATE TABLE `auth_invitation`");
+    // FKs resolve to the prefixed targets, not the bare names.
+    expect(sql).toContain('references "auth_organization" ("id")');
+    expect(sql).toContain('references "auth_user" ("id")');
+    expect(sql).not.toMatch(/CREATE TABLE `organization`/);
+  });
+
+  it("omits the organization tables by default", () => {
+    const sql = generateAuthSchemaSql();
+    expect(sql).not.toMatch(/CREATE TABLE `organization`/);
+    expect(sql).not.toMatch(/CREATE TABLE `member`/);
+  });
+
   it("rejects a tablePrefix that isn't a safe SQL identifier", () => {
     expect(() => generateAuthSchemaSql({ tablePrefix: "auth_; DROP TABLE user; --" })).toThrow(
       /Invalid tablePrefix/,
@@ -78,5 +114,11 @@ describe("authSchemaOptions", () => {
 
   it("enables emailAndPassword only when customers is set", () => {
     expect(authSchemaOptions({ customers: true }).emailAndPassword).toEqual({ enabled: true });
+  });
+
+  it("adds the organization plugin only when organizations is set", () => {
+    expect(authSchemaOptions({}).plugins).toHaveLength(3); // magic-link + admin + passkey
+    expect(authSchemaOptions({ organizations: {} }).plugins).toHaveLength(4);
+    expect(authSchemaOptions({ organizations: { teams: true } }).plugins).toHaveLength(4);
   });
 });

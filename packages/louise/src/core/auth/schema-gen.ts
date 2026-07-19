@@ -18,7 +18,7 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { getAuthTables } from "better-auth/db";
-import { admin, magicLink } from "better-auth/plugins";
+import { admin, magicLink, organization } from "better-auth/plugins";
 import { LOUISE_USER_FIELDS } from "./fields.js";
 
 type BetterAuthOptions = Parameters<typeof betterAuth>[0];
@@ -31,6 +31,12 @@ export interface AuthSchemaConfig {
   /** Extra Better Auth user columns (e.g. `squareCustomerId`). MUST match the
    *  runtime `LouiseAuthConfig.additionalFields` so generated columns line up. */
   additionalFields?: AdditionalFields;
+  /** Enable the organization plugin's tables (`organization`/`member`/
+   *  `invitation`, plus `team`/`teamMember` when `teams` is set) and the
+   *  `activeOrganizationId` session column. MUST mirror
+   *  `LouiseAuthConfig.organizations` — only `teams` affects the schema, so
+   *  runtime-only knobs (e.g. `allowUserToCreateOrganization`) are omitted. */
+  organizations?: { teams?: boolean };
   /** Table-name prefix for a same-D1 auth boundary (Option B), e.g. `"auth_"`.
    *  Must equal `LouiseAuthConfig.tablePrefix` at runtime. Empty → default names. */
   tablePrefix?: string;
@@ -49,7 +55,17 @@ export function authSchemaOptions(config: AuthSchemaConfig): BetterAuthOptions {
     // Louise's standard first/last name fields, ahead of the site's own extras —
     // mirrors auth.ts so the generated schema matches the runtime user table.
     user: { additionalFields: { ...LOUISE_USER_FIELDS, ...config.additionalFields } },
-    plugins: [magicLink({ sendMagicLink: async () => {} }), admin(), passkey()],
+    plugins: [
+      magicLink({ sendMagicLink: async () => {} }),
+      admin(),
+      passkey(),
+      // No prefix/schema override here: `generateAuthSchemaSql` namespaces every
+      // table (and FK target) at emit time, so introspecting the plain plugin is
+      // enough — mirrors how the base tables are prefixed.
+      ...(config.organizations
+        ? [organization(config.organizations.teams ? { teams: { enabled: true } } : {})]
+        : []),
+    ],
   };
 }
 
