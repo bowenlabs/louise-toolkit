@@ -3,41 +3,69 @@
 //
 // It owns the `data-louise-*` marker contract so sites stop stamping it by hand:
 // in edit mode it renders your element with the markers the Louise client
-// (`mountLouise`) looks for to make the field editable in place; out of edit mode
-// it renders the element plain, with zero editing attributes in the public HTML.
+// (`mountLouise` / `mountSections`) looks for to make the field editable in place;
+// out of edit mode it renders the element plain, with zero editing attributes in
+// the public HTML.
 //
-// This is the PAGE-field flavor (`data-louise-field="<collection>:<key>:<field>"`,
-// saved as a versioned draft when the page is mounted with `versionedPageId`). The
-// structured section-field flavor (`data-louise-sfield`, ADR 0003 §5) arrives with
-// `<Section>`.
+// Two flavors, per which surface the field lives on:
+//   • PAGE field  — pass `collection` + `key` + `field`; emits
+//                   `data-louise-field="<collection>:<key>:<field>"` (saved as a
+//                   versioned draft when the page is mounted with `versionedPageId`).
+//   • SECTION field — pass `sfield` (the `<index>.<path>` into the section's data,
+//                   ADR 0003 §5); emits `data-louise-sfield` (+ `data-louise-multiline`),
+//                   for the structured `<Section>` editor.
 //
-// Per ADR 0003: props are a named, typed surface (§1); the element is polymorphic
-// via a typed `as` with a typed `...rest` escape hatch (§4); edit mode is read
-// from context (`Astro.locals.editMode`), not restated on every call (§5).
-import type { HTMLTag, Polymorphic } from "astro/types";
+// Polymorphic via `as` (default `div`) with a typed `...rest` over the div's
+// attributes; edit mode is read from context (`Astro.locals.editMode`) unless the
+// caller passes `edit` (a section knows its own edit flag).
+import type { HTMLAttributes, HTMLTag } from "astro/types";
 
-type Props<Tag extends HTMLTag = "div"> = Polymorphic<{ as: Tag }> & {
-  /** The Louise collection slug this field belongs to (e.g. "pages"). */
-  collection: string;
-  /** The row key/id the field is on (stringified into the marker). */
-  key: string | number;
-  /** The field name (e.g. "title", "body"). */
-  field: string;
-  /** Rich text (ProseKit) vs a single-line contenteditable. Default "text". */
+interface Props extends HTMLAttributes<"div"> {
+  /** The element to render. Default `"div"`. */
+  as?: HTMLTag;
+  /** PAGE-field mode: the Louise collection slug (e.g. `"pages"`). */
+  collection?: string;
+  /** PAGE-field mode: the row key/id the field is on. */
+  key?: string | number;
+  /** PAGE-field mode: the field name (e.g. `"title"`, `"body"`). */
+  field?: string;
+  /** SECTION-field mode: the `<index>.<path>` marker for the section editor. */
+  sfield?: string;
+  /** Rich text (ProseKit) vs a single-line contenteditable. Default `"text"`. */
   type?: "text" | "richtext";
+  /** SECTION-field mode: allow newlines in a plain-text field. */
+  multiline?: boolean;
   /** Force edit markers on/off. Defaults to `Astro.locals.editMode`. */
   edit?: boolean;
-};
+}
 
-const { as: Tag = "div", collection, key, field, type = "text", edit, ...rest } = Astro.props;
+const {
+  as: Tag = "div",
+  collection,
+  key,
+  field,
+  sfield,
+  type = "text",
+  multiline = false,
+  edit,
+  ...rest
+} = Astro.props;
 
 const editing = edit ?? (Astro.locals as { editMode?: boolean }).editMode ?? false;
-const markers = editing
-  ? {
-      "data-louise-field": `${collection}:${key}:${field}`,
-      ...(type === "richtext" ? { "data-louise-type": "richtext" } : {}),
-    }
-  : {};
+const richText = type === "richtext" ? { "data-louise-type": "richtext" } : {};
+
+let markers: Record<string, string> = {};
+if (editing) {
+  if (sfield) {
+    markers = {
+      "data-louise-sfield": sfield,
+      ...richText,
+      ...(multiline ? { "data-louise-multiline": "" } : {}),
+    };
+  } else if (collection && key !== undefined && field) {
+    markers = { "data-louise-field": `${collection}:${key}:${field}`, ...richText };
+  }
+}
 ---
 
 <Tag {...rest} {...markers}><slot /></Tag>
