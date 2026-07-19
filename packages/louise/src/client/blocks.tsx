@@ -29,7 +29,8 @@ import {
   AutocompletePositioner,
   AutocompleteRoot,
 } from "prosekit/solid/autocomplete";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { wirePopoverDismiss } from "./a11y.js";
 import { Icon } from "./icons.jsx";
 
 export interface BlockAttrSpec {
@@ -747,6 +748,7 @@ const SLASH = /\/(|\S*)$/u;
 export function BlockInserterButton() {
   const editor = useEditor();
   const [open, setOpen] = createSignal(false);
+  let trigger: HTMLButtonElement | undefined;
   const insert = (b: BlockEntry) => {
     editor().exec(b.command);
     setOpen(false);
@@ -754,19 +756,35 @@ export function BlockInserterButton() {
   };
   return (
     <div class="louise-block-add">
-      <button class="louise-btn" type="button" onClick={() => setOpen(!open())}>
+      <button
+        ref={(el) => {
+          trigger = el;
+        }}
+        class="louise-btn"
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open()}
+        aria-controls="louise-block-add-menu"
+        onClick={() => setOpen(!open())}
+      >
         <Icon name="plus" /> Block
       </button>
       <Show when={open()}>
-        <div class="louise-block-add-menu" role="menu">
+        {/* A labelled button group, not role="menu" — these are plain buttons in
+            the tab order, and announcing "menu" would promise arrow-key roving
+            that isn't implemented. Escape / an outside press dismiss it. */}
+        <div
+          id="louise-block-add-menu"
+          class="louise-block-add-menu"
+          role="group"
+          aria-label="Insert a block"
+          ref={(el) =>
+            onCleanup(wirePopoverDismiss(el, { onClose: () => setOpen(false), trigger }))
+          }
+        >
           <For each={BLOCKS}>
             {(b) => (
-              <button
-                class="louise-slash-item"
-                type="button"
-                role="menuitem"
-                onClick={() => insert(b)}
-              >
+              <button class="louise-slash-item" type="button" onClick={() => insert(b)}>
                 {b.label}
               </button>
             )}

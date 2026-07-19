@@ -9,6 +9,27 @@
 // wire it from a `ref` + `onCleanup` without pulling in a dialog library. Pure
 // DOM — unit-testable without mounting a framework.
 
+/** Turn a field key (`heroTitle`) into a human label ("Hero Title") — the fallback
+ *  accessible name for an inline editable with no authored label. */
+export function humanizeFieldKey(key: string): string {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Name an inline `contenteditable` region for assistive tech. A bare
+ * contenteditable announces as "edit text" with no identity, and the empty-state
+ * hint is CSS `::before` content, which is not a reliable accessible name — so
+ * give the region a textbox role and a real name (WCAG 1.3.1 / 4.1.2). Never
+ * overwrites a name the author already supplied.
+ */
+export function nameEditable(el: HTMLElement, label: string, multiline = false): void {
+  el.setAttribute("role", "textbox");
+  if (multiline) el.setAttribute("aria-multiline", "true");
+  if (label && !el.hasAttribute("aria-label") && !el.hasAttribute("aria-labelledby")) {
+    el.setAttribute("aria-label", label);
+  }
+}
+
 /** Selector for the tabbable elements inside a dialog (visible + not disabled). */
 const FOCUSABLE = [
   "a[href]",
@@ -37,6 +58,43 @@ function tabbables(root: HTMLElement): HTMLElement[] {
     if (details && !details.open) return el === details.querySelector("summary");
     return true;
   });
+}
+
+export interface PopoverDismissOptions {
+  onClose: () => void;
+  /** The control that toggles the popover. Excluded from the outside-press check
+   *  (so pressing it toggles rather than closing then reopening), and refocused
+   *  on Escape. */
+  trigger?: HTMLElement | null;
+}
+
+/**
+ * Dismiss a non-modal popup — a menu, palette, or swatch panel: Escape from
+ * inside it (or from its trigger), and a pointer press anywhere outside. Unlike
+ * {@link wireDialogA11y} this deliberately does NOT trap focus: these panels are
+ * transient and their items stay in the normal tab order.
+ */
+export function wirePopoverDismiss(panel: HTMLElement, opts: PopoverDismissOptions): () => void {
+  const doc = panel.ownerDocument;
+  const inside = (n: EventTarget | null): boolean =>
+    n instanceof Node && (panel.contains(n) || !!opts.trigger?.contains(n));
+
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key !== "Escape" || !inside(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    opts.onClose();
+    opts.trigger?.focus();
+  };
+  const onPointerDown = (e: Event): void => {
+    if (!inside(e.target)) opts.onClose();
+  };
+  doc.addEventListener("keydown", onKeyDown, true);
+  doc.addEventListener("pointerdown", onPointerDown, true);
+  return () => {
+    doc.removeEventListener("keydown", onKeyDown, true);
+    doc.removeEventListener("pointerdown", onPointerDown, true);
+  };
 }
 
 export interface DialogA11yOptions {

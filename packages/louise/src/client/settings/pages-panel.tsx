@@ -132,6 +132,7 @@ export function PagesPanel(props: {
           <input
             class="louise-input louise-pages-search"
             type="search"
+            aria-label="Search pages"
             placeholder="Search pages…"
             value={q()}
             onInput={(e) => setQ(e.currentTarget.value)}

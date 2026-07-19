@@ -7,6 +7,7 @@ import { defineBasicExtension } from "prosekit/basic";
 import {
   createEditor,
   defineDocChangeHandler,
+  defineNodeAttr,
   htmlFromNode,
   union,
   type Editor,
@@ -32,7 +33,8 @@ import {
 } from "prosekit/solid/block-handle";
 import { ResizableHandle, ResizableRoot } from "prosekit/solid/resizable";
 import { InlinePopoverRoot } from "prosekit/solid/inline-popover";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { wirePopoverDismiss } from "./a11y.js";
 import { render } from "solid-js/web";
 import { Icon, type IconName } from "./icons.jsx";
 
@@ -90,7 +92,14 @@ const REWRITE_ACTIONS = [
  */
 function ResizableImage(props: SolidNodeViewProps) {
   const attrs = () =>
-    props.node.attrs as { src?: string | null; width?: number | null; height?: number | null };
+    props.node.attrs as {
+      src?: string | null;
+      alt?: string | null;
+      width?: number | null;
+      height?: number | null;
+    };
+  const [editingAlt, setEditingAlt] = createSignal(false);
+  const alt = () => attrs().alt ?? "";
   return (
     <ResizableRoot
       class="louise-rt-image"
@@ -98,8 +107,47 @@ function ResizableImage(props: SolidNodeViewProps) {
       height={attrs().height ?? undefined}
       onResizeEnd={(e) => props.setAttrs({ width: e.detail.width, height: e.detail.height })}
     >
-      <img src={attrs().src ?? ""} alt="" />
+      <img src={attrs().src ?? ""} alt={alt()} />
       <ResizableHandle class="louise-rt-resize" position="bottom-right" />
+      {/* Alt-text authoring (WCAG 1.1.1): without this an inline image ships to
+          the published page with no description. `contentEditable={false}` keeps
+          ProseMirror from treating the control as document content. */}
+      <div class="louise-rt-alt" contentEditable={false}>
+        <Show
+          when={editingAlt()}
+          fallback={
+            <button
+              type="button"
+              class="louise-rt-alt-btn"
+              classList={{ "is-unset": !alt() }}
+              title={alt() ? `Alt text: ${alt()}` : "Add alt text — describe this image"}
+              aria-label={alt() ? `Edit alt text: ${alt()}` : "Add alt text for this image"}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setEditingAlt(true)}
+            >
+              {alt() ? "Alt" : "Alt?"}
+            </button>
+          }
+        >
+          <input
+            class="louise-rt-alt-input"
+            aria-label="Image alt text"
+            placeholder="Describe this image…"
+            value={alt()}
+            ref={(el) => queueMicrotask(() => el.focus())}
+            onMouseDown={(e) => e.stopPropagation()}
+            onInput={(e) => props.setAttrs({ alt: e.currentTarget.value })}
+            onBlur={() => setEditingAlt(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setEditingAlt(false);
+              }
+            }}
+          />
+        </Show>
+      </div>
     </ResizableRoot>
   );
 }
@@ -115,6 +163,19 @@ function louiseExtension(blocks = false, grammar = false) {
     // Paste/drop an image → upload to R2 and insert (temp URL swapped for the
     // final one when the upload resolves).
     defineImageUploadHandler({ uploader: r2ImageUploader }),
+    // ProseKit's image node ships only src/width/height, and its toDOM emits
+    // exactly the node's attrs — so without this an inline image can carry no
+    // description (WCAG 1.1.1) AND an authored `alt=` is silently dropped the
+    // first time the field round-trips through the editor. Adding the attr makes
+    // it both serialize to `<img alt>` and parse back in; the sanitizer already
+    // allows `alt` on `img`.
+    defineNodeAttr<"image", "alt", string | null>({
+      type: "image",
+      attr: "alt",
+      default: null,
+      toDOM: (value) => (value ? ["alt", value] : null),
+      parseDOM: (element) => element.getAttribute("alt") || null,
+    }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
     // Builder blocks (#16) — opt-in: the Settings Pages panel composes
@@ -190,6 +251,10 @@ function Toolbar(props: { minimal?: boolean }) {
   // crossing it dropped :hover and hid the popover before a swatch could be
   // clicked — which is why text color never applied (#14).
   const [colorOpen, setColorOpen] = createSignal(false);
+  // Popover triggers: excluded from their panel's outside-press check, and
+  // refocused when Escape dismisses the panel.
+  let colorTrigger: HTMLButtonElement | undefined;
+  let aiTrigger: HTMLButtonElement | undefined;
 
   // AI rewrite (#75/#166): opt-in, degrade-gracefully. The sparkle menu POSTs the
   // selected text to /api/louise/ai/rewrite and swaps in the result. `aiAvailable`
@@ -365,19 +430,37 @@ function Toolbar(props: { minimal?: boolean }) {
       <span class="louise-tb-sep" />
       <div class="louise-tb-color">
         <button
+          ref={(el) => {
+            colorTrigger = el;
+          }}
           type="button"
           class="louise-tb-btn"
           classList={{ "is-active": colorOpen() }}
           title="Text color"
           aria-label="Text color"
+          aria-haspopup="true"
           aria-expanded={colorOpen()}
+          aria-controls="louise-tb-swatches"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setColorOpen((v) => !v)}
         >
           <Icon name="palette" />
         </button>
         <Show when={colorOpen()}>
-          <div class="louise-tb-swatches">
+          <div
+            id="louise-tb-swatches"
+            class="louise-tb-swatches"
+            role="group"
+            aria-label="Text color"
+            ref={(el) =>
+              onCleanup(
+                wirePopoverDismiss(el, {
+                  onClose: () => setColorOpen(false),
+                  trigger: colorTrigger,
+                }),
+              )
+            }
+          >
             <For each={TEXT_COLORS}>
               {(c) => (
                 <button
@@ -415,12 +498,17 @@ function Toolbar(props: { minimal?: boolean }) {
         <span class="louise-tb-sep" />
         <div class="louise-tb-ai">
           <button
+            ref={(el) => {
+              aiTrigger = el;
+            }}
             type="button"
             class="louise-tb-btn"
             classList={{ "is-active": aiOpen() }}
             title="Rewrite with AI"
             aria-label="Rewrite with AI"
+            aria-haspopup="true"
             aria-expanded={aiOpen()}
+            aria-controls="louise-tb-ai-menu"
             disabled={!active().hasSelection || aiBusy()}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setAiOpen((v) => !v)}
@@ -428,14 +516,25 @@ function Toolbar(props: { minimal?: boolean }) {
             <Icon name="sparkle" />
           </button>
           <Show when={aiOpen()}>
-            <div class="louise-tb-ai-menu" role="menu">
+            {/* A labelled button group, not role="menu" — plain buttons in the tab
+                order; "menu" would promise arrow-key roving we don't implement. */}
+            <div
+              id="louise-tb-ai-menu"
+              class="louise-tb-ai-menu"
+              role="group"
+              aria-label="Rewrite with AI"
+              ref={(el) =>
+                onCleanup(
+                  wirePopoverDismiss(el, { onClose: () => setAiOpen(false), trigger: aiTrigger }),
+                )
+              }
+            >
               <Show when={!aiBusy()} fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}>
                 <For each={REWRITE_ACTIONS}>
                   {(a) => (
                     <button
                       type="button"
                       class="louise-tb-ai-item"
-                      role="menuitem"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => runRewrite(a.mode)}
                     >

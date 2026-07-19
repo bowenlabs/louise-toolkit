@@ -39,7 +39,7 @@ import {
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { stegaClean } from "../core/content/stega-clean.js";
-import { wireDialogA11y } from "./a11y.js";
+import { nameEditable, wireDialogA11y, wirePopoverDismiss } from "./a11y.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import {
   connectRealtime,
@@ -215,6 +215,9 @@ function wireInline(
     // just noise (#142). Rich-text prose uses ProseKit + Harper (#110) instead.
     const multiline = node.hasAttribute("data-louise-multiline");
     node.setAttribute("spellcheck", multiline ? "true" : "false");
+    // Give the region a name for assistive tech — the placeholder hint is the
+    // field's human label, and it's otherwise only CSS ::before content.
+    nameEditable(node, hint, multiline);
     // Single-line fields swallow Enter; multiline (textarea-backed) keeps it.
     if (!multiline) {
       node.addEventListener("keydown", (e) => {
@@ -318,6 +321,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [status, setStatus] = createSignal<Status>("idle");
   const [dirty, setDirty] = createSignal(false);
   const [adding, setAdding] = createSignal(false);
+  // The "Add section" control, so its palette can exclude it from the
+  // outside-press check and hand focus back on Escape.
+  let addTrigger: HTMLButtonElement | undefined;
   // A specific save-failure reason (e.g. a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -990,22 +996,36 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           the ⚙ inspector. */}
       <div class="louise-sections-add louise-sections-add--floating" data-theme="louise">
         <button
+          ref={(el) => {
+            addTrigger = el;
+          }}
           class="louise-btn louise-btn-block"
           type="button"
+          aria-haspopup="true"
+          aria-expanded={adding()}
+          aria-controls="louise-sections-palette"
           onClick={() => setAdding((v) => !v)}
         >
           <Icon name="plus" /> Add section
         </button>
         <Show when={adding()}>
-          <div class="louise-sections-palette" role="menu">
+          {/* A labelled button group, not role="menu": the items are ordinary
+              buttons in the tab order, and "menu" would promise arrow-key roving
+              we don't implement. Escape / an outside press dismiss it. */}
+          <div
+            id="louise-sections-palette"
+            class="louise-sections-palette"
+            role="group"
+            aria-label="Add a section"
+            ref={(el) =>
+              onCleanup(
+                wirePopoverDismiss(el, { onClose: () => setAdding(false), trigger: addTrigger }),
+              )
+            }
+          >
             <For each={Object.entries(props.catalog)}>
               {([type, def]) => (
-                <button
-                  class="louise-slash-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => addSection(type)}
-                >
+                <button class="louise-slash-item" type="button" onClick={() => addSection(type)}>
                   {def.label}
                 </button>
               )}

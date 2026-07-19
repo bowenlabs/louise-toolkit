@@ -11,6 +11,7 @@
 
 import { stegaClean } from "../core/content/stega-clean.js";
 import { mountStegaClipboardGuard } from "../core/content/visual-editing.js";
+import { humanizeFieldKey, nameEditable } from "./a11y.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import {
   connectRealtime,
@@ -665,6 +666,9 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // Plain-text field: contenteditable, single line.
       el.setAttribute("contenteditable", "plaintext-only");
       el.setAttribute("spellcheck", "false");
+      // Name the region for assistive tech — a bare contenteditable announces
+      // only as "edit text", with no clue which field it is.
+      nameEditable(el, humanizeFieldKey(ref.field));
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter") e.preventDefault();
       });

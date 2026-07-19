@@ -4,7 +4,12 @@
 // returns to the opener on close.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { wireDialogA11y } from "../../src/client/a11y.js";
+import {
+  humanizeFieldKey,
+  nameEditable,
+  wireDialogA11y,
+  wirePopoverDismiss,
+} from "../../src/client/a11y.js";
 
 /** Let the helper's deferred initial focus (a queued microtask) run. */
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
@@ -108,5 +113,87 @@ describe("wireDialogA11y", () => {
     await flush();
     opener.remove(); // e.g. the on-canvas ⚙ unmounts with the chrome
     expect(() => off()).not.toThrow();
+  });
+});
+
+describe("nameEditable", () => {
+  it("gives a bare contenteditable a textbox role and a name", () => {
+    const el = document.createElement("div");
+    el.setAttribute("contenteditable", "plaintext-only");
+    nameEditable(el, "Hero headline");
+    expect(el.getAttribute("role")).toBe("textbox");
+    expect(el.getAttribute("aria-label")).toBe("Hero headline");
+    expect(el.hasAttribute("aria-multiline")).toBe(false);
+  });
+
+  it("marks multiline fields and never clobbers an author's own name", () => {
+    const multi = document.createElement("div");
+    nameEditable(multi, "Body", true);
+    expect(multi.getAttribute("aria-multiline")).toBe("true");
+
+    const authored = document.createElement("div");
+    authored.setAttribute("aria-label", "Author's own label");
+    nameEditable(authored, "Derived");
+    expect(authored.getAttribute("aria-label")).toBe("Author's own label");
+  });
+});
+
+describe("humanizeFieldKey", () => {
+  it("turns a field key into a readable label", () => {
+    expect(humanizeFieldKey("heroTitle")).toBe("Hero Title");
+    expect(humanizeFieldKey("title")).toBe("Title");
+  });
+});
+
+describe("wirePopoverDismiss", () => {
+  /** A trigger + panel pair, as the menus render them. */
+  function mountPopover() {
+    const trigger = document.createElement("button");
+    const panel = document.createElement("div");
+    const item = document.createElement("button");
+    panel.appendChild(item);
+    document.body.appendChild(trigger);
+    document.body.appendChild(panel);
+    return { trigger, panel, item };
+  }
+
+  it("closes on Escape from inside the panel and returns focus to the trigger", () => {
+    let closed = 0;
+    const { trigger, panel, item } = mountPopover();
+    const off = wirePopoverDismiss(panel, { onClose: () => closed++, trigger });
+    item.focus();
+    press(item, "Escape");
+    expect(closed).toBe(1);
+    expect(document.activeElement).toBe(trigger);
+    off();
+  });
+
+  it("closes on an outside press but not on a press inside the panel or trigger", () => {
+    let closed = 0;
+    const { trigger, panel, item } = mountPopover();
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    const off = wirePopoverDismiss(panel, { onClose: () => closed++, trigger });
+
+    item.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(closed).toBe(0); // inside the panel
+    // The trigger is excluded so its own click toggles instead of closing then
+    // immediately reopening.
+    trigger.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(closed).toBe(0);
+
+    outside.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(closed).toBe(1);
+    off();
+  });
+
+  it("detaches its listeners on dispose", () => {
+    let closed = 0;
+    const { trigger, panel } = mountPopover();
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    wirePopoverDismiss(panel, { onClose: () => closed++, trigger })();
+    outside.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(closed).toBe(0);
   });
 });

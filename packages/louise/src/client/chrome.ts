@@ -166,12 +166,16 @@ const CHROME_CSS = `
   display: none;
   gap: 2px;
   padding: 3px;
-  background: var(--louise-orange, #ea7317);
+  /* One stop darker than the ring's brand orange: the bar carries white glyph
+     labels, which need 4.5:1 (WCAG 1.4.3) — the ring itself is a non-text
+     graphic and stays on brand at 3:1. #b45309 = 5.0:1 against white. */
+  background: var(--louise-orange-strong, #b45309);
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
-.louise-chrome-toolbar.louise-block-toolbar { background: var(--louise-blue, #1481ef); }
+/* Likewise the block bar — #0f6ecd = 5.1:1 against its white glyphs. */
+.louise-chrome-toolbar.louise-block-toolbar { background: var(--louise-blue-strong, #0f6ecd); }
 .louise-chrome-toolbar[data-open="1"] { display: inline-flex; }
 /* Keep the bar shown while a keyboard user is roving its buttons (focus is
  * inside it even though the pointer has left the ringed element). */

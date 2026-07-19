@@ -110,12 +110,14 @@ export function UsersPanel(props: UsersPanelProps) {
         <div class="louise-row" style={{ gap: "8px" }}>
           <input
             class="louise-input"
+            aria-label="First name"
             placeholder="First name"
             value={firstName()}
             onInput={(e) => setFirstName(e.currentTarget.value)}
           />
           <input
             class="louise-input"
+            aria-label="Last name"
             placeholder="Last name"
             value={lastName()}
             onInput={(e) => setLastName(e.currentTarget.value)}
@@ -124,6 +126,7 @@ export function UsersPanel(props: UsersPanelProps) {
         <input
           class="louise-input"
           type="email"
+          aria-label="Editor email"
           placeholder="editor@email.com"
           value={email()}
           onInput={(e) => setEmail(e.currentTarget.value)}

@@ -59,6 +59,10 @@ export function MediaPicker(props: { onPick: (url: string) => void; label?: stri
                     class="louise-media-pick"
                     type="button"
                     title={item.key}
+                    // The thumbnail is decorative inside this button (alt=""), so
+                    // the button itself has to carry the name — `title` alone is
+                    // not a reliable accessible name (WCAG 4.1.2).
+                    aria-label={`Use ${item.key}`}
                     onClick={() => {
                       props.onPick(item.url);
                       setOpen(false);

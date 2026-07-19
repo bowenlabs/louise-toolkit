@@ -119,12 +119,14 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
               <div class="louise-settings-fields">
                 <input
                   class="louise-input"
+                  aria-label={`Link ${i() + 1} label`}
                   placeholder="Label"
                   value={row.label}
                   onInput={(e) => update(i(), { label: e.currentTarget.value })}
                 />
                 <input
                   class="louise-input"
+                  aria-label={`Link ${i() + 1} URL`}
                   placeholder="/path or https://…"
                   value={row.href}
                   onInput={(e) => update(i(), { href: e.currentTarget.value })}
@@ -178,6 +180,10 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
                     class="louise-media-pick"
                     type="button"
                     title={item.key}
+                    // The thumbnail is decorative inside this button (alt=""), so
+                    // the button itself has to carry the name — `title` alone is
+                    // not a reliable accessible name (WCAG 4.1.2).
+                    aria-label={`Use ${item.key}`}
                     onClick={() => {
                       props.onPick(item.url);
                       setOpen(false);
@@ -268,6 +274,7 @@ export function ImageField(props: {
       <Show when={props.allowUrl}>
         <input
           class="louise-input"
+          aria-label={`${props.label} image URL`}
           placeholder="https://… paste a URL"
           value={props.value}
           onInput={(e) => props.onChange(e.currentTarget.value)}

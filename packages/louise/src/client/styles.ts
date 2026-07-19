@@ -13,7 +13,7 @@ const LOUISE_BLUE = "#1481ef";
 const CSS = `
 :root {
   --louise-blue: ${LOUISE_BLUE};
-  --louise-green: #16a34a;
+  --louise-green: #15803d;
   --louise-orange: #ea7317;
   --louise-yellow: #ca8a04;
   /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
@@ -102,7 +102,7 @@ const CSS = `
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #16a34a;
+  background: #15803d;
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
   flex: none;
 }
@@ -124,7 +124,7 @@ const CSS = `
   color: #dc2626;
 }
 .louise-status[data-status="saved"] {
-  color: #16a34a;
+  color: #15803d;
 }
 /* Three text actions: Save (green, filled primary), Settings (blue), Done
    (orange). No icons. */
@@ -426,7 +426,7 @@ const CSS = `
   font-size: 11px;
   font-weight: 600;
 }
-.louise-badge.for_sale { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
+.louise-badge.for_sale { background: rgba(22, 163, 74, 0.12); color: #15803d; }
 .louise-badge.sold { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
 .louise-badge.draft { background: rgba(100, 116, 139, 0.14); color: #475569; }
 
@@ -464,8 +464,11 @@ const CSS = `
   color: #0f172a;
 }
 .louise-btn:hover { background: rgba(15, 23, 42, 0.04); }
-.louise-btn-primary { background: var(--louise-blue); color: #fff; border-color: transparent; }
-.louise-btn-primary:hover { background: #0072e0; }
+/* One step down the brand ramp from --louise-blue: white 14px labels need 4.5:1
+   (WCAG 1.4.3) and the base blue only reaches 3.88:1. #0072e0 (4.7:1) was already
+   this button's hover, so the ramp just shifts one stop darker. */
+.louise-btn-primary { background: #0072e0; color: #fff; border-color: transparent; }
+.louise-btn-primary:hover { background: #0f6ecd; }
 .louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 .louise-btn-block { width: 100%; justify-content: center; }
 /* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
@@ -549,7 +552,7 @@ const CSS = `
   user-select: none;
 }
 .louise-accordion-summary::-webkit-details-marker { display: none; }
-.louise-accordion-caret { color: #94a3b8; transition: transform 0.15s ease; }
+.louise-accordion-caret { color: #64748b; transition: transform 0.15s ease; }
 .louise-accordion[open] > .louise-accordion-summary .louise-accordion-caret { transform: rotate(180deg); }
 .louise-accordion-body { padding: 0 14px 14px; }
 .louise-textarea { width: 100%; resize: vertical; font: inherit; }
@@ -678,7 +681,7 @@ const CSS = `
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #64748b;
 }
 .louise-rt .pb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .louise-rt .pb-col {
@@ -808,7 +811,9 @@ const CSS = `
    discoverable and clickable. */
 .louise-sfield:empty::before {
   content: attr(data-louise-placeholder);
-  color: rgba(15, 23, 42, 0.35);
+  /* 0.6 alpha ≈ 4.7:1 on white — this hint doubles as the only cue that an empty
+     field is there to click, so it has to clear AA like body text (WCAG 1.4.3). */
+  color: rgba(15, 23, 42, 0.6);
   pointer-events: none;
 }
 
@@ -889,7 +894,7 @@ const CSS = `
   border-style: solid;
   border-color: rgba(22, 163, 74, 0.4);
   background: rgba(22, 163, 74, 0.08);
-  color: #16a34a;
+  color: #15803d;
   font-weight: 600;
 }
 /* Add section (#182): relative so its palette anchors to it. The --floating
@@ -986,7 +991,7 @@ const CSS = `
 }
 .louise-slash-item:hover,
 .louise-slash-item[data-focused] { background: rgba(20, 129, 239, 0.08); }
-.louise-slash-empty { display: block; padding: 7px 10px; font-size: 12px; color: #94a3b8; }
+.louise-slash-empty { display: block; padding: 7px 10px; font-size: 12px; color: #64748b; }
 /* "+ Block" inserter button (deterministic path) below the editing surface. */
 .louise-block-add { position: relative; padding: 6px 8px 8px; border-top: 1px solid rgba(15, 23, 42, 0.08); }
 .louise-block-add-menu {
@@ -1143,6 +1148,40 @@ const CSS = `
   object-fit: contain;
   border-radius: 8px;
 }
+/* Alt-text control on an inline image (WCAG 1.1.1). Sits bottom-left so it never
+   collides with the bottom-right resize handle. "Alt?" (amber) flags a missing
+   description; "Alt" (neutral) means one is set. */
+.louise-rt-alt {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  display: flex;
+}
+.louise-rt-alt-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.75);
+}
+.louise-rt-alt-btn.is-unset { background: #b45309; }
+.louise-rt-alt-btn:hover { background: rgba(15, 23, 42, 0.9); }
+.louise-rt-alt-btn.is-unset:hover { background: #92400e; }
+.louise-rt-alt-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.louise-rt-alt-input {
+  width: min(320px, 60vw);
+  padding: 3px 8px;
+  border: 1px solid var(--louise-blue);
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  color: #0f172a;
+}
 .louise-rt-resize {
   position: absolute;
   right: -5px;
@@ -1165,7 +1204,7 @@ const CSS = `
   height: 24px;
   margin-left: -6px;
   border-radius: 6px;
-  color: #94a3b8;
+  color: #64748b;
   cursor: grab;
   font-size: 18px;
 }
@@ -1227,7 +1266,7 @@ const CSS = `
   border-radius: 10px;
   cursor: pointer;
   font-size: 24px;
-  color: #94a3b8;
+  color: #64748b;
 }
 .louise-image-add:hover { border-color: var(--louise-blue); color: var(--louise-blue); }
 /* Round-crop adjuster: live circular preview + position/zoom sliders. Preview
@@ -1536,7 +1575,7 @@ const CSS = `
   cursor: pointer;
 }
 .louise-grammar-suggest:hover { background: #f1f5f9; }
-.louise-grammar-popover-none { padding: 4px 8px 6px; color: #94a3b8; font-size: 12px; }
+.louise-grammar-popover-none { padding: 4px 8px 6px; color: #64748b; font-size: 12px; }
 `;
 
 export function injectStyles(): void {
