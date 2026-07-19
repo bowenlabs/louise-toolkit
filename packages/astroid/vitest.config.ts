@@ -14,6 +14,8 @@ export default defineConfig({
       // fresh clone that hasn't packed louise yet.
       "louise-toolkit/security": new URL("../louise/src/core/security/index.ts", import.meta.url)
         .pathname,
+      "louise-toolkit/email": new URL("../louise/src/core/email/index.ts", import.meta.url)
+        .pathname,
     },
   },
   test: {

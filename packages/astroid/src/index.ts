@@ -5,6 +5,7 @@
 // inhabitant; the generator, theme system, and section library follow.
 
 export * from "./config.js";
+export * from "./email/index.js";
 export * from "./errors.js";
 export * from "./secrets.js";
 export * from "./project/index.js";

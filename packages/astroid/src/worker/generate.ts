@@ -77,7 +77,11 @@ export function generateAstroidWorker(config: AstroidConfig): string {
         // route takes the default `"user"`; a `tablePrefix` would rename it.
         return 'editorsRoute({ table: "user", resolveEditor })';
       case "form":
-        return "formRoute({ form: contactForm, rateLimitKv: (env) => env.RL })";
+        // `onSubmit` fires AFTER the insert and off the response path, so the
+        // notify + confirm pair is store-and-forward by construction: the
+        // submission is already durable and mail can fail without the visitor
+        // ever knowing. Unprovisioned mail logs instead of sending.
+        return "formRoute({ form: contactForm, rateLimitKv: (env) => env.RL, onSubmit: (values, env) => sendInquiryMail(astroidConfig, env, values) })";
       case "inquiries":
         return "inquiriesRoute({ table: inquiries, resolveEditor })";
       case "seed":
@@ -99,7 +103,11 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p('import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";');
   if (inquiries) p('import { inquiriesForm } from "louise-toolkit/db";');
   p(`import { ${tables.join(", ")} } from "./schema.js";`);
-  p('import { astroidPagesCollection } from "astroidjs";');
+  p(
+    inquiries
+      ? 'import { astroidPagesCollection, sendInquiryMail } from "astroidjs";'
+      : 'import { astroidPagesCollection } from "astroidjs";',
+  );
   // The config lives at the PROJECT ROOT (create-astroid writes it there); this
   // file is src/worker.ts, so the specifier is `../`, not `./`.
   p('import astroidConfig from "../astroid.config.js";');
@@ -211,7 +219,7 @@ export function generateAstroidMiddleware(_config: AstroidConfig): string {
     "  resolveEditor: (request) => resolveEditor(request),",
     "  rateLimit: { rules: RATE_RULES, kv: () => env.RL },",
     "  // Rewrite Astro's hash-based style-src (owned by astroidSecurity in",
-    "  // astro.config.mjs) to permit Louise's data-driven style=\"\" + editor styles.",
+    '  // astro.config.mjs) to permit Louise\'s data-driven style="" + editor styles.',
     `  cspStyleSrc: ${JSON.stringify(cspStyleSrc)},`,
     "});",
     "",

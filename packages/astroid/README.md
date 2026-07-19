@@ -65,6 +65,38 @@ export default defineAstroid({
 });
 ```
 
+## Transactional email
+
+Four templates — sign-in link, password reset, and the inquiry pair (notify the
+owner, confirm to the sender) — over the toolkit's email shell. Each renders HTML
+**and** plaintext from one definition: a message with no text/plain part scores
+worse with spam filters, and for a sign-in link the plaintext body is what a
+terminal client shows and what the dev log prints.
+
+`astroidMailTheme(config)` derives the whole mail theme from `theme.colors`.
+Neutrals stay fixed (they're typography choices, not brand ones); what varies is
+the accent and the five-cell masthead band, built as a ramp so it reads as
+designed whether you configured one brand colour or three. The accent is
+**contrast-corrected** — a brand yellow used verbatim as 11px uppercase text on a
+near-white card is unreadable, and mail clients have no dark-mode escape hatch.
+Pass overrides for any slot you want to own.
+
+Delivery is best-effort and never throws. Mail here is always the notification of
+something already durable — the inquiry row is inserted, the account exists — so
+a failure must not fail the request that caused it, and messages send
+independently so the owner's copy still arrives when a visitor typos their
+address. With no `EMAIL` binding the mailer is **dormant**: it logs the rendered
+message instead of dropping it, which is what makes "click the magic link" work
+under `wrangler dev`.
+
+```ts
+formRoute({
+  form: contactForm,
+  // Fires after the insert, off the response path — store-and-forward.
+  onSubmit: (values, env) => sendInquiryMail(astroidConfig, env, values),
+});
+```
+
 ## SEO
 
 A settings-driven head, structured data, and the two crawler files — first-party,

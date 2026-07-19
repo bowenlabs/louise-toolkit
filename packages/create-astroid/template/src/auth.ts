@@ -7,6 +7,7 @@
 // `pnpm seed:editors`; add more from the Users panel (editorsRoute), never by
 // editing env. Magic-link + passkey come from `getLouiseAuth`; no passwords.
 
+import { astroidMailTheme, magicLinkEmail } from "astroidjs";
 import { env } from "cloudflare:workers";
 import {
   type EditorSession,
@@ -16,8 +17,14 @@ import {
   type MagicLinkEmail,
   resolveEditorSession,
 } from "louise-toolkit/auth";
+import astroidConfig from "../astroid.config.js";
 
 const BRAND = "__BRAND_NAME__";
+
+// Transactional mail theme, derived from your config's brand colours: the
+// palette, the masthead colour band, and a contrast-corrected accent. Pass a
+// second argument to override any slot.
+const MAIL_THEME = astroidMailTheme(astroidConfig);
 
 /** The DB-managed editor allowlist: every admin `user` row. */
 async function resolveAdmins(): Promise<string[]> {
@@ -27,12 +34,9 @@ async function resolveAdmins(): Promise<string[]> {
   return results.map((r) => r.email);
 }
 
-function renderMagicLinkEmail({ url }: { url: string; toEmail: string }): MagicLinkEmail {
-  return {
-    subject: `Sign in to ${BRAND}`,
-    text: `Sign in to ${BRAND}:\n\n${url}\n\nThis link expires in 15 minutes. If you didn't request it, ignore this email.`,
-    html: `<p>Sign in to <strong>${BRAND}</strong>:</p><p><a href="${url}">Open the ${BRAND} editor</a></p><p style="color:#666">This link expires in 15 minutes. If you didn't request it, ignore this email.</p>`,
-  };
+/** The branded sign-in email — Astroid's template over your mail theme. */
+function renderMagicLinkEmail({ url, toEmail }: { url: string; toEmail: string }): MagicLinkEmail {
+  return magicLinkEmail(MAIL_THEME, { url, toEmail });
 }
 
 /** The request-scoped Better Auth instance (magic-link + passkey, DB allowlist). */
