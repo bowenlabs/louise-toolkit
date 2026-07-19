@@ -5,6 +5,12 @@
   // so it can't be resolved as a script binary.
   "ignoreBinaries": ["vp"],
 
+  // `create-astroid/template/` is scaffold PAYLOAD — copied verbatim into a new
+  // project, not part of this repo's module graph (its deps aren't installed here,
+  // its files carry `__TOKEN__` placeholders). Exclude it from the dead-code scan;
+  // the scaffold bin (`index.mjs`) is still analyzed as create-astroid's entry.
+  "ignore": ["packages/create-astroid/template/**"],
+
   // The published library deliberately exports config constants and shared types
   // that are only referenced within their own module (e.g. RRF_K, KVLike,
   // SecretBinding, DEFAULT_ALT_FIX_BATCH) — that's intentional public surface,
