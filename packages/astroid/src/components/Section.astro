@@ -1,0 +1,46 @@
+---
+// `<Section>` — the section-library dispatcher (ADR 0003, item 2). It's a
+// discriminated union over `SectionKind` (see ./sections.ts): `<Section
+// kind="hero" heading="…" />` requires hero fields and rejects another kind's, and
+// each arm renders the matching section-library component. Bespoke, site-owned
+// sections stay first-class (as the reference site's hand-written ones are) — this
+// is for the catalog sections, not a mandate to route everything through it.
+import type { SectionProps } from "./sections.js";
+import Contact from "./sections/Contact.astro";
+import Cta from "./sections/Cta.astro";
+import FeatureGrid from "./sections/FeatureGrid.astro";
+import Hero from "./sections/Hero.astro";
+
+const p = Astro.props as SectionProps;
+---
+
+{
+  p.kind === "hero" && (
+    <Hero
+      heading={p.heading}
+      subheading={p.subheading}
+      ctaLabel={p.ctaLabel}
+      ctaHref={p.ctaHref}
+      colorway={p.colorway}
+      align={p.align}
+    />
+  )
+}
+{
+  p.kind === "featureGrid" && (
+    <FeatureGrid heading={p.heading} items={p.items} colorway={p.colorway} align={p.align} />
+  )
+}
+{
+  p.kind === "cta" && (
+    <Cta
+      heading={p.heading}
+      body={p.body}
+      ctaLabel={p.ctaLabel}
+      ctaHref={p.ctaHref}
+      colorway={p.colorway}
+      align={p.align}
+    />
+  )
+}
+{p.kind === "contact" && <Contact heading={p.heading} blurb={p.blurb} colorway={p.colorway} align={p.align} />}

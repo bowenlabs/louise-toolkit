@@ -1,0 +1,17 @@
+---
+// Call-to-action band (ADR 0003, item 4). Defaults to the brand colorway.
+import type { CtaFields, SectionBase } from "../sections.js";
+import { alignClass, colorwayClass } from "../sections.js";
+
+type Props = SectionBase & CtaFields;
+
+const { heading, body, ctaLabel, ctaHref, colorway = "brand", align = "center" } = Astro.props;
+---
+
+<section class:list={["py-16", colorwayClass(colorway)]}>
+  <div class:list={["mx-auto flex max-w-3xl flex-col gap-4 px-6", alignClass(align)]}>
+    <h2 class="text-3xl font-bold">{heading}</h2>
+    {body && <p class="text-lg opacity-90">{body}</p>}
+    <a class="btn" href={ctaHref}>{ctaLabel}</a>
+  </div>
+</section>

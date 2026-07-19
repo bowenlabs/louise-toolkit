@@ -28,7 +28,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./components/Editable.astro": "./src/components/Editable.astro"
+    "./components/*.astro": "./src/components/*.astro",
+    "./components/sections": {
+      "types": "./src/components/sections.ts",
+      "default": "./src/components/sections.ts"
+    }
   },
   "files": ["dist", "bin", "src/components"],
   "publishConfig": {

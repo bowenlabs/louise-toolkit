@@ -1,0 +1,18 @@
+---
+// Contact section (ADR 0003, item 4) — a heading + blurb + link to the contact
+// route (the generated worker's contact form lives at /contact).
+import type { ContactFields, SectionBase } from "../sections.js";
+import { colorwayClass } from "../sections.js";
+
+type Props = SectionBase & ContactFields;
+
+const { heading = "Get in touch", blurb, colorway = "base" } = Astro.props;
+---
+
+<section class:list={["py-16", colorwayClass(colorway)]}>
+  <div class="mx-auto max-w-xl px-6 text-center">
+    <h2 class="text-3xl font-bold">{heading}</h2>
+    {blurb && <p class="mt-2 opacity-80">{blurb}</p>}
+    <a class="btn btn-primary mt-6" href="/contact">Contact us</a>
+  </div>
+</section>

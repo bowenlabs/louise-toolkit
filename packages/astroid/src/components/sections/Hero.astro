@@ -1,0 +1,23 @@
+---
+// Hero section (ADR 0003, item 4). Declarative props → `Theme` tokens via the
+// `colorwayClass` / `alignClass` maps — no raw class names in the prop surface, so
+// a brand re-theme flows through without touching markup.
+import type { HeroFields, SectionBase } from "../sections.js";
+import { alignClass, colorwayClass } from "../sections.js";
+
+type Props = SectionBase & HeroFields;
+
+const { heading, subheading, ctaLabel, ctaHref, colorway = "base", align = "center" } = Astro.props;
+---
+
+<section class:list={["hero py-20", colorwayClass(colorway)]}>
+  <div class:list={["hero-content flex-col", alignClass(align)]}>
+    <div class="max-w-2xl">
+      <h1 class="text-5xl font-bold">{heading}</h1>
+      {subheading && <p class="py-6 text-lg opacity-80">{subheading}</p>}
+      {ctaLabel && ctaHref && (
+        <a class="btn btn-primary" href={ctaHref}>{ctaLabel}</a>
+      )}
+    </div>
+  </div>
+</section>
