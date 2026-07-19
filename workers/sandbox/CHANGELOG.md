@@ -1,5 +1,12 @@
 # sandbox
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [6c6064b]
+  - louise-toolkit@0.15.0
+
 ## 0.0.3
 
 ### Patch Changes
