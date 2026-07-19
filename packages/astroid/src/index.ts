@@ -6,5 +6,6 @@
 
 export * from "./config.js";
 export * from "./errors.js";
+export * from "./project/index.js";
 export * from "./schema/index.js";
 export * from "./worker/index.js";
