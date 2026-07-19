@@ -6,19 +6,23 @@
 // EDITING only, and saves the array back to `sections` (PATCH /api/louise/pages/:id).
 // No HTML/markup is ever authored here, so the design stays 100% site-owned.
 //
-// The UX is HYBRID:
+// The UX is HYBRID, and fully on-canvas (the old floating "dock" is gone, #182):
 //  • TEXT is edited IN PLACE on the live bespoke render. Each editable text node
 //    carries a `data-louise-sfield="<idx>.<key>[.<j>.<subKey>]"` marker; we make
 //    it contenteditable and write keystrokes straight into the store. No panel,
-//    no reload — you type on the real design. Saved on demand via the dock.
-//  • STRUCTURE (which sections exist, their order, array-item membership) and any
-//    non-visible field (e.g. a button's link URL) live in a compact floating
-//    "dock" — the things you can't point at on the page. Because the bespoke
+//    no reload — you type on the real design.
+//  • STRUCTURE (reorder / delete a section or block) is the on-canvas chrome —
+//    a ring + toolbar over the hovered element (see chrome.ts). NON-VISIBLE fields
+//    (a button's link URL, an image, array membership, layout, settings) live in
+//    the ⚙ inspector popover anchored to the section/block. Because the bespoke
 //    components are server-rendered, a structural change persists then reloads so
 //    the server re-renders the new shape (which then becomes inline-editable).
+//  • PAGE-LEVEL controls sit on the shared edit bar (status, History, Save,
+//    Publish); Add-section is an on-canvas floating control; version History opens
+//    a right-side drawer.
 //
-// State is a single `createStore` shared by the inline wiring and the dock, so a
-// keystroke is a fine-grained path write (`set("items", i, key, value)`) that
+// State is a single `createStore` shared by the inline wiring and the inspector,
+// so a keystroke is a fine-grained path write (`set("items", i, key, value)`) that
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
@@ -58,7 +62,7 @@ import type {
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
 /** Whether a field is edited in place — plain text and rich text are (default).
- *  `array` and `image` are edited in the dock/inspector, so they're non-inline. */
+ *  `array` and `image` are edited in the ⚙ inspector, so they're non-inline. */
 function isInline(field: SectionField): boolean {
   return (
     field.inline ??
@@ -85,8 +89,8 @@ function humanize(key: string): string {
 
 /** Resolve when an element matching `selector` exists — checking now, then via a
  *  MutationObserver — or `null` after `timeoutMs`. The shared edit bar
- *  (`.louise-bar`) and this sections dock mount independently and in either
- *  order, so the dock can't assume the bar is already in the DOM. */
+ *  (`.louise-bar`) and this sections editor mount independently and in either
+ *  order, so the editor can't assume the bar is already in the DOM. */
 function whenElement(selector: string, timeoutMs = 3000): Promise<HTMLElement | null> {
   const now = document.querySelector<HTMLElement>(selector);
   if (now) return Promise.resolve(now);
@@ -105,39 +109,6 @@ function whenElement(selector: string, timeoutMs = 3000): Promise<HTMLElement | 
       resolve(null);
     }, timeoutMs);
   });
-}
-
-/** A dragged dock position (viewport px). `null` = the default CSS corner. */
-interface DockPos {
-  left: number;
-  top: number;
-}
-const DOCK_POS_KEY = "louise:sections-dock-pos";
-const DOCK_MARGIN = 8;
-
-/** The last dragged dock position, persisted across the reloads structural edits
- *  trigger so the dock stays where the editor put it. */
-function loadDockPos(): DockPos | null {
-  try {
-    const p = JSON.parse(localStorage.getItem(DOCK_POS_KEY) ?? "null");
-    if (p && typeof p.left === "number" && typeof p.top === "number") return p;
-  } catch {
-    /* ignore malformed/blocked storage */
-  }
-  return null;
-}
-
-/** Keep a position on-screen given the dock's current size (viewport may have
- *  changed since it was saved). Returns `null` unchanged. */
-function clampDockPos(pos: DockPos | null): DockPos | null {
-  if (!pos) return null;
-  const el = document.querySelector<HTMLElement>(".louise-sections-dock");
-  const w = el?.offsetWidth ?? 300;
-  const h = el?.offsetHeight ?? 200;
-  return {
-    left: Math.max(DOCK_MARGIN, Math.min(pos.left, window.innerWidth - w - DOCK_MARGIN)),
-    top: Math.max(DOCK_MARGIN, Math.min(pos.top, window.innerHeight - h - DOCK_MARGIN)),
-  };
 }
 
 /** A blank value for a field: `[]` for arrays, `""` for text. */
@@ -329,7 +300,6 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [status, setStatus] = createSignal<Status>("idle");
   const [dirty, setDirty] = createSignal(false);
   const [adding, setAdding] = createSignal(false);
-  const [collapsed, setCollapsed] = createSignal(false);
   // A specific save-failure reason (e.g. a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -348,16 +318,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const hasDraft = () => versions().some((v) => v.status === "draft");
 
   // A leading slot injected into the shared edit bar (`.louise-bar`) that hosts
-  // the Save-draft / Publish actions, so the page shows ONE action bar rather
-  // than a second set of buttons in this dock. Null until the bar is found (it
-  // mounts separately); the actions fall back into the dock while so.
+  // the status line, History button and Save-draft / Publish actions, so the page
+  // shows ONE action bar. Null until the bar is found (it mounts separately); the
+  // controls fall back to a fixed strip while so.
   const [barSlot, setBarSlot] = createSignal<HTMLElement | null>(null);
-
-  // Drag-to-move: `pos` is the dock's viewport position once dragged (null = the
-  // default CSS corner), `dragging` styles the grab cursor. The editor drags the
-  // dock by its header to move it off whatever it's covering.
-  const [pos, setPos] = createSignal<DockPos | null>(null);
-  const [dragging, setDragging] = createSignal(false);
 
   const autoCfg = resolveAutoSave(props.autoSave);
   // Bumped on every edit; `save()` captures it and only marks clean if it's
@@ -467,7 +431,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // here would duplicate the actions (each wired to a different surface). Only
     // one versioned surface per page should own the bar (see the Drafts &
     // publishing guide), so if the chrome already put actions there, keep ours in
-    // the dock footer (the `!barSlot()` fallback) instead of duplicating them.
+    // the fixed fallback strip (the `!barSlot()` branch) instead of duplicating them.
     void whenElement(".louise-bar").then((bar) => {
       if (!bar) return;
       if (bar.querySelector(".louise-savedraft, .louise-publish, .louise-bar-actions")) return;
@@ -476,57 +440,6 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       bar.insertBefore(slot, bar.firstChild);
       setBarSlot(slot);
     });
-    setPos(clampDockPos(loadDockPos()));
-  });
-
-  // Drag the dock by its header. Pointer move/up are on `window` so the drag
-  // survives the pointer leaving the header; persisted on release.
-  let dragFrom: { x: number; y: number; left: number; top: number } | null = null;
-  const onDragMove = (e: PointerEvent) => {
-    if (!dragFrom) return;
-    const el = document.querySelector<HTMLElement>(".louise-sections-dock");
-    const w = el?.offsetWidth ?? 300;
-    const h = el?.offsetHeight ?? 200;
-    setPos({
-      left: Math.max(
-        DOCK_MARGIN,
-        Math.min(dragFrom.left + (e.clientX - dragFrom.x), window.innerWidth - w - DOCK_MARGIN),
-      ),
-      top: Math.max(
-        DOCK_MARGIN,
-        Math.min(dragFrom.top + (e.clientY - dragFrom.y), window.innerHeight - h - DOCK_MARGIN),
-      ),
-    });
-  };
-  const endDrag = () => {
-    if (!dragFrom) return;
-    dragFrom = null;
-    setDragging(false);
-    window.removeEventListener("pointermove", onDragMove);
-    window.removeEventListener("pointerup", endDrag);
-    const p = pos();
-    if (p) {
-      try {
-        localStorage.setItem(DOCK_POS_KEY, JSON.stringify(p));
-      } catch {
-        /* ignore blocked storage */
-      }
-    }
-  };
-  const startDrag = (e: PointerEvent) => {
-    // The collapse toggle inside the header is a click target, not a drag grip.
-    if ((e.target as HTMLElement).closest(".louise-sections-toggle")) return;
-    const el = document.querySelector<HTMLElement>(".louise-sections-dock");
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    dragFrom = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top };
-    setDragging(true);
-    window.addEventListener("pointermove", onDragMove);
-    window.addEventListener("pointerup", endDrag);
-  };
-  onCleanup(() => {
-    window.removeEventListener("pointermove", onDragMove);
-    window.removeEventListener("pointerup", endDrag);
   });
 
   // Parse a `{ error, violations }` body into a display detail (validation reason).
@@ -939,16 +852,24 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       );
     });
 
-  /** Fields edited in the dock (not visible text you can point at). */
-  const dockFields = (item: SectionItem): [string, SectionField][] =>
-    Object.entries(props.catalog[item._type]?.fields ?? {}).filter(
-      ([, f]) => f.type !== "array" && !isInline(f),
-    );
-  const arrayFields = (item: SectionItem): [string, SectionField][] =>
-    Object.entries(props.catalog[item._type]?.fields ?? {}).filter(([, f]) => f.type === "array");
+  // Save-status text for the edit bar, next to Save/Publish.
+  const statusText = () =>
+    status() === "saving"
+      ? "Saving…"
+      : status() === "saved"
+        ? "Draft saved"
+        : status() === "publishing"
+          ? "Publishing…"
+          : status() === "error"
+            ? errorDetail() || "Couldn’t save"
+            : dirty()
+              ? "Unsaved"
+              : hasDraft()
+                ? "Draft"
+                : "";
 
   // The page's primary save actions — Save draft (green) and Publish (yellow) —
-  // rendered onto the shared edit bar (or the dock as fallback). A component so
+  // rendered onto the shared edit bar (or a fixed fallback strip). A component so
   // the same markup mounts in either place.
   // With auto-save on, the manual Save draft button is dropped — edits stage a
   // draft on a debounce and the status line reports it. Publish is never
@@ -979,259 +900,103 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     </>
   );
 
+  // Everything the removed dock's header/footer owned, now on the shared edit bar:
+  // the save-status line, a History button (opens the version-history drawer), and
+  // the Save/Publish actions. Mounts into the bar slot, or a fixed fallback strip.
+  const BarControls = () => (
+    <>
+      <span
+        class="louise-sections-status"
+        data-status={status()}
+        title={status() === "error" ? errorDetail() : undefined}
+      >
+        {statusText()}
+      </span>
+      <button
+        class="louise-bar-history"
+        type="button"
+        title="Version history"
+        onClick={() => {
+          const next = !showHistory();
+          setShowHistory(next);
+          if (next) void loadVersions();
+        }}
+      >
+        <Icon name="history" /> History
+      </button>
+      <SaveActions />
+    </>
+  );
+
   return (
-    <div
-      class="louise-sections-dock"
-      data-theme="louise"
-      data-collapsed={collapsed() ? "1" : undefined}
-      data-dragging={dragging() ? "1" : undefined}
-      style={
-        pos()
-          ? { left: `${pos()?.left}px`, top: `${pos()?.top}px`, right: "auto", bottom: "auto" }
-          : undefined
-      }
-    >
-      <div class="louise-sections-head" onPointerDown={startDrag}>
+    <>
+      {/* Bar controls: status + History + Save/Publish, relocated onto the shared
+          edit bar (#182 — the floating "Page sections" dock is gone). Falls back
+          to a fixed strip when the page has no edit bar (e.g. a standalone
+          harness / test host). */}
+      <Show
+        when={barSlot()}
+        fallback={
+          <div class="louise-sections-barfallback" data-theme="louise">
+            <BarControls />
+          </div>
+        }
+      >
+        <Portal mount={barSlot()!}>
+          <BarControls />
+        </Portal>
+      </Show>
+
+      {/* Add section — an on-canvas floating control (the dock that used to host it
+          is gone). Same palette markup as before, now anchored on the page; the
+          per-section edit/move/delete affordances live on the on-canvas toolbar and
+          the ⚙ inspector. */}
+      <div class="louise-sections-add louise-sections-add--floating" data-theme="louise">
         <button
-          class="louise-sections-toggle"
+          class="louise-btn louise-btn-block"
           type="button"
-          title={collapsed() ? "Expand" : "Collapse"}
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={() => setAdding((v) => !v)}
         >
-          <Icon name={collapsed() ? "caretRight" : "caretDown"} />
+          <Icon name="plus" /> Add section
         </button>
-        <span class="louise-sections-title">Page sections</span>
-        <span
-          class="louise-sections-status"
-          data-status={status()}
-          title={status() === "error" ? errorDetail() : undefined}
-        >
-          {status() === "saving"
-            ? "Saving…"
-            : status() === "saved"
-              ? "Draft saved"
-              : status() === "publishing"
-                ? "Publishing…"
-                : status() === "error"
-                  ? errorDetail() || "Couldn’t save"
-                  : dirty()
-                    ? "Unsaved"
-                    : hasDraft()
-                      ? "Draft"
-                      : ""}
-        </span>
+        <Show when={adding()}>
+          <div class="louise-sections-palette" role="menu">
+            <For each={Object.entries(props.catalog)}>
+              {([type, def]) => (
+                <button
+                  class="louise-slash-item"
+                  type="button"
+                  role="menuitem"
+                  onClick={() => addSection(type)}
+                >
+                  {def.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
       </div>
 
-      <Show when={!collapsed()}>
-        <div class="louise-sections-body">
-          <For
-            each={state.items}
-            fallback={<p class="louise-muted">No sections yet — add one below.</p>}
-          >
-            {(item, i) => (
-              <div class="louise-section-row">
-                <div class="louise-section-row-head">
-                  <span class="louise-section-type">
-                    {props.catalog[item._type]?.label ?? item._type}
-                  </span>
-                  <div class="louise-section-ops">
-                    <button
-                      class="louise-btn louise-btn-xs"
-                      type="button"
-                      title="Move up"
-                      disabled={i() === 0}
-                      onClick={() => moveSection(i(), -1)}
-                    >
-                      <Icon name="caretUp" />
-                    </button>
-                    <button
-                      class="louise-btn louise-btn-xs"
-                      type="button"
-                      title="Move down"
-                      disabled={i() === state.items.length - 1}
-                      onClick={() => moveSection(i(), 1)}
-                    >
-                      <Icon name="caretDown" />
-                    </button>
-                    <button
-                      class="louise-btn louise-btn-xs louise-btn-danger"
-                      type="button"
-                      title="Remove section"
-                      onClick={() => removeSection(i())}
-                    >
-                      <Icon name="trash" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Non-visible fields (edited here, not on the page). */}
-                <For each={dockFields(item)}>
-                  {([key, field]) => (
-                    <Show
-                      when={field.type === "image"}
-                      fallback={
-                        <label class="louise-field">
-                          <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                          <Show
-                            when={field.type === "textarea"}
-                            fallback={
-                              <input
-                                class="louise-input"
-                                value={String(item[key] ?? "")}
-                                placeholder={field.placeholder}
-                                onInput={(e) => {
-                                  set("items", i(), key, e.currentTarget.value);
-                                  touched();
-                                }}
-                              />
-                            }
-                          >
-                            {/* A textarea (not a single-line input) so dock-edited
-                                body copy — card bodies, FAQ answers, step/tier
-                                bodies — can hold line breaks, saved as `\n`. The
-                                site renders them with `white-space: pre-line`. */}
-                            <textarea
-                              class="louise-input louise-dock-textarea"
-                              rows={3}
-                              value={String(item[key] ?? "")}
-                              placeholder={field.placeholder}
-                              onInput={(e) => {
-                                set("items", i(), key, e.currentTarget.value);
-                                touched();
-                              }}
-                            />
-                          </Show>
-                        </label>
-                      }
-                    >
-                      <ImageDockField
-                        label={field.label ?? humanize(key)}
-                        value={String(item[key] ?? "")}
-                        onSet={(url) => restructureSection(i(), () => set("items", i(), key, url))}
-                      />
-                    </Show>
-                  )}
-                </For>
-
-                {/* Array membership — the text of each item is edited in place.
-                    A discriminated array swaps the plain "Item N" label + single
-                    add for a per-item variant switcher + one add per variant. */}
-                <For each={arrayFields(item)}>
-                  {([key, field]) => (
-                    <div class="louise-arr">
-                      <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                      <For each={(item[key] as Record<string, unknown>[]) ?? []}>
-                        {(arrItem, k) => (
-                          <div class="louise-arr-row">
-                            <Show
-                              when={field.discriminator}
-                              fallback={
-                                <span>
-                                  {field.itemLabel ?? "Item"} {k() + 1}
-                                </span>
-                              }
-                            >
-                              <select
-                                class="louise-variant-switch"
-                                title="Block type"
-                                value={variantOf(field, arrItem)}
-                                onChange={(e) =>
-                                  switchVariant(i(), key, k(), field, e.currentTarget.value)
-                                }
-                              >
-                                <For each={variantKeys(field)}>
-                                  {(v) => <option value={v}>{variantLabel(field, v)}</option>}
-                                </For>
-                              </select>
-                            </Show>
-                            <button
-                              class="louise-btn louise-btn-xs louise-btn-danger"
-                              type="button"
-                              title="Remove"
-                              onClick={() => removeItem(i(), key, k())}
-                            >
-                              <Icon name="trash" />
-                            </button>
-                          </div>
-                        )}
-                      </For>
-                      <Show
-                        when={field.discriminator}
-                        fallback={
-                          <button
-                            class="louise-btn louise-btn-xs"
-                            type="button"
-                            onClick={() => addItem(i(), key, field.itemFields ?? {})}
-                          >
-                            <Icon name="plus" /> {field.itemLabel ?? "item"}
-                          </button>
-                        }
-                      >
-                        <div class="louise-variant-add">
-                          <For each={variantKeys(field)}>
-                            {(v) => (
-                              <button
-                                class="louise-btn louise-btn-xs"
-                                type="button"
-                                onClick={() => addVariantItem(i(), key, field, v)}
-                              >
-                                <Show when={variantIcon(field, v)} fallback={<Icon name="plus" />}>
-                                  <i class={variantIcon(field, v)} aria-hidden="true" />
-                                </Show>{" "}
-                                {variantLabel(field, v)}
-                              </button>
-                            )}
-                          </For>
-                        </div>
-                      </Show>
-                    </div>
-                  )}
-                </For>
-              </div>
-            )}
-          </For>
-
-          {/* Add section — full-width, above the version history. */}
-          <div class="louise-sections-add">
-            <button
-              class="louise-btn louise-btn-block"
-              type="button"
-              onClick={() => setAdding((v) => !v)}
-            >
-              <Icon name="plus" /> Add section
-            </button>
-            <Show when={adding()}>
-              <div class="louise-sections-palette" role="menu">
-                <For each={Object.entries(props.catalog)}>
-                  {([type, def]) => (
-                    <button
-                      class="louise-slash-item"
-                      type="button"
-                      role="menuitem"
-                      onClick={() => addSection(type)}
-                    >
-                      {def.label}
-                    </button>
-                  )}
-                </For>
-              </div>
-            </Show>
-          </div>
-
-          {/* Version history — publish (restore) any version to make it live. */}
-          <div class="louise-sections-history">
-            <button
-              class="louise-sections-history-toggle"
-              type="button"
-              onClick={() => {
-                const next = !showHistory();
-                setShowHistory(next);
-                if (next) void loadVersions();
-              }}
-            >
-              <Icon name={showHistory() ? "caretDown" : "caretRight"} /> Version history
-            </button>
-            <Show when={showHistory()}>
+      {/* Version-history drawer — opened from the bar's History button. A right-side
+          drawer (the Louise drawer visual family) replaces the removed dock's inline
+          list. The sections surface mounts independently of mountLouise's settings
+          shell, so this is a dedicated history drawer rather than a tab within it. */}
+      <Show when={showHistory()}>
+        <Portal>
+          <div class="louise-drawer-scrim" onClick={() => setShowHistory(false)} />
+          <aside class="louise-drawer louise-history-drawer" data-theme="louise">
+            <div class="louise-drawer-head">
+              <span class="louise-drawer-brand">Version history</span>
+              <button
+                type="button"
+                class="louise-drawer-close"
+                aria-label="Close"
+                onClick={() => setShowHistory(false)}
+              >
+                <Icon name="x" />
+              </button>
+            </div>
+            <div class="louise-drawer-body">
               <div class="louise-sections-versions">
                 <For each={versions()} fallback={<p class="louise-muted">No versions yet.</p>}>
                   {(v) => {
@@ -1281,22 +1046,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   }}
                 </For>
               </div>
-            </Show>
-          </div>
-
-          {/* Fallback home for Save draft + Publish when no edit bar exists. */}
-          <Show when={!barSlot()}>
-            <div class="louise-sections-footer">
-              <SaveActions />
             </div>
-          </Show>
-        </div>
-      </Show>
-      {/* Save draft + Publish, relocated onto the shared edit bar. Kept outside
-          the collapse toggle so they stay on the bar when the dock is collapsed. */}
-      <Show when={barSlot()}>
-        <Portal mount={barSlot()!}>
-          <SaveActions />
+          </aside>
         </Portal>
       </Show>
 
@@ -1317,6 +1068,16 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             Object.entries(inspectDef(target)?.fields ?? {}).filter(
               ([, f]) => f.type !== "array" && !isInline(f),
             );
+          // Array membership (add/remove items, variant switch) — a section-level
+          // field, edited here too so the dock isn't needed. `si` is the section
+          // index the array handlers take.
+          const arrayEditFields = () =>
+            target.kind === "section"
+              ? Object.entries(inspectDef(target)?.fields ?? {}).filter(
+                  ([, f]) => f.type === "array",
+                )
+              : [];
+          const si = () => inspectSection(target);
           return (
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} />
@@ -1387,6 +1148,89 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   </div>
                 </Show>
 
+                {/* Array membership (add/remove/switch items) — the item text is
+                    edited on the page; this manages the list. */}
+                <Show when={arrayEditFields().length > 0}>
+                  <div class="louise-inspector-group">
+                    <For each={arrayEditFields()}>
+                      {([key, field]) => (
+                        <div class="louise-arr">
+                          <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                          <For
+                            each={(inspectItem(target)?.[key] as Record<string, unknown>[]) ?? []}
+                          >
+                            {(arrItem, k) => (
+                              <div class="louise-arr-row">
+                                <Show
+                                  when={field.discriminator}
+                                  fallback={
+                                    <span>
+                                      {field.itemLabel ?? "Item"} {k() + 1}
+                                    </span>
+                                  }
+                                >
+                                  <select
+                                    class="louise-variant-switch"
+                                    title="Block type"
+                                    value={variantOf(field, arrItem)}
+                                    onChange={(e) =>
+                                      switchVariant(si(), key, k(), field, e.currentTarget.value)
+                                    }
+                                  >
+                                    <For each={variantKeys(field)}>
+                                      {(v) => <option value={v}>{variantLabel(field, v)}</option>}
+                                    </For>
+                                  </select>
+                                </Show>
+                                <button
+                                  class="louise-btn louise-btn-xs louise-btn-danger"
+                                  type="button"
+                                  title="Remove"
+                                  onClick={() => removeItem(si(), key, k())}
+                                >
+                                  <Icon name="trash" />
+                                </button>
+                              </div>
+                            )}
+                          </For>
+                          <Show
+                            when={field.discriminator}
+                            fallback={
+                              <button
+                                class="louise-btn louise-btn-xs"
+                                type="button"
+                                onClick={() => addItem(si(), key, field.itemFields ?? {})}
+                              >
+                                <Icon name="plus" /> {field.itemLabel ?? "item"}
+                              </button>
+                            }
+                          >
+                            <div class="louise-variant-add">
+                              <For each={variantKeys(field)}>
+                                {(v) => (
+                                  <button
+                                    class="louise-btn louise-btn-xs"
+                                    type="button"
+                                    onClick={() => addVariantItem(si(), key, field, v)}
+                                  >
+                                    <Show
+                                      when={variantIcon(field, v)}
+                                      fallback={<Icon name="plus" />}
+                                    >
+                                      <i class={variantIcon(field, v)} aria-hidden="true" />
+                                    </Show>{" "}
+                                    {variantLabel(field, v)}
+                                  </button>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+
                 <Show when={layouts()}>
                   <div class="louise-inspector-group">
                     <span class="louise-field-label">Layout</span>
@@ -1442,7 +1286,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   </div>
                 </Show>
 
-                <Show when={editFields().length === 0 && !layouts() && !hasSettings()}>
+                <Show
+                  when={
+                    editFields().length === 0 &&
+                    arrayEditFields().length === 0 &&
+                    !layouts() &&
+                    !hasSettings()
+                  }
+                >
                   <p class="louise-inspector-empty">Nothing to configure here yet.</p>
                 </Show>
               </div>
@@ -1450,14 +1301,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           );
         }}
       </Show>
-    </div>
+    </>
   );
 }
 
 /**
  * Vanilla-DOM adapter: enable in-place editing over `el` (the server-rendered
- * bespoke sections) and mount the control dock, in edit mode. The bespoke render
- * is left in place — only made editable. Returns the disposer.
+ * bespoke sections) and mount the on-canvas editing chrome, in edit mode. The
+ * bespoke render is left in place — only made editable. Returns the disposer.
  */
 export function mountSections(el: HTMLElement, opts: SectionsEditorProps): () => void {
   injectStyles();

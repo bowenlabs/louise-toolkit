@@ -1,7 +1,9 @@
 // happy-dom coverage for swap-type via the fragment route (#182 Phase 3): the
-// dock's variant type-switcher no longer save-and-reloads — it swaps the item's
-// variant in the store and re-renders the whole section in place through
-// /louise-fragment (the same seam as block add / array item add-remove).
+// inspector's variant type-switcher no longer save-and-reloads — it swaps the
+// item's variant in the store and re-renders the whole section in place through
+// /louise-fragment (the same seam as block add / array item add-remove). The
+// switcher lives in the ⚙ inspector (the dock is gone, #182), so the test opens
+// the gear (hover the section → click ⚙) before touching it.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
@@ -81,6 +83,20 @@ function pageHost(): HTMLElement {
   return host;
 }
 
+const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles: true }));
+const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+const cog = () =>
+  [
+    ...(document
+      .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
+      ?.querySelectorAll("button") ?? []),
+  ].find((b) => b.textContent === "⚙") ?? null;
+/** Hover the section and click its ⚙ to open the inspector (host of the array UI). */
+const openInspector = () => {
+  over(document.querySelector("[data-louise-section]") as Node);
+  click(cog());
+};
+
 let dispose: (() => void) | undefined;
 afterEach(() => {
   dispose?.();
@@ -107,6 +123,7 @@ describe("mountSections — swap-type via the fragment route (#182 Phase 3)", ()
     });
     await flush();
 
+    openInspector();
     const sw = document.querySelector(".louise-variant-switch") as unknown as HTMLSelectElement;
     if (!sw) throw new Error("no variant switcher");
     sw.value = "quote";

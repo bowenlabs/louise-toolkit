@@ -1,6 +1,8 @@
 // happy-dom coverage for the discriminated-array type-switcher (#182 Phase 0):
-// the dock renders one "add" per variant and a per-item variant switch, and both
-// shape each item as (shared itemFields ∪ the variant's fields ∪ the key).
+// the ⚙ inspector renders one "add" per variant and a per-item variant switch,
+// and both shape each item as (shared itemFields ∪ the variant's fields ∪ the
+// key). Array editing moved from the removed dock onto the inspector (#182), so
+// each test opens the gear (hover the section → click ⚙) first.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
@@ -60,12 +62,34 @@ function stubFetch(): Call[] {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+// A host carrying one on-canvas section element (`data-louise-section`), so the
+// chrome can attach its toolbar and the ⚙ can open the inspector for it.
 function mount(initial: SectionItem[]): () => void {
   const el = document.createElement("div");
+  el.setAttribute("data-louise-sections", "1");
+  const sec = document.createElement("div");
+  sec.setAttribute("data-louise-section", "0");
+  sec.textContent = "Gallery";
+  el.appendChild(sec);
   document.body.appendChild(el);
   vi.spyOn(window.location, "reload").mockImplementation(() => {});
   return mountSections(el, { catalog: CATALOG, pageId: 1, initial });
 }
+
+const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles: true }));
+const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+const cog = () =>
+  [
+    ...(document
+      .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
+      ?.querySelectorAll("button") ?? []),
+  ].find((b) => b.textContent === "⚙") ?? null;
+/** Hover the section and click its ⚙ to open the inspector (where the array UI —
+ *  per-variant add buttons + per-item switcher — now lives). */
+const openInspector = () => {
+  over(document.querySelector("[data-louise-section]") as Node);
+  click(cog());
+};
 
 const draftItems = (calls: Call[]): Record<string, unknown>[] => {
   const post = calls.find((c) => c.method === "POST" && c.url === "/api/louise/pages/1/versions");
@@ -77,7 +101,8 @@ let dispose: (() => void) | undefined;
 afterEach(() => {
   dispose?.();
   dispose = undefined;
-  document.querySelectorAll("div, .louise-sections-dock").forEach((n) => n.remove());
+  document.body.replaceChildren();
+  document.getElementById("louise-chrome-style")?.remove();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -86,6 +111,7 @@ describe("mountSections — discriminated array type-switcher (#182 Phase 0)", (
   it("renders one labelled add button per variant", () => {
     stubFetch();
     dispose = mount([{ _type: "gallery", items: [] }]);
+    openInspector();
     const adds = [...document.querySelectorAll<HTMLButtonElement>(".louise-variant-add button")];
     expect(adds).toHaveLength(2);
     expect(adds.map((b) => b.textContent?.trim())).toEqual(["Image", "Quote"]);
@@ -94,6 +120,7 @@ describe("mountSections — discriminated array type-switcher (#182 Phase 0)", (
   it("adding a variant appends an item shaped as base ∪ variant fields + the key", async () => {
     const calls = stubFetch();
     dispose = mount([{ _type: "gallery", items: [] }]);
+    openInspector();
     const imageAdd = [
       ...document.querySelectorAll<HTMLButtonElement>(".louise-variant-add button"),
     ].find((b) => b.textContent?.includes("Image"));
@@ -113,6 +140,7 @@ describe("mountSections — discriminated array type-switcher (#182 Phase 0)", (
     dispose = mount([
       { _type: "gallery", items: [{ kind: "image", caption: "keep", url: "/media/x" }] },
     ]);
+    openInspector();
     const sw = document.querySelector(
       ".louise-variant-switch",
     ) as unknown as HTMLSelectElement | null;

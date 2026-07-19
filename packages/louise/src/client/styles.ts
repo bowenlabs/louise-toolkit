@@ -766,68 +766,53 @@ const CSS = `
   pointer-events: none;
 }
 
-/* Control dock — bottom-left, clearing the center save bar and right drawer. */
-.louise-sections-dock {
+/* The floating "Page sections" dock is gone (#182). Its jobs relocated: Save /
+   Publish / status / History onto the shared edit bar, per-section editing onto
+   the ⚙ inspector, reorder/delete onto the on-canvas toolbar, Add-section to an
+   on-canvas floating control, and version history to the right-side drawer. */
+
+/* History button on the edit bar — opens the version-history drawer. */
+.louise-bar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  padding: 4px 10px;
+}
+.louise-bar-history:hover {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.24);
+}
+/* Fixed fallback strip hosting the bar controls when the page has no .louise-bar
+   to inject into (e.g. a standalone harness / test host). */
+.louise-sections-barfallback {
   position: fixed;
   bottom: 20px;
-  left: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2147483000;
-  width: 300px;
-  max-height: 72vh;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
   border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
   font-family: var(--louise-font-body);
   color: #0f172a;
 }
-.louise-sections-dock[data-collapsed="1"] { width: auto; }
-/* Header doubles as the drag handle — grab it to move the dock off whatever it
-   covers. touch-action:none so a touch drag moves it instead of scrolling; the
-   collapse toggle inside keeps its own pointer cursor + click. */
-.louise-sections-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-}
-.louise-sections-dock[data-dragging="1"] { user-select: none; }
-.louise-sections-dock[data-dragging="1"] .louise-sections-head { cursor: grabbing; }
-.louise-sections-toggle {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 12px;
-  color: #475569;
-  padding: 0 2px;
-}
-.louise-sections-title { font-weight: 700; font-size: 14px; }
-.louise-sections-status { margin-left: auto; font-size: 12px; color: #64748b; }
+.louise-sections-status { font-size: 12px; color: #64748b; }
 .louise-sections-status[data-status="error"] { color: #dc2626; }
 .louise-sections-status[data-status="saved"] { color: #16a34a; }
-.louise-sections-body { overflow-y: auto; }
-.louise-section-row {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 10px;
-  padding: 10px;
-  margin-bottom: 8px;
-  display: grid;
-  gap: 8px;
-}
-.louise-section-row-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.louise-section-type { font-weight: 600; font-size: 13px; }
-.louise-section-ops { display: flex; gap: 4px; }
 .louise-arr { display: grid; gap: 6px; }
 .louise-arr-row {
   display: flex;
@@ -860,12 +845,20 @@ const CSS = `
   color: #16a34a;
   font-weight: 600;
 }
-/* Add section — full-width block above the version history, matching the section
-   rows' width. Relative so its palette anchors to it. */
+/* Add section (#182): relative so its palette anchors to it. The --floating
+   modifier lifts it onto the canvas (bottom-left, clearing the centre edit bar)
+   now that the dock that used to host it is gone. */
 .louise-sections-add { position: relative; margin: 8px 0; }
-/* Fallback home for Save-draft / Publish when no edit bar is present to host
-   them (normally they live on the .louise-bar via .louise-bar-actions). */
-.louise-sections-footer { display: flex; gap: 8px; margin-top: 8px; }
+.louise-sections-add--floating {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2147483000;
+  width: 190px;
+  margin: 0;
+  font-family: var(--louise-font-body);
+  color: #0f172a;
+}
 .louise-sections-img {
   display: block;
   max-width: 100%;
@@ -876,19 +869,10 @@ const CSS = `
 }
 .louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .louise-sections-img-error { font-size: 11px; color: #dc2626; }
-.louise-sections-history { margin: 4px 0 8px; }
-.louise-sections-history-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  padding: 2px 0;
-}
+/* Version history drawer (#182) — a dedicated right-side drawer opened from the
+   bar's History button, reusing the Louise drawer visual family (.louise-drawer).
+   The versions list is the same rows the old dock showed, in the drawer body. */
+.louise-history-drawer .louise-sections-versions { display: grid; gap: 6px; }
 .louise-sections-versions { display: grid; gap: 6px; margin-top: 6px; }
 .louise-sections-palette {
   position: absolute;
@@ -1321,13 +1305,13 @@ const CSS = `
     min-height: 44px;
   }
   .louise-icon-btn { min-width: 36px; min-height: 36px; }
-  /* Formatting toolbar, colour swatches, section-row ops, inputs and the
-     dock's disclosure toggles were all below a comfortable tap size. */
+  /* Formatting toolbar, colour swatches, inspector ops and inputs were all
+     below a comfortable tap size. */
   .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 19px; }
   .louise-swatch { width: 32px; height: 32px; }
   .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: 13px; }
   .louise-input, .louise-select { min-height: 42px; }
-  .louise-sections-toggle, .louise-sections-history-toggle { min-height: 36px; }
+  .louise-bar-history { min-height: 36px; }
 }
 
 /* Tablet: keep the side drawer, cap it so the live site stays visible. */
@@ -1392,43 +1376,14 @@ const CSS = `
     flex-wrap: wrap;
     row-gap: 4px;
   }
-  /* Structured-sections dock → bottom sheet. The default is a fixed 300px card
-     at bottom-left that overflows a phone and sits under the edit bar; here it
-     spans full width and docks to the bottom. !important overrides the dragged
-     inline position (left/top set by the pointer-drag in sections.tsx), which
-     is meaningless for a full-width sheet. */
-  .louise-sections-dock {
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    top: auto !important;
-    width: auto !important;
-    max-width: none;
-    max-height: 62dvh;
-    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.22);
-    animation: louise-sheet-up 200ms ease;
-  }
-  .louise-sections-dock[data-collapsed="1"] { width: auto !important; }
-  /* Full-width sheet: the header is no longer a drag grip — swap the grab
-     cursor for a sheet grab-bar cue (matching the drawer). */
-  .louise-sections-head {
-    position: relative;
-    cursor: default;
-    touch-action: auto;
-    padding-top: 10px;
-  }
-  .louise-sections-head::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 36px;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.15);
+  /* On-canvas "Add section" control (#182): the edit bar docks to the top on
+     mobile, so span this across the bottom (thumb zone), clear of the home
+     indicator. */
+  .louise-sections-add--floating {
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: auto;
   }
   /* Image grid: keep tiles tappable. */
   .louise-image-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
@@ -1444,7 +1399,7 @@ const CSS = `
 
 /* Motion sensitivity. */
 @media (prefers-reduced-motion: reduce) {
-  .louise-drawer, .louise-bar, .louise-sections-dock { animation: none !important; }
+  .louise-drawer, .louise-bar { animation: none !important; }
 }
 
 /* ── Headless <Form> (#46) ────────────────────────────────────────────── */
