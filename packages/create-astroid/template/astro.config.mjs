@@ -2,7 +2,9 @@
 import cloudflare from "@astrojs/cloudflare";
 import solid from "@astrojs/solid-js";
 import tailwindcss from "@tailwindcss/vite";
+import { ASTROID_VITE_BUILD, astroidSecurity } from "astroidjs/astro";
 import { defineConfig } from "astro/config";
+import astroidConfig from "./astroid.config.ts";
 
 // SSR (`output: server`) because Louise renders per-request edit affordances and
 // reads pages from D1. Solid islands power the editor UI (ADR 0001). Tailwind v4 +
@@ -14,17 +16,20 @@ export default defineConfig({
   output: "server",
   adapter: cloudflare(),
   integrations: [solid()],
-  vite: { plugins: [tailwindcss()] },
-  // Content-Security-Policy. Astro hashes every processed script + style and emits
-  // a `content-security-policy` response header on on-demand (SSR) pages — which is
-  // all of ours. The generated src/middleware.ts (createLouiseMiddleware) then
-  // rewrites `style-src` to `'self' 'unsafe-inline'` so Louise's data-driven
-  // `style=""` carriers and the editor's runtime-injected <style> are allowed, and
-  // permits the inlined `data:` brand font. This is why the inline scripts here
-  // (login.astro, LouiseEdit.astro) avoid is:inline/define:vars — those can't be
-  // hashed and would be blocked.
+  vite: {
+    plugins: [tailwindcss()],
+    build: { ...ASTROID_VITE_BUILD },
+  },
+  // Content-Security-Policy, composed by Astroid from your config: it derives the
+  // allowed origins from the modules you enabled (commerce provider SDKs,
+  // captcha) and adds the hash of Solid's hydration bootstrap, which Astro does
+  // not hash itself. Astro owns `script-src` (every script it processes is
+  // hashed, so no 'unsafe-inline'); the generated src/middleware.ts rewrites only
+  // `style-src`, because Louise's data-driven `style=""` carriers need
+  // 'unsafe-inline' and a hash in that directive would void it.
   //
-  // Using Square Web Payments? Allow its SDK host in script-src:
-  //   security: { csp: { scriptDirective: { resources: ["'self'", "https://web.squarecdn.com"] } } }
-  security: { csp: true },
+  // This is why the inline scripts here (login.astro, LouiseEdit.astro) avoid
+  // is:inline/define:vars — those can't be hashed and would be blocked. Need
+  // another origin? Add it to `security.cspOrigins` in astroid.config.ts.
+  security: astroidSecurity(astroidConfig),
 });

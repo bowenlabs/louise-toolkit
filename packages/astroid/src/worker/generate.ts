@@ -100,7 +100,9 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   if (inquiries) p('import { inquiriesForm } from "louise-toolkit/db";');
   p(`import { ${tables.join(", ")} } from "./schema.js";`);
   p('import { astroidPagesCollection } from "astroidjs";');
-  p('import astroidConfig from "./astroid.config.js";');
+  // The config lives at the PROJECT ROOT (create-astroid writes it there); this
+  // file is src/worker.ts, so the specifier is `../`, not `./`.
+  p('import astroidConfig from "../astroid.config.js";');
   p("// TODO(astroid): your AUTH seam. resolveEditor resolves the editor session");
   p("// from a request; a truthy result authorizes editor writes. A generated auth");
   p("// module is a later slice.");
@@ -160,16 +162,22 @@ export function generateAstroidWorker(config: AstroidConfig): string {
  * Generate the Astro middleware (`middleware.ts`) from an Astroid config: the
  * shared Louise flow (rate-limit the unauthenticated POST surface → resolve editor
  * session + sticky `?louise` edit mode → content-freshness + security headers) via
- * `createLouiseMiddleware`. The default rate rule caps `POST /api/auth/*` (magic-link
- * sign-in) against the provisioned `RL` KV; auth is the same seam as the worker.
+ * `createLouiseMiddleware`.
  *
- * CSP: `astro.config.mjs` enables `security.csp`, so Astro emits a hash-based
- * `content-security-policy` response header on every SSR page. The `cspStyleSrc`
- * below tells `createLouiseMiddleware` to rewrite that header's `style-src` to
- * `'self' 'unsafe-inline'` — the hash-based `style-src` Astro emits would block
- * Louise's data-driven `style=""` carriers and the editor's runtime-injected
- * `<style>`. Script hashes are left verbatim (the template's inline scripts are
- * kept hashable), and the inlined `data:` brand font is auto-allowed.
+ * The rate rules are NOT emitted as literals here — the file calls
+ * `astroidRateRules(astroidConfig)`, so the set stays real data in the package
+ * (testable, and a `match` predicate survives, which a serialized literal could
+ * not). Enabling a portal or commerce in the config adds that surface's rules
+ * with no regeneration of this file at all.
+ *
+ * CSP: `astro.config.mjs` enables `security.csp` (via `astroidSecurity`), so
+ * Astro emits a hash-based `content-security-policy` response header on every SSR
+ * page and owns `script-src`. The `cspStyleSrc` below tells
+ * `createLouiseMiddleware` to rewrite that header's `style-src` to
+ * `'self' 'unsafe-inline'` — a hash-based `style-src` would, per spec, void the
+ * `'unsafe-inline'` that Louise's data-driven `style=""` carriers and the
+ * editor's runtime-injected `<style>` require. Script hashes are left verbatim,
+ * and the inlined `data:` brand font is auto-allowed.
  */
 export function generateAstroidMiddleware(_config: AstroidConfig): string {
   // Louise's brand font is bundled + base64-inlined (no Google Fonts host to
@@ -185,22 +193,24 @@ export function generateAstroidMiddleware(_config: AstroidConfig): string {
     "// styles + inlined data: brand font are allowed.",
     'import { env } from "cloudflare:workers";',
     'import { createLouiseMiddleware } from "louise-toolkit/astro";',
+    'import { astroidRateRules } from "astroidjs";',
+    'import astroidConfig from "../astroid.config.js";',
     "// TODO(astroid): your AUTH seam — same resolveEditor as the generated worker.ts.",
     'import { resolveEditor } from "./auth.js";',
     "",
     "// Rate-limit the public, unauthenticated POST surface, keyed by client IP",
-    "// (fixed-window KV counter that fails open). The magic-link sign-in is the one",
-    "// that matters: without a cap, anyone who knows an editor's email could trigger",
-    "// unbounded sign-in emails (inbox flooding + Email/Worker spend). `env.RL` is",
-    "// read per request (a getter) — the KV binding is only valid in request scope.",
-    "const RATE_RULES = [",
-    '  { name: "auth", method: "POST", match: (p: string) => p.startsWith("/api/auth/"), limit: 10, windowSec: 60 },',
-    "];",
+    "// (fixed-window KV counter that fails open). Derived from your config: the",
+    "// editor magic-link always, plus the portal credential surfaces and checkout",
+    "// when those are enabled. Add your own via `security.rateRules` in the config —",
+    "// they're matched first, so they can also override a default's budget.",
+    "// `env.RL` is read per request (a getter) — a KV binding is only valid in",
+    "// request scope.",
+    "const RATE_RULES = astroidRateRules(astroidConfig);",
     "",
     "export const onRequest = createLouiseMiddleware({",
     "  resolveEditor: (request) => resolveEditor(request),",
     "  rateLimit: { rules: RATE_RULES, kv: () => env.RL },",
-    "  // Rewrite Astro's hash-based style-src (enabled via security.csp in",
+    "  // Rewrite Astro's hash-based style-src (owned by astroidSecurity in",
     "  // astro.config.mjs) to permit Louise's data-driven style=\"\" + editor styles.",
     `  cspStyleSrc: ${JSON.stringify(cspStyleSrc)},`,
     "});",

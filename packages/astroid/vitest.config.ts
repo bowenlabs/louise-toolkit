@@ -12,10 +12,8 @@ export default defineConfig({
       // `exports` map only points at dist/, so without this the suite would
       // silently test whatever was last built — and would fail outright on a
       // fresh clone that hasn't packed louise yet.
-      "louise-toolkit/security": new URL(
-        "../louise/src/core/security/index.ts",
-        import.meta.url,
-      ).pathname,
+      "louise-toolkit/security": new URL("../louise/src/core/security/index.ts", import.meta.url)
+        .pathname,
     },
   },
   test: {

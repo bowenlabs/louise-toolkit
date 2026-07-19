@@ -65,6 +65,45 @@ export default defineAstroid({
 });
 ```
 
+## Security defaults
+
+Two stack-wide concerns every site was re-deriving by hand, moved into the
+framework.
+
+**Rate-limit rules are data, derived from the config.** The generated middleware
+calls `astroidRateRules(config)`: the editor magic-link always (the
+email-bombing target, so the tightest budget in the set), the portal's
+credential surfaces when `portal.enabled`, checkout when `commerce` is set. The
+session-gated editor API stays out on purpose — a limiter that can lock the
+owner out of their own studio is worse than the abuse it stops. Add or override
+via `security.rateRules`, which is matched *before* the defaults, so you replace
+one budget rather than the whole set.
+
+**The CSP is composed, and it's split for a reason.** `astroidSecurity(config)`
+gives `astro.config.mjs` its `security` block. Astro owns `script-src` — it
+hashes every script it processes, so the policy needs no `'unsafe-inline'` — and
+Astroid adds the one hash Astro can't produce itself: Solid's hydration
+bootstrap, injected by `@astrojs/solid-js` on every page with an island.
+Computing it from `generateHydrationScript()` means it tracks solid-js upgrades
+instead of going stale as a copy-pasted literal. Meanwhile the generated
+middleware rewrites *only* `style-src`, because Louise's data-driven `style=""`
+carriers need `'unsafe-inline'` and a single hash in that directive would void
+it per spec — the two cannot share one directive.
+
+```js
+// astro.config.mjs
+import { ASTROID_VITE_BUILD, astroidSecurity } from "astroidjs/astro";
+import astroidConfig from "./astroid.config.ts";
+
+export default defineConfig({
+  security: astroidSecurity(astroidConfig),
+  vite: { build: { ...ASTROID_VITE_BUILD } },  // assetsInlineLimit: 0 — an
+});                                            // inlined asset can't be hashed
+```
+
+Enabled modules contribute their own origins (a commerce provider's SDK hosts,
+the captcha frame); `security.cspOrigins` adds anything Astroid can't see.
+
 ## Modules are dormant, not broken
 
 Astroid's optional modules are opt-in at the *config* level, never at the

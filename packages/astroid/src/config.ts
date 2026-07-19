@@ -20,6 +20,7 @@
 // (coracle), a wholesale front (ghostfire), an artist portfolio (megbowen), and a
 // plain marketing baseline (louise-web).
 
+import type { RateRule } from "louise-toolkit/security";
 import { AstroidConfigError } from "./errors.js";
 
 /**
@@ -92,6 +93,32 @@ export interface CommerceConfig {
   provider: CommerceProvider;
 }
 
+export interface SecurityConfig {
+  /**
+   * Extra rate-limit rules for surfaces Astroid doesn't know about, and the seam
+   * for overriding a default budget. These are matched BEFORE the derived
+   * defaults (first match wins), so declaring a rule for a path Astroid already
+   * covers replaces that one rule rather than the whole set.
+   */
+  rateRules?: RateRule[];
+  /**
+   * Extra origins to allow in the generated Content-Security-Policy, merged with
+   * the ones Astroid derives from the enabled modules. Add a host here when you
+   * pull in a third party Astroid can't see (a chat widget, a video embed).
+   */
+  cspOrigins?: CspOrigins;
+}
+
+/** Per-directive origin lists contributed to the CSP. */
+export interface CspOrigins {
+  script?: string[];
+  frame?: string[];
+  connect?: string[];
+  font?: string[];
+  img?: string[];
+  worker?: string[];
+}
+
 export interface DeployConfig {
   platform: "cloudflare";
   /** Media base for R2 + `cf-image` resizing — matches Louise's media route
@@ -119,6 +146,8 @@ export interface AstroidConfig {
   portal?: Portal;
   /** Commerce backend. */
   commerce?: CommerceConfig;
+  /** Additions to the rate-limit rules + CSP origins Astroid derives. */
+  security?: SecurityConfig;
   deploy?: DeployConfig;
 }
 

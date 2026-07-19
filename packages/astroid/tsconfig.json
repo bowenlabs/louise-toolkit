@@ -1,7 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // `astroidjs/astro` is build-time code (astro.config.mjs) and reaches for
+    // node:crypto to hash Solid's hydration bootstrap. The base config sets
+    // `types: []`, so opt this package back into the Node globals.
+    "types": ["node"]
   },
   "include": ["src", "test"]
 }

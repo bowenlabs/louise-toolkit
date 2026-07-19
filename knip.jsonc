@@ -67,7 +67,10 @@
     // the public entry to source. The `.astro` section library ships as source
     // under a wildcard export and is only reachable from a scaffolded project.
     "packages/astroid": {
-      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      // `src/astro/index.ts` is the `astroidjs/astro` subpath — build-time code
+      // imported from a scaffolded project's astro.config.mjs, never from
+      // anything in this repo.
+      "entry": ["src/index.ts", "src/astro/index.ts", "test/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs"]
     },
 
