@@ -13,7 +13,7 @@ import type {
   SQLiteColumnBuilderBase,
   SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core";
-import type { ValidationBuilder } from "../content/validation.js";
+import type { ValidationBuilder } from "../content/rule.js";
 import type { StandardSchemaV1 } from "../schema/index.js";
 
 /**

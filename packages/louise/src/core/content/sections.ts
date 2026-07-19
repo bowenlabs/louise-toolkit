@@ -16,11 +16,12 @@
 
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
 import { isMediaUrl } from "../media/storage.js";
-import {
-  type ValidationBuilder,
-  type ValidationFieldContext,
-  validateValue,
-} from "./validation.js";
+// The drizzle-free Rule engine, NOT the `./validation.js` barrel — that half
+// imports `drizzle-orm` (an *optional* peer) for its uniqueness queries, and
+// importing it here would drag drizzle into every consumer of these section
+// validators (e.g. the `louise-toolkit/content/sections` entry). See rule.ts's
+// header and `content/define.ts`.
+import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
 // `image` is a media URL (string), edited in the dock via an upload/clear control
 // rather than in place; it validates as a string like text/textarea.

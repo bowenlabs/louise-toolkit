@@ -91,6 +91,10 @@ export default {
       "src/core/content/index.ts",
       // Drizzle-free "describe content" entry — see the note in define.ts.
       "src/core/content/define.ts",
+      // Drizzle-free structured-sections validator — reuses the pure Rule engine
+      // (content/rule.ts), so consumers can validate `sections` without pulling
+      // in the optional drizzle-orm peer. See sections.ts's import note.
+      "src/core/content/sections.ts",
       "src/core/content/stega.ts",
       "src/core/db/index.ts",
       "src/core/commerce/index.ts",

@@ -46,6 +46,7 @@
         "src/core/commerce/square.ts",
         "src/core/commerce/square-web.ts",
         "src/core/content/index.ts",
+        "src/core/content/sections.ts",
         "src/core/content/stega.ts",
         "src/core/db/index.ts",
         "src/core/editor/index.ts",

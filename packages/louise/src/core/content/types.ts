@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 import type { StandardSchemaV1 } from "../schema/index.js";
-import type { ValidationBuilder } from "./validation.js";
+import type { ValidationBuilder } from "./rule.js";
 
 /**
  * Editor-only presentation hints for a single field (issue #16 follow-on) —

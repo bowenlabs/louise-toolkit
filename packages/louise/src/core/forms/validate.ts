@@ -5,7 +5,7 @@
 // mirror and the server run exactly the same checks — plus per-type built-ins
 // (email/url format, select allowlist, number coercion) and the `required` flag.
 
-import { type Rule, type ValidationBuilder, validateValue } from "../content/validation.js";
+import { type Rule, type ValidationBuilder, validateValue } from "../content/rule.js";
 import type { ValidationViolation } from "../errors.js";
 import { standardValidate } from "../schema/index.js";
 import type { FormConfig, FormField } from "./types.js";
