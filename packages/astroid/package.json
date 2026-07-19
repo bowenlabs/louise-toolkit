@@ -1,6 +1,6 @@
 {
   "name": "astroidjs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Astroid — an opinionated meta-framework over Louise Toolkit and Astro for building editable, multi-editor sites on Cloudflare Workers.",
   "keywords": [
     "astro",
@@ -46,6 +46,7 @@
     "access": "public"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.0",
     "louise-toolkit": "workspace:*"
   },
   "peerDependencies": {
