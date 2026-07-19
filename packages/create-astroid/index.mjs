@@ -23,7 +23,7 @@ import {
   generateAstroidEnvBindings,
   generateAstroidProject,
   generateAstroidQueueSeam,
-  generateAstroidWebhookRoute,
+  generateAstroidWebhookRoutes,
   generateAstroidWrangler,
 } from "astroidjs";
 
@@ -233,8 +233,8 @@ async function main() {
   //     matter), so `astroid generate` must never rewrite them.
   if (astroidUsesQueues(config)) {
     write(dir, "src/queue.ts", generateAstroidQueueSeam(config));
-    const webhook = generateAstroidWebhookRoute(config);
-    if (webhook) write(dir, `src/pages/api/webhooks/${config.commerce.provider}.ts`, webhook);
+    // One receiver per provider — a site can run two (invoicing + storefront).
+    for (const route of generateAstroidWebhookRoutes(config)) write(dir, route.path, route.contents);
   }
 
   // 4. The Better Auth migration (louise-toolkit) — auth tables are fenced out of

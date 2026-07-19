@@ -28,6 +28,7 @@
 
 import { createHash } from "node:crypto";
 import { generateHydrationScript } from "solid-js/web";
+import { astroidCommerceProviders } from "../commerce/roles.js";
 import type { AstroidConfig, CspOrigins } from "../config.js";
 
 /** A `sha256-…` CSP hash, in the shape Astro's `security.csp.hashes` takes. */
@@ -161,7 +162,10 @@ function mergeOrigins(...sets: CspOrigins[]): Required<CspOrigins> {
 export function astroidCspOrigins(config: AstroidConfig): Required<CspOrigins> {
   return mergeOrigins(
     TURNSTILE,
-    config.commerce ? (COMMERCE_ORIGINS[config.commerce.provider] ?? {}) : {},
+    // EVERY provider in play, not "the" provider: a site can run Stripe for
+    // invoicing beside Fourthwall for the storefront, and a policy that allowed
+    // only one of them blocks the other's SDK at runtime.
+    ...astroidCommerceProviders(config.commerce).map((p) => COMMERCE_ORIGINS[p] ?? {}),
     config.security?.cspOrigins ?? {},
   );
 }

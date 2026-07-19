@@ -9,6 +9,8 @@
 // over them would erase exactly the work they're for. The same boundary
 // `generateAstroidWrangler` already lives on.
 
+import { astroidCatalogMirror } from "../commerce/mirror.js";
+import { astroidCommerceProviders, astroidCommerceRoles } from "../commerce/roles.js";
 import type { AstroidConfig, CommerceProvider } from "../config.js";
 import { ASTROID_QUEUE_BINDING } from "./messages.js";
 
@@ -67,15 +69,20 @@ const PROVIDERS: Record<
  * blessing. Empty string when the project runs no consumer.
  */
 export function generateAstroidEnvBindings(config: AstroidConfig): string {
-  if (!config.commerce) return "";
-  const p = PROVIDERS[config.commerce.provider];
+  const providers = astroidCommerceProviders(config.commerce);
+  if (providers.length === 0) return "";
   return [
     "  /** Queue producer — verified webhooks + the cron re-sync (src/queue.ts). */",
     '  COMMERCE_QUEUE: Queue<import("astroidjs").AstroidQueueMessage>;',
-    `  /** ${config.commerce.provider} webhook signing secret. Seeded with the`,
-    "   *  DUMMY_REPLACE_ME sentinel, which reads as unconfigured — the receiver",
-    "   *  answers 503 until it holds a real value. */",
-    `  ${p.secretBinding}?: string;`,
+    // One secret per provider: a site running Stripe for invoicing and
+    // Fourthwall for the storefront receives webhooks from both, signed
+    // independently.
+    ...providers.flatMap((provider) => [
+      `  /** ${provider} webhook signing secret. Seeded with the`,
+      "   *  DUMMY_REPLACE_ME sentinel, which reads as unconfigured — the receiver",
+      "   *  answers 503 until it holds a real value. */",
+      `  ${PROVIDERS[provider].secretBinding}?: string;`,
+    ]),
   ].join("\n");
 }
 
@@ -88,7 +95,10 @@ export function generateAstroidEnvBindings(config: AstroidConfig): string {
  * a generated constant.
  */
 export function generateAstroidQueueSeam(config: AstroidConfig): string {
-  const provider = config.commerce?.provider;
+  // The STOREFRONT provider — it's the one with a catalog to re-sync. An
+  // invoicing-only provider has nothing for this hook to do.
+  const provider = astroidCommerceRoles(config.commerce).storefront;
+  const table = astroidCatalogMirror(config).table;
   return [
     "// The queue consumer — what each message actually does.",
     "//",
@@ -109,9 +119,17 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
     "  await astroidQueueHandler({",
     "    refreshCatalog: async () => {",
     provider
-      ? `      // TODO: re-sync the ${provider} catalog into D1 / cache. Until the`
-      : "      // TODO: re-sync whatever this project mirrors from an external source.",
-    provider ? "      // commerce module lands, this is a no-op." : "",
+      ? `      // TODO: fetch the ${provider} catalog, normalize each item with`
+      : "      // TODO: fetch your catalog and normalize each item to a CatalogItem,",
+    provider
+      ? `      // ${provider}ToCatalogItem, then hand the array to astroidCatalogSync:`
+      : "      // then hand the array to astroidCatalogSync:",
+    "      //",
+    `      //   const items = (await listCatalog(token)).map(${provider ?? "provider"}ToCatalogItem);`,
+    `      //   await astroidCatalogSync(items, { db: env.DB, table: ${JSON.stringify(table)} });`,
+    "      //",
+    "      // The sync is idempotent (keyed on the provider's id) and never",
+    "      // writes an owner-edited column, so it's safe to run on every event.",
     "      void env;",
     "    },",
     "  })(message);",
@@ -132,8 +150,11 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
  *
  * Returns null when the project has no commerce provider — nothing to receive.
  */
-export function generateAstroidWebhookRoute(config: AstroidConfig): string | null {
-  const provider = config.commerce?.provider;
+export function generateAstroidWebhookRoute(
+  config: AstroidConfig,
+  forProvider?: CommerceProvider,
+): string | null {
+  const provider = forProvider ?? astroidCommerceProviders(config.commerce)[0];
   if (!provider) return null;
   const p = PROVIDERS[provider];
 
@@ -170,4 +191,21 @@ export function generateAstroidWebhookRoute(config: AstroidConfig): string | nul
     "};",
     "",
   ].join("\n");
+}
+
+/**
+ * Every webhook receiver this project needs, as `{ path, contents }`.
+ *
+ * Plural because roles are: a site running Stripe for invoicing beside
+ * Fourthwall for the storefront receives from both, each with its own signing
+ * secret and header. One route per provider, not per role — a provider filling
+ * two roles still has one endpoint and one secret.
+ */
+export function generateAstroidWebhookRoutes(
+  config: AstroidConfig,
+): { path: string; contents: string }[] {
+  return astroidCommerceProviders(config.commerce).flatMap((provider) => {
+    const contents = generateAstroidWebhookRoute(config, provider);
+    return contents ? [{ path: `src/pages/api/webhooks/${provider}.ts`, contents }] : [];
+  });
 }

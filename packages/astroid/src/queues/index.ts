@@ -16,6 +16,7 @@ export {
   generateAstroidEnvBindings,
   generateAstroidQueueSeam,
   generateAstroidWebhookRoute,
+  generateAstroidWebhookRoutes,
 } from "./scaffold.js";
 export {
   handleWebhook,

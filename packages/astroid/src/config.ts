@@ -21,6 +21,8 @@
 // plain marketing baseline (louise-web).
 
 import type { RateRule } from "louise-toolkit/security";
+import { assertCommerceRoles } from "./commerce/roles.js";
+import type { CatalogMirrorConfig } from "./commerce/mirror.js";
 import { AstroidConfigError } from "./errors.js";
 
 /**
@@ -90,7 +92,22 @@ export interface Portal {
 }
 
 export interface CommerceConfig {
-  provider: CommerceProvider;
+  /**
+   * Shorthand for a single-provider site. Assigns the provider to a role it can
+   * actually serve — `square`/`fourthwall` become the storefront, `stripe`
+   * becomes invoicing (its client has no catalog API).
+   */
+  provider?: CommerceProvider;
+  /** Catalog, cart, checkout. Needs a provider with a catalog API. */
+  storefront?: CommerceProvider;
+  /**
+   * Invoices for work that isn't a catalog item — commissions, originals.
+   * Independent of `storefront`: themidwestartist.com runs Stripe here and
+   * Fourthwall as the storefront, because neither can do the other's job.
+   */
+  invoicing?: CommerceProvider;
+  /** The catalog mirror's shape — its mode, table name, and owned columns. */
+  catalog?: CatalogMirrorConfig;
 }
 
 export interface QueuesConfig {
@@ -230,6 +247,10 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
       "Astroid config requires `theme.colors.brand` (the primary brand color)",
     );
   }
+  // A provider assigned to a role its client can't serve (invoicing over
+  // Fourthwall, a storefront over Stripe) fails here rather than at runtime on
+  // the first invoice, as a missing function.
+  assertCommerceRoles(config.commerce);
 
   return config;
 }

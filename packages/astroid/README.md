@@ -65,6 +65,44 @@ export default defineAstroid({
 });
 ```
 
+## Commerce
+
+**Providers fill roles.** Not "the commerce provider" — the toolkit's clients
+make that impossible: `commerce/stripe` has no catalog API, `commerce/fourthwall`
+has no invoicing, Square does both. So `storefront` and `invoicing` are assigned
+independently, and a provider put in a role it can't serve fails at config load
+rather than at runtime on the first invoice.
+
+```ts
+commerce: { storefront: "fourthwall", invoicing: "stripe" }   // two providers
+commerce: { provider: "square" }                              // shorthand → storefront
+```
+
+**The catalog is mirrored with a pulled/owned split.** The provider is the source
+of truth; D1 holds the owner's edits. `mode: "mirror"` keeps the catalog fields
+in D1 (fast reads, briefly stale); `mode: "overlay"` keeps only the owner's
+columns (never stale, one provider round-trip per read). The sync **never writes
+an owned column** — a sync that does silently reverts the owner's work, and
+they find out days later. `slug` is owned for that reason: it's the public URL,
+so a provider rename must not break links.
+
+```ts
+commerce: {
+  provider: "square",
+  catalog: { owned: { tone: { type: "text", values: ["cream", "teal"] } } },
+}
+```
+
+Everything else follows from that table. `astroidCatalogLoaderConfig` reads it
+for the Live Content Collection, and the adapters normalize before the row is
+written — so one loader definition serves a Square site and a Fourthwall site,
+which is the drift the module exists to kill.
+
+**Checkout is server-authoritative.** `verifyCheckout` treats the client's price
+as a staleness check, never an input to the charge: re-price server-side, refuse
+on mismatch. `checkoutIdempotencyKey` derives a stable key from the verified
+cart, so a double-clicked Pay button charges once.
+
 ## The webhook pipeline
 
 Configure `commerce` and the generated worker stops being fetch-only: it composes
