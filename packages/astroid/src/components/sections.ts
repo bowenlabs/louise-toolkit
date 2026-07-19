@@ -12,8 +12,11 @@
 // components today (hero / featureGrid / cta / contact); more arms are added here
 // with their component, so an unimplemented `kind` is a compile error rather than
 // a blank render.
-
-import type { SectionKind } from "../config.js";
+//
+// Self-contained on purpose: this module ships as SOURCE (the `.astro` next to it
+// import it directly), so it must not reach back into astroid's built `src/*` —
+// only siblings + external packages. `SectionKind` from config.ts is therefore not
+// imported here; the runtime guard takes a plain `string`.
 
 /**
  * Colorway → daisyUI surface classes, keyed to the `Theme.colors` set
@@ -84,12 +87,13 @@ export type SectionProps =
   | (SectionBase & { kind: "cta" } & CtaFields)
   | (SectionBase & { kind: "contact" } & ContactFields);
 
-/** The `SectionKind`s that currently have a section-library component. A compile
- *  error here if one drifts from `SectionProps` above. */
+/** The section kinds that currently have a section-library component — the `kind`
+ *  discriminants of {@link SectionProps}, so it can't drift from the union. */
 export type RenderableSectionKind = SectionProps["kind"];
 
-/** Type guard: does this `SectionKind` have a shipped component? */
-export function isRenderableSection(kind: SectionKind): kind is RenderableSectionKind {
+/** Type guard: does this section kind have a shipped component? Narrows a plain
+ *  string (a `sections` entry's `kind` at runtime) to a {@link RenderableSectionKind}. */
+export function isRenderableSection(kind: string): kind is RenderableSectionKind {
   return kind === "hero" || kind === "featureGrid" || kind === "cta" || kind === "contact";
 }
 

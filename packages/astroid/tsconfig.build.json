@@ -6,5 +6,10 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": ["src"],
+  // `src/components/*` ship as SOURCE (see package.json `files` + the
+  // `./components/*` exports): the `.astro` can't be built, and sections.ts /
+  // Collection.tsx sit next to them and are imported as source, so keep the whole
+  // component layer out of the built dist/ — the `.` entry doesn't touch it.
+  "exclude": ["src/components"]
 }
