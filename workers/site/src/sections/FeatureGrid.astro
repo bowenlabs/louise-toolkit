@@ -10,6 +10,7 @@
 // A legacy `items` array is still accepted while the shared DB carries both keys
 // during the expand/contract seed — `blocks` wins when present, so the branch
 // renders block markers while an un-migrated `items`-only page still renders.
+import Editable from "astroidjs/components/Editable.astro";
 import Icon from "../components/Icon.astro";
 import { featureIcon } from "../lib/landing-icons.js";
 
@@ -103,12 +104,12 @@ const cards: Item[] = useBlocks
   ]}
 >
   <h2 class="lt-display lt-stretch-135 mb-11 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
-    <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+    <Editable as="span" sfield={`${idx}.heading`} edit={edit}>
       {heading || (edit ? "" : "One package.")}
-    </span><br />
-    <span data-louise-sfield={edit ? `${idx}.headingLine2` : undefined}>
+    </Editable><br />
+    <Editable as="span" sfield={`${idx}.headingLine2`} edit={edit}>
       {headingLine2 || (edit ? "" : "Eight primitives.")}
-    </span>
+    </Editable>
   </h2>
 
   <div class:list={["grid gap-[14px]", gridCols]}>
@@ -126,20 +127,25 @@ const cards: Item[] = useBlocks
             <Icon svg={featureIcon(f.icon)} class="text-[22px]" />
           </div>
           <div>
-            <div
+            <Editable
+              as="div"
               class="lt-stretch-125 mb-2 text-[24px] font-black uppercase"
-              data-louise-sfield={edit ? fieldPath(j, "name") : undefined}
+              sfield={fieldPath(j, "name")}
+              edit={edit}
             >
               {f.name}
-            </div>
+            </Editable>
             {/* Rich-text field (#182): sanitized HTML via set:html; the inline
                 editor mounts into this div in edit mode. */}
-            <div
+            <Editable
+              as="div"
               class="louise-rt-field text-[13.5px] leading-[1.5] font-medium opacity-90"
-              data-louise-sfield={edit ? fieldPath(j, "body") : undefined}
-              data-louise-type={edit ? "richtext" : undefined}
-              set:html={f.body}
-            />
+              sfield={fieldPath(j, "body")}
+              type="richtext"
+              edit={edit}
+            >
+              <Fragment set:html={f.body} />
+            </Editable>
           </div>
         </article>
       ))
