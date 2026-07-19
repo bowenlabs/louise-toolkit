@@ -61,6 +61,6 @@ declare namespace App {
     /** Resolved editor session (authorizes writes). Null when not signed in. */
     editor: import("louise-toolkit/auth").EditorSession | null;
     /** Whether the page should render edit affordances. */
-    editMode: boolean;
+    editMode: boolean;__ASTROID_PORTAL_LOCALS__
   }
 }

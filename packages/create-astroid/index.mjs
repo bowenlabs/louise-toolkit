@@ -21,6 +21,8 @@ import {
   astroidUsesQueues,
   defineAstroid,
   generateAstroidEnvBindings,
+  generateAstroidPortalAuth,
+  generateAstroidPortalLocals,
   generateAstroidProject,
   generateAstroidQueueSeam,
   generateAstroidWebhookRoutes,
@@ -116,6 +118,10 @@ function astroidConfigSource(config) {
     ...(config.commerce
       ? [`  commerce: { provider: ${JSON.stringify(config.commerce.provider)} },`]
       : []),
+    // Must be emitted: `astroid generate` rebuilds the middleware from THIS
+    // file, so a config that omitted the portal would regenerate a middleware
+    // with no guard while src/portal-auth.ts sat there unused.
+    ...(config.portal?.enabled ? ["  portal: { enabled: true },"] : []),
     '  deploy: { platform: "cloudflare" },',
     "});",
     "",
@@ -143,6 +149,8 @@ Options:
   --host <domain>       Primary domain, e.g. example.com
   --commerce <provider> ${COMMERCE_PROVIDERS.join(" | ")}
                         Also adds the queue consumer, webhook receiver, and cron
+  --portal              Add a customer/member portal: a second, isolated auth
+                        instance plus role-gated routes
   -h, --help            Show this help
   -v, --version         Show the create-astroid version
 
@@ -177,6 +185,9 @@ async function main() {
   const archetype = ARCHETYPES.includes(archetypeRaw) ? archetypeRaw : "marketing";
   const color = flags.color || (await prompt("Brand color (hex)", "#5b4bff"));
   const host = flags.host && flags.host !== true ? flags.host : undefined;
+  // Portal + commerce are opt-in and unprompted: each pulls in real
+  // infrastructure a plain marketing site should not carry.
+  const portal = flags.portal === true || flags.portal === "true";
   // Commerce is opt-in and unprompted: it pulls in a queue consumer, a webhook
   // receiver, and a cron, none of which a plain marketing site should carry.
   const commerceRaw = typeof flags.commerce === "string" ? flags.commerce.toLowerCase() : undefined;
@@ -201,11 +212,13 @@ async function main() {
     theme: { name, colors: { brand: color } },
     sections: ARCHETYPE_SECTIONS[archetype],
     ...(commerce ? { commerce: { provider: commerce } } : {}),
+    ...(portal ? { portal: { enabled: true } } : {}),
     deploy: { platform: "cloudflare" },
   });
 
   const siteUrl = host ? `https://${host}` : `https://${key}.workers.dev`;
   const envBindings = generateAstroidEnvBindings(config);
+  const portalLocals = generateAstroidPortalLocals(config);
   const tokens = {
     KEY: key,
     BRAND_NAME: name,
@@ -216,6 +229,9 @@ async function main() {
     // declaration is a promise — a marketing site must not claim a binding its
     // wrangler.jsonc never creates.
     ASTROID_ENV_BINDINGS: envBindings ? `\n${envBindings}` : "",
+    // The portal session on App.Locals, or nothing — a project that types a
+    // local it never sets invites a null-check nobody needs.
+    ASTROID_PORTAL_LOCALS: portalLocals ? `\n${portalLocals}` : "",
   };
 
   // 1. The static floor (Astro app, auth seam, config files) with tokens filled.
@@ -237,6 +253,29 @@ async function main() {
     for (const route of generateAstroidWebhookRoutes(config)) write(dir, route.path, route.contents);
   }
 
+  // 3c. The portal's second auth instance + its mounted catch-all. Also
+  //     scaffold-once: a site edits the reset email and the role a new account
+  //     gets, but not the mount/cookie/table prefixes that keep it isolated.
+  const portalAuth = generateAstroidPortalAuth(config);
+  if (portalAuth) {
+    write(dir, "src/portal-auth.ts", portalAuth);
+    write(
+      dir,
+      "src/pages/api/portal-auth/[...all].ts",
+      [
+        "// The portal Better Auth catch-all, mounted at its own basePath so it",
+        "// never collides with the studio's /api/auth.",
+        'import type { APIRoute } from "astro";',
+        'import { handlePortalAuth } from "../../../portal-auth.js";',
+        "",
+        "export const prerender = false;",
+        "",
+        "export const ALL: APIRoute = ({ request }) => handlePortalAuth(request);",
+        "",
+      ].join("\n"),
+    );
+  }
+
   // 4. The Better Auth migration (louise-toolkit) — auth tables are fenced out of
   //    drizzle-kit, so they're generated rather than diffed from schema.ts. Loaded
   //    dynamically: it pulls in `better-auth` (an optional peer), which may not be
@@ -246,6 +285,17 @@ async function main() {
   try {
     const { generateAuthSchemaSql } = await import("louise-toolkit/auth");
     write(dir, "migrations/0001_auth.sql", generateAuthSchemaSql());
+    // The portal's own auth tables. A SECOND set, prefixed — the two instances
+    // share one D1 but never a row, so a portal account can't sign into the
+    // studio and an editor doesn't appear in the portal. Without this migration
+    // the portal builds fine and fails on the first sign-in.
+    if (config.portal?.enabled) {
+      write(
+        dir,
+        "migrations/0002_portal_auth.sql",
+        generateAuthSchemaSql({ tablePrefix: "portal_" }),
+      );
+    }
     authMigrationOk = true;
   } catch {
     write(
@@ -253,6 +303,17 @@ async function main() {
       "migrations/0001_auth.sql",
       "-- Better Auth tables — generate after install:\n--   pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n",
     );
+    // Same stub for the portal's prefixed set. Without it a portal scaffold
+    // looks complete, builds, and fails on the first sign-in with a missing
+    // table — the one failure mode a stub exists to prevent.
+    if (config.portal?.enabled) {
+      write(
+        dir,
+        "migrations/0002_portal_auth.sql",
+        "-- Portal Better Auth tables (prefixed) — generate after install:\n" +
+          "--   pnpm exec louise gen-auth-schema --table-prefix portal_ --out migrations/0002_portal_auth.sql\n",
+      );
+    }
   }
 
   const rel = dir === process.cwd() ? "." : basename(dir);
@@ -281,7 +342,11 @@ async function main() {
   if (!authMigrationOk) {
     process.stdout.write(
       "Note: generate the Better Auth migration after install:\n" +
-        "  pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n\n",
+        "  pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n" +
+        (config.portal?.enabled
+          ? "  pnpm exec louise gen-auth-schema --table-prefix portal_ --out migrations/0002_portal_auth.sql\n"
+          : "") +
+        "\n",
     );
   }
 }
