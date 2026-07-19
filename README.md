@@ -75,6 +75,7 @@ pnpm test           # run the library's Vitest suite
 pnpm check          # Oxlint + Oxfmt + type-aware lint & type-check (TS7) over the library's TypeScript
 pnpm lint:astro     # Biome lint over .astro files
 pnpm lint:solid     # oxlint + eslint-plugin-solid over the SolidJS client
+pnpm knip           # dead-code check: unused files & exports across the workspace
 pnpm typecheck      # tsc over the library
 pnpm dev            # run louisetoolkit.com locally (marketing + Starlight docs)
 ```
