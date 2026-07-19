@@ -12,7 +12,20 @@ const CATALOG: SectionCatalog = {
     label: "Panel",
     fields: { heading: { type: "text" } },
     layouts: { wide: { label: "Wide" }, boxed: { label: "Boxed" } },
-    settings: { background: { type: "text", inline: false } },
+    settings: {
+      background: { type: "text", inline: false },
+      // A closed choice (#272) — the inspector must render a picker for this,
+      // not a free-text box.
+      tone: {
+        type: "select",
+        inline: false,
+        display: "swatch",
+        options: [
+          { value: "brand", label: "Brand" },
+          { value: "base", label: "Base" },
+        ],
+      },
+    },
   },
 };
 
@@ -169,6 +182,49 @@ describe("mountSections — inspector popover (#182 Phase 4)", () => {
       (lastDraft(calls) as { _settings?: { background?: string } })?._settings?.background,
     ).toBe("dark");
     expect(calls.some((c) => c.url === "/louise-fragment" && c.method === "POST")).toBe(true);
+  });
+
+  it("renders a closed-choice setting as a picker, not a text input (#272)", async () => {
+    stubFetch();
+    const host = pageHost();
+    dispose = mount(host);
+    await flush();
+    over(host.querySelector("h2") as Node);
+    click(cog());
+    await flush();
+
+    const select = document.querySelector(".louise-inspector select") as HTMLSelectElement | null;
+    expect(select).not.toBeNull();
+    // The declared options, plus a leading blank so a setting can be cleared
+    // back to the component's own default.
+    expect([...(select?.options ?? [])].map((o) => o.value)).toEqual(["", "brand", "base"]);
+    expect([...(select?.options ?? [])].map((o) => o.textContent)).toEqual(["—", "Brand", "Base"]);
+    // The opaque render hint rides through to the DOM untouched — the schema
+    // layer never interprets it, so a renderer can key a swatch UI off it.
+    expect(select?.getAttribute("data-display")).toBe("swatch");
+  });
+
+  it("choosing an option stages the token under _settings", async () => {
+    const calls = stubFetch();
+    const host = pageHost();
+    dispose = mount(host);
+    await flush();
+    over(host.querySelector("h2") as Node);
+    click(cog());
+    await flush();
+
+    const select = document.querySelector(".louise-inspector select") as HTMLSelectElement | null;
+    if (!select) throw new Error("expected a picker for the closed-choice setting");
+    select.value = "brand";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    // A picker commits on change — there is no "finished typing" moment to wait
+    // for, unlike a text field.
+    expect((lastDraft(calls) as { _settings?: Record<string, unknown> })?._settings?.tone).toBe(
+      "brand",
+    );
   });
 
   it("closes on the scrim / close button", async () => {

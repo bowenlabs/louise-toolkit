@@ -508,3 +508,67 @@ describe("validateSections — inspector settings (#182 Phase 4 / ADR 0005 §5)"
     ).toEqual([]);
   });
 });
+
+describe("validateSections — select (closed choice)", () => {
+  const selectCatalog: SectionCatalog = {
+    band: {
+      label: "Band",
+      fields: {
+        tone: {
+          type: "select",
+          options: [
+            { value: "brand", label: "Brand" },
+            { value: "base", label: "Base" },
+          ],
+        },
+      },
+      settings: {
+        align: { type: "select", options: [{ value: "start" }, { value: "center" }] },
+      },
+    },
+  };
+  const selErrors = async (value: unknown) =>
+    (await validateSections(selectCatalog, value)).filter((v) => v.severity === "error");
+
+  it("accepts a declared option", async () => {
+    expect(await selErrors([{ _type: "band", tone: "brand" }])).toEqual([]);
+  });
+
+  it("rejects a value outside the option set, naming what was expected", async () => {
+    // The failure this type exists to prevent: as `text`, a typo was not an
+    // error at all — it degraded silently to a default at render time.
+    const e = await selErrors([{ _type: "band", tone: "chartreuse" }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0].tone");
+    expect(e[0].message).toContain("unknown value");
+    expect(e[0].message).toContain("brand | base");
+  });
+
+  it("rejects a non-string value", async () => {
+    expect(await selErrors([{ _type: "band", tone: 3 }])).toHaveLength(1);
+  });
+
+  it("treats absent as a no-op and empty string as cleared", async () => {
+    // Absent = the field wasn't part of a partial update. Empty = the picker's
+    // blank option, handing the choice back to the component's own default.
+    expect(await selErrors([{ _type: "band" }])).toEqual([]);
+    expect(await selErrors([{ _type: "band", tone: "" }])).toEqual([]);
+  });
+
+  it("applies to _settings the same way it applies to fields", async () => {
+    expect(await selErrors([{ _type: "band", _settings: { align: "center" } }])).toEqual([]);
+    const e = await selErrors([{ _type: "band", _settings: { align: "sideways" } }]);
+    expect(e).toHaveLength(1);
+    expect(e[0].path).toBe("sections[0]._settings.align");
+  });
+
+  it("rejects everything when a select declares no options", async () => {
+    // A select with no options can't accept any value — better a loud rejection
+    // than silently behaving like a text field.
+    const empty: SectionCatalog = { x: { label: "X", fields: { k: { type: "select" } } } };
+    const e = (await validateSections(empty, [{ _type: "x", k: "anything" }])).filter(
+      (v) => v.severity === "error",
+    );
+    expect(e).toHaveLength(1);
+  });
+});

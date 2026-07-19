@@ -73,31 +73,44 @@ export function alignClass(align: string | undefined = "start"): string {
   return ALIGN_CLASS[align as Align] ?? ALIGN_CLASS.start;
 }
 
+/** Title-case a token for a picker label ("brand" → "Brand"). */
+const label = (token: string) => token.charAt(0).toUpperCase() + token.slice(1);
+
+/**
+ * Turn a token→class map into `select` options.
+ *
+ * Deriving them is the point: the options a picker offers and the tokens the
+ * site can actually render are then the same list by construction, so adding a
+ * colorway is one edit to `COLORWAY_CLASS` rather than an edit plus a
+ * remembered second edit here that silently offers a token nothing maps.
+ */
+const tokenOptions = (map: Record<string, string>) =>
+  Object.keys(map).map((value) => ({ value, label: label(value) }));
+
 /**
  * The shared `_settings` every section in the catalog accepts.
  *
- * A note on `type: "text"`: `SectionFieldType` has no enum/select member, so a
- * closed token set can only be expressed as text plus a placeholder listing the
- * values. That's a real gap in the schema — the inspector renders a free-text
- * input for a four-value set, and an invalid token isn't a write-time error but
- * a render-time fallback in `colorwayClass` — and it's recorded here rather than
- * worked around, because the fix belongs in `SectionField`, not in a per-site
- * convention. Tracked in #272; `_layout` already has the closed-choice semantics
- * this wants (`validateLayout`), which is what makes the omission look like an
- * oversight rather than a decision.
+ * These are closed token sets, declared as `select` (#272) so the inspector
+ * renders a picker and an unknown token is rejected on write. They used to be
+ * `text` with the valid values stuffed into `placeholder` — which meant a typo
+ * wasn't a validation error at all, just a silent fallback to the default
+ * inside `colorwayClass` at render time.
  */
 export const SECTION_SETTINGS: Record<string, SectionField> = {
   colorway: {
-    type: "text",
+    type: "select",
     label: "Colorway",
     inline: false,
-    placeholder: Object.keys(COLORWAY_CLASS).join(" | "),
+    options: tokenOptions(COLORWAY_CLASS),
+    // An opaque hint — the schema layer doesn't know what a swatch looks like;
+    // a renderer that doesn't support it just shows a normal picker.
+    display: "swatch",
   },
   align: {
-    type: "text",
+    type: "select",
     label: "Alignment",
     inline: false,
-    placeholder: Object.keys(ALIGN_CLASS).join(" | "),
+    options: tokenOptions(ALIGN_CLASS),
   },
 };
 

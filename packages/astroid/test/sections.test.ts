@@ -8,6 +8,8 @@ import {
 import {
   alignClass,
   astroidSectionCatalog,
+  COLORWAY_CLASS,
+  type Colorway,
   colorwayClass,
   field,
   isRenderableSection,
@@ -32,6 +34,25 @@ describe("astroidSectionCatalog", () => {
     // Guards against inherited Object.prototype keys being read as section types.
     expect(isRenderableSection("toString")).toBe(false);
     expect(isRenderableSection("constructor")).toBe(false);
+  });
+
+  it("declares token settings as closed choices, not free text (#272)", () => {
+    const { colorway, align } = astroidSectionCatalog.hero.settings ?? {};
+    expect(colorway?.type).toBe("select");
+    expect(align?.type).toBe("select");
+    // Non-inline: a token isn't something you can type on the design.
+    expect(colorway?.inline).toBe(false);
+  });
+
+  it("derives picker options from the token maps so they cannot drift", () => {
+    // The regression this guards: adding a colorway to COLORWAY_CLASS but
+    // forgetting to add it to the options list, so the inspector offers a set
+    // that differs from what the site can actually render.
+    const options = astroidSectionCatalog.hero.settings?.colorway?.options ?? [];
+    expect(options.map((o) => o.value).sort()).toEqual(Object.keys(COLORWAY_CLASS).sort());
+    for (const option of options) {
+      expect(colorwayClass(option.value)).toBe(COLORWAY_CLASS[option.value as Colorway]);
+    }
   });
 
   it("keeps link URLs out of in-place editing", () => {

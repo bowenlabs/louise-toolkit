@@ -133,6 +133,72 @@ function whenElement(selector: string, timeoutMs = 3000): Promise<HTMLElement | 
 function blankValue(field: SectionField): unknown {
   return field.type === "array" ? [] : "";
 }
+
+/**
+ * The input for one non-image scalar field — text, textarea, or a closed choice.
+ *
+ * Shared by the inspector's field group and its settings rail, which render the
+ * same three shapes against different stores (`item[key]` vs `_settings[key]`).
+ * Before this they each carried their own nested `<Show>` ladder, so a new field
+ * type meant editing both and a `select` would have been a third level of
+ * nesting in each.
+ */
+function ScalarField(props: {
+  field: SectionField;
+  value: string;
+  /** Called per keystroke (text) or per choice (select). */
+  onInput: (value: string) => void;
+  /** Called when the value should be persisted. */
+  onCommit: () => void;
+}) {
+  return (
+    <Show
+      when={props.field.type === "select"}
+      fallback={
+        <Show
+          when={props.field.type === "textarea"}
+          fallback={
+            <input
+              class="louise-input"
+              value={props.value}
+              placeholder={props.field.placeholder}
+              onInput={(e) => props.onInput(e.currentTarget.value)}
+              onChange={() => props.onCommit()}
+            />
+          }
+        >
+          <textarea
+            class="louise-input louise-dock-textarea"
+            rows={2}
+            value={props.value}
+            placeholder={props.field.placeholder}
+            onInput={(e) => props.onInput(e.currentTarget.value)}
+            onChange={() => props.onCommit()}
+          />
+        </Show>
+      }
+    >
+      <select
+        class="louise-input"
+        data-display={props.field.display}
+        value={props.value}
+        onChange={(e) => {
+          props.onInput(e.currentTarget.value);
+          props.onCommit();
+        }}
+      >
+        {/* A blank option, deliberately. Without one the first choice appears
+            selected the moment the picker renders even though nothing was
+            stored, and there'd be no way to clear a setting back to the
+            component's own default. The validator treats "" as cleared. */}
+        <option value="">—</option>
+        <For each={props.field.options ?? []}>
+          {(option) => <option value={option.value}>{option.label ?? option.value}</option>}
+        </For>
+      </select>
+    </Show>
+  );
+}
 function blankRecord(fields: Record<string, SectionField>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, f] of Object.entries(fields)) out[k] = blankValue(f);
@@ -1182,27 +1248,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           fallback={
                             <label class="louise-field">
                               <span class="louise-field-label">{field.label ?? humanize(key)}</span>
-                              <Show
-                                when={field.type === "textarea"}
-                                fallback={
-                                  <input
-                                    class="louise-input"
-                                    value={String(inspectItem(target)?.[key] ?? "")}
-                                    placeholder={field.placeholder}
-                                    onInput={(e) => setField(target, key, e.currentTarget.value)}
-                                    onChange={() => commitField(target)}
-                                  />
-                                }
-                              >
-                                <textarea
-                                  class="louise-input louise-dock-textarea"
-                                  rows={2}
-                                  value={String(inspectItem(target)?.[key] ?? "")}
-                                  placeholder={field.placeholder}
-                                  onInput={(e) => setField(target, key, e.currentTarget.value)}
-                                  onChange={() => commitField(target)}
-                                />
-                              </Show>
+                              <ScalarField
+                                field={field}
+                                value={String(inspectItem(target)?.[key] ?? "")}
+                                onInput={(v) => setField(target, key, v)}
+                                onCommit={() => commitField(target)}
+                              />
                             </label>
                           }
                         >
@@ -1331,27 +1382,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                       {([sk, field]) => (
                         <label class="louise-field">
                           <span class="louise-field-label">{field.label ?? humanize(sk)}</span>
-                          <Show
-                            when={field.type === "textarea"}
-                            fallback={
-                              <input
-                                class="louise-input"
-                                value={String(inspectItem(target)?._settings?.[sk] ?? "")}
-                                placeholder={field.placeholder}
-                                onInput={(e) => setSetting(target, sk, e.currentTarget.value)}
-                                onChange={() => commitSetting(target)}
-                              />
-                            }
-                          >
-                            <textarea
-                              class="louise-input louise-dock-textarea"
-                              rows={2}
-                              value={String(inspectItem(target)?._settings?.[sk] ?? "")}
-                              placeholder={field.placeholder}
-                              onInput={(e) => setSetting(target, sk, e.currentTarget.value)}
-                              onChange={() => commitSetting(target)}
-                            />
-                          </Show>
+                          <ScalarField
+                            field={field}
+                            value={String(inspectItem(target)?._settings?.[sk] ?? "")}
+                            onInput={(v) => setSetting(target, sk, v)}
+                            onCommit={() => commitSetting(target)}
+                          />
                         </label>
                       )}
                     </For>

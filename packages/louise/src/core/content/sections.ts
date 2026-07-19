@@ -30,7 +30,18 @@ import { type ValidationBuilder, type ValidationFieldContext, validateValue } fr
 // page body) — edited in place with the light ProseKit editor (#182), so it
 // carries bold/italic/link/brand-colour marks. It validates as a string; the save
 // path sanitizes it (see `sanitizeSectionsRichText`).
-export type SectionFieldType = "text" | "textarea" | "richText" | "array" | "image";
+// `select` is a CLOSED CHOICE — a value that must be one of a declared set.
+// It exists because the token model needs it: `_settings` and `_layout` store
+// tokens the site maps to CSS (ADR 0005 §5), and a token set is closed by
+// definition. Without it a four-value setting like a colorway had to be declared
+// as `text`, which rendered a free-text box in the inspector and pushed the
+// consequence of a typo all the way to render time, where the site silently fell
+// back to a default instead of the write being rejected.
+//
+// `_layout` already worked this way — `validateLayout` rejects a token that
+// isn't a declared layout — so this closes the asymmetry rather than inventing a
+// concept.
+export type SectionFieldType = "text" | "textarea" | "richText" | "array" | "image" | "select";
 
 export interface SectionField {
   type: SectionFieldType;
@@ -40,6 +51,23 @@ export interface SectionField {
    *  node) vs. in the dock (a value you can't point at, e.g. a link URL).
    *  Defaults to `true` for text/textarea, `false` for `array`. */
   inline?: boolean;
+  /**
+   * `select` only — the allowed values, in the order the picker shows them.
+   * A stored value outside this set is a validation error, the same way an
+   * undeclared `_layout` token is.
+   *
+   * `label` is what the editor reads; `value` is what's stored. They differ for
+   * the usual reason a token differs from its presentation — "Brand" is a label,
+   * `brand` is the thing the site's class map is keyed on.
+   */
+  options?: { value: string; label?: string }[];
+  /**
+   * `select` only — an opaque hint for how the picker should render (e.g.
+   * `"swatch"` for colour tokens). Passed through untouched, like
+   * {@link SectionDef.icon}: the schema layer has no business knowing what a
+   * swatch looks like, and a site's renderer may ignore it entirely.
+   */
+  display?: string;
   /** `array` only — label for each repeated item (e.g. "Feature"). */
   itemLabel?: string;
   /** `array` only — the fields of each repeated item. With a {@link SectionField.discriminator}
@@ -433,6 +461,23 @@ async function validateSectionField(
         out.push({
           path,
           message: `${path} must be an uploaded media asset, not an external URL`,
+          severity: "error",
+        });
+      }
+    }
+  } else if (field.type === "select") {
+    // A closed choice. Absent is a no-op (presence is the route allowlist's
+    // job), and empty string means "cleared" — the picker's blank option, which
+    // hands the decision back to the site component's own default. Anything
+    // else must be a declared option.
+    if (value !== undefined && value !== null && value !== "") {
+      const allowed = (field.options ?? []).map((o) => o.value);
+      if (typeof value !== "string" || !allowed.includes(value)) {
+        out.push({
+          path,
+          message: `${path} has an unknown value ${JSON.stringify(value)}${
+            allowed.length > 0 ? ` (expected ${allowed.join(" | ")})` : ""
+          }`,
           severity: "error",
         });
       }
