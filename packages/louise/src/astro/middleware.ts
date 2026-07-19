@@ -8,7 +8,7 @@
 //   export const onRequest = createLouiseMiddleware({
 //     resolveEditor: (req) =>
 //       resolveEditorSession(getLouiseAuth(env, new URL(req.url).origin), req),
-//     rateLimit: { rules: RATE_RULES, kv: env.KV },
+//     rateLimit: { rules: RATE_RULES, kv: () => env.RL },
 //     cspStyleSrc: "'self' 'unsafe-inline'",
 //   });
 //
@@ -41,9 +41,15 @@ interface LouiseLocals {
 export interface LouiseMiddlewareRateLimit {
   /** The site's rate-limit rules — the public POST surfaces worth protecting. */
   rules: RateRule[];
-  /** Rate-limit backend — a KV counter or Cloudflare's native Rate Limiting
-   *  binding. */
-  kv: RateLimitBackend;
+  /**
+   * Rate-limit backend — a KV counter or Cloudflare's native Rate Limiting
+   * binding, or a getter that yields one. A getter is resolved per request, so a
+   * `cloudflare:workers` `env` binding is read in request scope rather than at
+   * module-eval — the same reason editor Actions take `getEnv: () => env`. A
+   * getter that yields a falsy backend (e.g. the KV namespace isn't provisioned
+   * yet) simply skips rate-limiting — fail open, consistent with {@link rateLimit}.
+   */
+  kv: RateLimitBackend | (() => RateLimitBackend | undefined);
 }
 
 export interface LouiseMiddlewareConfig<TEditor = unknown> {
@@ -101,21 +107,29 @@ export function createLouiseMiddleware<TEditor = unknown>(
         context.url.pathname,
       );
       if (rule) {
-        const ip = context.request.headers.get("cf-connecting-ip") ?? "unknown";
-        const { ok, retryAfter } = await rateLimit(
-          config.rateLimit.kv,
-          `${rule.name}:${ip}`,
-          rule.limit,
-          rule.windowSec,
-        );
-        if (!ok) {
-          return new Response(
-            JSON.stringify({ error: "Too many requests. Please try again shortly." }),
-            {
-              status: 429,
-              headers: { "content-type": "application/json", "retry-after": String(retryAfter) },
-            },
+        // Resolve the backend only for a matched surface, and per request: a
+        // getter defers the `env` binding read to request scope (never
+        // module-eval). A falsy backend (binding not yet provisioned) skips
+        // limiting — fail open, like `rateLimit` itself.
+        const backend =
+          typeof config.rateLimit.kv === "function" ? config.rateLimit.kv() : config.rateLimit.kv;
+        if (backend) {
+          const ip = context.request.headers.get("cf-connecting-ip") ?? "unknown";
+          const { ok, retryAfter } = await rateLimit(
+            backend,
+            `${rule.name}:${ip}`,
+            rule.limit,
+            rule.windowSec,
           );
+          if (!ok) {
+            return new Response(
+              JSON.stringify({ error: "Too many requests. Please try again shortly." }),
+              {
+                status: 429,
+                headers: { "content-type": "application/json", "retry-after": String(retryAfter) },
+              },
+            );
+          }
         }
       }
     }
