@@ -1,0 +1,12 @@
+# Local dev secrets (wrangler reads .dev.vars; copy this there for `astro dev`).
+# In production these are set with `wrangler secret put`, NOT committed.
+
+# Signs Better Auth sessions. Generate: `openssl rand -base64 32`.
+SESSION_SECRET=
+
+# The first editor's email — seeded as an admin `user` row by `pnpm seed:editors`,
+# and thereafter part of the DB-managed magic-link allowlist.
+OWNER_EMAIL=you@example.com
+
+# `from` address for magic-link + notification email (Cloudflare Email Sending).
+MAIL_FROM=no-reply@__KEY__.example

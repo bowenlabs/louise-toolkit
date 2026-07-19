@@ -37,6 +37,15 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/create-astroid:
+    dependencies:
+      astroidjs:
+        specifier: workspace:*
+        version: link:../astroid
+      louise-toolkit:
+        specifier: workspace:*
+        version: link:../louise
+
   packages/louise:
     devDependencies:
       '@better-auth/passkey':

@@ -43,7 +43,7 @@ const DEFAULT_SETTINGS_IMAGE_KEYS = ["logoUrl", "faviconUrl", "defaultOgImageUrl
 export function generateAstroidWorker(config: AstroidConfig): string {
   const inquiries = capturesInquiries(config);
   const mediaBase = config.deploy?.mediaBase ?? "/media";
-  const seedName = config.brands[0]?.theme.name ?? "My site";
+  const seedName = config.theme.name;
   const plan = astroidEditorRoutePlan(config);
 
   const editorImports = [
@@ -72,6 +72,10 @@ export function generateAstroidWorker(config: AstroidConfig): string {
         return "settingsRoute({ table: siteSettings, resolveEditor, columns: SETTINGS_COLUMNS, imageKeys: SETTINGS_IMAGE_KEYS, mediaBase: MEDIA_BASE })";
       case "media":
         return "mediaRoute({ table: media, resolveEditor })";
+      case "editors":
+        // Better Auth owns the `user` table (a NAME, not a Drizzle table), so this
+        // route takes the default `"user"`; a `tablePrefix` would rename it.
+        return 'editorsRoute({ table: "user", resolveEditor })';
       case "form":
         return "formRoute({ form: contactForm, rateLimitKv: (env) => env.RL })";
       case "inquiries":

@@ -3,30 +3,38 @@
 // `defineAstroid` — the Astroid project configuration surface.
 //
 // Astroid is the opinionated layer over Louise Toolkit + Astro. A site's whole
-// shape — which brands it serves, each brand's theme + editable home, its
-// commerce backend, its optional modules — collapses into ONE typed config here.
-// Astroid consumes it to generate the Louise wiring (worker routes, middleware,
-// Drizzle schema, theme tokens) a site would otherwise hand-write per repo.
+// shape — its brand + theme + editable home, its commerce backend, its optional
+// modules — collapses into ONE typed config here. Astroid consumes it to generate
+// the Louise wiring (worker routes, middleware, Drizzle schema, theme tokens) a
+// site would otherwise hand-write per repo.
+//
+// ONE brand per project. Every site Astroid targets (coracle.coffee,
+// ghostfire.coffee, themidwestartist.com, louise-web) serves a single brand from a
+// single deploy — none does host/tenant dispatch. The axis that genuinely
+// multiplexes is *editors* (Louise's org plugin, #100) and *audiences* (a gated
+// portal alongside the public site), not brands — so both live here as options on
+// the one brand, not as a `brands[]` array.
 //
 // The vocabulary below is not invented: `Archetype`, `SectionKind`, and
-// `ModuleKind` are extracted from the real brand sites Astroid targets
-// (coracle.coffee, ghostfire.coffee, themidwestartist.com) — a storefront, a
-// wholesale front, and an artist portfolio over one stack.
+// `ModuleKind` are extracted from the real sites Astroid targets — a storefront
+// (coracle), a wholesale front (ghostfire), an artist portfolio (megbowen), and a
+// plain marketing baseline (louise-web).
 
 import { AstroidConfigError } from "./errors.js";
 
 /**
- * The starting shape a brand's front-end takes. Not a fork — each archetype is a
- * preset of defaults (which sections/modules are on, nav shape) that a brand then
- * tunes. `storefront` = DTC shop (coracle), `wholesale` = B2B/private-label
- * (ghostfire), `portfolio` = gallery + prints + client portal (megbowen).
+ * The starting shape the front-end takes. Not a fork — each archetype is a preset
+ * of defaults (which sections/modules are on, nav shape) that the site then tunes.
+ * `marketing` = the lean brochure floor (louise-web, no commerce); `storefront` =
+ * DTC shop (coracle); `wholesale` = B2B/private-label (ghostfire); `portfolio` =
+ * gallery + prints + client portal (megbowen).
  */
-export type Archetype = "storefront" | "wholesale" | "portfolio";
+export type Archetype = "marketing" | "storefront" | "wholesale" | "portfolio";
 
 /**
- * The section vocabulary — a brand's editable home page is an ordered list of
- * these, top to bottom. Each maps to a themeable component in the Astroid section
- * library. Drawn from real usage across the target sites (annotated below).
+ * The section vocabulary — the editable home page is an ordered list of these, top
+ * to bottom. Each maps to a themeable component in the Astroid section library.
+ * Drawn from real usage across the target sites (annotated below).
  */
 export type SectionKind =
   | "hero"
@@ -42,8 +50,8 @@ export type SectionKind =
   | "contact";
 
 /**
- * Optional capabilities a brand switches on. Pluggable, not core — a portfolio
- * brand runs none of the commerce ones. `orderTracking` is shared across both
+ * Optional capabilities the site switches on. Pluggable, not core — a portfolio
+ * site runs none of the commerce ones. `orderTracking` is shared across both
  * coffee brands, so it's first-class but still opt-in.
  */
 export type ModuleKind =
@@ -56,8 +64,8 @@ export type ModuleKind =
 /** Commerce backend — mirrors Louise's provider set (louise-toolkit/commerce). */
 export type CommerceProvider = "stripe" | "square" | "fourthwall";
 
-export interface BrandTheme {
-  /** Display name — used in nav, `<title>`, OG cards. */
+export interface Theme {
+  /** Display name — the brand, used in nav, `<title>`, OG cards. */
   name: string;
   /** Path to the primary logo (media-library asset or a `/brand/*` file). */
   logo?: string;
@@ -71,42 +79,17 @@ export interface BrandTheme {
   font?: string;
 }
 
-export interface BrandPortal {
+export interface Portal {
   enabled: boolean;
-  /** Require a session to view the whole brand (Meg Bowen's gated preview), not
+  /** Require a session to view the whole site (Meg Bowen's gated preview), not
    *  just the account area. Default `false`. */
   gated?: boolean;
   /** Modules exposed inside the account area (e.g. `orderTracking`). */
   features?: ModuleKind[];
 }
 
-export interface BrandConfig {
-  /** Stable key — the brand's workspace id and default subdomain (e.g.
-   *  `"coracle"`). Drives Host dispatch and per-brand schema, so it must be
-   *  unique across `brands`. */
-  key: string;
-  /** Hostname(s) this brand serves (prod + preview), for Host dispatch. */
-  hosts?: string[];
-  /** Starting shape; sets section/module/nav defaults the brand can override. */
-  archetype: Archetype;
-  theme: BrandTheme;
-  /** The editable home page, top to bottom. Omit to take the archetype default. */
-  sections?: SectionKind[];
-  /** Optional capabilities switched on for this brand. */
-  modules?: ModuleKind[];
-  /** Gated account/portal area (order tracking, client galleries). */
-  portal?: BrandPortal;
-}
-
 export interface CommerceConfig {
   provider: CommerceProvider;
-  /**
-   * Serve every storefront/wholesale brand from ONE catalog + order backend —
-   * the multi-storefront angle (coracle DTC + ghostfire wholesale over a shared
-   * Square catalog, which coracle already links to for "Wholesale"). Default
-   * `false` (each brand owns its own catalog).
-   */
-  sharedCatalog?: boolean;
 }
 
 export interface DeployConfig {
@@ -117,12 +100,25 @@ export interface DeployConfig {
 }
 
 export interface AstroidConfig {
-  /** One or more brand front-ends served by this project. */
-  brands: BrandConfig[];
-  /** Commerce backend, shared across brands unless a brand opts out. */
-  commerce?: CommerceConfig;
-  /** Project-wide modules available to every brand unless overridden per brand. */
+  /**
+   * Stable project slug — the worker/D1/R2 base name and default subdomain (e.g.
+   * `"coracle"`). Required and non-empty; it drives the generated binding names.
+   */
+  key: string;
+  /** Hostname(s) this site serves (prod + preview), for custom-domain routes. */
+  hosts?: string[];
+  /** Starting shape; sets section/module/nav defaults the site can override. */
+  archetype: Archetype;
+  /** The single brand's theme (display name + color tokens + font). */
+  theme: Theme;
+  /** The editable home page, top to bottom. Omit to take the archetype default. */
+  sections?: SectionKind[];
+  /** Optional capabilities switched on for this site. */
   modules?: ModuleKind[];
+  /** Gated account/portal area (order tracking, client galleries). */
+  portal?: Portal;
+  /** Commerce backend. */
+  commerce?: CommerceConfig;
   deploy?: DeployConfig;
 }
 
@@ -130,37 +126,31 @@ export interface AstroidConfig {
  * Define an Astroid project. An identity function in the shape of Astro's
  * `defineConfig`: it returns the config verbatim with full type-checking +
  * inference, and validates the invariants that would otherwise fail deep inside
- * generation (at least one brand; unique brand keys, since keys drive Host
- * dispatch and schema).
+ * generation (a non-empty project `key`, since it names the generated bindings;
+ * a brand `theme.name` + `colors.brand`, since they seed the site and theme).
  *
  * ```ts
  * export default defineAstroid({
- *   brands: [
- *     { key: "coracle", archetype: "storefront",
- *       theme: { name: "Coracle Coffee", colors: { brand: "#1f6f78" } },
- *       sections: ["hero", "marquee", "featured", "productGrid", "visit"] },
- *   ],
- *   commerce: { provider: "square", sharedCatalog: true },
+ *   key: "coracle",
+ *   archetype: "storefront",
+ *   theme: { name: "Coracle Coffee", colors: { brand: "#1f6f78" } },
+ *   sections: ["hero", "marquee", "featured", "productGrid", "visit"],
+ *   commerce: { provider: "square" },
  *   deploy: { platform: "cloudflare" },
  * });
  * ```
  */
 export function defineAstroid(config: AstroidConfig): AstroidConfig {
-  if (!config.brands || config.brands.length === 0) {
-    throw new AstroidConfigError("Astroid config requires at least one brand in `brands`");
+  if (!config.key || config.key.trim().length === 0) {
+    throw new AstroidConfigError(
+      "Astroid config requires a non-empty `key` (it names the generated worker/D1/R2 bindings)",
+    );
   }
-
-  const seen = new Set<string>();
-  for (const brand of config.brands) {
-    if (!brand.key || brand.key.trim().length === 0) {
-      throw new AstroidConfigError("Each brand requires a non-empty `key`");
-    }
-    if (seen.has(brand.key)) {
-      throw new AstroidConfigError(
-        `Duplicate brand key "${brand.key}" — brand keys must be unique (they drive Host dispatch and schema)`,
-      );
-    }
-    seen.add(brand.key);
+  if (!config.theme || !config.theme.name || config.theme.name.trim().length === 0) {
+    throw new AstroidConfigError("Astroid config requires `theme.name` (the brand's display name)");
+  }
+  if (!config.theme.colors || !config.theme.colors.brand) {
+    throw new AstroidConfigError("Astroid config requires `theme.colors.brand` (the primary brand color)");
   }
 
   return config;

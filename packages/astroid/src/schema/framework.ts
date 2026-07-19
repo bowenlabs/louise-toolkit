@@ -11,17 +11,15 @@ import type { AstroidConfig } from "../config.js";
 /** A ready-made table Astroid re-exports from `louise-toolkit/db`. */
 export type AstroidFrameworkTable = "inquiries" | "media" | "siteSettings";
 
-/** True when any brand (or the project as a whole) captures inquiries — a
- *  contact section or a wholesale-inquiry module. Shared by table selection
- *  (here) and route selection (the worker route plan). */
+/** True when the site captures inquiries — a contact section or a
+ *  wholesale-inquiry module. Shared by table selection (here) and route selection
+ *  (the worker route plan). */
 export function capturesInquiries(config: AstroidConfig): boolean {
   const wantsWholesale = (mods?: readonly string[]) => (mods ?? []).includes("wholesaleInquiry");
-  if (wantsWholesale(config.modules)) return true;
-  return config.brands.some(
-    (brand) =>
-      (brand.sections ?? []).includes("contact") ||
-      wantsWholesale(brand.modules) ||
-      wantsWholesale(brand.portal?.features),
+  return (
+    (config.sections ?? []).includes("contact") ||
+    wantsWholesale(config.modules) ||
+    wantsWholesale(config.portal?.features)
   );
 }
 

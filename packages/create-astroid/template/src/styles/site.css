@@ -1,0 +1,10 @@
+/* The site's theme. Tailwind v4 + daisyUI; the Louise editor theme layers on top.
+   Your brand color is the single token below — Astroid wrote it from your config
+   (theme.colors.brand). Restyle by editing here; it flows through the utilities. */
+@import "tailwindcss";
+@plugin "daisyui";
+@import "louise-toolkit/theme/louise.css";
+
+:root {
+  --brand: __BRAND_COLOR__;
+}

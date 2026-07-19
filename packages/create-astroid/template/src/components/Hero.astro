@@ -1,0 +1,16 @@
+---
+interface Props {
+  title: string;
+  tagline: string;
+}
+const { title, tagline } = Astro.props;
+---
+
+<section class="hero min-h-[60vh]">
+  <div class="hero-content text-center">
+    <div class="max-w-2xl">
+      <h1 class="text-5xl font-bold">{title}</h1>
+      <p class="py-6 text-lg opacity-80">{tagline}</p>
+    </div>
+  </div>
+</section>

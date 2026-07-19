@@ -1,0 +1,30 @@
+---
+// The base HTML shell. `Astro.locals.editMode` is set by the generated
+// middleware.ts (from your auth seam); LouiseEdit boots the editor when it's on.
+import LouiseEdit from "../components/LouiseEdit.astro";
+import "../styles/site.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** A `pages` row id whose `<Editable>` fields stage drafts + publish. */
+  versionedPageId?: number;
+}
+
+const { title = "__BRAND_NAME__", description, versionedPageId } = Astro.props;
+const { editMode } = Astro.locals;
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+  </head>
+  <body class="min-h-screen bg-base-100 text-base-content" data-edit-mode={editMode ? "" : undefined}>
+    <slot />
+    <LouiseEdit versionedPageId={versionedPageId} />
+  </body>
+</html>

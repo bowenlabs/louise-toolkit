@@ -16,6 +16,7 @@ export type AstroidEditorRouteName =
   | "save"
   | "settings"
   | "media"
+  | "editors"
   | "form"
   | "inquiries"
   | "seed";
@@ -66,6 +67,11 @@ export function astroidEditorRoutePlan(config: AstroidConfig): AstroidEditorRout
       name: "media",
       factory: "mediaRoute",
       note: "Media library — list, upload, delete, reference checks.",
+    },
+    {
+      name: "editors",
+      factory: "editorsRoute",
+      note: "Editor roster (the Users panel) over Better Auth's `user` table — a row IS an editor, and the same table is the magic-link allowlist (resolveAdmins).",
     },
   ];
 

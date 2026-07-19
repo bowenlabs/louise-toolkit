@@ -1,0 +1,43 @@
+---
+// `<Editable>` — the Astroid inline-edit primitive (ADR 0003, checklist item 1).
+//
+// It owns the `data-louise-*` marker contract so sites stop stamping it by hand:
+// in edit mode it renders your element with the markers the Louise client
+// (`mountLouise`) looks for to make the field editable in place; out of edit mode
+// it renders the element plain, with zero editing attributes in the public HTML.
+//
+// This is the PAGE-field flavor (`data-louise-field="<collection>:<key>:<field>"`,
+// saved as a versioned draft when the page is mounted with `versionedPageId`). The
+// structured section-field flavor (`data-louise-sfield`, ADR 0003 §5) arrives with
+// `<Section>`.
+//
+// Per ADR 0003: props are a named, typed surface (§1); the element is polymorphic
+// via a typed `as` with a typed `...rest` escape hatch (§4); edit mode is read
+// from context (`Astro.locals.editMode`), not restated on every call (§5).
+import type { HTMLTag, Polymorphic } from "astro/types";
+
+type Props<Tag extends HTMLTag = "div"> = Polymorphic<{ as: Tag }> & {
+  /** The Louise collection slug this field belongs to (e.g. "pages"). */
+  collection: string;
+  /** The row key/id the field is on (stringified into the marker). */
+  key: string | number;
+  /** The field name (e.g. "title", "body"). */
+  field: string;
+  /** Rich text (ProseKit) vs a single-line contenteditable. Default "text". */
+  type?: "text" | "richtext";
+  /** Force edit markers on/off. Defaults to `Astro.locals.editMode`. */
+  edit?: boolean;
+};
+
+const { as: Tag = "div", collection, key, field, type = "text", edit, ...rest } = Astro.props;
+
+const editing = edit ?? (Astro.locals as { editMode?: boolean }).editMode ?? false;
+const markers = editing
+  ? {
+      "data-louise-field": `${collection}:${key}:${field}`,
+      ...(type === "richtext" ? { "data-louise-type": "richtext" } : {}),
+    }
+  : {};
+---
+
+<Tag {...rest} {...markers}><slot /></Tag>

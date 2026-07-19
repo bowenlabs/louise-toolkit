@@ -1,0 +1,60 @@
+---
+// Boots the in-page Louise editor — the edit bar + the Settings drawer (Pages,
+// Media, Settings, Users). Drop it before </body> in your layout.
+//
+// Gated on `Astro.locals.editMode`, which the generated middleware sets for a
+// signed-in editor who has toggled edit mode on (`?louise`). An anonymous visitor
+// gets editMode=false, so the heavy Solid/ProseKit client is never even sent to
+// them. The client self-injects its own styles.
+//
+// Pass `versionedPageId` from a page whose `<Editable>` fields should stage drafts
+// + publish (the layout forwards it). Omit it and the bar is Settings-only.
+const { editMode, editor } = Astro.locals;
+const { versionedPageId } = Astro.props as { versionedPageId?: number };
+---
+
+{
+  editMode && (
+    <>
+      <script
+        is:inline
+        define:vars={{ userName: editor?.name ?? "Editor", versionedPageId: versionedPageId ?? null }}
+      >
+        document.body.dataset.louiseEdit = "1";
+        document.body.dataset.louiseUser = userName;
+        if (versionedPageId != null) document.body.dataset.louiseVersionedPage = String(versionedPageId);
+        else delete document.body.dataset.louiseVersionedPage;
+      </script>
+      <script>
+        // Lazy-import the editor client only in edit mode. `mountLouise` renders
+        // the edit bar; `mountSettings` renders the drawer (Pages/Media/Settings +
+        // Users, backed by editorsRoute). When the page passes `versionedPageId`,
+        // the bar gains Save draft + Publish, and this page's `<Editable>` fields
+        // are edited in place — their changes stage a draft, promoted on Publish.
+        function boot() {
+          if (document.body.dataset.louiseEdit !== "1") return;
+          Promise.all([
+            import("louise-toolkit/client"),
+            import("louise-toolkit/client/settings"),
+          ])
+            .then(([client, settings]) => {
+              settings.mountSettings({
+                userName: document.body.dataset.louiseUser || "Editor",
+                users: true,
+              });
+              const versioned = document.body.dataset.louiseVersionedPage;
+              client.mountLouise({
+                onOpenSettings: () =>
+                  window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
+                versionedPageId: versioned ? Number(versioned) : undefined,
+              });
+            })
+            .catch((err) => console.error("[louise] editor bootstrap failed", err));
+        }
+        boot();
+        // Re-boot after a view-transition navigation (the swapped-in body needs it).
+        document.addEventListener("astro:page-load", boot);
+      </script>
+    </>
+  )
+}

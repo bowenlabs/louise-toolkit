@@ -12,12 +12,8 @@ import {
   defineCollection,
   type FieldConfig,
 } from "louise-toolkit/content";
+import { sanitizeRichHtml } from "louise-toolkit/security";
 import type { AstroidConfig } from "../config.js";
-
-/** More than one brand → shared content tables carry a `brand` discriminator. */
-export function isMultiBrand(config: AstroidConfig): boolean {
-  return config.brands.length > 1;
-}
 
 /**
  * The opinionated `pages` collection — the EDITABLE page fields, versioned
@@ -26,13 +22,17 @@ export function isMultiBrand(config: AstroidConfig): boolean {
  * columns (`id`/`status`/timestamps/`publishedVersionId`) live on the table via
  * `pagesColumns`, never here — matching the site's `pages-collection.ts`.
  *
- * Multi-brand adds a required `brand` field so one shared `pages` table can hold
- * every brand's pages, discriminated by key. Validated by `defineCollection` at
- * build time, so a malformed field shape throws here rather than at codegen.
+ * Validated by `defineCollection` at build time, so a malformed field shape throws
+ * here rather than at codegen.
  */
 export function astroidPagesCollection(config: AstroidConfig): CollectionConfig {
+  // The `body` is rich HTML edited in place (`<Editable type="richtext">`) and
+  // staged as a draft, so sanitize it on every write — never store raw HTML. A
+  // pasted `<img>` pointing off-origin (a hotlink) is dropped: body images must
+  // live in the media library. Mirrors the reference site's pages-collection hook.
+  const mediaBase = config.deploy?.mediaBase ?? "/media";
+
   const fields: Record<string, FieldConfig> = {};
-  if (isMultiBrand(config)) fields.brand = { type: "text", required: true };
   fields.slug = { type: "text", required: true };
   fields.title = { type: "text", required: true };
   // Sanitized rich HTML (a string), not TipTap JSON — matches `pagesColumns.body`.
@@ -49,6 +49,16 @@ export function astroidPagesCollection(config: AstroidConfig): CollectionConfig 
   return defineCollection({
     slug: "pages",
     fields,
+    hooks: {
+      beforeChange: [
+        ({ data }) => {
+          if (typeof data.body === "string") {
+            return { ...data, body: sanitizeRichHtml(data.body, { mediaBase }) };
+          }
+          return data;
+        },
+      ],
+    },
     versions: { drafts: true },
     search: { fields: ["title", "body", "sections"] },
   });

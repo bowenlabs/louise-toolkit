@@ -1,0 +1,62 @@
+---
+// The home page — an editable `pages` row rendered in place. Reads the published
+// `home` row for the public view; in edit mode it reads the latest DRAFT so an
+// editor's in-progress edits resume. The <Editable> fields carry the markers the
+// Louise client turns into inline editors; saves stage a draft (versionedPageId),
+// and Publish promotes it. Seed the row once with `seed/home.seed.sql`.
+import Editable from "astroidjs/components/Editable.astro";
+import { env } from "cloudflare:workers";
+import Hero from "../components/Hero.astro";
+import Site from "../layouts/Site.astro";
+
+export const prerender = false;
+
+const { editMode } = Astro.locals;
+
+let page: { id: number; title: string; body: string | null } | null = null;
+try {
+  page = await env.DB.prepare("SELECT id, title, body FROM pages WHERE slug = 'home'").first();
+} catch {
+  // No DB binding yet (pre-provision) — fall through to the seed-me prompt.
+}
+
+let title = page?.title ?? "__BRAND_NAME__";
+let body = page?.body ?? "";
+
+// In edit mode, prefer the latest unpublished draft so edits resume across reloads.
+if (editMode && page) {
+  try {
+    const draft = await env.DB.prepare(
+      "SELECT version_data FROM pages_versions WHERE parent_id = ? AND status = 'draft' ORDER BY created_at DESC LIMIT 1",
+    )
+      .bind(page.id)
+      .first<{ version_data: string }>();
+    if (draft?.version_data) {
+      const d = JSON.parse(draft.version_data) as { title?: string; body?: string };
+      if (typeof d.title === "string") title = d.title;
+      if (typeof d.body === "string") body = d.body;
+    }
+  } catch {
+    // Non-fatal — fall back to the live row.
+  }
+}
+---
+
+<Site title={title} description={undefined} versionedPageId={page?.id}>
+  {
+    page ? (
+      <main class="mx-auto max-w-3xl px-6 py-16">
+        <Editable as="h1" collection="pages" key={page.id} field="title" class="text-5xl font-bold">
+          {title}
+        </Editable>
+        <Editable as="div" collection="pages" key={page.id} field="body" type="richtext" class="prose mt-6 max-w-none">
+          <Fragment set:html={body} />
+        </Editable>
+      </main>
+    ) : (
+      <main>
+        <Hero title={title} tagline="Seed the home page (seed/home.seed.sql) to edit it in place." />
+      </main>
+    )
+  }
+</Site>
