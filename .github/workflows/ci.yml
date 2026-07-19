@@ -70,12 +70,11 @@ jobs:
         working-directory: packages/louise
 
       # Build the Astroid CLI (tsgo → dist/) so its generators + bin are runnable.
-      # Not a `vp run` task (this must actually produce dist/, like the louise pack
-      # above) — the package's own build script emits it.
+      # Invoke tsgo directly (the package's `build` script) rather than via a `vp
+      # run` task — this must actually produce dist/, like the louise pack above.
       - name: Build the Astroid CLI (dist/)
-        run: corepack pnpm --filter astroidjs run build
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: node_modules/.bin/tsgo -p tsconfig.build.json
+        working-directory: packages/astroid
 
       # Exercise create-astroid's template/ payload end-to-end: scaffold a throwaway
       # project with the same generators the CLI ships, then validate it with
