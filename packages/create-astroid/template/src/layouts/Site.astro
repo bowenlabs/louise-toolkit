@@ -22,9 +22,12 @@ interface Props {
   noindex?: boolean;
   /** A `pages` row id whose `<Editable>` fields stage drafts + publish. */
   versionedPageId?: number;
+  /** The page's stored `sections` array, forwarded to the on-canvas section
+   *  editor so it can seed its store with what's actually rendered. */
+  sections?: unknown;
 }
 
-const { title, description, ogImage, noindex, versionedPageId } = Astro.props;
+const { title, description, ogImage, noindex, versionedPageId, sections } = Astro.props;
 const { editMode } = Astro.locals;
 
 // The editable settings row drives the head. Missing (pre-provision, pre-seed)
@@ -93,6 +96,6 @@ const settings = {
   </head>
   <body class="min-h-screen bg-base-100 text-base-content" data-edit-mode={editMode ? "" : undefined}>
     <slot />
-    <LouiseEdit versionedPageId={versionedPageId} />
+    <LouiseEdit versionedPageId={versionedPageId} sections={sections} />
   </body>
 </html>

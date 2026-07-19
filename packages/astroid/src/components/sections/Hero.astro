@@ -1,22 +1,50 @@
 ---
-// Hero section (ADR 0003, item 4). Declarative props → `Theme` tokens via the
-// `colorwayClass` / `alignClass` maps — no raw class names in the prop surface, so
-// a brand re-theme flows through without touching markup.
-import type { HeroFields, SectionBase } from "../sections.js";
-import { alignClass, colorwayClass } from "../sections.js";
+// Hero section. Renders a stored `SectionItem`; every visible text node is
+// wrapped in `<Editable base={base} field="…">`, which is what makes it editable
+// in place on the real design rather than through a proxy form.
+//
+// Presentation comes from `_settings` TOKENS, not props: Louise stores
+// `colorway: "brand"` and never learns what that renders as, so the mapping
+// below is the site-owned half of the contract (ADR 0005 §5) and a re-theme
+// needs no content rewrite.
+import type { SectionRenderProps } from "../sections.js";
+import { alignClass, colorwayClass, field, setting } from "../sections.js";
+import Editable from "../Editable.astro";
 
-type Props = SectionBase & HeroFields;
+type Props = SectionRenderProps;
 
-const { heading, subheading, ctaLabel, ctaHref, colorway = "base", align = "center" } = Astro.props;
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const subheading = field(item, "subheading");
+const ctaLabel = field(item, "ctaLabel");
+const ctaHref = field(item, "ctaHref");
 ---
 
-<section class:list={["hero py-20", colorwayClass(colorway)]}>
-  <div class:list={["hero-content flex-col", alignClass(align)]}>
+<section class:list={["hero py-20", colorwayClass(setting(item, "colorway", "base"))]}>
+  <div class:list={["hero-content flex-col", alignClass(setting(item, "align", "center"))]}>
     <div class="max-w-2xl">
-      <h1 class="text-5xl font-bold">{heading}</h1>
-      {subheading && <p class="py-6 text-lg opacity-80">{subheading}</p>}
+      <Editable as="h1" base={base} field="heading" edit={edit} class="text-5xl font-bold">
+        {heading}
+      </Editable>
+      {subheading && (
+        <Editable
+          as="p"
+          base={base}
+          field="subheading"
+          edit={edit}
+          multiline
+          class="py-6 text-lg opacity-80"
+        >
+          {subheading}
+        </Editable>
+      )}
+      {/* The label is editable in place; the href is not — you can't point at a
+          URL, so it lives in the inspector (`inline: false` in the catalog). */}
       {ctaLabel && ctaHref && (
-        <a class="btn btn-primary" href={ctaHref}>{ctaLabel}</a>
+        <a class="btn btn-primary" href={ctaHref}>
+          <Editable as="span" base={base} field="ctaLabel" edit={edit}>{ctaLabel}</Editable>
+        </a>
       )}
     </div>
   </div>

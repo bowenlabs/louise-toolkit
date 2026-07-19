@@ -1,46 +1,74 @@
 ---
-// `<Section>` — the section-library dispatcher (ADR 0003, item 2). It's a
-// discriminated union over `SectionKind` (see ./sections.ts): `<Section
-// kind="hero" heading="…" />` requires hero fields and rejects another kind's, and
-// each arm renders the matching section-library component. Bespoke, site-owned
-// sections stay first-class (as the reference site's hand-written ones are) — this
-// is for the catalog sections, not a mandate to route everything through it.
-import type { SectionProps } from "./sections.js";
+// `<Section>` — the section-library dispatcher (ADR 0003 item 2, on the ADR 0005
+// model).
+//
+// It renders ONE stored `SectionItem`: dispatch on `_type`, hand the component
+// its `base` path, and let the component own every pixel. What changed from the
+// old `kind`-prop version is where the truth lives — the item is data loaded from
+// the page's `sections` column, not props a template hand-wrote, so what renders
+// is exactly what the on-canvas editor edits in place.
+//
+// Two marker responsibilities, split the way ADR 0005 §2 splits them:
+//   • the BOUNDARY (`data-louise-section` / `data-louise-block`) is stamped here,
+//     because only the dispatcher knows an item's position;
+//   • the FIELDS (`data-louise-sfield`) are stamped by `<Editable base={base}
+//     field="…">` inside each component, because only the component knows which
+//     of its text nodes are editable.
+//
+// Blocks recurse through this same component with a deeper `base`. That's the
+// whole trick: a component never learns its own depth, so a type that renders as
+// a section renders unchanged as a block.
+import type { MediaMeta, SectionItem } from "./sections.js";
+import { isRenderableSection } from "./sections.js";
 import Contact from "./sections/Contact.astro";
 import Cta from "./sections/Cta.astro";
 import FeatureGrid from "./sections/FeatureGrid.astro";
 import Hero from "./sections/Hero.astro";
 
-const p = Astro.props as SectionProps;
+interface Props {
+  item: SectionItem;
+  /** This item's path within the page's `sections` array: `"2"` at the top
+   *  level, `"2.blocks.0"` for a block. */
+  base: string;
+  /** Force edit markers on/off. Defaults to `Astro.locals.editMode`. */
+  edit?: boolean;
+  /** Page-wide media alt/caption, resolved once by `<Sections>`. */
+  mediaMeta?: MediaMeta;
+}
+
+const { item, base, edit, mediaMeta } = Astro.props;
+
+const editing = edit ?? (Astro.locals as { editMode?: boolean }).editMode ?? false;
+const type = String(item._type);
+
+// `blocks` is the reserved structural key; its marker path is positional
+// (`<i>.blocks.<j>`), which is what the client's depth-agnostic path parser walks.
+const blocks = Array.isArray(item.blocks) ? item.blocks : [];
+
+// The boundary marker the on-canvas chrome draws its ring on. `class="contents"`
+// keeps this wrapper out of layout entirely — the ring is drawn as a box-shadow
+// on the element itself (ADR 0005 §3), so an extra block box here would offset
+// every section's spacing for the sake of an attribute.
+const boundary = editing
+  ? base.includes(".blocks.")
+    ? { "data-louise-block": base }
+    : { "data-louise-section": base }
+  : {};
+
+const shared = { item, base, edit: editing, mediaMeta };
 ---
 
 {
-  p.kind === "hero" && (
-    <Hero
-      heading={p.heading}
-      subheading={p.subheading}
-      ctaLabel={p.ctaLabel}
-      ctaHref={p.ctaHref}
-      colorway={p.colorway}
-      align={p.align}
-    />
+  isRenderableSection(type) && (
+    <div {...boundary} class="contents">
+      {type === "hero" && <Hero {...shared} />}
+      {type === "featureGrid" && <FeatureGrid {...shared} />}
+      {type === "cta" && <Cta {...shared} />}
+      {type === "contact" && <Contact {...shared} />}
+
+      {blocks.map((block, j) => (
+        <Astro.self item={block} base={`${base}.blocks.${j}`} edit={editing} mediaMeta={mediaMeta} />
+      ))}
+    </div>
   )
 }
-{
-  p.kind === "featureGrid" && (
-    <FeatureGrid heading={p.heading} items={p.items} colorway={p.colorway} align={p.align} />
-  )
-}
-{
-  p.kind === "cta" && (
-    <Cta
-      heading={p.heading}
-      body={p.body}
-      ctaLabel={p.ctaLabel}
-      ctaHref={p.ctaHref}
-      colorway={p.colorway}
-      align={p.align}
-    />
-  )
-}
-{p.kind === "contact" && <Contact heading={p.heading} blurb={p.blurb} colorway={p.colorway} align={p.align} />}

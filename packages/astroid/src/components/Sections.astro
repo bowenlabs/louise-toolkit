@@ -1,0 +1,64 @@
+---
+// `<Sections>` — render a page's whole `sections` array.
+//
+// This exists for one reason `<Section>` can't serve: the media lookup has to
+// span the page. A section stores an image as a URL, but the `alt`/`caption` an
+// editor typed live on the media ASSET, so rendering images correctly means
+// joining back to the registry — and doing that per image is thirty D1
+// round-trips for one gallery. Here it's ONE bounded `IN (...)` per page,
+// threaded down as `mediaMeta`.
+//
+// It's also the only place that knows an item's index, which is what every
+// `data-louise-*` marker path is built from.
+import { collectSectionMediaUrls, type MediaMetaDatabase, resolveSectionMedia } from "./media-meta.js";
+import type { MediaMeta, SectionCatalog, SectionItem } from "./sections.js";
+import { astroidSectionCatalog } from "./sections.js";
+import Section from "./Section.astro";
+
+interface Props {
+  /** The page's stored `sections` array. Untrusted JSON — a non-array, or an
+   *  item with an unknown `_type`, renders nothing rather than throwing. */
+  items: unknown;
+  /** D1, for the media alt/caption lookup. Omit to skip it entirely. */
+  db?: MediaMetaDatabase;
+  /** Public media base, for turning a stored URL back into a registry key.
+   *  Matches the site's `MEDIA_URL`. */
+  mediaBase?: string;
+  /** Override the catalog — a site that extends Astroid's set passes its own. */
+  catalog?: SectionCatalog;
+  /** Force edit markers on/off. Defaults to `Astro.locals.editMode`. */
+  edit?: boolean;
+  /** Pre-resolved media metadata, when the page already looked it up. */
+  mediaMeta?: MediaMeta;
+}
+
+const {
+  items,
+  db,
+  mediaBase = "/media",
+  catalog = astroidSectionCatalog,
+  edit,
+  mediaMeta: providedMeta,
+} = Astro.props;
+
+// A page with no sections column yet, or a malformed one, is a normal state
+// (nothing seeded) — not an error worth failing the render over.
+const list: SectionItem[] = Array.isArray(items) ? (items as SectionItem[]) : [];
+
+// One lookup for the page. Skipped when the caller already did it (a layout that
+// renders sections in two places) or when there's no DB to ask.
+const mediaMeta =
+  providedMeta ?? (await resolveSectionMedia(db, collectSectionMediaUrls(list, catalog), mediaBase));
+---
+
+{/*
+  The host element. `mountSections(el, opts)` takes the element to scan for
+  `[data-louise-sfield]` markers and to hang on-canvas chrome off, so rendering
+  it here — rather than asking every page to remember a wrapper — is what makes
+  `<Sections>` self-sufficient: drop it on a page and the editor can find it.
+  A plain block wrapper, not `display: contents`, because the chrome positions
+  toolbars against a real box.
+*/}
+<div data-louise-sections-host>
+  {list.map((item, i) => <Section item={item} base={String(i)} edit={edit} mediaMeta={mediaMeta} />)}
+</div>

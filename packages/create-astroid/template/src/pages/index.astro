@@ -5,6 +5,7 @@
 // Louise client turns into inline editors; saves stage a draft (versionedPageId),
 // and Publish promotes it. Seed the row once with `seed/home.seed.sql`.
 import Editable from "astroidjs/components/Editable.astro";
+import Sections from "astroidjs/components/Sections.astro";
 import { env } from "cloudflare:workers";
 import Hero from "../components/Hero.astro";
 import Site from "../layouts/Site.astro";
@@ -21,6 +22,8 @@ interface HomeRow {
   id: number;
   title: string;
   body: string | null;
+  /** The page-builder array, stored as a JSON string in D1. */
+  sections: string | null;
   seo_title: string | null;
   seo_description: string | null;
   og_image: string | null;
@@ -29,7 +32,7 @@ interface HomeRow {
 let page: HomeRow | null = null;
 try {
   page = await env.DB.prepare(
-    "SELECT id, title, body, seo_title, seo_description, og_image, noindex FROM pages WHERE slug = 'home'",
+    "SELECT id, title, body, sections, seo_title, seo_description, og_image, noindex FROM pages WHERE slug = 'home'",
   ).first<HomeRow>();
 } catch {
   // No DB binding yet (pre-provision) — fall through to the seed-me prompt.
@@ -37,6 +40,18 @@ try {
 
 let title = page?.title ?? "__BRAND_NAME__";
 let body = page?.body ?? "";
+// `sections` is a JSON string in D1. Bad JSON is a render-time non-event — the
+// page falls back to its prose body rather than 500ing on one malformed row.
+function parseSections(raw: string | null | undefined): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+let sections = parseSections(page?.sections);
 
 // In edit mode, prefer the latest unpublished draft so edits resume across reloads.
 if (editMode && page) {
@@ -47,9 +62,18 @@ if (editMode && page) {
       .bind(page.id)
       .first<{ version_data: string }>();
     if (draft?.version_data) {
-      const d = JSON.parse(draft.version_data) as { title?: string; body?: string };
+      const d = JSON.parse(draft.version_data) as {
+        title?: string;
+        body?: string;
+        sections?: unknown;
+      };
       if (typeof d.title === "string") title = d.title;
       if (typeof d.body === "string") body = d.body;
+      // Sections stage as drafts like any other field, so edit mode must render
+      // the draft's array — otherwise an editor's in-progress section edits
+      // vanish on reload while their title edits survive.
+      if (Array.isArray(d.sections)) sections = d.sections;
+      else if (typeof d.sections === "string") sections = parseSections(d.sections);
     }
   } catch {
     // Non-fatal — fall back to the live row.
@@ -63,16 +87,25 @@ if (editMode && page) {
   ogImage={page?.og_image ?? undefined}
   noindex={Boolean(page?.noindex)}
   versionedPageId={page?.id}
+  sections={sections}
 >
   {
     page ? (
-      <main class="mx-auto max-w-3xl px-6 py-16">
+      <main>
+        {/* The page-builder sections, edited on-canvas. <Sections> resolves every
+            image's alt/caption from the media registry in ONE query for the whole
+            page, then hands each section its own path so `data-louise-sfield`
+            markers land at the right depth. */}
+        <Sections items={sections} db={env.DB} mediaBase={env.MEDIA_URL} />
+
+        <div class="mx-auto max-w-3xl px-6 py-16">
         <Editable as="h1" collection="pages" key={page.id} field="title" class="text-5xl font-bold">
           {title}
         </Editable>
         <Editable as="div" collection="pages" key={page.id} field="body" type="richtext" class="prose mt-6 max-w-none">
           <Fragment set:html={body} />
         </Editable>
+        </div>
       </main>
     ) : (
       <main>

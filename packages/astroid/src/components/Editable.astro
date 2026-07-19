@@ -11,9 +11,18 @@
 //   • PAGE field  — pass `collection` + `key` + `field`; emits
 //                   `data-louise-field="<collection>:<key>:<field>"` (saved as a
 //                   versioned draft when the page is mounted with `versionedPageId`).
-//   • SECTION field — pass `sfield` (the `<index>.<path>` into the section's data,
-//                   ADR 0003 §5); emits `data-louise-sfield` (+ `data-louise-multiline`),
-//                   for the structured `<Section>` editor.
+//   • SECTION field — pass `base` (this item's path, e.g. `"2"` or `"2.blocks.0"`)
+//                   plus `field`; emits `data-louise-sfield="<base>.<field>"`
+//                   (+ `data-louise-multiline`) for the on-canvas section editor.
+//                   `sfield` stays as the escape hatch for a path you build
+//                   yourself — an array entry: sfield={`${base}.items.${i}.title`}.
+//
+// The `base` form is what ADR 0005 §2 asks for: "a site author writes `<Editable
+// field="heading">` and never hand-stamps the deeper path". `<Section>` supplies
+// `base`, so the SAME component renders correctly whether it sits at the top level
+// (`"2.heading"`) or inside a block (`"2.blocks.0.heading"`) — the depth never
+// appears in the component's source, which is what makes a section component
+// reusable as a block component.
 //
 // Polymorphic via `as` (default `div`) with a typed `...rest` over the div's
 // attributes; edit mode is read from context (`Astro.locals.editMode`) unless the
@@ -27,9 +36,14 @@ interface Props extends HTMLAttributes<"div"> {
   collection?: string;
   /** PAGE-field mode: the row key/id the field is on. */
   key?: string | number;
-  /** PAGE-field mode: the field name (e.g. `"title"`, `"body"`). */
+  /** PAGE-field mode: the field name (e.g. `"title"`, `"body"`). Also the field
+   *  name in SECTION mode, where it's joined onto `base`. */
   field?: string;
-  /** SECTION-field mode: the `<index>.<path>` marker for the section editor. */
+  /** SECTION-field mode: this item's path prefix (`"2"`, `"2.blocks.0"`),
+   *  supplied by `<Section>`. Combined with `field` to build the marker. */
+  base?: string;
+  /** SECTION-field mode, explicit: the full `<index>.<path>` marker. Overrides
+   *  `base`+`field`, for paths a component builds itself (array entries). */
   sfield?: string;
   /** Rich text (ProseKit) vs a single-line contenteditable. Default `"text"`. */
   type?: "text" | "richtext";
@@ -44,6 +58,7 @@ const {
   collection,
   key,
   field,
+  base,
   sfield,
   type = "text",
   multiline = false,
@@ -51,14 +66,18 @@ const {
   ...rest
 } = Astro.props;
 
+// An explicit `sfield` wins; otherwise `base` + `field` compose one. Both absent
+// means this isn't a section field at all, and the page-field branch below runs.
+const sectionPath = sfield ?? (base !== undefined && field ? `${base}.${field}` : undefined);
+
 const editing = edit ?? (Astro.locals as { editMode?: boolean }).editMode ?? false;
 const richText = type === "richtext" ? { "data-louise-type": "richtext" } : {};
 
 let markers: Record<string, string> = {};
 if (editing) {
-  if (sfield) {
+  if (sectionPath) {
     markers = {
-      "data-louise-sfield": sfield,
+      "data-louise-sfield": sectionPath,
       ...richText,
       ...(multiline ? { "data-louise-multiline": "" } : {}),
     };

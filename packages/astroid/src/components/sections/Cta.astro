@@ -1,17 +1,40 @@
 ---
-// Call-to-action band (ADR 0003, item 4). Defaults to the brand colorway.
-import type { CtaFields, SectionBase } from "../sections.js";
-import { alignClass, colorwayClass } from "../sections.js";
+// Call-to-action band. Defaults to the brand colorway — a setting token, so an
+// editor can change it in the inspector without touching this file.
+import type { SectionRenderProps } from "../sections.js";
+import { alignClass, colorwayClass, field, setting } from "../sections.js";
+import Editable from "../Editable.astro";
 
-type Props = SectionBase & CtaFields;
+type Props = SectionRenderProps;
 
-const { heading, body, ctaLabel, ctaHref, colorway = "brand", align = "center" } = Astro.props;
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const body = field(item, "body");
+const ctaLabel = field(item, "ctaLabel");
+const ctaHref = field(item, "ctaHref");
 ---
 
-<section class:list={["py-16", colorwayClass(colorway)]}>
-  <div class:list={["mx-auto flex max-w-3xl flex-col gap-4 px-6", alignClass(align)]}>
-    <h2 class="text-3xl font-bold">{heading}</h2>
-    {body && <p class="text-lg opacity-90">{body}</p>}
-    <a class="btn" href={ctaHref}>{ctaLabel}</a>
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "brand"))]}>
+  <div
+    class:list={[
+      "mx-auto flex max-w-3xl flex-col gap-4 px-6",
+      alignClass(setting(item, "align", "center")),
+    ]}
+  >
+    <Editable as="h2" base={base} field="heading" edit={edit} class="text-3xl font-bold">
+      {heading}
+    </Editable>
+    {body && (
+      <Editable as="p" base={base} field="body" edit={edit} multiline class="text-lg opacity-90">
+        {body}
+      </Editable>
+    )}
+    {/* Rendered even without an href so the label stays editable: a CTA whose
+        link hasn't been filled in yet would otherwise vanish from the canvas,
+        and an editor can't click what isn't there. */}
+    <a class="btn" href={ctaHref || "#"}>
+      <Editable as="span" base={base} field="ctaLabel" edit={edit}>{ctaLabel}</Editable>
+    </a>
   </div>
 </section>

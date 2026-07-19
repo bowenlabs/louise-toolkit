@@ -1,23 +1,52 @@
 ---
-// Feature-grid section (ADR 0003, item 4) — value-prop cards. Declarative
-// props → `Theme` tokens via `colorwayClass`.
-import type { FeatureGridFields, SectionBase } from "../sections.js";
-import { colorwayClass } from "../sections.js";
+// Feature-grid section — value-prop cards over an `array` field.
+//
+// The array is where `base` earns its keep. Each card's fields address
+// `<base>.items.<i>.<key>`, so the marker is built from the item's position
+// rather than a fixed slot name — which is why the schema can use a real
+// repeatable array instead of the `card1…card6` flattening sites fall back to.
+// The client's path parser is depth-agnostic (it splits on `.` and coerces
+// numeric segments), so this needs nothing new on the editor side.
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, itemField, list, setting } from "../sections.js";
+import Editable from "../Editable.astro";
 
-type Props = SectionBase & FeatureGridFields;
+type Props = SectionRenderProps;
 
-const { heading, items, colorway = "base" } = Astro.props;
+const { item, base, edit } = Astro.props;
+
+const heading = field(item, "heading");
+const items = list(item, "items");
 ---
 
-<section class:list={["py-16", colorwayClass(colorway)]}>
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
   <div class="mx-auto max-w-5xl px-6">
-    {heading && <h2 class="mb-8 text-3xl font-bold">{heading}</h2>}
+    {heading && (
+      <Editable as="h2" base={base} field="heading" edit={edit} class="mb-8 text-3xl font-bold">
+        {heading}
+      </Editable>
+    )}
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item) => (
+      {items.map((row, i) => (
         <div class="card bg-base-100 text-base-content shadow-sm">
           <div class="card-body">
-            <h3 class="card-title">{item.title}</h3>
-            <p class="opacity-80">{item.body}</p>
+            <Editable
+              as="h3"
+              sfield={`${base}.items.${i}.title`}
+              edit={edit}
+              class="card-title"
+            >
+              {itemField(row, "title")}
+            </Editable>
+            <Editable
+              as="p"
+              sfield={`${base}.items.${i}.body`}
+              edit={edit}
+              multiline
+              class="opacity-80"
+            >
+              {itemField(row, "body")}
+            </Editable>
           </div>
         </div>
       ))}

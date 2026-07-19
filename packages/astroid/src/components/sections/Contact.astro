@@ -1,18 +1,31 @@
 ---
-// Contact section (ADR 0003, item 4) — a heading + blurb + link to the contact
-// route (the generated worker's contact form lives at /contact).
-import type { ContactFields, SectionBase } from "../sections.js";
-import { colorwayClass } from "../sections.js";
+// Contact section — a heading + blurb + link to the contact route (the generated
+// worker's contact form lives at /contact).
+import type { SectionRenderProps } from "../sections.js";
+import { colorwayClass, field, setting } from "../sections.js";
+import Editable from "../Editable.astro";
 
-type Props = SectionBase & ContactFields;
+type Props = SectionRenderProps;
 
-const { heading = "Get in touch", blurb, colorway = "base" } = Astro.props;
+const { item, base, edit } = Astro.props;
+
+// The default is a render-time fallback, not stored data: an editor who hasn't
+// typed a heading still gets a sensible section, and the moment they do the
+// stored value takes over.
+const heading = field(item, "heading") || "Get in touch";
+const blurb = field(item, "blurb");
 ---
 
-<section class:list={["py-16", colorwayClass(colorway)]}>
+<section class:list={["py-16", colorwayClass(setting(item, "colorway", "base"))]}>
   <div class="mx-auto max-w-xl px-6 text-center">
-    <h2 class="text-3xl font-bold">{heading}</h2>
-    {blurb && <p class="mt-2 opacity-80">{blurb}</p>}
+    <Editable as="h2" base={base} field="heading" edit={edit} class="text-3xl font-bold">
+      {heading}
+    </Editable>
+    {blurb && (
+      <Editable as="p" base={base} field="blurb" edit={edit} multiline class="mt-2 opacity-80">
+        {blurb}
+      </Editable>
+    )}
     <a class="btn btn-primary mt-6" href="/contact">Contact us</a>
   </div>
 </section>

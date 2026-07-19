@@ -10,7 +10,16 @@
 // Pass `versionedPageId` from a page whose `<Editable>` fields should stage drafts
 // + publish (the layout forwards it). Omit it and the bar is Settings-only.
 const { editMode, editor } = Astro.locals;
-const { versionedPageId } = Astro.props as { versionedPageId?: number };
+const { versionedPageId, sections } = Astro.props as {
+  versionedPageId?: number;
+  sections?: unknown;
+};
+
+// The section editor needs the page's CURRENT sections array to seed its store.
+// It rides as JSON on the boot marker for the same reason the other values do:
+// a `define:vars` script would be `is:inline` with per-request content, which
+// can't be hashed into `script-src` and so would be CSP-blocked.
+const sectionsJson = Array.isArray(sections) ? JSON.stringify(sections) : undefined;
 ---
 
 {
@@ -28,6 +37,7 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
         hidden
         data-louise-user={editor?.name ?? "Editor"}
         data-louise-versioned-page={versionedPageId != null ? String(versionedPageId) : undefined}
+        data-louise-sections={sectionsJson}
       />
       <script>
         // Lazy-import the editor client only in edit mode. `mountLouise` renders
@@ -41,18 +51,37 @@ const { versionedPageId } = Astro.props as { versionedPageId?: number };
           Promise.all([
             import("louise-toolkit/client"),
             import("louise-toolkit/client/settings"),
+            import("astroidjs/components/sections"),
           ])
-            .then(([client, settings]) => {
+            .then(([client, settings, lib]) => {
               settings.mountSettings({
                 userName: el.dataset.louiseUser || "Editor",
                 users: true,
               });
               const versioned = el.dataset.louiseVersionedPage;
+              const pageId = versioned ? Number(versioned) : undefined;
               client.mountLouise({
                 onOpenSettings: () =>
                   window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
-                versionedPageId: versioned ? Number(versioned) : undefined,
+                versionedPageId: pageId,
               });
+
+              // The on-canvas section editor. It edits the SAME catalog the
+              // server validates writes against (astroidSectionCatalog), so a
+              // field can't be editable-but-invalid.
+              //
+              // Mounted only when this page actually rendered sections: the host
+              // is emitted by <Sections>, and the array rides on the boot marker.
+              // A page with neither (the login page, a bespoke route) skips it.
+              const host = document.querySelector<HTMLElement>("[data-louise-sections-host]");
+              const raw = el.dataset.louiseSections;
+              if (host && raw && pageId != null) {
+                client.mountSections(host, {
+                  catalog: lib.astroidSectionCatalog,
+                  pageId,
+                  initial: JSON.parse(raw),
+                });
+              }
             })
             .catch((err) => console.error("[louise] editor bootstrap failed", err));
         }

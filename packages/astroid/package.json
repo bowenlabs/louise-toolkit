@@ -44,6 +44,10 @@
     "./components/justify": {
       "types": "./src/components/justify.ts",
       "default": "./src/components/justify.ts"
+    },
+    "./components/media-meta": {
+      "types": "./src/components/media-meta.ts",
+      "default": "./src/components/media-meta.ts"
     }
   },
   "files": [

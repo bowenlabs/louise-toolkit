@@ -18,6 +18,11 @@ import {
   type FieldConfig,
 } from "louise-toolkit/content/define";
 import { sanitizeRichHtml } from "louise-toolkit/security";
+// The catalog is the single declaration of what a section IS — the same object
+// the on-canvas editor mounts with and this hook validates against. It lives
+// beside the components (it ships as source for them) and is imported here so
+// the two can't drift.
+import { astroidSectionCatalog } from "../components/sections.js";
 import type { AstroidConfig } from "../config.js";
 
 /**
@@ -47,8 +52,8 @@ export function astroidPagesCollection(config: AstroidConfig): CollectionConfig 
   fields.ogImage = { type: "text" };
   fields.noindex = { type: "checkbox" };
   fields.sortOrder = { type: "number" };
-  // Structured page-builder blocks (the editable home) — deep-validated against
-  // the section catalog on write in a later slice.
+  // Structured page-builder blocks (the editable home), deep-validated against
+  // the section catalog on write — see the beforeChange hook below.
   fields.sections = { type: "json" };
 
   return defineCollection({
@@ -56,11 +61,48 @@ export function astroidPagesCollection(config: AstroidConfig): CollectionConfig 
     fields,
     hooks: {
       beforeChange: [
-        ({ data }) => {
-          if (typeof data.body === "string") {
-            return { ...data, body: sanitizeRichHtml(data.body, { mediaBase }) };
+        async ({ data }) => {
+          let next = data;
+          if (typeof next.body === "string") {
+            next = { ...next, body: sanitizeRichHtml(next.body, { mediaBase }) };
           }
-          return data;
+
+          if (next.sections !== undefined) {
+            // DYNAMIC import, and not an oversight.
+            //
+            // `louise-toolkit/content`'s sections module reaches drizzle-orm for
+            // real (sections → validation → `import { and, eq, ne }`), and
+            // drizzle is an *optional* peer. A static import here would put it
+            // back in the import graph of every caller that only DESCRIBES
+            // content — which is precisely what shipped a broken `create-astroid`
+            // to the registry once, and why `content/define` exists.
+            //
+            // create-astroid calls this function to generate a schema and never
+            // runs the hook, so deferring the import keeps the CLI's graph
+            // drizzle-free while the running site — where drizzle is installed —
+            // gets real validation. The proper fix is to split the Rule evaluator
+            // out of `validation.ts` so a drizzle-free `content/sections` entry
+            // can exist; until then, this is the seam.
+            const { assertValidSections, sanitizeSectionsRichText } = await import(
+              "louise-toolkit/content"
+            );
+            // Sanitize BEFORE validating: a richText field stores HTML, and
+            // validating the raw value would pass content the sanitizer is about
+            // to change. Same order as the body above.
+            const sections = sanitizeSectionsRichText(next.sections, astroidSectionCatalog, (html) =>
+              sanitizeRichHtml(html, { mediaBase }),
+            );
+            // Throws LouiseValidationError → 422 with per-field violations. An
+            // unknown `_type` or a field of the wrong shape is rejected at the
+            // door rather than rendering as a hole later.
+            await assertValidSections(astroidSectionCatalog, sections, {
+              operation: "update",
+              mediaBase,
+            });
+            next = { ...next, sections };
+          }
+
+          return next;
         },
       ],
     },
