@@ -19,8 +19,14 @@ type CloudflareEnv = {
   RL: KVNamespace;
   /** KV — the autosave draft write-buffer (optional; falls back to direct D1). */
   DRAFTS?: KVNamespace;
-  /** Cloudflare Email Sending — magic-link + notification email. */
-  EMAIL: SendEmail;
+  /**
+   * Cloudflare Email Sending — magic-link + notification email. Typed as the
+   * toolkit's `EmailSender`, i.e. the modern object-form `send({to, from, …})`
+   * API. NOT workers-types' `SendEmail`, which is the legacy `cloudflare:email`
+   * binding: that one routes through Email Routing and can only deliver to
+   * *verified* destination addresses.
+   */
+  EMAIL: import("louise-toolkit/email").EmailSender;
   /** Static assets (bound by the @astrojs/cloudflare adapter). */
   ASSETS: Fetcher;
   /**
@@ -41,7 +47,7 @@ type CloudflareEnv = {
   /** Optional second bootstrap editor (e.g. your engineer). */
   ENGINEER_EMAIL?: string;
   /** `from` address for outbound email. */
-  MAIL_FROM: string;
+  MAIL_FROM: string;__ASTROID_ENV_BINDINGS__
 };
 
 // `env` from `cloudflare:workers` is typed as the augmentable `Cloudflare.Env`.

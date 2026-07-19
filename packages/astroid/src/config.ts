@@ -93,6 +93,28 @@ export interface CommerceConfig {
   provider: CommerceProvider;
 }
 
+export interface QueuesConfig {
+  /**
+   * Force the queue consumer + cron on or off. Defaults to on whenever
+   * `commerce` is configured: a commerce provider means webhooks, and a webhook
+   * you process inline is a webhook you drop when the provider times out.
+   */
+  enabled?: boolean;
+  /**
+   * Cron for the safety-net re-sync, or `false` for none. Webhooks get missed —
+   * a provider outage, a deploy mid-delivery, a DLQ'd message — and without a
+   * periodic re-sync the site serves stale data until someone notices. Default
+   * hourly.
+   */
+  cron?: string | false;
+  /** Deliveries before Cloudflare routes a message to the DLQ. Default 5. */
+  maxRetries?: number;
+  /** Messages per consumer invocation. Default 10. */
+  maxBatchSize?: number;
+  /** Seconds the consumer waits to fill a batch. Default 30. */
+  maxBatchTimeout?: number;
+}
+
 export interface SeoConfig {
   /**
    * `<title>` template, `%s` standing in for the page title. Applied only when
@@ -167,6 +189,8 @@ export interface AstroidConfig {
   portal?: Portal;
   /** Commerce backend. */
   commerce?: CommerceConfig;
+  /** Queue consumer + cron safety net. Defaults on when `commerce` is set. */
+  queues?: QueuesConfig;
   /** Title template, structured-data type, and social-card attribution. */
   seo?: SeoConfig;
   /** Additions to the rate-limit rules + CSP origins Astroid derives. */

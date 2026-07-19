@@ -16,6 +16,12 @@
 //      separate function the regenerate path doesn't call.
 
 import type { AstroidConfig } from "../config.js";
+import {
+  ASTROID_QUEUE_BINDING,
+  astroidCron,
+  astroidQueueNames,
+  astroidUsesQueues,
+} from "../queues/messages.js";
 import { generateAstroidSchema } from "../schema/generate.js";
 import { generateAstroidMiddleware, generateAstroidWorker } from "../worker/generate.js";
 
@@ -86,6 +92,33 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
     p("  // No `hosts` in your config → deploys to <name>.workers.dev. Add a");
     p('  // "routes" block with a custom_domain pattern to serve a real domain.');
   }
+  if (astroidUsesQueues(config)) {
+    const { queue, dlq } = astroidQueueNames(config);
+    const cron = astroidCron(config);
+    if (cron) {
+      p("  // Cron safety net: re-sync on a schedule so a missed or DLQ'd webhook");
+      p("  // can only leave the site stale until the next tick.");
+      p(`  "triggers": { "crons": [${JSON.stringify(cron)}] },`);
+    }
+    p("  // Provider webhooks are verified at the edge, then enqueued here so the");
+    p("  // receiver can return fast. Retries + DLQ routing are Cloudflare's, not");
+    p("  // the consumer's — set them here, not in code.");
+    p(`  // Create both: \`wrangler queues create ${queue}\` and \`… ${dlq}\`.`);
+    p('  "queues": {');
+    p(
+      `    "producers": [{ "queue": ${JSON.stringify(queue)}, "binding": ${JSON.stringify(ASTROID_QUEUE_BINDING)} }],`,
+    );
+    p('    "consumers": [');
+    p("      {");
+    p(`        "queue": ${JSON.stringify(queue)},`);
+    p(`        "max_batch_size": ${config.queues?.maxBatchSize ?? 10},`);
+    p(`        "max_batch_timeout": ${config.queues?.maxBatchTimeout ?? 30},`);
+    p(`        "max_retries": ${config.queues?.maxRetries ?? 5},`);
+    p(`        "dead_letter_queue": ${JSON.stringify(dlq)},`);
+    p("      },");
+    p("    ],");
+    p("  },");
+  }
   p("  // D1 holds pages / site_settings / media / inquiries (schema in src/schema.ts,");
   p("  // migrations in ./migrations). Create it: `wrangler d1 create <name>`.");
   p('  "d1_databases": [');
@@ -112,8 +145,10 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   p("  // the runtime env by the framework-agnostic media route, so it stays a `var`.");
   p('  "vars": {');
   p(`    "MEDIA_URL": ${JSON.stringify(mediaBase)},`);
-  p(`    "SITE_URL": ${JSON.stringify(primaryHost ? `https://${primaryHost}` : `https://${key}.workers.dev`)},`);
-  p('    // The editor allowlist / owner. Wire this into your auth seam (src/auth.ts).');
+  p(
+    `    "SITE_URL": ${JSON.stringify(primaryHost ? `https://${primaryHost}` : `https://${key}.workers.dev`)},`,
+  );
+  p("    // The editor allowlist / owner. Wire this into your auth seam (src/auth.ts).");
   p('    "OWNER_EMAIL": "",');
   p("  },");
   p('  "observability": { "enabled": true },');

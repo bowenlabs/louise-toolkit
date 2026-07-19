@@ -10,6 +10,7 @@
 // `resolveEditor`, and the section-catalog `validate` on the pages routes.
 
 import type { AstroidConfig } from "../config.js";
+import { astroidCron, astroidUsesQueues } from "../queues/messages.js";
 import { capturesInquiries } from "../schema/framework.js";
 import { type AstroidEditorRouteName, astroidEditorRoutePlan } from "./routes.js";
 
@@ -42,6 +43,8 @@ const DEFAULT_SETTINGS_IMAGE_KEYS = ["logoUrl", "faviconUrl", "defaultOgImageUrl
  */
 export function generateAstroidWorker(config: AstroidConfig): string {
   const inquiries = capturesInquiries(config);
+  const queues = astroidUsesQueues(config);
+  const cron = astroidCron(config);
   const mediaBase = config.deploy?.mediaBase ?? "/media";
   const seedName = config.theme.name;
   const plan = astroidEditorRoutePlan(config);
@@ -81,7 +84,10 @@ export function generateAstroidWorker(config: AstroidConfig): string {
         // notify + confirm pair is store-and-forward by construction: the
         // submission is already durable and mail can fail without the visitor
         // ever knowing. Unprovisioned mail logs instead of sending.
-        return "formRoute({ form: contactForm, rateLimitKv: (env) => env.RL, onSubmit: (values, env) => sendInquiryMail(astroidConfig, env, values) })";
+        // The `await` + block body is load-bearing: `onSubmit` returns
+        // `void | Promise<void>`, and sendInquiryMail resolves to delivery
+        // results nobody here reads.
+        return "formRoute({ form: contactForm, rateLimitKv: (env) => env.RL, onSubmit: async (values, env) => { await sendInquiryMail(astroidConfig, env, values); } })";
       case "inquiries":
         return "inquiriesRoute({ table: inquiries, resolveEditor })";
       case "seed":
@@ -100,14 +106,16 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   for (const name of editorImports) p(`  ${name},`);
   p('} from "louise-toolkit/editor";');
   if (inquiries) p('import { defineForm } from "louise-toolkit/forms";');
+  if (queues) p('import { processBatch } from "louise-toolkit/queues";');
   p('import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";');
   if (inquiries) p('import { inquiriesForm } from "louise-toolkit/db";');
   p(`import { ${tables.join(", ")} } from "./schema.js";`);
-  p(
-    inquiries
-      ? 'import { astroidPagesCollection, sendInquiryMail } from "astroidjs";'
-      : 'import { astroidPagesCollection } from "astroidjs";',
-  );
+  const astroidImports = [
+    "astroidPagesCollection",
+    ...(inquiries ? ["sendInquiryMail"] : []),
+    ...(queues ? ["type AstroidQueueMessage"] : []),
+  ].sort();
+  p(`import { ${astroidImports.join(", ")} } from "astroidjs";`);
   // The config lives at the PROJECT ROOT (create-astroid writes it there); this
   // file is src/worker.ts, so the specifier is `../`, not `./`.
   p('import astroidConfig from "../astroid.config.js";');
@@ -115,6 +123,11 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p("// from a request; a truthy result authorizes editor writes. A generated auth");
   p("// module is a later slice.");
   p('import { resolveEditor } from "./auth.js";');
+  if (queues) {
+    p("// Your QUEUE seam: what each message actually does. Scaffolded once and");
+    p("// yours to edit — `astroidQueueHandler` there covers the catalog dispatch.");
+    p('import { handleQueueMessage } from "./queue.js";');
+  }
   p();
   p(`const MEDIA_BASE = ${JSON.stringify(mediaBase)};`);
   p("const pagesCollection = astroidPagesCollection(astroidConfig);");
@@ -157,9 +170,33 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p("  return new Response(obj.body, { headers });");
   p("};");
   p();
-  p("export default composeWorker<CloudflareEnv>({");
+  // The queue message type parameter is what gives the `queue` consumer below a
+  // typed `MessageBatch` instead of `MessageBatch<unknown>`.
+  p(
+    queues
+      ? "export default composeWorker<CloudflareEnv, AstroidQueueMessage>({"
+      : "export default composeWorker<CloudflareEnv>({",
+  );
   p("  routes: [...editorRoutes, mediaAssetRoute],");
   p("  fetch: (request, env, ctx) => handle(request, env, ctx),");
+  if (queues) {
+    p("  // Queue consumer. `processBatch` acks or retries each message");
+    p("  // INDEPENDENTLY, so one poisoned message can't block the rest of the");
+    p("  // batch from acking; Cloudflare routes it to the DLQ once it exceeds");
+    p("  // max_retries (see wrangler.jsonc).");
+    p(
+      "  queue: (batch, env) => processBatch(batch, (message) => handleQueueMessage(env, message)),",
+    );
+    if (cron) {
+      p("  // Cron safety net. Webhooks get missed — a provider outage, a deploy");
+      p("  // mid-delivery, a DLQ'd message — and without this the site serves");
+      p("  // stale data until a human notices. Enqueued rather than run inline so");
+      p("  // it takes the same retry + DLQ path as everything else.");
+      p("  scheduled: (_controller, env, ctx) => {");
+      p('    ctx.waitUntil(env.COMMERCE_QUEUE.send({ kind: "catalog_refresh" }));');
+      p("  },");
+    }
+  }
   p("});");
   p();
 

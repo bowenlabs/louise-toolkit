@@ -19,14 +19,20 @@ export type WorkerRoute<Env = unknown> = (
   ctx: ExecutionContext,
 ) => Response | undefined | Promise<Response | undefined>;
 
-export interface ComposeWorkerOptions<Env = unknown> {
+/**
+ * @typeParam Env - the Worker's bindings.
+ * @typeParam QMessage - the queue's message type. Supply it (rather than
+ * leaving the `unknown` default) so the `queue` consumer receives a typed
+ * `MessageBatch` instead of having to cast every message body.
+ */
+export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
   /** Ordered route handlers; the first to return a `Response` wins. */
   routes?: WorkerRoute<Env>[];
   /** Fallback when no route matches — typically the framework SSR handler
    *  (e.g. `@astrojs/cloudflare`'s `handle`). */
   fetch: NonNullable<ExportedHandler<Env>["fetch"]>;
   /** Optional Queue consumer, passed through unchanged. */
-  queue?: NonNullable<ExportedHandler<Env>["queue"]>;
+  queue?: NonNullable<ExportedHandler<Env, QMessage>["queue"]>;
   /** Optional Cron/scheduled handler, passed through unchanged. */
   scheduled?: NonNullable<ExportedHandler<Env>["scheduled"]>;
 }
@@ -37,11 +43,11 @@ export interface ComposeWorkerOptions<Env = unknown> {
  * runs in order and the first `Response` short-circuits; if none match, the
  * `fetch` fallback handles it.
  */
-export function composeWorker<Env = unknown>(
-  options: ComposeWorkerOptions<Env>,
-): ExportedHandler<Env> {
+export function composeWorker<Env = unknown, QMessage = unknown>(
+  options: ComposeWorkerOptions<Env, QMessage>,
+): ExportedHandler<Env, QMessage> {
   const routes = options.routes ?? [];
-  const handler: ExportedHandler<Env> = {
+  const handler: ExportedHandler<Env, QMessage> = {
     async fetch(request, env, ctx) {
       for (const route of routes) {
         const res = await route(request, env, ctx);

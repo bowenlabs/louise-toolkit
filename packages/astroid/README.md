@@ -65,6 +65,41 @@ export default defineAstroid({
 });
 ```
 
+## The webhook pipeline
+
+Configure `commerce` and the generated worker stops being fetch-only: it composes
+Astro's SSR handler with a **queue consumer** and a **cron**, and the scaffold
+gains a webhook receiver plus a consumer seam. `--commerce <provider>` on
+`npm create astroid` sets it all up.
+
+The receiver's ordering is the part worth knowing. `handleWebhook` verifies the
+HMAC over the **raw body before anything parses it** — parse first and an
+unauthenticated caller reaches the JSON parser and everything downstream, and
+re-serializing a parsed body to check a signature is how signature checks quietly
+stop checking anything. It then enqueues and returns, so the response doesn't
+wait on the work.
+
+Status codes are the only backpressure signal a provider gives you, so each one
+is picked for what it tells the sender to do:
+
+| Situation | Code | Why |
+|---|---|---|
+| Secret unprovisioned | 503 | Dormant is temporary — keep retrying so events delivered before you set the secret still land |
+| Bad / missing signature | 401 | Terminal. It won't verify on retry either, and retrying turns a misconfiguration into a flood |
+| Body isn't JSON | 400 | Terminal for the same reason |
+| Enqueue failed | 503 | The signature checked out, so the event is real — ask for redelivery |
+| Enqueued | 202 | Accepted, not done. That's the point of a queue |
+
+On the consumer side `astroidQueueHandler` owns the dispatch every site wrote: a
+periodic refresh re-syncs, a webhook re-syncs *only* if it touched the catalog,
+and everything else acks as a no-op. That last part matters — order and payment
+events arrive in volume and have nothing local to update, so treating them as
+actionable turns a busy sales day into a refresh storm.
+
+The cron **enqueues** rather than running inline, so the safety-net re-sync takes
+the same retry and DLQ path as everything else. Retries and DLQ routing live in
+`wrangler.jsonc`, because they're Cloudflare's job, not the consumer's.
+
 ## Transactional email
 
 Four templates — sign-in link, password reset, and the inquiry pair (notify the

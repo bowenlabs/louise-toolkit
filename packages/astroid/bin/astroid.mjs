@@ -206,6 +206,15 @@ function readWranglerFacts(text) {
       binding: m[1],
       id: m[2],
     })),
+    // Queue names, from the producer + the consumer's dead_letter_queue. Unlike
+    // D1/R2/KV these are referenced BY NAME, so there's no id to patch back —
+    // creating them is the whole job.
+    queues: [
+      ...new Set([
+        ...[...text.matchAll(/"queue":\s*"([^"]+)"/g)].map((m) => m[1]),
+        ...[...text.matchAll(/"dead_letter_queue":\s*"([^"]+)"/g)].map((m) => m[1]),
+      ]),
+    ],
     // Real (uncommented) account_id line, filled in?
     hasAccount: /^\s*"account_id":\s*"[^<][^"]*"/m.test(text),
   };
@@ -224,6 +233,11 @@ function provisionPlan(facts) {
     if (isPlaceholder(id)) {
       steps.push({ kind: "kv", name: binding, args: ["kv", "namespace", "create", binding] });
     }
+  }
+  // Queues carry no id, so there's no placeholder to test — creating one that
+  // already exists just errors, which the runner tolerates (same as R2).
+  for (const queue of facts.queues) {
+    steps.push({ kind: "queue", name: queue, args: ["queues", "create", queue] });
   }
   return steps;
 }
@@ -301,8 +315,11 @@ async function cmdDeploy(cwd, flags, rest) {
   for (const s of plan) {
     out(`\n▸ wrangler ${s.args.join(" ")}`);
     const res = runInherit(s.args);
-    // R2 bucket create is idempotent-ish (an existing bucket errors) — tolerate it.
-    if (res.status !== 0 && s.kind !== "r2") fail(`Provisioning failed at: wrangler ${s.args.join(" ")}`);
+    // R2 bucket + queue creates are idempotent-ish (an existing one errors) —
+    // tolerate those so a re-run of `astroid deploy` isn't a hard stop.
+    if (res.status !== 0 && s.kind !== "r2" && s.kind !== "queue") {
+      fail(`Provisioning failed at: wrangler ${s.args.join(" ")}`);
+    }
 
     if (s.kind === "d1") {
       const id = lookupId(wranglerBin, cwd, ["d1", "list", "--json"], (rows) => rows.find((r) => r.name === s.name)?.uuid);

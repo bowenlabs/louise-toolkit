@@ -17,7 +17,15 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { defineAstroid, generateAstroidProject, generateAstroidWrangler } from "astroidjs";
+import {
+  astroidUsesQueues,
+  defineAstroid,
+  generateAstroidEnvBindings,
+  generateAstroidProject,
+  generateAstroidQueueSeam,
+  generateAstroidWebhookRoute,
+  generateAstroidWrangler,
+} from "astroidjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "template");
 
@@ -33,6 +41,11 @@ const ARCHETYPE_SECTIONS = {
   portfolio: ["hero", "gallery", "story", "contact"],
 };
 const ARCHETYPES = Object.keys(ARCHETYPE_SECTIONS);
+
+// Commerce backends astroidjs knows how to wire (webhook verifier + catalog
+// event filter). Opt-in via `--commerce`; it also switches on the queue
+// consumer, the webhook receiver, and the cron safety net.
+const COMMERCE_PROVIDERS = ["square", "stripe", "fourthwall"];
 
 // --- args ------------------------------------------------------------------
 function parseArgs(argv) {
@@ -100,6 +113,9 @@ function astroidConfigSource(config) {
     `    colors: { brand: ${JSON.stringify(config.theme.colors.brand)} },`,
     "  },",
     `  sections: ${JSON.stringify(config.sections)},`,
+    ...(config.commerce
+      ? [`  commerce: { provider: ${JSON.stringify(config.commerce.provider)} },`]
+      : []),
     '  deploy: { platform: "cloudflare" },',
     "});",
     "",
@@ -125,6 +141,8 @@ Options:
   --archetype <type>    ${ARCHETYPES.join(" | ")}   (default: marketing)
   --color <hex>         Brand color (default: #5b4bff)
   --host <domain>       Primary domain, e.g. example.com
+  --commerce <provider> ${COMMERCE_PROVIDERS.join(" | ")}
+                        Also adds the queue consumer, webhook receiver, and cron
   -h, --help            Show this help
   -v, --version         Show the create-astroid version
 
@@ -159,6 +177,16 @@ async function main() {
   const archetype = ARCHETYPES.includes(archetypeRaw) ? archetypeRaw : "marketing";
   const color = flags.color || (await prompt("Brand color (hex)", "#5b4bff"));
   const host = flags.host && flags.host !== true ? flags.host : undefined;
+  // Commerce is opt-in and unprompted: it pulls in a queue consumer, a webhook
+  // receiver, and a cron, none of which a plain marketing site should carry.
+  const commerceRaw = typeof flags.commerce === "string" ? flags.commerce.toLowerCase() : undefined;
+  const commerce = COMMERCE_PROVIDERS.includes(commerceRaw) ? commerceRaw : undefined;
+  if (commerceRaw && !commerce) {
+    process.stderr.write(
+      `create-astroid: unknown --commerce provider "${commerceRaw}" (expected ${COMMERCE_PROVIDERS.join(" | ")})\n`,
+    );
+    process.exit(1);
+  }
 
   if (existsSync(dir) && readdirSync(dir).length > 0) {
     process.stderr.write(`create-astroid: target directory is not empty: ${dir}\n`);
@@ -172,16 +200,22 @@ async function main() {
     ...(host ? { hosts: [host] } : {}),
     theme: { name, colors: { brand: color } },
     sections: ARCHETYPE_SECTIONS[archetype],
+    ...(commerce ? { commerce: { provider: commerce } } : {}),
     deploy: { platform: "cloudflare" },
   });
 
   const siteUrl = host ? `https://${host}` : `https://${key}.workers.dev`;
+  const envBindings = generateAstroidEnvBindings(config);
   const tokens = {
     KEY: key,
     BRAND_NAME: name,
     BRAND_COLOR: color,
     ARCHETYPE: archetype,
     SITE_URL: siteUrl,
+    // Extra CloudflareEnv members the queue pipeline needs, or nothing. A
+    // declaration is a promise — a marketing site must not claim a binding its
+    // wrangler.jsonc never creates.
+    ASTROID_ENV_BINDINGS: envBindings ? `\n${envBindings}` : "",
   };
 
   // 1. The static floor (Astro app, auth seam, config files) with tokens filled.
@@ -193,6 +227,15 @@ async function main() {
   // 3. The generated trio + the scaffold-once wrangler.jsonc (astroidjs).
   for (const file of generateAstroidProject(config)) write(dir, file.path, file.contents);
   write(dir, "wrangler.jsonc", generateAstroidWrangler(config));
+
+  // 3b. The queue pipeline's scaffold-once halves, only when this project runs
+  //     a consumer. Both exist to be edited (what a refresh means; which events
+  //     matter), so `astroid generate` must never rewrite them.
+  if (astroidUsesQueues(config)) {
+    write(dir, "src/queue.ts", generateAstroidQueueSeam(config));
+    const webhook = generateAstroidWebhookRoute(config);
+    if (webhook) write(dir, `src/pages/api/webhooks/${config.commerce.provider}.ts`, webhook);
+  }
 
   // 4. The Better Auth migration (louise-toolkit) — auth tables are fenced out of
   //    drizzle-kit, so they're generated rather than diffed from schema.ts. Loaded

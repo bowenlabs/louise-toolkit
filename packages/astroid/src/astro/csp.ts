@@ -33,13 +33,50 @@ import type { AstroidConfig, CspOrigins } from "../config.js";
 /** A `sha256-…` CSP hash, in the shape Astro's `security.csp.hashes` takes. */
 export type CspHash = `${"sha256" | "sha384" | "sha512"}-${string}`;
 
+/**
+ * The directives Astro lets a config own. `script-src` and `style-src` are
+ * absent by design — Astro owns the first (it hashes what it processes) and the
+ * middleware owns the second.
+ *
+ * Mirrored from Astro's own union rather than imported, so `astroidjs/astro`
+ * needs no `astro` dependency. Two things fall out of matching it exactly: the
+ * returned config is assignable to `defineConfig`'s `security` without a cast,
+ * and a typo like `"img-srcs 'self'"` fails to compile *here* rather than
+ * silently producing a directive no browser enforces.
+ */
+type CspDirectiveName =
+  | "base-uri"
+  | "child-src"
+  | "connect-src"
+  | "default-src"
+  | "fenced-frame-src"
+  | "font-src"
+  | "form-action"
+  | "frame-ancestors"
+  | "frame-src"
+  | "img-src"
+  | "manifest-src"
+  | "media-src"
+  | "object-src"
+  | "referrer"
+  | "report-to"
+  | "report-uri"
+  | "require-trusted-types-for"
+  | "sandbox"
+  | "trusted-types"
+  | "upgrade-insecure-requests"
+  | "worker-src";
+
+/** One rendered directive line, e.g. `"default-src 'self'"`. */
+export type CspDirective = `${CspDirectiveName}${string}`;
+
 /** The `security` block for `astro.config.mjs`, structurally typed so Astroid
  *  doesn't take a hard dependency on Astro's types. */
 export interface AstroidSecurityConfig {
   csp: {
     algorithm: "SHA-256";
     scriptDirective: { resources: string[]; hashes: CspHash[] };
-    directives: string[];
+    directives: CspDirective[];
   };
 }
 
@@ -129,7 +166,15 @@ export function astroidCspOrigins(config: AstroidConfig): Required<CspOrigins> {
   );
 }
 
-const join = (...parts: (string | string[])[]) => parts.flat().filter(Boolean).join(" ");
+/**
+ * Render one directive. The name is a literal from the union above, so the
+ * concatenation is a valid `CspDirective` by construction — which is what the
+ * assertion is standing in for (TS widens template concatenation to `string`).
+ */
+function directive(name: CspDirectiveName, ...sources: (string | string[])[]): CspDirective {
+  const list = sources.flat().filter(Boolean).join(" ");
+  return (list ? `${name} ${list}` : name) as CspDirective;
+}
 
 /**
  * The `security` block for `astro.config.mjs` — Astro's half of the split.
@@ -148,24 +193,24 @@ export function astroidSecurity(config: AstroidConfig): AstroidSecurityConfig {
         hashes: [solidHydrationHash()],
       },
       directives: [
-        "default-src 'self'",
+        directive("default-src", "'self'"),
         // Editor-authored content may embed any https image (the sanitizer
         // already gates that), and provider catalogs serve images from hosts
         // that aren't ours to pin. `data:`/`blob:` cover canvas + object URLs.
-        join("img-src 'self' https: data: blob:", origins.img),
+        directive("img-src", "'self' https: data: blob:", origins.img),
         // Louise base64-inlines its brand font, hence `data:`.
-        join("font-src 'self' data:", origins.font),
-        join("connect-src 'self'", origins.connect),
+        directive("font-src", "'self' data:", origins.font),
+        directive("connect-src", "'self'", origins.connect),
         // A bare `frame-src` with no source list is invalid CSP, so an empty
         // origin set has to become an explicit `'none'`.
-        origins.frame.length ? join("frame-src", origins.frame) : "frame-src 'none'",
+        directive("frame-src", origins.frame.length ? origins.frame : "'none'"),
         // Clickjacking + injection floor. `frame-ancestors 'none'` is the one
         // that can't be set from a meta tag, so it has to live here.
-        "frame-ancestors 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-        "object-src 'none'",
-        join("worker-src 'self'", origins.worker),
+        directive("frame-ancestors", "'none'"),
+        directive("base-uri", "'self'"),
+        directive("form-action", "'self'"),
+        directive("object-src", "'none'"),
+        directive("worker-src", "'self'", origins.worker),
       ],
     },
   };
