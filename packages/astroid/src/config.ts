@@ -25,6 +25,7 @@ import type { CatalogMirrorConfig } from "./commerce/mirror.js";
 import { assertCommerceRoles } from "./commerce/roles.js";
 import { AstroidConfigError } from "./errors.js";
 import type { PortalRoute } from "./portal/guard.js";
+import type { PwaConfig } from "./pwa/generate.js";
 
 /**
  * The starting shape the front-end takes. Not a fork — each archetype is a preset
@@ -60,6 +61,7 @@ export type SectionKind =
  */
 export type ModuleKind =
   | "orderTracking"
+  | "pwa"
   | "subscriptions"
   | "giftCards"
   | "wholesaleInquiry"
@@ -236,6 +238,8 @@ export interface AstroidConfig {
   seo?: SeoConfig;
   /** Additions to the rate-limit rules + CSP origins Astroid derives. */
   security?: SecurityConfig;
+  /** Installable-app settings. Only read when `modules` includes `"pwa"`. */
+  pwa?: PwaConfig;
   deploy?: DeployConfig;
 }
 

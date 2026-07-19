@@ -1,0 +1,45 @@
+---
+// `<RegisterSW>` — registers the PWA service worker.
+//
+// A bundled `<script>`, never an inline one: Astro hashes it into `script-src`,
+// so this works under the strict CSP without `unsafe-inline`. That's also why
+// the scope rides on a `data-` attribute rather than being interpolated into
+// the script — `define:vars` forces `is:inline`, whose content varies per
+// render and therefore can't be hashed.
+//
+// Registration is best-effort by design. A service worker is an enhancement:
+// if it fails, or the browser has none, the app must still work. The one thing
+// worth being loud about is a worker that fails to *install* while claiming to
+// be there, which is why the catch logs rather than swallowing silently.
+interface Props {
+  /**
+   * URL prefix this worker controls. Must match the `scope` the manifest and
+   * the generated worker were built with.
+   *
+   * A scope narrower than the script's own location needs no
+   * `Service-Worker-Allowed` header; a broader one does. With `sw.js` served
+   * from the root, every scope is narrower, so no header is required.
+   */
+  scope?: string;
+  /** Path to the worker. Default `/sw.js`. */
+  src?: string;
+}
+
+const { scope = "/", src = "/sw.js" } = Astro.props;
+---
+
+<div data-astroid-sw hidden data-scope={scope} data-src={src}></div>
+
+<script>
+  const el = document.querySelector<HTMLElement>("[data-astroid-sw]");
+  if (el && "serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register(el.dataset.src ?? "/sw.js", { scope: el.dataset.scope ?? "/" })
+      .catch((error) => {
+        // Not fatal — the app works without it. Logged rather than swallowed so
+        // a scope/MIME misconfiguration is findable instead of just "the PWA
+        // doesn't install and nobody knows why".
+        console.warn("[astroid] service worker registration failed", error);
+      });
+  }
+</script>

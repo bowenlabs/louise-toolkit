@@ -12,6 +12,7 @@ export * from "./secrets.js";
 export * from "./portal/index.js";
 export * from "./portfolio/index.js";
 export * from "./project/index.js";
+export * from "./pwa/index.js";
 export * from "./queues/index.js";
 export * from "./schema/index.js";
 export * from "./security/index.js";

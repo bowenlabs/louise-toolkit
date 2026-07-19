@@ -26,9 +26,12 @@ import {
   generateAstroidPortalLocals,
   generateAstroidProject,
   generateAstroidQueueSeam,
+  generatePwaHeaders,
   generateAstroidSecretsEnv,
   generateAstroidWebhookRoutes,
   generateAstroidWrangler,
+  generateServiceWorker,
+  generateWebManifest,
 } from "astroidjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "template");
@@ -120,6 +123,10 @@ function astroidConfigSource(config) {
     ...(config.commerce
       ? [`  commerce: { provider: ${JSON.stringify(config.commerce.provider)} },`]
       : []),
+    // Emitted for the same reason as the portal below: the generators read this
+    // file, so a config that dropped `modules` would regenerate a project
+    // missing whatever those modules contribute.
+    ...(config.modules?.length ? [`  modules: ${JSON.stringify(config.modules)},`] : []),
     // Must be emitted: `astroid generate` rebuilds the middleware from THIS
     // file, so a config that omitted the portal would regenerate a middleware
     // with no guard while src/portal-auth.ts sat there unused.
@@ -151,6 +158,8 @@ Options:
   --host <domain>       Primary domain, e.g. example.com
   --commerce <provider> ${COMMERCE_PROVIDERS.join(" | ")}
                         Also adds the queue consumer, webhook receiver, and cron
+  --pwa                 Add an installable PWA: a scoped service worker that
+                        never caches /api/* or the editor, plus a manifest
   --portal              Add a customer/member portal: a second, isolated auth
                         instance plus role-gated routes
   -h, --help            Show this help
@@ -190,6 +199,9 @@ async function main() {
   // Portal + commerce are opt-in and unprompted: each pulls in real
   // infrastructure a plain marketing site should not carry.
   const portal = flags.portal === true || flags.portal === "true";
+  // Opt-in: a service worker is a caching layer over a CMS-edited site, so it
+  // is never on unless asked for.
+  const pwa = flags.pwa === true || flags.pwa === "true";
   // Commerce is opt-in and unprompted: it pulls in a queue consumer, a webhook
   // receiver, and a cron, none of which a plain marketing site should carry.
   const commerceRaw = typeof flags.commerce === "string" ? flags.commerce.toLowerCase() : undefined;
@@ -215,6 +227,7 @@ async function main() {
     sections: ARCHETYPE_SECTIONS[archetype],
     ...(commerce ? { commerce: { provider: commerce } } : {}),
     ...(portal ? { portal: { enabled: true } } : {}),
+    ...(pwa ? { modules: ["pwa"] } : {}),
     deploy: { platform: "cloudflare" },
   });
 
@@ -264,6 +277,21 @@ async function main() {
   //      appear, in what order" is the first thing a portfolio site changes.
   const galleryPage = generateAstroidGalleryPage(config);
   if (galleryPage) write(dir, "src/pages/work.astro", galleryPage);
+
+  // 3b3. The PWA scaffold: a scoped service worker + manifest, plus the headers
+  //      that keep the worker itself revalidating. Static files under public/,
+  //      not generated source — a service worker is not bundled.
+  const sw = generateServiceWorker(config);
+  if (sw) {
+    write(dir, "public/sw.js", sw);
+    write(dir, "public/manifest.webmanifest", generateWebManifest(config));
+    const headers = generatePwaHeaders(config);
+    const headersPath = join(dir, "public/_headers");
+    writeFileSync(
+      headersPath,
+      (existsSync(headersPath) ? readFileSync(headersPath, "utf8") : "") + headers,
+    );
+  }
 
   // 3c. The portal's second auth instance + its mounted catch-all. Also
   //     scaffold-once: a site edits the reset email and the role a new account
