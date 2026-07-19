@@ -810,9 +810,10 @@ const CSS = `
   font-family: var(--louise-font-body);
   color: #0f172a;
 }
-.louise-sections-status { font-size: 12px; color: #64748b; }
+/* Only shown on a failed save (auto-save makes the routine saved/unsaved status
+   redundant); red so it reads as an error the editor must notice. */
+.louise-sections-status { font-size: 12px; font-weight: 600; }
 .louise-sections-status[data-status="error"] { color: #dc2626; }
-.louise-sections-status[data-status="saved"] { color: #16a34a; }
 .louise-arr { display: grid; gap: 6px; }
 .louise-arr-row {
   display: flex;

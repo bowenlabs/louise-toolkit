@@ -852,28 +852,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       );
     });
 
-  // Save-status text for the edit bar, next to Save/Publish.
-  const statusText = () =>
-    status() === "saving"
-      ? "Saving…"
-      : status() === "saved"
-        ? "Draft saved"
-        : status() === "publishing"
-          ? "Publishing…"
-          : status() === "error"
-            ? errorDetail() || "Couldn’t save"
-            : dirty()
-              ? "Unsaved"
-              : hasDraft()
-                ? "Draft"
-                : "";
-
   // The page's primary save actions — Save draft (green) and Publish (yellow) —
   // rendered onto the shared edit bar (or a fixed fallback strip). A component so
   // the same markup mounts in either place.
   // With auto-save on, the manual Save draft button is dropped — edits stage a
-  // draft on a debounce and the status line reports it. Publish is never
-  // automated, so it stays.
+  // draft on a debounce (flushed on navigation), so the routine saved/unsaved
+  // status is just noise and is omitted; only a *failed* save surfaces (below).
+  // Publish is never automated, so it stays.
   const SaveActions = () => (
     <>
       <Show when={!autoCfg.enabled}>
@@ -901,17 +886,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   );
 
   // Everything the removed dock's header/footer owned, now on the shared edit bar:
-  // the save-status line, a History button (opens the version-history drawer), and
-  // the Save/Publish actions. Mounts into the bar slot, or a fixed fallback strip.
+  // a History button (opens the version-history drawer) and the Save/Publish
+  // actions. Auto-save makes the routine saved/unsaved status redundant, so the
+  // only status shown is an error — a failed save must never be silent, and the
+  // Publish button doesn't surface it. Mounts into the bar slot, or a fixed strip.
   const BarControls = () => (
     <>
-      <span
-        class="louise-sections-status"
-        data-status={status()}
-        title={status() === "error" ? errorDetail() : undefined}
-      >
-        {statusText()}
-      </span>
+      <Show when={status() === "error"}>
+        <span class="louise-sections-status" data-status="error" title={errorDetail()}>
+          {errorDetail() || "Couldn’t save"}
+        </span>
+      </Show>
       <button
         class="louise-bar-history"
         type="button"
