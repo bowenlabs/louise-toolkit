@@ -12,7 +12,7 @@
     "seed:editors": "node scripts/seed-editors.mjs",
     "astro": "astro"
   },
-  "dependencies": {
+  "dependencies": {__ASTROID_EXTRA_DEPS__
     "@astrojs/cloudflare": "^14.1.3",
     "@astrojs/solid-js": "^7.0.1",
     "@better-auth/passkey": "^1.6.23",

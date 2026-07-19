@@ -60,6 +60,7 @@ export type SectionKind =
  * coffee brands, so it's first-class but still opt-in.
  */
 export type ModuleKind =
+  | "map"
   | "orderTracking"
   | "pwa"
   | "subscriptions"

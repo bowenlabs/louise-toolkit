@@ -9,6 +9,7 @@ export * from "./config.js";
 export * from "./email/index.js";
 export * from "./errors.js";
 export * from "./secrets.js";
+export * from "./map/index.js";
 export * from "./portal/index.js";
 export * from "./portfolio/index.js";
 export * from "./project/index.js";

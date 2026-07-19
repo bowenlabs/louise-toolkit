@@ -18,6 +18,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import {
+  ASTROID_MAP_DEPENDENCIES,
   astroidUsesQueues,
   defineAstroid,
   generateAstroidEnvBindings,
@@ -30,6 +31,8 @@ import {
   generateAstroidSecretsEnv,
   generateAstroidWebhookRoutes,
   generateAstroidWrangler,
+  generateMapEmbedComponent,
+  generateMapTileRoute,
   generateServiceWorker,
   generateWebManifest,
 } from "astroidjs";
@@ -123,9 +126,11 @@ function astroidConfigSource(config) {
     ...(config.commerce
       ? [`  commerce: { provider: ${JSON.stringify(config.commerce.provider)} },`]
       : []),
-    // Emitted for the same reason as the portal below: the generators read this
-    // file, so a config that dropped `modules` would regenerate a project
-    // missing whatever those modules contribute.
+    // Must be emitted, for the same reason the portal is: `astroid generate`
+    // rebuilds the middleware and CSP from THIS file, so a config that dropped
+    // `modules` would regenerate a project missing whatever they contribute —
+    // for the map, a policy without `worker-src blob:`, which renders an empty
+    // canvas with no obvious cause.
     ...(config.modules?.length ? [`  modules: ${JSON.stringify(config.modules)},`] : []),
     // Must be emitted: `astroid generate` rebuilds the middleware from THIS
     // file, so a config that omitted the portal would regenerate a middleware
@@ -158,6 +163,7 @@ Options:
   --host <domain>       Primary domain, e.g. example.com
   --commerce <provider> ${COMMERCE_PROVIDERS.join(" | ")}
                         Also adds the queue consumer, webhook receiver, and cron
+  --map                 Add the self-hosted PMTiles/MapLibre location map
   --pwa                 Add an installable PWA: a scoped service worker that
                         never caches /api/* or the editor, plus a manifest
   --portal              Add a customer/member portal: a second, isolated auth
@@ -199,9 +205,13 @@ async function main() {
   // Portal + commerce are opt-in and unprompted: each pulls in real
   // infrastructure a plain marketing site should not carry.
   const portal = flags.portal === true || flags.portal === "true";
+  // The map module is opt-in and pulls real weight (maplibre-gl is ~1 MB), so
+  // it is never on by default.
+  const map = flags.map === true || flags.map === "true";
   // Opt-in: a service worker is a caching layer over a CMS-edited site, so it
   // is never on unless asked for.
   const pwa = flags.pwa === true || flags.pwa === "true";
+  const modules = [...(map ? ["map"] : []), ...(pwa ? ["pwa"] : [])];
   // Commerce is opt-in and unprompted: it pulls in a queue consumer, a webhook
   // receiver, and a cron, none of which a plain marketing site should carry.
   const commerceRaw = typeof flags.commerce === "string" ? flags.commerce.toLowerCase() : undefined;
@@ -227,7 +237,10 @@ async function main() {
     sections: ARCHETYPE_SECTIONS[archetype],
     ...(commerce ? { commerce: { provider: commerce } } : {}),
     ...(portal ? { portal: { enabled: true } } : {}),
-    ...(pwa ? { modules: ["pwa"] } : {}),
+    // ONE array, built from every enabled flag. Two separate `...(x ? {modules}
+    // : {})` spreads would let the later one overwrite the earlier, silently
+    // dropping a module whenever both were passed.
+    ...(modules.length > 0 ? { modules } : {}),
     deploy: { platform: "cloudflare" },
   });
 
@@ -252,6 +265,14 @@ async function main() {
     // every module takes its dormant path deliberately rather than tripping over
     // an undefined binding. Empty for a project with no credentialed module.
     ASTROID_MODULE_SECRETS: generateAstroidSecretsEnv(config),
+    // Dependencies a module needs, injected into the template package.json.
+    // Only the enabled modules' — nobody installs a megabyte of mapping library
+    // for a site with no map.
+    ASTROID_EXTRA_DEPS: map
+      ? `\n${Object.entries(ASTROID_MAP_DEPENDENCIES)
+          .map(([name, range]) => `    ${JSON.stringify(name)}: ${JSON.stringify(range)},`)
+          .join("\n")}`
+      : "",
   };
 
   // 1. The static floor (Astro app, auth seam, config files) with tokens filled.
@@ -292,6 +313,14 @@ async function main() {
       (existsSync(headersPath) ? readFileSync(headersPath, "utf8") : "") + headers,
     );
   }
+
+  // 3b4. The map module's tile route + embed component. Generated rather than
+  //      shipped in astroidjs so maplibre-gl stays a dependency of the projects
+  //      that actually draw a map.
+  const mapRoute = generateMapTileRoute(config);
+  if (mapRoute) write(dir, "src/pages/map/basemap.pmtiles.ts", mapRoute);
+  const mapEmbed = generateMapEmbedComponent(config);
+  if (mapEmbed) write(dir, "src/components/MapEmbed.astro", mapEmbed);
 
   // 3c. The portal's second auth instance + its mounted catch-all. Also
   //     scaffold-once: a site edits the reset email and the role a new account
