@@ -77,10 +77,14 @@ export function alignClass(align: string | undefined = "start"): string {
  * The shared `_settings` every section in the catalog accepts.
  *
  * A note on `type: "text"`: `SectionFieldType` has no enum/select member, so a
- * closed token set can only be expressed as text plus a validation rule. That's
- * a real gap in the schema — the inspector renders a text input where it should
- * render a swatch picker — and it's recorded here rather than worked around,
- * because the fix belongs in `SectionField`, not in a per-site convention.
+ * closed token set can only be expressed as text plus a placeholder listing the
+ * values. That's a real gap in the schema — the inspector renders a free-text
+ * input for a four-value set, and an invalid token isn't a write-time error but
+ * a render-time fallback in `colorwayClass` — and it's recorded here rather than
+ * worked around, because the fix belongs in `SectionField`, not in a per-site
+ * convention. Tracked in #272; `_layout` already has the closed-choice semantics
+ * this wants (`validateLayout`), which is what makes the omission look like an
+ * oversight rather than a decision.
  */
 export const SECTION_SETTINGS: Record<string, SectionField> = {
   colorway: {
