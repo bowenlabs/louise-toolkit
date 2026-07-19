@@ -57,7 +57,7 @@ tsgo --noEmit                              # type-check (authoritative gate, who
 
 # from the repo root
 biome lint .                               # .astro component scripts (Biome)
-npx oxlint@1.73.0 packages/louise/src/client   # SolidJS client (oxlint + eslint-plugin-solid)
+pnpm lint:solid                            # SolidJS client (oxlint + eslint-plugin-solid)
 pnpm knip                                  # dead code: unused files & exports (Knip)
 ```
 

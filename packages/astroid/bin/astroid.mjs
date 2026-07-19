@@ -379,7 +379,7 @@ Usage:
   astroid build    [...astro args]                   regenerate, then run \`astro build\`
   astroid deploy   [--dry-run] [--yes] [--local]     provision bindings + migrate + secrets + deploy
 
-New project:  npm create astroid@latest
+New project:  pnpm create astroid@latest
 `;
 
 async function main() {

@@ -70,7 +70,7 @@ export default defineAstroid({
 Configure `commerce` and the generated worker stops being fetch-only: it composes
 Astro's SSR handler with a **queue consumer** and a **cron**, and the scaffold
 gains a webhook receiver plus a consumer seam. `--commerce <provider>` on
-`npm create astroid` sets it all up.
+`pnpm create astroid` sets it all up.
 
 The receiver's ordering is the part worth knowing. `handleWebhook` verifies the
 HMAC over the **raw body before anything parses it** — parse first and an
@@ -255,7 +255,7 @@ The generated trio carries a "do not hand-edit" banner — `generate` (and
 config to catch drift. Your `wrangler.jsonc` is scaffolded once and then yours to
 edit (real binding ids, secrets); `generate` never touches it.
 
-New projects come from the `create-astroid` scaffold (`npm create astroid`), which
+New projects come from the `create-astroid` scaffold (`pnpm create astroid`), which
 writes the floor — config, the generated trio, `wrangler.jsonc`, and the baseline
 Astro app — in one step.
 
@@ -266,7 +266,7 @@ Astro app — in one step.
 3. ✅ Config → generated `worker.ts` + middleware (no hand-wired route ordering).
 4. ✅ `<Section>` / `<Editable>` / `<Collection>` component primitives.
 5. ✅ **CLI** — `astroid generate / doctor / dev / build / deploy`; `create-astroid`
-   scaffold (`npm create astroid`).
+   scaffold (`pnpm create astroid`).
 
 ## License
 

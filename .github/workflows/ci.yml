@@ -44,11 +44,12 @@ jobs:
       # `vp check` uses vp's own bundled oxlint and ignores the repo .oxlintrc.json
       # (and its jsPlugins). Run a standalone oxlint to load eslint-plugin-solid via
       # jsPlugins and lint the SolidJS inline-edit client (solid/* rules). It MUST
-      # be isolated (npx), not a node_modules dep — a node_modules oxlint shadows
-      # vp's and breaks `vp check` (vp reads its oxlint config from vite.config.ts,
-      # which imports vite-plus, unresolvable to a standalone oxlint).
+      # be isolated (`pnpm dlx`, which fetches into a temp store), not a
+      # node_modules dep — a node_modules oxlint shadows vp's and breaks
+      # `vp check` (vp reads its oxlint config from vite.config.ts, which imports
+      # vite-plus, unresolvable to a standalone oxlint).
       - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
-        run: npx --yes -p oxlint@1.73.0 -p eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client
+        run: pnpm lint:solid
 
       # Dead-code check: unused files and exports across the workspace. Runs on
       # source (entry points mapped in knip.jsonc), so no build is needed.
@@ -90,18 +91,30 @@ jobs:
       # The clean room is the point. Running the scaffold in-tree (as this step used
       # to) resolves every import through the workspace's own node_modules, so a
       # package that forgets to DECLARE a dependency still works — the workspace has
-      # it hoisted anyway. That blind spot shipped a broken `npm create astroid` to
-      # npm once: astroidjs reaches drizzle-orm through `louise-toolkit/content`, but
-      # drizzle-orm is an *optional* peer of louise-toolkit, so npm never installed
-      # it for real users and the CLI died before writing a file. In-tree it passed.
+      # it hoisted anyway. That blind spot shipped a broken `create-astroid` to
+      # the registry once: astroidjs reaches drizzle-orm through
+      # `louise-toolkit/content`, but drizzle-orm is an *optional* peer of
+      # louise-toolkit, so it was never installed for real users and the CLI
+      # died before writing a file. In-tree it passed.
       #
-      # Three details this depends on, none incidental:
+      # Four details this depends on, none incidental:
       #   - `pnpm pack` (not `npm pack`) — only pnpm rewrites `workspace:*` into the
       #     real version, which is what makes the tarball match a published one.
       #   - Packing runs each package's `prepublishOnly`, so the artifact is built
       #     the same way `pnpm publish` would build it.
       #   - $RUNNER_TEMP is outside the checkout, so there's no workspace root or
       #     hoisted node_modules above it to resolve stray imports from.
+      #   - The `overrides` block is what actually pins create-astroid's own
+      #     `astroidjs`/`louise-toolkit` deps to THESE tarballs. Installing them
+      #     side by side is not enough: pnpm's node_modules is isolated, so
+      #     create-astroid resolves its own copy — from the REGISTRY — and the run
+      #     silently tests the published packages. (npm only got this right by
+      #     accident, via hoisting.)
+      #
+      # It runs `astro check` + `astro build` on the scaffold, not just `doctor`.
+      # Doctor validates config and file freshness but never resolves an import,
+      # so it cannot see a dependency the template forgot to declare — which is
+      # how a scaffold that couldn't build shipped once already.
       - name: Scaffold smoke test (clean-room install from packed tarballs)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
@@ -117,21 +130,40 @@ jobs:
           ls -1 "$PACK"
 
           cd "$ROOM"
-          npm init -y > /dev/null
-          # Install all three together so create-astroid's pinned astroidjs /
-          # louise-toolkit resolve to THESE builds rather than whatever the registry
-          # currently holds — otherwise the run silently tests the published copies.
-          npm install "$PACK"/*.tgz
+          # A bare manifest, written directly: `pnpm init` emits a caret
+          # packageManager range that corepack then refuses to run.
+          echo '{ "name": "clean-room", "private": true }' > package.json
+          # Pin every astroidjs / louise-toolkit resolution — the scaffold's own
+          # install inherits this, so it builds against THESE tarballs too.
+          {
+            echo "overrides:"
+            echo "  astroidjs: \"file:$(ls "$PACK"/astroidjs-*.tgz)\""
+            echo "  louise-toolkit: \"file:$(ls "$PACK"/louise-toolkit-*.tgz)\""
+          } > pnpm-workspace.yaml
+          corepack pnpm add "$PACK"/*.tgz
 
+          # `--commerce` exercises the widest scaffold: the queue consumer, the
+          # webhook receiver, and the cron on top of the baseline.
           node node_modules/create-astroid/index.mjs smoke \
-            --key smoke --name "Smoke Test" --archetype marketing \
-            --color "#5b4bff" --host smoke.example
+            --key smoke --name "Smoke Test" --archetype storefront \
+            --color "#5b4bff" --host smoke.example --commerce square
 
-          for f in astroid.config.ts wrangler.jsonc src/schema.ts src/worker.ts src/middleware.ts; do
+          for f in astroid.config.ts wrangler.jsonc src/schema.ts src/worker.ts \
+                   src/middleware.ts src/queue.ts src/pages/api/webhooks/square.ts; do
             test -f "smoke/$f" || { echo "scaffold did not write $f"; exit 1; }
           done
 
           node node_modules/astroidjs/bin/astroid.mjs doctor --cwd smoke
+
+          # Install and BUILD the scaffold the way a user would. This is the only
+          # step that resolves the template's imports, so it's the only one that
+          # can catch a dependency it forgot to declare.
+          cd smoke
+          cp ../pnpm-workspace.yaml .
+          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          corepack pnpm install
+          corepack pnpm exec astro check
+          corepack pnpm exec astro build
 
       - name: Build the site
         run: vp run "site#build"

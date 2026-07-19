@@ -19,7 +19,7 @@ unit test); the batteries target Astro on Cloudflare.
 ## Install
 
 ```sh
-npm install louise-toolkit
+pnpm add louise-toolkit
 ```
 
 Louise's heavier dependencies are **optional peers** — install only what the exports

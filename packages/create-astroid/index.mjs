@@ -3,8 +3,8 @@
 //
 // `create-astroid` — scaffold a new Astroid site in one command:
 //
-//   npm create astroid@latest my-site
-//   npm create astroid@latest my-site -- --key coracle --name "Coracle Coffee" --color "#1f6f78" --host coracle.coffee
+//   pnpm create astroid@latest my-site
+//   pnpm create astroid@latest my-site --key coracle --name "Coracle Coffee" --color "#1f6f78" --host coracle.coffee
 //
 // It writes the floor: the `defineAstroid` config, the generated
 // schema/worker/middleware trio + wrangler.jsonc (via astroidjs), the Better Auth
@@ -132,7 +132,7 @@ function write(destDir, relPath, contents) {
 const USAGE = `Scaffold a new Astroid site — an editable Astro app on Cloudflare Workers.
 
 Usage:
-  npm create astroid [directory] [options]
+  pnpm create astroid [directory] [options]
 
 Options:
   --dir <path>          Target directory (also accepted as the first positional)
@@ -251,7 +251,7 @@ async function main() {
     write(
       dir,
       "migrations/0001_auth.sql",
-      "-- Better Auth tables — generate after install:\n--   npx louise gen-auth-schema --out migrations/0001_auth.sql\n",
+      "-- Better Auth tables — generate after install:\n--   pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n",
     );
   }
 
@@ -281,7 +281,7 @@ async function main() {
   if (!authMigrationOk) {
     process.stdout.write(
       "Note: generate the Better Auth migration after install:\n" +
-        "  npx louise gen-auth-schema --out migrations/0001_auth.sql\n\n",
+        "  pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n\n",
     );
   }
 }
