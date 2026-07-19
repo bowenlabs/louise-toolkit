@@ -146,8 +146,12 @@ export function generateAstroidWorker(config: AstroidConfig): string {
     );
   }
   p();
-  p("// TODO(astroid): sections validation (assertValidSections) is wired onto the");
-  p("// pages/versions routes once the section catalog lands (a later slice).");
+  p("// `sections` writes are validated against the section catalog before they");
+  p("// persist — Astroid wires `assertValidSections` + `sanitizeSectionsRichText`");
+  p("// into the pages collection's beforeChange hook (src/schema.ts's config), so");
+  p("// every route below inherits it. An unknown `_type`, a field of the wrong");
+  p("// shape, or a setting outside its declared options is a 422, not a hole in");
+  p("// the page.");
   p("const editorRoutes: WorkerRoute<CloudflareEnv>[] = [");
   for (const route of plan) {
     p(`  // ${route.note}`);
