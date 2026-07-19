@@ -40,6 +40,10 @@
     "./components/sections": {
       "types": "./src/components/sections.ts",
       "default": "./src/components/sections.ts"
+    },
+    "./components/justify": {
+      "types": "./src/components/justify.ts",
+      "default": "./src/components/justify.ts"
     }
   },
   "files": [

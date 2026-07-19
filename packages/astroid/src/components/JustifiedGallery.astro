@@ -1,0 +1,254 @@
+---
+// `<JustifiedGallery>` — Flickr-style row-balanced photo grid (#257).
+//
+// Images keep their aspect ratios, rows fill the container exactly, and row
+// heights land near a target. CSS alone can't do it: `grid` wants uniform
+// tracks, and `columns` gives a masonry *column* flow where reading order runs
+// down the page instead of across it — wrong for a portfolio, and wrong for
+// keyboard/screen-reader order.
+//
+// Two layers, so it never depends on JavaScript to be usable:
+//
+//   1. SSR emits a flex-wrap floor. Each tile carries its declared aspect ratio
+//      (from the media library's recorded dimensions) as `flex-grow`/`flex-basis`,
+//      which already produces a justified, gap-correct grid with no layout shift
+//      — that's what someone with JS blocked, or on the first paint before the
+//      bundle lands, sees.
+//   2. On the client, once the images decode and their TRUE dimensions are known,
+//      `justifyRows` recomputes exact rows and pins each tile's box. This is the
+//      pass that fixes the common case where the media row's dimensions are
+//      missing, stale, or transposed.
+//
+// The refinement is deliberately a no-op when the declared ratios were already
+// right, so the correction isn't visible as a jump on a well-populated library.
+//
+// CSP: the layout script is a normal (bundled) `<script>`, so Astro hashes it
+// into `script-src` — no `is:inline`, no `unsafe-inline`. Per-tile sizing is
+// written as inline `style`, which is what the `style-src` rewrite in #253
+// exists for.
+import { DEFAULT_ASPECT, type GalleryItem } from "./justify.js";
+import MediaSlot from "./MediaSlot.astro";
+
+interface Props {
+  items: GalleryItem[];
+  /** Row height to aim for, in px. Default 260. */
+  targetHeight?: number;
+  /** Gap between tiles, in px. Default 8. */
+  gap?: number;
+  /** Fade/rise tiles in as they scroll into view. Default true; automatically
+   *  inert under `prefers-reduced-motion`. */
+  reveal?: boolean;
+  class?: string;
+}
+
+const { items, targetHeight = 260, gap = 8, reveal = true, class: className } = Astro.props;
+
+const aspectOf = (item: GalleryItem) =>
+  item.width && item.height && item.height > 0 ? item.width / item.height : DEFAULT_ASPECT;
+---
+
+<div
+  class:list={["astroid-gallery", reveal && "astroid-gallery--reveal", className]}
+  data-astroid-gallery
+  data-target-height={targetHeight}
+  data-gap={gap}
+  style={`--astroid-gallery-gap:${gap}px;--astroid-gallery-row:${targetHeight}px`}
+>
+  {items.map((item) => {
+    const aspect = aspectOf(item);
+    const media = (
+      <MediaSlot
+        src={item.src}
+        alt={item.alt}
+        width={Math.round(targetHeight * aspect * 2)}
+        sizes={`${Math.round(targetHeight * aspect)}px`}
+        loading="lazy"
+      />
+    );
+    return (
+      <figure
+        class="astroid-gallery__tile"
+        data-aspect={aspect}
+        style={`flex-grow:${aspect};flex-basis:${Math.round(aspect * targetHeight)}px`}
+      >
+        {/* Always a <figure>, with the link INSIDE it: <figcaption> is only
+            valid as a child of <figure>, so wrapping the whole tile in an <a>
+            would emit invalid markup whenever a linked tile has a caption. */}
+        {item.href ? (
+          <a
+            href={item.href}
+            class="astroid-gallery__link"
+            {...(item.alt ? {} : { "aria-label": item.caption ?? "View image" })}
+          >
+            {media}
+          </a>
+        ) : (
+          media
+        )}
+        {item.caption && <figcaption class="astroid-gallery__caption">{item.caption}</figcaption>}
+      </figure>
+    );
+  })}
+</div>
+
+<style>
+  .astroid-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--astroid-gallery-gap, 8px);
+  }
+  .astroid-gallery__tile {
+    display: block;
+    position: relative;
+    /* The floor: height fixed to the target row, width proportional to aspect.
+       flex-grow then stretches each row to fill. Once the script takes over it
+       writes explicit width/height and these stop mattering. */
+    height: var(--astroid-gallery-row, 260px);
+    overflow: hidden;
+    text-decoration: none;
+    margin: 0;
+  }
+  .astroid-gallery__link {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .astroid-gallery__tile :global(.astroid-media),
+  .astroid-gallery__tile :global(.astroid-media > img) {
+    width: 100%;
+    height: 100%;
+  }
+  .astroid-gallery__caption {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #fff;
+    background: linear-gradient(transparent, rgb(0 0 0 / 0.6));
+  }
+
+  /* Reveal-on-scroll. The visible state is the DEFAULT so that a browser with
+     no IntersectionObserver — or no JS at all — shows every tile; the script
+     opts tiles into the hidden state only once it can guarantee it will undo it. */
+  .astroid-gallery--reveal .astroid-gallery__tile[data-reveal="pending"] {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  .astroid-gallery--reveal .astroid-gallery__tile {
+    transition:
+      opacity 400ms ease,
+      transform 400ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .astroid-gallery--reveal .astroid-gallery__tile {
+      transition: none;
+    }
+    .astroid-gallery--reveal .astroid-gallery__tile[data-reveal="pending"] {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  import { justifyRows } from "./justify.js";
+
+  /**
+   * Lay out one gallery precisely, using whatever dimensions are known right
+   * now. Called on mount, after each image decodes, and on resize.
+   */
+  function layout(root: HTMLElement) {
+    const tiles = [...root.querySelectorAll<HTMLElement>(".astroid-gallery__tile")];
+    if (tiles.length === 0) return;
+
+    const targetHeight = Number(root.dataset.targetHeight) || 260;
+    const gap = Number(root.dataset.gap) || 8;
+    // clientWidth excludes the scrollbar, which offsetWidth does not — using the
+    // wrong one overflows the row by the scrollbar width on Windows.
+    const containerWidth = root.clientWidth;
+
+    const rows = justifyRows(
+      tiles.map((tile) => ({ aspect: Number(tile.dataset.aspect) || 0 })),
+      { containerWidth, targetHeight, gap },
+    );
+    // No measurable width yet (hidden tab, display:none ancestor). Leave the CSS
+    // floor in place rather than writing zero-size boxes over it.
+    if (rows.length === 0) return;
+
+    for (const row of rows) {
+      for (const box of row.boxes) {
+        const tile = tiles[box.index];
+        tile.style.flex = "0 0 auto";
+        tile.style.width = `${box.width}px`;
+        tile.style.height = `${box.height}px`;
+      }
+    }
+  }
+
+  /** Correct a tile's aspect ratio from the decoded image, then re-lay out. */
+  function refineFromDecode(root: HTMLElement) {
+    const images = [...root.querySelectorAll<HTMLImageElement>(".astroid-gallery__tile img")];
+    let pending = images.length;
+    if (pending === 0) return;
+
+    const settle = (img: HTMLImageElement) => {
+      const tile = img.closest<HTMLElement>(".astroid-gallery__tile");
+      if (tile && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        tile.dataset.aspect = String(img.naturalWidth / img.naturalHeight);
+      }
+      // Re-lay out once the batch settles rather than per image: a 60-image
+      // gallery would otherwise run 60 full layouts during load.
+      if (--pending === 0) layout(root);
+    };
+
+    for (const img of images) {
+      if (img.complete) settle(img);
+      else {
+        img.addEventListener("load", () => settle(img), { once: true });
+        // A broken image still has to release the counter, or the refinement
+        // pass never runs and the gallery keeps its declared ratios forever.
+        img.addEventListener("error", () => settle(img), { once: true });
+      }
+    }
+  }
+
+  function revealOnScroll(root: HTMLElement) {
+    if (!root.classList.contains("astroid-gallery--reveal")) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    const tiles = [...root.querySelectorAll<HTMLElement>(".astroid-gallery__tile")];
+    // Only hide tiles now that an observer is guaranteed to reveal them.
+    for (const tile of tiles) tile.dataset.reveal = "pending";
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          (entry.target as HTMLElement).dataset.reveal = "shown";
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: "64px" },
+    );
+    for (const tile of tiles) observer.observe(tile);
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-astroid-gallery]")) {
+    layout(root);
+    refineFromDecode(root);
+    revealOnScroll(root);
+
+    if (typeof ResizeObserver !== "undefined") {
+      let frame = 0;
+      // Coalesce to one layout per animation frame — a drag-resize fires this
+      // continuously, and each run touches every tile's style.
+      const observer = new ResizeObserver(() => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => layout(root));
+      });
+      observer.observe(root);
+    }
+  }
+</script>

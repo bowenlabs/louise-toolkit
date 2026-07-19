@@ -21,6 +21,7 @@ import {
   astroidUsesQueues,
   defineAstroid,
   generateAstroidEnvBindings,
+  generateAstroidGalleryPage,
   generateAstroidPortalAuth,
   generateAstroidPortalLocals,
   generateAstroidProject,
@@ -252,6 +253,11 @@ async function main() {
     // One receiver per provider — a site can run two (invoicing + storefront).
     for (const route of generateAstroidWebhookRoutes(config)) write(dir, route.path, route.contents);
   }
+
+  // 3b2. The portfolio archetype's gallery page. Scaffold-once — "which assets
+  //      appear, in what order" is the first thing a portfolio site changes.
+  const galleryPage = generateAstroidGalleryPage(config);
+  if (galleryPage) write(dir, "src/pages/work.astro", galleryPage);
 
   // 3c. The portal's second auth instance + its mounted catch-all. Also
   //     scaffold-once: a site edits the reset email and the role a new account

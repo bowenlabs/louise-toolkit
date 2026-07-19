@@ -1,0 +1,178 @@
+---
+// `<MediaSlot>` — the responsive-image primitive (#257).
+//
+// One place that knows how to put a media-library image on a page correctly:
+// a width-descriptor `srcset` over Cloudflare Image Resizing, a `sizes` hint so
+// the browser picks the right derivative *before* layout, a reserved aspect-ratio
+// box so the image can't shift the page as it loads, and lazy/async decoding by
+// default.
+//
+// The math is not new — `louise-toolkit/media` already ships `cfImageSrcset`
+// (width descriptors, ratio-derived heights, cover-crop gravity, `format=auto`)
+// and `circleImage`. What every consuming site rebuilt by hand was the *component*
+// around it: the ratio box, the `sizes` string, the focal-point crop, and
+// remembering that `loading="lazy"` on an above-the-fold hero is a Largest
+// Contentful Paint regression. That's what this owns.
+//
+// CSP: the focal/zoom knobs emit a data-driven inline `style` attribute. That is
+// exactly the case astroid's middleware rewrites `style-src` for (#253) — scripts
+// stay hash-pinned with no `unsafe-inline`.
+import { cfImageSrcset, circleImage } from "louise-toolkit/media";
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends Omit<HTMLAttributes<"img">, "src" | "srcset" | "sizes" | "width" | "height"> {
+  /** Image URL — a media-library asset, or any URL on a resizing-enabled zone. */
+  src: string;
+  /**
+   * Alternative text. REQUIRED, and `""` is a legitimate value: an image that
+   * carries no information the surrounding copy doesn't already give (a
+   * decorative texture, a repeated brand mark) should be `alt=""` so screen
+   * readers skip it. What must never happen is the attribute going missing,
+   * which makes assistive tech read the filename aloud.
+   */
+  alt: string;
+  /**
+   * The largest width, in CSS px, this image is displayed at on a 1× screen.
+   * Drives the srcset ladder — not a hard render width.
+   */
+  width?: number;
+  /**
+   * The `sizes` attribute: how wide the image renders at each breakpoint, e.g.
+   * `"(max-width: 640px) 100vw, 33vw"`. Without it the browser assumes `100vw`
+   * and over-fetches on every multi-column layout, which is the single most
+   * common way a "responsive" image ends up slower than a fixed one.
+   */
+  sizes?: string;
+  /** Aspect ratio as `"w/h"` (e.g. `"16/9"`). Reserves the box and derives each
+   *  derivative's height so the crop matches what's shown — no wasted pixels. */
+  ratio?: string;
+  /** `rect` (default) or `circle`. A circle uses a square focal crop + 2× retina. */
+  shape?: "rect" | "circle";
+  /** Rendered diameter in px when `shape="circle"`. Default 96. */
+  size?: number;
+  /** Resize behaviour. Default `cover`. */
+  fit?: "cover" | "contain" | "scale-down" | "crop" | "pad";
+  /** Focal point for cover-crops. Default `auto` (Cloudflare picks the subject). */
+  gravity?: "auto" | "center" | "left" | "right" | "top" | "bottom";
+  /** Encode quality, 1–100. Default 82. */
+  quality?: number;
+  /**
+   * Focal point as percentages, for when `gravity: auto` picks wrong — a portrait
+   * where the subject sits high, say. Applied as `object-position`, so it's a
+   * render-time framing choice and the same derivative is reused.
+   */
+  focal?: { x: number; y: number };
+  /** Scale factor inside the box, for a punch-in crop. Default 1. */
+  zoom?: number;
+  /**
+   * `lazy` (default) or `eager`. Set `eager` — and `priority` — for anything
+   * above the fold: lazy-loading the LCP image delays it by a full network
+   * round-trip after layout.
+   */
+  loading?: "lazy" | "eager";
+  /** Hint this as the LCP candidate (sets `fetchpriority="high"`). */
+  priority?: boolean;
+  /** Optional caption; renders a `<figure>`/`<figcaption>` instead of a bare img. */
+  caption?: string;
+  /** Extra classes on the wrapper. */
+  class?: string;
+}
+
+const {
+  src,
+  alt,
+  width = 1200,
+  sizes,
+  ratio,
+  shape = "rect",
+  size = 96,
+  fit = "cover",
+  gravity = "auto",
+  quality = 82,
+  focal,
+  zoom = 1,
+  loading = "lazy",
+  priority = false,
+  caption,
+  class: className,
+  ...rest
+} = Astro.props;
+
+const circle = shape === "circle";
+const derived = circle
+  ? circleImage(src, size)
+  : cfImageSrcset(src, { width, ratio, fit, gravity, quality });
+
+// Without a `sizes` hint the browser assumes the image fills the viewport and
+// picks the largest candidate. A circle's rendered width is known exactly, so
+// state it; a rect defaults to its 1× width, which is right for a fixed-width
+// placement and should be overridden for a fluid one.
+const sizesAttr = sizes ?? (circle ? `${size}px` : `${width}px`);
+
+// Framing lives on the <img>: `object-position` moves the visible window of a
+// cover-crop, `scale` punches in. Both are per-placement, so they must NOT go
+// through the CDN — that would mint a second derivative of the same source.
+const frame = [
+  focal ? `object-position:${focal.x}% ${focal.y}%` : "",
+  zoom !== 1 ? `transform:scale(${zoom})` : "",
+]
+  .filter(Boolean)
+  .join(";");
+
+// Reserve the box before the bytes arrive. Skipping this is what makes a gallery
+// jump as it loads (Cumulative Layout Shift); `aspect-ratio` costs nothing and
+// fixes it outright.
+const boxStyle = circle
+  ? `width:${size}px;height:${size}px`
+  : ratio
+    ? `aspect-ratio:${ratio.replace("/", " / ")}`
+    : "";
+
+const img = {
+  src: derived.src,
+  srcset: derived.srcset,
+  // A circle's srcset uses DPR descriptors (`1x`/`2x`), which `sizes` does not
+  // apply to — supplying it there would be ignored at best and confusing at worst.
+  ...(circle ? {} : { sizes: sizesAttr }),
+  alt,
+  loading,
+  decoding: "async" as const,
+  ...(priority ? { fetchpriority: "high" as const } : {}),
+  ...(frame ? { style: frame } : {}),
+};
+---
+
+{caption ? (
+  <figure class:list={["astroid-media", circle && "astroid-media--circle", className]} style={boxStyle} {...rest}>
+    <img {...img} />
+    <figcaption>{caption}</figcaption>
+  </figure>
+) : (
+  <div class:list={["astroid-media", circle && "astroid-media--circle", className]} style={boxStyle} {...rest}>
+    <img {...img} />
+  </div>
+)}
+
+<style>
+  .astroid-media {
+    display: block;
+    overflow: hidden;
+    margin: 0;
+  }
+  .astroid-media > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* The mask lives on the wrapper, not the image, so `transform: scale()` from
+     `zoom` is clipped by the circle instead of escaping it. */
+  .astroid-media--circle {
+    border-radius: 9999px;
+  }
+  .astroid-media > figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    opacity: 0.7;
+  }
+</style>

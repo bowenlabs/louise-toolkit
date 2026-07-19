@@ -171,5 +171,28 @@ jobs:
           corepack pnpm exec astro check
           corepack pnpm exec astro build
 
+          # A second scaffold, for the PORTFOLIO archetype. Not redundant: the
+          # storefront run above never emits src/pages/work.astro, so it never
+          # compiles JustifiedGallery.astro or MediaSlot.astro — and .astro files
+          # are invisible to tsgo and vitest, so without this they ship with
+          # nothing having type-checked them at all. `astro check` is the only
+          # thing in the repo that reads them.
+          #
+          # It reuses the clean room's pnpm store, so the marginal cost is the
+          # check itself rather than a second cold install.
+          cd "$ROOM"
+          node node_modules/create-astroid/index.mjs folio \
+            --key folio --name "Folio" --archetype portfolio --color "#5b4bff"
+
+          test -f folio/src/pages/work.astro || {
+            echo "portfolio scaffold did not write src/pages/work.astro"; exit 1; }
+
+          cd folio
+          cp ../pnpm-workspace.yaml .
+          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          corepack pnpm install
+          corepack pnpm exec astro check
+          corepack pnpm exec astro build
+
       - name: Build the site
         run: vp run "site#build"

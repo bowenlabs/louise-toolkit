@@ -10,6 +10,7 @@ export * from "./email/index.js";
 export * from "./errors.js";
 export * from "./secrets.js";
 export * from "./portal/index.js";
+export * from "./portfolio/index.js";
 export * from "./project/index.js";
 export * from "./queues/index.js";
 export * from "./schema/index.js";
