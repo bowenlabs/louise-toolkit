@@ -22,7 +22,7 @@ export const BLOCKS: BlockCatalog = {
     icon: "ph ph-squares-four",
     fields: {
       name: { type: "text", label: "Name", placeholder: "e.g. content" },
-      body: { type: "textarea", label: "Body", placeholder: "What it does" },
+      body: { type: "richText", label: "Body", placeholder: "What it does" },
       icon: { type: "text", label: "Icon (ph-…)", placeholder: "ph-database", inline: false },
       colorway: {
         type: "text",

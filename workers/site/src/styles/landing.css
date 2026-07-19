@@ -138,6 +138,17 @@
   display: inline;
 }
 
+/* Rich-text section fields (#182): the stored value wraps prose in <p> (and the
+ * inline editor renders paragraphs too), so drop the default paragraph margins —
+ * a single-paragraph tagline/body then lays out like the plain text it replaced,
+ * with spacing kept only between consecutive paragraphs. */
+.louise-rt-field p {
+  margin: 0;
+}
+.louise-rt-field p + p {
+  margin-top: 0.6em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lt-marquee-track {
     animation: none;

@@ -34,9 +34,11 @@ import {
 } from "./chrome.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
+import { stegaClean } from "../core/content/stega-clean.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import { Icon } from "./icons.jsx";
 import { MediaPicker } from "./media-picker.jsx";
+import { type RichTextField, mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
 // The section schema types live in core (server-safe) so the same catalog object
@@ -55,10 +57,13 @@ import type {
 } from "../core/content/sections.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
-/** Whether a field is edited in place — only plain text is (default). `array`
- *  and `image` are edited in the dock, so they're non-inline. */
+/** Whether a field is edited in place — plain text and rich text are (default).
+ *  `array` and `image` are edited in the dock/inspector, so they're non-inline. */
 function isInline(field: SectionField): boolean {
-  return field.inline ?? (field.type === "text" || field.type === "textarea");
+  return (
+    field.inline ??
+    (field.type === "text" || field.type === "textarea" || field.type === "richText")
+  );
 }
 
 export interface SectionsEditorProps {
@@ -193,6 +198,25 @@ function wireInline(
   for (const node of Array.from(nodes)) {
     const path = node.dataset.louiseSfield;
     if (!path) continue;
+    // Rich-text section field (#182): mount the light ProseKit editor (inline
+    // formatting bubble only) instead of a plaintext contenteditable, and persist
+    // the field's HTML (stega-cleaned) into the shared store. The save path
+    // sanitizes it (sanitizeSectionsRichText) and the site renders it via set:html
+    // — the same store/marker path, just an HTML value instead of textContent.
+    if (node.dataset.louiseType === "richtext") {
+      node.classList.add("louise-editable", "louise-sfield");
+      let rt: RichTextField;
+      rt = mountRichText(
+        node,
+        () => {
+          set("items", ...pathToArgs(node.dataset.louiseSfield ?? path), stegaClean(rt.getHTML()));
+          onEdit();
+        },
+        undefined,
+        { minimal: true },
+      );
+      continue;
+    }
     const hint = placeholderFor(catalog, path, items);
     if (hint) node.dataset.louisePlaceholder = hint;
     node.classList.add("louise-editable", "louise-sfield");
@@ -845,6 +869,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Re-render the section (settings/layout affect the bespoke render) once the
   // value is committed — on `change`/blur, not every keystroke.
   const commitSetting = (t: InspectTarget) => void rerenderSection(inspectSection(t));
+  // Write a top-level field value — the non-inline "dock" fields (a link URL, an
+  // image, a token), now edited in the inspector (#182) rather than the dock.
+  const setField = (t: InspectTarget, key: string, value: unknown) => {
+    if (t.kind === "section") set("items", t.index, key, value);
+    else set("items", t.section, "blocks", t.block, key, value);
+    touched();
+  };
+  const commitField = (t: InspectTarget) => void rerenderSection(inspectSection(t));
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
     restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
@@ -1278,6 +1310,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           const settings = () => inspectDef(target)?.settings ?? {};
           const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
           const hasSettings = () => Object.keys(settings()).length > 0;
+          // The non-inline "dock" fields (link URL, image, token) — edited here in
+          // the inspector (#182) instead of the floating dock. Inline text/rich-text
+          // fields are edited on the page; arrays stay their own membership UI.
+          const editFields = () =>
+            Object.entries(inspectDef(target)?.fields ?? {}).filter(
+              ([, f]) => f.type !== "array" && !isInline(f),
+            );
           return (
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} />
@@ -1298,6 +1337,55 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     ✕
                   </button>
                 </div>
+
+                {/* Field editing (#182): the section/block's non-inline fields —
+                    formerly the floating dock's form — now live in the gear. */}
+                <Show when={editFields().length > 0}>
+                  <div class="louise-inspector-group">
+                    <For each={editFields()}>
+                      {([key, field]) => (
+                        <Show
+                          when={field.type === "image"}
+                          fallback={
+                            <label class="louise-field">
+                              <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                              <Show
+                                when={field.type === "textarea"}
+                                fallback={
+                                  <input
+                                    class="louise-input"
+                                    value={String(inspectItem(target)?.[key] ?? "")}
+                                    placeholder={field.placeholder}
+                                    onInput={(e) => setField(target, key, e.currentTarget.value)}
+                                    onChange={() => commitField(target)}
+                                  />
+                                }
+                              >
+                                <textarea
+                                  class="louise-input louise-dock-textarea"
+                                  rows={2}
+                                  value={String(inspectItem(target)?.[key] ?? "")}
+                                  placeholder={field.placeholder}
+                                  onInput={(e) => setField(target, key, e.currentTarget.value)}
+                                  onChange={() => commitField(target)}
+                                />
+                              </Show>
+                            </label>
+                          }
+                        >
+                          <ImageDockField
+                            label={field.label ?? humanize(key)}
+                            value={String(inspectItem(target)?.[key] ?? "")}
+                            onSet={(url) => {
+                              setField(target, key, url);
+                              commitField(target);
+                            }}
+                          />
+                        </Show>
+                      )}
+                    </For>
+                  </div>
+                </Show>
 
                 <Show when={layouts()}>
                   <div class="louise-inspector-group">
@@ -1354,7 +1442,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   </div>
                 </Show>
 
-                <Show when={!layouts() && !hasSettings()}>
+                <Show when={editFields().length === 0 && !layouts() && !hasSettings()}>
                   <p class="louise-inspector-empty">Nothing to configure here yet.</p>
                 </Show>
               </div>

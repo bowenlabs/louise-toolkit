@@ -132,13 +132,14 @@ const cards: Item[] = useBlocks
             >
               {f.name}
             </div>
+            {/* Rich-text field (#182): sanitized HTML via set:html; the inline
+                editor mounts into this div in edit mode. */}
             <div
-              class="text-[13.5px] leading-[1.5] font-medium opacity-90"
+              class="louise-rt-field text-[13.5px] leading-[1.5] font-medium opacity-90"
               data-louise-sfield={edit ? fieldPath(j, "body") : undefined}
-              data-louise-multiline={edit || undefined}
-            >
-              {f.body}
-            </div>
+              data-louise-type={edit ? "richtext" : undefined}
+              set:html={f.body}
+            />
           </div>
         </article>
       ))

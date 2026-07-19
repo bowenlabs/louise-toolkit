@@ -110,18 +110,17 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
       </span>
     </h1>
 
-    <p
-      class="mx-auto mb-10 max-w-[30em] text-[clamp(17px,2.2vw,21px)] leading-[1.6] text-pretty text-[#aab3c2]"
+    {/* Rich-text field (#182): a <div> (not <p>) so the inline ProseKit editor can
+        mount into it; the stored value is sanitized HTML rendered via set:html. */}
+    <div
+      class="louise-rt-field mx-auto mb-10 max-w-[30em] text-[clamp(17px,2.2vw,21px)] leading-[1.6] text-pretty text-[#aab3c2]"
       data-louise-sfield={edit ? `${idx}.tagline` : undefined}
-      data-louise-multiline={edit || undefined}
-    >
-      {
-        tagline ||
-          (edit
-            ? ""
-            : "Log in. Click the text. Type. Louise makes the live site the editor — no admin app, no JSON forms for prose, ever.")
-      }
-    </p>
+      data-louise-type={edit ? "richtext" : undefined}
+      set:html={tagline ||
+        (edit
+          ? ""
+          : "Log in. Click the text. Type. Louise makes the live site the editor — no admin app, no JSON forms for prose, ever.")}
+    />
 
     <div class="flex flex-wrap items-center justify-center gap-[14px]">
       {

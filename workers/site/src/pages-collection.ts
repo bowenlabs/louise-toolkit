@@ -6,8 +6,10 @@
 // so publish's `.set()` maps straight onto columns) — bookkeeping columns
 // (`id`, `status`, `publishedVersionId`, timestamps) are deliberately absent, so
 // a draft snapshot never carries them.
-import { defineCollection } from "louise-toolkit/content";
+import { defineCollection, sanitizeSectionsRichText } from "louise-toolkit/content";
 import { sanitizeRichHtml } from "louise-toolkit/security";
+import { BLOCKS } from "./sections/blocks.js";
+import { SECTIONS } from "./sections/catalog.js";
 
 // The site's media base — matches `vars.MEDIA_URL` in wrangler.jsonc. Passed to
 // the sanitizer so a pasted body `<img>` pointing at an external origin (a
@@ -16,16 +18,31 @@ const MEDIA_BASE = "/media";
 
 export const pagesCollection = defineCollection({
   slug: "pages",
-  // Sanitize the rich-text `body` on every write (draft save, publish, direct
-  // update). The body used to be sanitized only on the live `/save` route; now
-  // that body edits stage drafts via the versioned API, the sanitize must live
-  // on the collection so it covers saveDraft/publish too — never store raw HTML.
+  // Sanitize rich HTML on every write (draft save, publish, direct update) — the
+  // body AND any `richText` section/block field (#182), which store HTML edited in
+  // place. This used to live on the live `/save` route; now body/section edits
+  // stage drafts via the versioned API, so the sanitize lives on the collection to
+  // cover saveDraft/publish too — never store raw HTML.
   hooks: {
     beforeChange: [
-      ({ data }) =>
-        typeof data.body === "string"
-          ? { ...data, body: sanitizeRichHtml(data.body, { mediaBase: MEDIA_BASE }) }
-          : data,
+      ({ data }) => {
+        let out = data;
+        if (typeof out.body === "string") {
+          out = { ...out, body: sanitizeRichHtml(out.body, { mediaBase: MEDIA_BASE }) };
+        }
+        if ("sections" in out) {
+          out = {
+            ...out,
+            sections: sanitizeSectionsRichText(
+              out.sections,
+              SECTIONS,
+              (html) => sanitizeRichHtml(html, { mediaBase: MEDIA_BASE }),
+              BLOCKS,
+            ),
+          };
+        }
+        return out;
+      },
     ],
   },
   fields: {

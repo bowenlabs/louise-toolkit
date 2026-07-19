@@ -24,7 +24,12 @@ import {
 
 // `image` is a media URL (string), edited in the dock via an upload/clear control
 // rather than in place; it validates as a string like text/textarea.
-export type SectionFieldType = "text" | "textarea" | "array" | "image";
+//
+// `richText` is inline-editable prose stored as a sanitized HTML string (like the
+// page body) — edited in place with the light ProseKit editor (#182), so it
+// carries bold/italic/link/brand-colour marks. It validates as a string; the save
+// path sanitizes it (see `sanitizeSectionsRichText`).
+export type SectionFieldType = "text" | "textarea" | "richText" | "array" | "image";
 
 export interface SectionField {
   type: SectionFieldType;
@@ -462,4 +467,53 @@ export async function assertValidSections(
     );
   }
   return violations;
+}
+
+/** Sanitize the `richText` string fields of one section/block item against its
+ *  field defs, leaving everything else untouched. */
+function sanitizeItemRichText(
+  item: Record<string, unknown>,
+  fields: Record<string, SectionField> | undefined,
+  sanitize: (html: string) => string,
+): Record<string, unknown> {
+  if (!fields) return item;
+  let out = item;
+  for (const [key, field] of Object.entries(fields)) {
+    if (field.type === "richText" && typeof out[key] === "string") {
+      out = { ...out, [key]: sanitize(out[key] as string) };
+    }
+  }
+  return out;
+}
+
+/**
+ * Return a copy of a page's `sections` with every `richText` field — section-level
+ * and block-level — run through `sanitize`. A richText field stores HTML (edited
+ * in place with the light ProseKit editor, #182), so it must be sanitized on write
+ * just like the page body; call this from the collection's `beforeChange` next to
+ * the body sanitize. Non-array input and unknown `_type`s pass through untouched.
+ * (Array item fields are not recursed — richText is a top-level section/block field.)
+ */
+export function sanitizeSectionsRichText(
+  sections: unknown,
+  catalog: SectionCatalog,
+  sanitize: (html: string) => string,
+  blockCatalog: BlockCatalog = {},
+): unknown {
+  if (!Array.isArray(sections)) return sections;
+  return sections.map((section) => {
+    if (!isPlainObject(section)) return section;
+    let out = sanitizeItemRichText(section, catalog[String(section._type)]?.fields, sanitize);
+    if (Array.isArray(out.blocks)) {
+      out = {
+        ...out,
+        blocks: out.blocks.map((block) =>
+          isPlainObject(block)
+            ? sanitizeItemRichText(block, blockCatalog[String(block._type)]?.fields, sanitize)
+            : block,
+        ),
+      };
+    }
+    return out;
+  });
 }

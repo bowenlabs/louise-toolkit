@@ -22,7 +22,7 @@ export const SECTIONS: SectionCatalog = {
         label: "Heading (accent line)",
         placeholder: "Colored second line",
       },
-      tagline: { type: "textarea", label: "Tagline", placeholder: "Add a tagline" },
+      tagline: { type: "richText", label: "Tagline", placeholder: "Add a tagline" },
     },
     blocks: { allow: ["cta", "install"] },
   },
@@ -68,7 +68,7 @@ export const SECTIONS: SectionCatalog = {
     fields: {
       heading: { type: "text", label: "Heading", placeholder: "Bring your" },
       headingAccent: { type: "text", label: "Heading (accent word)", placeholder: "everything." },
-      body: { type: "textarea", label: "Body", placeholder: "Supporting text" },
+      body: { type: "richText", label: "Body", placeholder: "Supporting text" },
       linkLabel: { type: "text", label: "Link label", placeholder: "Read the docs →" },
       linkHref: { type: "text", label: "Link target", placeholder: "https://…", inline: false },
     },

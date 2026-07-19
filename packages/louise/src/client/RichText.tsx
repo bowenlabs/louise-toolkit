@@ -144,6 +144,11 @@ export interface RichTextProps {
   /** Enable the Harper grammar/spelling checker (#110). Off by default; when on,
    *  the WASM checker is lazy-loaded and issues are underlined with suggestions. */
   grammar?: boolean;
+  /** Light-inline mode (#182): the format bubble shows only inline formatting
+   *  (bold/italic/underline/strike/link/colour) and the block drag-handle is
+   *  omitted — for section rich-text fields (a tagline, a body line), not a full
+   *  page body. The schema is unchanged; only the chrome is trimmed. */
+  minimal?: boolean;
   class?: string;
 }
 
@@ -162,7 +167,7 @@ export interface RichTextField {
  * the live page stays clean until the editor actually selects text. Reads
  * active mark/node state reactively and runs editor commands.
  */
-function Toolbar() {
+function Toolbar(props: { minimal?: boolean }) {
   const editor = useEditor<LouiseEditorExtension>();
   const active = useEditorDerivedValue((e: Editor<LouiseEditorExtension>) => ({
     bold: e.marks.bold.isActive(),
@@ -310,48 +315,53 @@ function Toolbar() {
         on={active().link}
         run={editLink}
       />
-      <span class="louise-tb-sep" />
-      <Btn
-        icon="heading"
-        title="Heading"
-        on={active().h2}
-        run={() => editor().commands.toggleHeading({ level: 2 })}
-      />
-      <Btn
-        icon="paragraph"
-        title="Subheading"
-        on={active().h3}
-        run={() => editor().commands.toggleHeading({ level: 3 })}
-      />
-      <Btn
-        icon="listBullets"
-        title="Bullet list"
-        on={active().bullet}
-        run={() => editor().commands.toggleList({ kind: "bullet" })}
-      />
-      <Btn
-        icon="listNumbers"
-        title="Numbered list"
-        on={active().ordered}
-        run={() => editor().commands.toggleList({ kind: "ordered" })}
-      />
-      <Btn
-        icon="quote"
-        title="Quote"
-        on={active().quote}
-        run={() => editor().commands.toggleBlockquote()}
-      />
-      <span class="louise-tb-sep" />
-      <Btn icon="image" title="Insert image" run={pickImage} />
-      <input
-        ref={imageInput}
-        type="file"
-        accept="image/*"
-        class="louise-hidden-file"
-        aria-hidden="true"
-        tabindex={-1}
-        onChange={onImagePicked}
-      />
+      {/* Block-level controls (headings, lists, quote, image) — hidden in the
+          `minimal` (light-inline) mode used by section rich-text fields, which
+          get inline formatting only. */}
+      <Show when={!props.minimal}>
+        <span class="louise-tb-sep" />
+        <Btn
+          icon="heading"
+          title="Heading"
+          on={active().h2}
+          run={() => editor().commands.toggleHeading({ level: 2 })}
+        />
+        <Btn
+          icon="paragraph"
+          title="Subheading"
+          on={active().h3}
+          run={() => editor().commands.toggleHeading({ level: 3 })}
+        />
+        <Btn
+          icon="listBullets"
+          title="Bullet list"
+          on={active().bullet}
+          run={() => editor().commands.toggleList({ kind: "bullet" })}
+        />
+        <Btn
+          icon="listNumbers"
+          title="Numbered list"
+          on={active().ordered}
+          run={() => editor().commands.toggleList({ kind: "ordered" })}
+        />
+        <Btn
+          icon="quote"
+          title="Quote"
+          on={active().quote}
+          run={() => editor().commands.toggleBlockquote()}
+        />
+        <span class="louise-tb-sep" />
+        <Btn icon="image" title="Insert image" run={pickImage} />
+        <input
+          ref={imageInput}
+          type="file"
+          accept="image/*"
+          class="louise-hidden-file"
+          aria-hidden="true"
+          tabindex={-1}
+          onChange={onImagePicked}
+        />
+      </Show>
       <span class="louise-tb-sep" />
       <div class="louise-tb-color">
         <button
@@ -401,7 +411,7 @@ function Toolbar() {
           (first 503). Enabled only over a real selection — there's nothing to
           rewrite at a bare caret. Anchored to the right so the menu stays
           on-screen at the toolbar's trailing edge. */}
-      <Show when={aiAvailable()}>
+      <Show when={aiAvailable() && !props.minimal}>
         <span class="louise-tb-sep" />
         <div class="louise-tb-ai">
           <button
@@ -474,25 +484,27 @@ export function RichText(props: RichTextProps) {
             the live page stays clean until the editor highlights text. */}
         <Show when={props.toolbar !== false}>
           <InlinePopoverRoot class="louise-format-bubble">
-            <Toolbar />
+            <Toolbar minimal={props.minimal} />
           </InlinePopoverRoot>
         </Show>
         <div class={props.class ?? "louise-prose-surface"} ref={host} />
-        {/* Floating drag handle that appears in the gutter of the hovered
-            block, letting editors reorder blocks by dragging. */}
-        {/* Block inserters (#16) — only where blocks are enabled: a visible
-            "+ Block" button (deterministic) plus the slash menu (fast path). */}
-        <Show when={props.blocks}>
-          <BlockInserter />
-          <BlockInserterButton />
+        {/* Block drag-handle + inserters — omitted in `minimal` (light-inline)
+            mode, where there's no block layer to reorder or insert into. */}
+        <Show when={!props.minimal}>
+          {/* Block inserters (#16) — only where blocks are enabled: a visible
+              "+ Block" button (deterministic) plus the slash menu (fast path). */}
+          <Show when={props.blocks}>
+            <BlockInserter />
+            <BlockInserterButton />
+          </Show>
+          <BlockHandleRoot class="louise-rt-block-handle">
+            <BlockHandlePositioner>
+              <BlockHandleDraggable class="louise-rt-drag" aria-label="Drag to move block">
+                <Icon name="dragHandle" />
+              </BlockHandleDraggable>
+            </BlockHandlePositioner>
+          </BlockHandleRoot>
         </Show>
-        <BlockHandleRoot class="louise-rt-block-handle">
-          <BlockHandlePositioner>
-            <BlockHandleDraggable class="louise-rt-drag" aria-label="Drag to move block">
-              <Icon name="dragHandle" />
-            </BlockHandleDraggable>
-          </BlockHandlePositioner>
-        </BlockHandleRoot>
       </div>
     </ProseKit>
   );
@@ -507,7 +519,7 @@ export function mountRichText(
   el: HTMLElement,
   onChange: () => void,
   initialDoc?: NodeJSON,
-  opts?: { blocks?: boolean; grammar?: boolean },
+  opts?: { blocks?: boolean; grammar?: boolean; minimal?: boolean },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
   let field: RichTextField | null = null;
@@ -518,6 +530,7 @@ export function mountRichText(
         initialDoc={defaultContent}
         blocks={opts?.blocks}
         grammar={opts?.grammar}
+        minimal={opts?.minimal}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;

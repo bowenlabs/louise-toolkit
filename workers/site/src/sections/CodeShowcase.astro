@@ -56,18 +56,17 @@ const CODE_HTML = `<span style="color:#6cb2ff">import</span> { defineCollection 
         {headingAccent || (edit ? "" : "everything.")}
       </span>
     </h2>
-    <p
-      class="mb-7 text-[17px] leading-[1.65] text-[#aab3c2]"
+    {/* Rich-text field (#182): a <div> (not <p>) so the inline editor can mount;
+        value is sanitized HTML rendered via set:html. */}
+    <div
+      class="louise-rt-field mb-7 text-[17px] leading-[1.65] text-[#aab3c2]"
       data-louise-sfield={edit ? `${idx}.body` : undefined}
-      data-louise-multiline={edit || undefined}
-    >
-      {
-        body ||
-          (edit
-            ? ""
-            : "Bindings — D1, R2, Queues, Email — are passed in. No opinion about your schema, your auth, or your framework. Tree-shaken ESM, drafts & publish, version history, full-text search.")
-      }
-    </p>
+      data-louise-type={edit ? "richtext" : undefined}
+      set:html={body ||
+        (edit
+          ? ""
+          : "Bindings — D1, R2, Queues, Email — are passed in. No opinion about your schema, your auth, or your framework. Tree-shaken ESM, drafts & publish, version history, full-text search.")}
+    />
     <a
       class="text-[16px] font-extrabold tracking-[0.04em] text-accent uppercase"
       href={linkHref || "https://docs.louisetoolkit.com"}
