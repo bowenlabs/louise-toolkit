@@ -80,6 +80,18 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * same try/catch, so a throw degrades to public rendering.
    */
   extend?: (context: APIContext) => void | Promise<void>;
+  /**
+   * Authorize the request after {@link extend} has populated `locals`, and
+   * before the page runs. Return a `Response` to short-circuit (a redirect, a
+   * 401/403), or `undefined` to continue.
+   *
+   * Deliberately separate from `extend`: sessions must be resolved before
+   * anything can be authorized against them, and collapsing the two would make
+   * that ordering a convention rather than a guarantee. It runs OUTSIDE the
+   * `extend` try/catch, because a guard that throws must fail closed — a
+   * swallowed error there would serve the protected page.
+   */
+  guard?: (context: APIContext) => Response | undefined | Promise<Response | undefined>;
   /** Edit-mode cookie name. Default `"louise_edit"`. */
   editCookie?: string;
 }
@@ -166,6 +178,12 @@ export function createLouiseMiddleware<TEditor = unknown>(
     } catch {
       // Missing bindings (e.g. plain `astro preview`) → public rendering.
     }
+
+    // Outside the catch above, on purpose: a guard exists to REFUSE, so an
+    // error inside it must not be swallowed into "carry on and render the
+    // protected page". Locals are already populated by `extend` at this point.
+    const denied = await config.guard?.(context);
+    if (denied) return denied;
 
     const response = await next();
 

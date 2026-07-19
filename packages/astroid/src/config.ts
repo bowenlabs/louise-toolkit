@@ -21,9 +21,10 @@
 // plain marketing baseline (louise-web).
 
 import type { RateRule } from "louise-toolkit/security";
-import { assertCommerceRoles } from "./commerce/roles.js";
 import type { CatalogMirrorConfig } from "./commerce/mirror.js";
+import { assertCommerceRoles } from "./commerce/roles.js";
 import { AstroidConfigError } from "./errors.js";
+import type { PortalRoute } from "./portal/guard.js";
 
 /**
  * The starting shape the front-end takes. Not a fork — each archetype is a preset
@@ -89,6 +90,29 @@ export interface Portal {
   gated?: boolean;
   /** Modules exposed inside the account area (e.g. `orderTracking`). */
   features?: ModuleKind[];
+  /**
+   * Roles a portal account can hold, first being the default for a new account.
+   * Default `["customer"]`. These are the portal's OWN roles — entirely separate
+   * from the editor's `admin`, because the two auth instances don't share a
+   * user table.
+   */
+  roles?: string[];
+  /**
+   * Route guard table: everything under `prefix` needs one of `roles`. Matched
+   * in order, first match wins. Defaults to `/portal` + `/api/portal` for any
+   * signed-in portal user.
+   */
+  routes?: PortalRoute[];
+  /**
+   * Where a portal user lands, per role — used to bounce someone who reached an
+   * area they don't belong in. Default `/portal` for everyone.
+   */
+  home?: Record<string, string>;
+  /**
+   * Allow public sign-up. Default `false`: both consuming sites provision portal
+   * accounts by hand, and a portal is usually for people you already know.
+   */
+  signUp?: boolean;
 }
 
 export interface CommerceConfig {

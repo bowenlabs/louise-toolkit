@@ -91,7 +91,33 @@ export interface LouiseAuthConfig {
    *  from env; override to source it elsewhere (e.g. a DB lookup). */
   resolveAdmins?: (env: LouiseAuthEnv) => string[] | Promise<string[]>;
   /** Enable customer email/password sign-in/up. Omit for an admin-only editor. */
-  customers?: { minPasswordLength?: number; requireEmailVerification?: boolean };
+  customers?: {
+    minPasswordLength?: number;
+    requireEmailVerification?: boolean;
+    /** Close public sign-up — accounts are provisioned by staff instead. */
+    disableSignUp?: boolean;
+    /** Revoke existing sessions when a password is reset. Default `true`: a
+     *  reset usually means the old credentials are compromised. */
+    revokeSessionsOnPasswordReset?: boolean;
+    /** Send the self-serve reset link. Omit to leave reset unavailable. */
+    sendResetPassword?: (args: { user: { email: string }; url: string }) => Promise<void> | void;
+  };
+  /**
+   * Mount point for this instance's routes. Default `/api/auth`.
+   *
+   * The reason this is configurable: a site can run TWO instances on one origin
+   * — the editor studio and a customer portal — and they must not share a mount.
+   * The studio keeps the default, because the Louise editor client hardcodes it;
+   * a second instance takes its own.
+   */
+  basePath?: string;
+  /**
+   * Cookie name prefix. Default Better Auth's own (`better-auth`).
+   *
+   * Two instances on one origin MUST differ here, or their session cookies
+   * collide and signing into one silently signs you out of the other.
+   */
+  cookiePrefix?: string;
   /** Extra Better Auth user columns (e.g. `squareCustomerId`). */
   additionalFields?: AdditionalFields;
   /** Table-name prefix for a same-D1 auth boundary (issue #15, Option B), e.g.
@@ -198,6 +224,10 @@ export async function getLouiseAuth(
     database: env.DB,
     baseURL,
     secret,
+    // A second instance on the same origin needs its own mount and its own
+    // cookie prefix, or the two sessions collide.
+    ...(config.basePath ? { basePath: config.basePath } : {}),
+    ...(config.cookiePrefix ? { advanced: { cookiePrefix: config.cookiePrefix } } : {}),
     // Single custom domain in prod, localhost in dev.
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv
@@ -221,6 +251,24 @@ export async function getLouiseAuth(
             enabled: true,
             requireEmailVerification: config.customers.requireEmailVerification ?? false,
             minPasswordLength: config.customers.minPasswordLength ?? 8,
+            ...(config.customers.disableSignUp ? { disableSignUp: true } : {}),
+            // Default ON: a reset usually means the old credentials leaked, so
+            // leaving other sessions alive defeats the point of resetting.
+            revokeSessionsOnPasswordReset: config.customers.revokeSessionsOnPasswordReset ?? true,
+            // Wrapped, not passed through: Better Auth's signature demands a
+            // strict `Promise<void>` and hands over its full user record, while
+            // the config surface here asks only for `{ email }` and tolerates a
+            // sync callback.
+            ...(config.customers.sendResetPassword
+              ? {
+                  sendResetPassword: async (data: { user: { email: string }; url: string }) => {
+                    await config.customers?.sendResetPassword?.({
+                      user: { email: data.user.email },
+                      url: data.url,
+                    });
+                  },
+                }
+              : {}),
           },
         }
       : {}),

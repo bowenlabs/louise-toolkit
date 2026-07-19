@@ -1,0 +1,80 @@
+---
+// `<PortalShell>` — the account-area chrome: a sidebar of nav items and a main
+// column, collapsing to a burger on small screens.
+//
+// Theme-tokened, never brand-styled. Every colour here is a daisyUI token
+// (`base-100`, `base-content`, `primary`), so it inherits whatever theme the
+// project's `theme.colors` generated and a site can restyle it by changing the
+// theme rather than forking the component.
+//
+// The burger is a `<details>` element, not a Solid island: the portal's chrome
+// shouldn't ship or await JavaScript to open a menu, and `<details>` gets
+// keyboard behaviour, focus handling, and Escape from the browser for free.
+import type { PortalNav } from "astroidjs";
+
+interface Props {
+  nav: PortalNav;
+  /** The signed-in user's role — decides which nav items are visible. */
+  role?: string | null;
+  /** Current path, for the active highlight. Defaults to the rendered URL. */
+  path?: string;
+  /** Heading above the nav, e.g. the account holder's name. */
+  title?: string;
+}
+
+const { nav, role, path, title } = Astro.props;
+const current = path ?? Astro.url.pathname;
+
+// Filtered by role BEFORE render: an item the viewer can't reach is never
+// drawn, rather than drawn and then 403'd — which reads as a broken link.
+const items = nav.forRole(role);
+const active = nav.activeFor(current);
+---
+
+<div class="flex min-h-screen flex-col md:flex-row">
+  {/* Mobile: a disclosure. No island, no hydration wait. */}
+  <details class="md:hidden border-b border-base-300 bg-base-200">
+    <summary class="cursor-pointer list-none px-4 py-3 font-medium">
+      <span aria-hidden="true">☰</span>
+      <span class="ml-2">{active?.label ?? title ?? "Menu"}</span>
+    </summary>
+    <nav aria-label="Portal" class="px-2 pb-3">
+      <ul class="menu w-full">
+        {
+          items.map((item) => (
+            <li>
+              <a href={item.href} aria-current={item === active ? "page" : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </details>
+
+  <aside class="hidden md:flex md:w-64 md:shrink-0 md:flex-col border-r border-base-300 bg-base-200">
+    {title && <p class="px-4 pt-5 pb-2 text-sm font-semibold opacity-70">{title}</p>}
+    <nav aria-label="Portal" class="p-2">
+      <ul class="menu w-full gap-1">
+        {
+          items.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class={item === active ? "menu-active font-medium" : undefined}
+                aria-current={item === active ? "page" : undefined}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="min-w-0 flex-1 bg-base-100 px-4 py-6 md:px-8 md:py-10">
+    <slot />
+  </main>
+</div>
