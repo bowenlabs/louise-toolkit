@@ -11,3 +11,9 @@ New package: `create-astroid` — the one-command scaffold for a new Astroid sit
 (Cloudflare adapter, Solid, Tailwind + daisyUI). Interactive prompts or flags
 (`--key`, `--name`, `--archetype`, `--color`, `--host`); binding ids are
 placeholders that `astroid doctor` flags until provisioned.
+
+The floor is **editable in the browser**: a `/login` magic-link page and a
+`LouiseEdit` component that boots the edit bar + the Settings drawer
+(Pages/Media/Settings/Users) in edit mode, so a signed-in editor manages content
+and editors from the live site. Inline page-body editing (`versionedPageId` +
+`data-louise-field`) is a documented next step.

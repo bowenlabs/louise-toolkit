@@ -1,0 +1,50 @@
+---
+// Boots the in-page Louise editor — the edit bar + the Settings drawer (Pages,
+// Media, Settings, Users). Drop it before </body> in your layout.
+//
+// Gated on `Astro.locals.editMode`, which the generated middleware sets for a
+// signed-in editor who has toggled edit mode on (`?louise`). An anonymous visitor
+// gets editMode=false, so the heavy Solid/ProseKit client is never even sent to
+// them. The client self-injects its own styles.
+const { editMode, editor } = Astro.locals;
+---
+
+{
+  editMode && (
+    <>
+      <script is:inline define:vars={{ userName: editor?.name ?? "Editor" }}>
+        document.body.dataset.louiseEdit = "1";
+        document.body.dataset.louiseUser = userName;
+      </script>
+      <script>
+        // Lazy-import the editor client only in edit mode. `mountLouise` renders
+        // the edit bar (Settings + Done); `mountSettings` renders the drawer whose
+        // Pages/Media/Settings panels edit content, and Users manages editors
+        // (backed by the generated editorsRoute). No inline fields on this page, so
+        // the bar shows no Save — edits happen in the drawer. Add `versionedPageId`
+        // + `data-louise-field` markers to edit a page's body in place.
+        function boot() {
+          if (document.body.dataset.louiseEdit !== "1") return;
+          Promise.all([
+            import("louise-toolkit/client"),
+            import("louise-toolkit/client/settings"),
+          ])
+            .then(([client, settings]) => {
+              settings.mountSettings({
+                userName: document.body.dataset.louiseUser || "Editor",
+                users: true,
+              });
+              client.mountLouise({
+                onOpenSettings: () =>
+                  window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
+              });
+            })
+            .catch((err) => console.error("[louise] editor bootstrap failed", err));
+        }
+        boot();
+        // Re-boot after a view-transition navigation (the swapped-in body needs it).
+        document.addEventListener("astro:page-load", boot);
+      </script>
+    </>
+  )
+}

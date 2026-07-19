@@ -43,10 +43,25 @@ OWNER_EMAIL=you@example.com pnpm seed:editors
 
 ## Editors & auth
 
-Editors sign in with a magic link (passkeys supported) at `/api/auth`. The
-allowlist is **DB-managed**: an admin `user` row *is* an editor. Seed the first
-one above; add or remove the rest from the Users panel (backed by the generated
-`editorsRoute`). There are no passwords and no editor list in env to keep in sync.
+Editors sign in with a magic link (passkeys supported). The allowlist is
+**DB-managed**: an admin `user` row *is* an editor. Seed the first one above; add
+or remove the rest from the Users panel (backed by the generated `editorsRoute`).
+There are no passwords and no editor list in env to keep in sync.
+
+### Editing your site
+
+1. Go to **`/login`** and enter a seeded editor's email. In local dev there's no
+   email binding, so the magic link is printed to the `wrangler`/`astro dev`
+   console — open it from there. In production it's emailed.
+2. The link signs you in and drops you at **`/?louise`** — edit mode. The **edit
+   bar** appears with **Settings** and **Done**.
+3. **Settings** opens the drawer: **Pages** (create/edit pages), **Media**,
+   **Settings** (site name, tagline, brand, nav, contact, SEO — the home reads
+   these), and **Users** (invite/remove editors). **Done** leaves edit mode.
+
+To make a page's body editable *in place* (inline fields + draft/publish), render
+it from a `pages` row with `data-louise-field` markers and pass `versionedPageId`
+to `mountLouise` (see `src/components/LouiseEdit.astro`).
 
 ## Deploy
 

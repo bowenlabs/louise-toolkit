@@ -1,6 +1,7 @@
 ---
 // The base HTML shell. `Astro.locals.editMode` is set by the generated
-// middleware.ts (from your auth seam); use it to render edit affordances.
+// middleware.ts (from your auth seam); LouiseEdit boots the editor when it's on.
+import LouiseEdit from "../components/LouiseEdit.astro";
 import "../styles/site.css";
 
 interface Props {
@@ -22,5 +23,6 @@ const { editMode } = Astro.locals;
   </head>
   <body class="min-h-screen bg-base-100 text-base-content" data-edit-mode={editMode ? "" : undefined}>
     <slot />
+    <LouiseEdit />
   </body>
 </html>

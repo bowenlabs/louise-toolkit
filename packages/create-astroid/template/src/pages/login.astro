@@ -1,0 +1,56 @@
+---
+// Editor sign-in. Emails a magic link (Better Auth) to an allowlisted editor;
+// clicking it starts a session and lands on `/?louise` (edit mode on). The gate
+// is enumeration-safe — the response is identical whether or not the email is an
+// editor — so the UI always says "check your email".
+import Site from "../layouts/Site.astro";
+
+export const prerender = false;
+---
+
+<Site title="Sign in">
+  <main class="hero min-h-screen">
+    <div class="hero-content w-full max-w-sm">
+      <form id="magic" class="card w-full bg-base-200 shadow-sm">
+        <div class="card-body gap-4">
+          <h1 class="card-title">Sign in to edit</h1>
+          <label class="form-control w-full">
+            <span class="label-text mb-1">Editor email</span>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autocomplete="email"
+              placeholder="you@example.com"
+              class="input input-bordered w-full"
+            />
+          </label>
+          <button type="submit" class="btn btn-primary">Email me a sign-in link</button>
+          <p id="msg" class="text-sm opacity-70" aria-live="polite"></p>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <script is:inline>
+    const form = document.getElementById("magic");
+    const msg = document.getElementById("msg");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      if (!email) return;
+      msg.textContent = "Sending…";
+      try {
+        await fetch("/api/auth/sign-in/magic-link", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, callbackURL: "/?louise" }),
+        });
+        msg.textContent = "If that email is an editor, a sign-in link is on its way.";
+      } catch {
+        msg.textContent = "Something went wrong — please try again.";
+      }
+    });
+  </script>
+</Site>
