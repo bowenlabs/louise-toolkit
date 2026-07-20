@@ -106,6 +106,27 @@ describe("autosave draft buffer", () => {
   });
 });
 
+describe("pages route write integrity", () => {
+  it("gives pagesRoute the section sanitize + validate hooks", () => {
+    // pagesRoute takes NO collection config, so unlike versionsRoute it runs no
+    // beforeChange hook. Without the spread it mounted bare — a direct POST/PATCH
+    // persisted an unknown section `_type`, a setting outside its options, or
+    // unsanitized section rich text, and `<Sections>` then dropped the bad
+    // section with no error. "The route is mounted" was true and useless.
+    const worker = generateAstroidWorker(base);
+    expect(routeLine(worker, "pagesRoute")).toContain("...pagesWriteHooks");
+    expect(worker).toContain("const pagesWriteHooks = astroidPagesWriteHooks(astroidConfig);");
+    expect(worker).toContain("astroidPagesWriteHooks"); // imported from astroidjs
+  });
+
+  it("wires the hooks on EVERY archetype (nothing gates them off)", () => {
+    for (const archetype of ["marketing", "storefront", "wholesale", "portfolio"] as const) {
+      const worker = generateAstroidWorker({ ...base, archetype });
+      expect(routeLine(worker, "pagesRoute")).toContain("...pagesWriteHooks");
+    }
+  });
+});
+
 describe("media delete-safety", () => {
   it("gives mediaRoute somewhere to look for references", () => {
     // Without `referenceSources` the scan reads nothing and every delete reports

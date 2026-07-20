@@ -42,12 +42,98 @@ import type { AstroidConfig } from "../config.js";
  * Validated by `defineCollection` at build time, so a malformed field shape throws
  * here rather than at codegen.
  */
+/** The media base a `pages` write sanitizes rich content against (config, `/media` default). */
+function pageMediaBase(config: AstroidConfig): string {
+  return config.deploy?.mediaBase ?? "/media";
+}
+
+/**
+ * Return a copy of a `pages` write payload with its `sections` rich-text fields
+ * sanitized against the project media base — a no-op when the write carries no
+ * `sections`. Pure; leaves every other field (and a partial PATCH's absent ones)
+ * untouched.
+ *
+ * Exported because two write paths need it: the collection's `beforeChange` hook
+ * below, AND the raw `pagesRoute` (which does not run collection hooks — see
+ * {@link astroidPagesWriteHooks}).
+ */
+export function sanitizeAstroidPageSections(
+  config: AstroidConfig,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (data.sections === undefined) return data;
+  const mediaBase = pageMediaBase(config);
+  const sections = sanitizeSectionsRichText(data.sections, astroidSectionCatalog, (html) =>
+    sanitizeRichHtml(html, { mediaBase }),
+  );
+  return { ...data, sections };
+}
+
+/**
+ * Validate the (already-sanitized) `sections` of a `pages` write against the
+ * catalog, throwing `LouiseValidationError` — an unknown `_type`, a field of the
+ * wrong shape, or a setting outside its declared options is rejected with a 422
+ * carrying the per-field violations. A no-op when the write carries no
+ * `sections`, so a partial PATCH of other fields isn't spuriously validated.
+ */
+export async function assertAstroidPageSections(
+  config: AstroidConfig,
+  data: Record<string, unknown>,
+  operation: "create" | "update" = "update",
+): Promise<void> {
+  if (data.sections === undefined) return;
+  await assertValidSections(astroidSectionCatalog, data.sections, {
+    operation,
+    mediaBase: pageMediaBase(config),
+  });
+}
+
+/**
+ * The write-time hooks the raw `pagesRoute` (louise-toolkit/editor) needs to
+ * enforce the same section contract as the draft path.
+ *
+ * `pagesRoute` writes straight to the table and — unlike `versionsRoute` — takes
+ * no collection config, so it never runs the `beforeChange` hook below. Left
+ * bare (as it was), a direct `POST` / `PATCH /api/louise/pages/:id` persists an
+ * unknown section `_type`, a setting outside its options, or unsanitized section
+ * rich text: exactly what the hook exists to stop, silently missing from the one
+ * route the on-canvas *structural* edits flow through. `<Sections>` then skips
+ * the bad `_type`, so the section just vanishes with no error anywhere.
+ *
+ * These wire the SAME sanitize + validate the hook uses into `pagesRoute`'s
+ * `sanitize` / `transform` / `validate` seams, so both write paths enforce one
+ * contract. Spread into the route config:
+ *
+ *   pagesRoute({ table: pages, resolveEditor, fields, ...astroidPagesWriteHooks(config) })
+ */
+export function astroidPagesWriteHooks(config: AstroidConfig): {
+  sanitize: (html: string) => string;
+  transform: (data: Record<string, unknown>) => Record<string, unknown>;
+  validate: (
+    data: Record<string, unknown>,
+    ctx: { operation: "create" | "update" },
+  ) => Promise<void>;
+} {
+  const mediaBase = pageMediaBase(config);
+  return {
+    // `body` is a richField, so it goes through pagesRoute's own sanitize seam —
+    // with the project media base, matching the hook rather than the toolkit
+    // default sanitizer that knows no media base.
+    sanitize: (html) => sanitizeRichHtml(html, { mediaBase }),
+    // `sections` is not a richField, so it's sanitized here in the transform,
+    // which pagesRoute runs BEFORE validate — the hook's sanitize-then-validate
+    // order.
+    transform: (data) => sanitizeAstroidPageSections(config, data),
+    validate: (data, ctx) => assertAstroidPageSections(config, data, ctx.operation),
+  };
+}
+
 export function astroidPagesCollection(config: AstroidConfig): CollectionConfig {
   // The `body` is rich HTML edited in place (`<Editable type="richtext">`) and
   // staged as a draft, so sanitize it on every write — never store raw HTML. A
   // pasted `<img>` pointing off-origin (a hotlink) is dropped: body images must
   // live in the media library. Mirrors the reference site's pages-collection hook.
-  const mediaBase = config.deploy?.mediaBase ?? "/media";
+  const mediaBase = pageMediaBase(config);
 
   const fields: Record<string, FieldConfig> = {};
   fields.slug = { type: "text", required: true };
@@ -73,24 +159,14 @@ export function astroidPagesCollection(config: AstroidConfig): CollectionConfig 
           if (typeof next.body === "string") {
             next = { ...next, body: sanitizeRichHtml(next.body, { mediaBase }) };
           }
-
-          if (next.sections !== undefined) {
-            // Sanitize BEFORE validating: a richText field stores HTML, and
-            // validating the raw value would pass content the sanitizer is about
-            // to change. Same order as the body above.
-            const sections = sanitizeSectionsRichText(next.sections, astroidSectionCatalog, (html) =>
-              sanitizeRichHtml(html, { mediaBase }),
-            );
-            // Throws LouiseValidationError → 422 with per-field violations. An
-            // unknown `_type` or a field of the wrong shape is rejected at the
-            // door rather than rendering as a hole later.
-            await assertValidSections(astroidSectionCatalog, sections, {
-              operation: "update",
-              mediaBase,
-            });
-            next = { ...next, sections };
-          }
-
+          // Sanitize BEFORE validating: a richText field stores HTML, and
+          // validating the raw value would pass content the sanitizer is about
+          // to change. Same order as the body above. Both steps are shared with
+          // the raw pagesRoute (see astroidPagesWriteHooks) so the two write
+          // paths can't diverge — the sanitize throws nothing, the assert throws
+          // LouiseValidationError → 422 with per-field violations.
+          next = sanitizeAstroidPageSections(config, next);
+          await assertAstroidPageSections(config, next, "update");
           return next;
         },
       ],

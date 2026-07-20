@@ -6,8 +6,11 @@
 // (routes.ts), so the "versionsRoute/searchRoute before pagesRoute" collision is
 // impossible by construction. Pure string generation, like generateAstroidSchema.
 //
-// Two seams are marked with TODO(astroid) and filled by later slices: the auth
-// `resolveEditor`, and the section-catalog `validate` on the pages routes.
+// One seam is marked with TODO(astroid) and filled by the auth slice: the
+// `resolveEditor` session resolver. The section-catalog validate + sanitize on
+// the pages routes is wired here — versionsRoute runs it through the collection's
+// beforeChange hook, and pagesRoute (which takes no collection config) through
+// the `astroidPagesWriteHooks` spread, so both write paths enforce one contract.
 
 import type { AstroidConfig } from "../config.js";
 import {
@@ -101,7 +104,12 @@ export function generateAstroidWorker(config: AstroidConfig): string {
       case "search":
         return "searchRoute({ table: pages, config: pagesCollection, resolveEditor })";
       case "pages":
-        return 'pagesRoute({ table: pages, resolveEditor, fields: [...DEFAULT_PAGE_FIELDS, "sections"] })';
+        // `...pagesWriteHooks` is load-bearing: pagesRoute writes straight to the
+        // table and runs NO collection hook, so without these the direct
+        // POST/PATCH path would persist an unknown section `_type`, a setting
+        // outside its options, or unsanitized section rich text. See
+        // `astroidPagesWriteHooks`.
+        return 'pagesRoute({ table: pages, resolveEditor, fields: [...DEFAULT_PAGE_FIELDS, "sections"], ...pagesWriteHooks })';
       case "save":
         // No `bufferKv` here, deliberately: `saveRoute` has no such option. It
         // writes live field saves (title, SEO) straight through, and the draft
@@ -165,6 +173,7 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p(`import { ${tables.join(", ")} } from "./schema.js";`);
   const astroidImports = [
     "astroidPagesCollection",
+    "astroidPagesWriteHooks",
     "readModuleSecret",
     ...(inquiries ? ["sendInquiryMail"] : []),
     ...(queues ? ["type AstroidQueueMessage"] : []),
@@ -185,6 +194,9 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p();
   p(`const MEDIA_BASE = ${JSON.stringify(mediaBase)};`);
   p("const pagesCollection = astroidPagesCollection(astroidConfig);");
+  p("// Sanitize + section-catalog validation for the raw pagesRoute, which runs");
+  p("// no collection hook — the same contract versionsRoute gets from the config.");
+  p("const pagesWriteHooks = astroidPagesWriteHooks(astroidConfig);");
   p();
   p("// Editable site_settings columns the Settings panel may write, and which of");
   p("// them resolve to a media-library asset.");
@@ -300,12 +312,12 @@ export function generateAstroidWorker(config: AstroidConfig): string {
     );
   }
   p();
-  p("// `sections` writes are validated against the section catalog before they");
-  p("// persist — Astroid wires `assertValidSections` + `sanitizeSectionsRichText`");
-  p("// into the pages collection's beforeChange hook (src/schema.ts's config), so");
-  p("// every route below inherits it. An unknown `_type`, a field of the wrong");
-  p("// shape, or a setting outside its declared options is a 422, not a hole in");
-  p("// the page.");
+  p("// `sections` writes are validated + sanitized against the section catalog");
+  p("// before they persist, on BOTH write paths: versionsRoute runs the pages");
+  p("// collection's beforeChange hook (via `config`), and pagesRoute — which takes");
+  p("// no collection config — gets the same contract from the `pagesWriteHooks`");
+  p("// spread. An unknown `_type`, a field of the wrong shape, or a setting outside");
+  p("// its declared options is a 422, not a hole in the page.");
   p("const editorRoutes: WorkerRoute<CloudflareEnv>[] = [");
   for (const route of plan) {
     p(`  // ${route.note}`);
