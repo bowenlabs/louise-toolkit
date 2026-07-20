@@ -198,3 +198,35 @@ describe("site health", () => {
     expect(worker).toContain("return 0;");
   });
 });
+
+describe("edge cache (ADR 0004)", () => {
+  it("wraps the SSR fallback with the cookie-aware Worker cache", () => {
+    const worker = generateAstroidWorker(base);
+    expect(worker).toContain("fetch: withEdgeCache(");
+    expect(worker).toContain(
+      'import { composeWorker, isEditRequest, type WorkerRoute, withEdgeCache } from "louise-toolkit/worker";',
+    );
+  });
+
+  it("bypasses on an edit request, using the shipped predicate", () => {
+    // Not a hand-rolled cookie check: `isEditRequest` reads the same constant
+    // `createLouiseMiddleware` uses to SET the cookie, so the two can't drift.
+    // Drift here means an editor served a cached public page — the exact bug
+    // that got this feature reverted twice (#163, #165).
+    expect(generateAstroidWorker(base)).toContain("bypass: isEditRequest");
+  });
+
+  it("ships the flag OFF, which is the safe state", () => {
+    // Off ⇒ every render is `Astro.cache.set(false)` ⇒ `no-store` ⇒ the layer
+    // stores nothing and is a transparent pass-through. `caches.default` is not
+    // cleared by Dev Mode or Purge Everything, so on-by-default would make a
+    // mistake very hard to walk back.
+    expect(generateAstroidWrangler(base)).toContain('"ASTROID_EDGE_CACHE": "false"');
+  });
+
+  it("points at the activation runbook rather than just enabling it", () => {
+    const wrangler = generateAstroidWrangler(base);
+    expect(wrangler).toContain("0004-edge-caching.md");
+    expect(wrangler.toLowerCase()).toContain("preview");
+  });
+});

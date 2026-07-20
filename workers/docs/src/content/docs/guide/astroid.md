@@ -160,6 +160,30 @@ them unmounted meant rendering UI for a subsystem that could never have data.
   `RL` namespace under its own key, so there's no extra binding to provision.
   Until the first scan runs the panel says "not checked yet".
 
+### Edge caching (off by default)
+
+The generated worker wraps Astro's SSR fallback in `withEdgeCache`, Louise's
+**cookie-aware** Worker Cache API layer. It ships wrapped but inert: the var
+`ASTROID_EDGE_CACHE` is `"false"`, so every render emits `no-store` and the layer
+stores nothing.
+
+Why cookie-aware matters: Cloudflare's *automatic* edge cache is keyed by URL and
+runs **before** your Worker, so it cannot see the edit cookie — it will serve a
+cached public page to a signed-in editor, drafts and all. `withEdgeCache` runs
+inside the Worker, inspects the request first, and strips the CDN directive from
+every response so the automatic cache never engages. This feature was reverted
+twice before that distinction was understood.
+
+**Do not enable it straight on production.** `caches.default` is not cleared by
+Cloudflare Dev Mode or "Purge Everything," so a bad flip is hard to walk back.
+Turn it on for a preview deploy and walk the activation runbook in
+`docs/adr/0004-edge-caching.md` first: verify an anonymous second request is
+served from cache, an editor always renders fresh, and a publish shows up within
+the 60s TTL.
+
+That TTL is short on purpose — `caches.default` is per-colo with no global purge,
+so `maxAge` is the real worldwide freshness floor after a publish.
+
 ### Crons
 
 `wrangler.jsonc` gets a `triggers.crons` list, and the generated worker's one

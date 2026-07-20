@@ -130,7 +130,9 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p(
     'import { readHealthSummary, summarizeHealth, writeHealthSummary } from "louise-toolkit/health";',
   );
-  p('import { composeWorker, type WorkerRoute } from "louise-toolkit/worker";');
+  p(
+    'import { composeWorker, isEditRequest, type WorkerRoute, withEdgeCache } from "louise-toolkit/worker";',
+  );
   if (inquiries) p('import { inquiriesForm } from "louise-toolkit/db";');
   p(`import { ${tables.join(", ")} } from "./schema.js";`);
   const astroidImports = [
@@ -287,7 +289,28 @@ export function generateAstroidWorker(config: AstroidConfig): string {
       : "export default composeWorker<CloudflareEnv>({",
   );
   p("  routes: [...editorRoutes, mediaAssetRoute],");
-  p("  fetch: (request, env, ctx) => handle(request, env, ctx),");
+  p("  // The SSR fallback, wrapped in the cookie-aware Worker cache (ADR 0004).");
+  p("  //");
+  p("  // Wrapped UNCONDITIONALLY, and that is safe: `withEdgeCache` only stores a");
+  p("  // response that carries a cacheable Cloudflare-CDN-Cache-Control directive,");
+  p("  // and a page emits one only via `Astro.cache.set(...)` — which the scaffold");
+  p("  // gates on ASTROID_EDGE_CACHE being \"true\" AND the request not being in edit");
+  p("  // mode. With the var off (the default) every render is `no-store`, so this");
+  p("  // layer stores nothing and is a transparent pass-through.");
+  p("  //");
+  p("  // It must be THIS cache and not Cloudflare's automatic edge cache: that one");
+  p("  // is keyed by URL, runs BEFORE the Worker, and is therefore cookie-blind —");
+  p("  // it will happily serve an editor a cached public page. That exact bug got");
+  p("  // this feature reverted twice (#163, #165). `withEdgeCache` strips the CDN");
+  p("  // directive from every response so the automatic cache never engages.");
+  p("  //");
+  p("  // Read the activation runbook in docs/adr/0004-edge-caching.md before");
+  p("  // flipping the var on: `caches.default` is NOT cleared by Cloudflare Dev");
+  p("  // Mode or Purge Everything, so a mistake in prod is hard to walk back.");
+  p("  fetch: withEdgeCache((request, env, ctx) => handle(request, env, ctx), {");
+  p("    // An editor never reads from, and never writes to, the shared entry.");
+  p("    bypass: isEditRequest,");
+  p("  }),");
   if (queues) {
     p("  // Queue consumer. `processBatch` acks or retries each message");
     p("  // INDEPENDENTLY, so one poisoned message can't block the rest of the");

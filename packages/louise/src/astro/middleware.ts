@@ -29,6 +29,7 @@ import {
   rateLimit,
   rewriteCspStyleSrc,
 } from "../core/security/index.js";
+import { LOUISE_EDIT_COOKIE } from "../core/worker/edge-cache.js";
 
 /** The locals this middleware writes. A site's `App.Locals` should declare at
  *  least these (plus anything it sets via {@link LouiseMiddlewareConfig.extend},
@@ -92,7 +93,9 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * swallowed error there would serve the protected page.
    */
   guard?: (context: APIContext) => Response | undefined | Promise<Response | undefined>;
-  /** Edit-mode cookie name. Default `"louise_edit"`. */
+  /** Edit-mode cookie name. Default {@link LOUISE_EDIT_COOKIE} (`"louise_edit"`).
+   *  Change it and the `withEdgeCache` bypass predicate must be told too, or an
+   *  editor gets served the cached public page. */
   editCookie?: string;
 }
 
@@ -106,7 +109,9 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
 export function createLouiseMiddleware<TEditor = unknown>(
   config: LouiseMiddlewareConfig<TEditor>,
 ): MiddlewareHandler {
-  const editCookie = config.editCookie ?? "louise_edit";
+  // The default comes from the same constant `isEditRequest` reads, so the
+  // cookie this sets and the predicate that looks for it cannot drift apart.
+  const editCookie = config.editCookie ?? LOUISE_EDIT_COOKIE;
 
   return async (context, next) => {
     // Rate-limit the public, unauthenticated POST surfaces before any other

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   edgeCacheKeyUrl,
   isCacheableDirective,
+  isEditRequest,
+  LOUISE_EDIT_COOKIE,
   withEdgeCache,
 } from "../../src/core/worker/index.js";
 
@@ -203,5 +205,54 @@ describe("edgeCacheKeyUrl", () => {
 
   it("leaves a bare URL untouched", () => {
     expect(edgeCacheKeyUrl("https://x.test/p")).toBe("https://x.test/p");
+  });
+});
+
+describe("isEditRequest", () => {
+  const withCookie = (cookie: string) => new Request("https://x.test/", { headers: { cookie } });
+
+  it("detects the edit cookie, alone or among others", () => {
+    expect(isEditRequest(withCookie(`${LOUISE_EDIT_COOKIE}=1`))).toBe(true);
+    expect(isEditRequest(withCookie(`session=abc; ${LOUISE_EDIT_COOKIE}=1`))).toBe(true);
+    expect(isEditRequest(withCookie(`${LOUISE_EDIT_COOKIE}=1; session=abc`))).toBe(true);
+  });
+
+  it("is false with no cookie header at all", () => {
+    expect(isEditRequest(new Request("https://x.test/"))).toBe(false);
+    expect(isEditRequest(withCookie("session=abc"))).toBe(false);
+  });
+
+  it("matches at a name boundary, so a suffixed cookie can't false-positive", () => {
+    // `x_louise_edit=1` matching would bypass the cache for every request that
+    // carried it — a permanent, silent cache miss nobody would think to look for.
+    expect(isEditRequest(withCookie(`x_${LOUISE_EDIT_COOKIE}=1`))).toBe(false);
+    expect(isEditRequest(withCookie(`not${LOUISE_EDIT_COOKIE}=1`))).toBe(false);
+  });
+
+  it("honours a custom cookie name", () => {
+    expect(isEditRequest(withCookie("edit_mode=1"), "edit_mode")).toBe(true);
+    expect(isEditRequest(withCookie(`${LOUISE_EDIT_COOKIE}=1`), "edit_mode")).toBe(false);
+  });
+
+  it("keeps an editor off an entry a public visitor cached", async () => {
+    // The headline invariant, now expressed through the shipped predicate rather
+    // than a test-local one.
+    const cache = fakeCache();
+    let renders = 0;
+    const handler = () => {
+      renders++;
+      return new Response("page", {
+        headers: { "Cloudflare-CDN-Cache-Control": "public, max-age=60" },
+      });
+    };
+    const wrapped = withEdgeCache(handler, { bypass: isEditRequest, cache: () => cache.cache });
+
+    const ctx = { waitUntil: (p: Promise<unknown>) => p } as unknown as ExecutionContext;
+    await wrapped(new Request("https://x.test/"), {}, ctx);
+    await wrapped(new Request("https://x.test/"), {}, ctx);
+    expect(renders).toBe(1); // second public request served from cache
+
+    await wrapped(withCookie(`${LOUISE_EDIT_COOKIE}=1`), {}, ctx);
+    expect(renders).toBe(2); // the editor rendered fresh, not served the entry
   });
 });

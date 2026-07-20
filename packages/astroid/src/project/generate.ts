@@ -219,6 +219,15 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   );
   p("    // The editor allowlist / owner. Wire this into your auth seam (src/auth.ts).");
   p('    "OWNER_EMAIL": "",');
+  p("    // Edge caching for published pages (ADR 0004). OFF by default, and the");
+  p("    // default is the safe state: with it off every render is `no-store` and");
+  p("    // the Worker cache layer stores nothing.");
+  p("    //");
+  p("    // Turn it on for a PREVIEW deploy first and walk the activation runbook");
+  p("    // (docs/adr/0004-edge-caching.md). `caches.default` is not cleared by");
+  p("    // Cloudflare Dev Mode or Purge Everything, so a bad prod flip is hard to");
+  p("    // undo — this feature was reverted twice for exactly that.");
+  p('    "ASTROID_EDGE_CACHE": "false",');
   p("  },");
   // Secrets are NOT vars: they belong in .dev.vars locally and in `wrangler
   // secret put` / Secrets Store when deployed. Listing the names here is

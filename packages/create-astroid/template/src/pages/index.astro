@@ -14,6 +14,25 @@ export const prerender = false;
 
 const { editMode } = Astro.locals;
 
+// Edge caching (ADR 0004). Opting in emits `Cloudflare-CDN-Cache-Control`, which
+// the worker's `withEdgeCache` layer reads as "store this", then strips.
+//
+// Both conditions matter. Edit mode must NEVER opt in — a cached editor render
+// would carry draft content and the inline-edit hooks into the shared public
+// entry. And the var is off by default because `caches.default` survives
+// Cloudflare Dev Mode and Purge Everything; walk the activation runbook in
+// docs/adr/0004-edge-caching.md on a preview deploy before turning it on.
+//
+// `set(false)` is the safe state, not merely the "off" one: it emits `no-store`,
+// so nothing downstream caches this HTML either.
+if (editMode || env.ASTROID_EDGE_CACHE !== "true") {
+  Astro.cache.set(false);
+} else {
+  // Short on purpose: `caches.default` is per-colo with no global purge, so this
+  // max-age is the real worldwide freshness floor after a publish.
+  Astro.cache.set({ maxAge: 60 });
+}
+
 // `seo_*` are the page's SEO overrides, deliberately separate from `title` —
 // which is the on-page H1. The home page passes NO title to <Site>, so <title>
 // is the site-wide default ("Acme Coffee", not "Acme Coffee | Acme Coffee");

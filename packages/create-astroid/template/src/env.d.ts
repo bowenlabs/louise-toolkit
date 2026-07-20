@@ -17,6 +17,15 @@ type CloudflareEnv = {
    *  health scan to know what to crawl, and by anything else that needs an
    *  absolute URL from inside the Worker. */
   SITE_URL: string;
+  /**
+   * Edge caching for published pages — `"true"` to enable (ADR 0004). A string,
+   * not a boolean, because wrangler `vars` are strings.
+   *
+   * Off by default, and the default is the safe state. Enable on a PREVIEW
+   * deploy and walk the activation runbook first: `caches.default` is not
+   * cleared by Cloudflare Dev Mode or Purge Everything.
+   */
+  ASTROID_EDGE_CACHE: string;
   /** Cloudflare Images — upload dimensions + server-side transforms. */
   IMAGES: ImagesBinding;
   /**
