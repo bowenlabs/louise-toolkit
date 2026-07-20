@@ -422,9 +422,12 @@ jobs:
           $W d1 execute DB --local -c dist/server/wrangler.json --persist-to .wrangler/state --file seed/home.seed.sql
           OWNER_EMAIL=owner@smoke.example corepack pnpm seed:editors --local
 
-          # Serve on workerd; kill it however we exit.
+          # Serve on workerd; kill it however we exit. Capture the PID rather
+          # than a `%1` job spec — job control is off in a non-interactive runner
+          # shell, so `%1` would not resolve.
           $W dev -c dist/server/wrangler.json --persist-to .wrangler/state --port 8788 --local > dev.log 2>&1 &
-          trap 'kill %1 2>/dev/null || true' EXIT
+          DEV_PID=$!
+          trap 'kill "$DEV_PID" 2>/dev/null || true' EXIT
           for i in $(seq 1 90); do if curl -sf -o /dev/null "$B/"; then break; fi; sleep 1; done
 
           # Public surface + the gate.
@@ -478,9 +481,25 @@ jobs:
           fi
 
           # versionsRoute must answer 422 (the collection hook's LouiseValidationError),
-          # not the unhandled 500 it used to leak.
-          [ "$(code -X POST -b cookies.txt -H 'content-type: application/json' -H "Origin: $B" -d '{"sections":[{"_type":"definitely-not-a-section"}],"title":"x"}' "$B/api/louise/pages/$PID/versions")" = "422" ] \
+          # not the unhandled 500 it used to leak. This is a FIRST draft write, so
+          # it flushes to D1 and validates synchronously.
+          vpost() { code -X POST -b cookies.txt -H 'content-type: application/json' -H "Origin: $B" -d "$2" "$B/api/louise/pages/$PID/$1"; }
+          [ "$(vpost versions '{"sections":[{"_type":"definitely-not-a-section"}],"title":"x"}')" = "422" ] \
             || fail "versionsRoute did not 422 a bad section (regressed to 500?)"
+
+          # The KV write-buffer defers validation: a valid draft opens the buffer
+          # (first write flushes → 201), a bad draft within the window COALESCES
+          # into KV unvalidated (200), and the bad section is validated for the
+          # first time when publish flushes the buffer. That flush ran OUTSIDE the
+          # publish try/catch and leaked a 500; it must now 422 (the content is
+          # kept off the live page either way).
+          [ "$(vpost versions '{"sections":[{"_type":"hero","heading":"ok","_settings":{"colorway":"brand"}}],"title":"x"}')" = "201" ] \
+            || fail "a valid first draft write did not 201"
+          vpost versions '{"sections":[{"_type":"definitely-not-a-section"}],"title":"x"}' >/dev/null
+          [ "$(vpost publish '{}')" = "422" ] \
+            || fail "publish did not 422 when flushing a buffered bad section (regressed to 500?)"
+          curl -s "$B/" | grep -q 'definitely-not-a-section' \
+            && fail "a buffered bad section reached the live page on publish" || true
 
           # And a VALID structural write still succeeds — the hooks reject bad
           # input, not all input.

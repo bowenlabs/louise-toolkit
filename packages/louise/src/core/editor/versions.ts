@@ -371,9 +371,27 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       // Flush any buffered work to D1 first, so "publish the latest draft" sees
       // the freshest edits (the buffer may hold writes not yet flushed) — this
       // becomes the newest draft version.
+      //
+      // This flush runs the collection's `beforeChange` hook, so a coalesced
+      // auto-save that the buffer never validated (a bad section absorbed into
+      // KV and answered 200) is validated HERE, at publish. The validation error
+      // must surface as a 422 with its violations, not the raw 500 an uncaught
+      // throw before the try/catch below would produce — the bad content is
+      // correctly kept off the live page either way, but the editor needs the
+      // violations, not a 500.
       if (kv) {
         const buffered = await readDraftBuffer(kv, bufferKey);
-        if (buffered) await api.saveDraft(context, id, buffered.data as never);
+        if (buffered) {
+          try {
+            await api.saveDraft(context, id, buffered.data as never);
+          } catch (err) {
+            if (err instanceof LouiseValidationError) {
+              const { message, violations } = violationsOf(err);
+              return json({ error: message, ...(violations ? { violations } : {}) }, 422);
+            }
+            throw err;
+          }
+        }
       }
       let versionId = explicitVersionId;
       if (versionId === undefined) {
