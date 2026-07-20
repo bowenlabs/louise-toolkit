@@ -121,6 +121,39 @@ interface RawCatalogObject {
         price_money?: { amount?: number; currency?: string };
       };
     }[];
+    // Detailed-extraction fields (see listCatalogDetailed). Optional + ignored by
+    // the plain listCatalogItems, so adding them is backwards-compatible.
+    reporting_category?: { id?: string };
+    categories?: { id?: string }[];
+    modifier_list_info?: {
+      modifier_list_id?: string;
+      min_selected_modifiers?: number;
+      max_selected_modifiers?: number;
+      enabled?: boolean;
+    }[];
+  };
+  // Present on CATEGORY / MODIFIER_LIST search results (listCategories /
+  // listModifierLists).
+  category_data?: {
+    name?: string;
+    category_type?: string;
+    is_top_level?: boolean;
+    ordinal?: number;
+    parent_category?: { id?: string; ordinal?: number };
+  };
+  modifier_list_data?: {
+    name?: string;
+    selection_type?: string;
+    modifiers?: {
+      id: string;
+      is_deleted?: boolean;
+      modifier_data?: {
+        name?: string;
+        price_money?: { amount?: number };
+        ordinal?: number;
+        on_by_default?: boolean;
+      };
+    }[];
   };
   image_data?: { url?: string };
 }
@@ -251,6 +284,196 @@ export async function retrieveVariationPrices(
     }
   }
   return prices;
+}
+
+// ── Catalog: detailed extraction (categories, reporting category, modifiers) ──
+//
+// The plain `listCatalogItems` returns just the mapped items. A storefront that
+// also drives category filters and order-ahead customization needs three more
+// things Square carries on each item + in its own object types: category
+// membership, the `reporting_category`, and enabled modifier-list bounds. Those
+// live here so any Square site inherits them, rather than each re-implementing
+// the extraction over `/v2/catalog/search`.
+
+/** A REGULAR Square category (product taxonomy). The parallel MENU_CATEGORY tree
+ *  (Square Online display) is filtered out by {@link listCategories}. */
+export interface SquareCategory {
+  id: string;
+  name: string;
+  /** URL-safe slug (e.g. a shop's `?cat=` value). */
+  slug: string;
+  /** Parent category id, or null for a top-level category. */
+  parentId: string | null;
+  isTop: boolean;
+  /** Square display ordinal (lower sorts first); 0 when absent. */
+  ordinal: number;
+}
+
+/** A single modifier (a size, a milk, an add-on) — name + price adjustment. */
+export interface SquareModifier {
+  id: string;
+  name: string;
+  priceCents: number;
+  onByDefault?: boolean;
+}
+
+/** A modifier list by id (name + selection type + children). The per-item
+ *  min/max bounds live in {@link ItemModifierRef}, joined when resolving a product. */
+export interface SquareModifierList {
+  id: string;
+  name: string;
+  selectionType: "SINGLE" | "MULTIPLE";
+  modifiers: SquareModifier[];
+}
+
+/** An item's reference to a modifier list, with its selection bounds. */
+export interface ItemModifierRef {
+  id: string;
+  min: number;
+  max: number;
+}
+
+/** {@link listCatalogItems}'s items plus the per-item category / reporting-category
+ *  / modifier extraction a storefront needs. */
+export interface DetailedCatalog {
+  items: SquareCatalogItem[];
+  /** itemId → every category id it references. */
+  itemCategories: Record<string, string[]>;
+  /** itemId → its `reporting_category` id. */
+  reportingCategory: Record<string, string>;
+  /** itemId → its enabled modifier-list refs (id + selection bounds). */
+  itemModifiers: Record<string, ItemModifierRef[]>;
+}
+
+/** URL-safe slug from a display name. */
+function catalogSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Like {@link listCatalogItems}, but ALSO returns each item's category refs, its
+ * `reporting_category`, and its enabled modifier-list bounds. One walk of
+ * `/v2/catalog/search` over ITEMs. Square uses -1 for an "unset" min/max — this
+ * normalizes those to 0 (optional / unbounded).
+ */
+export async function listCatalogDetailed(config: SquareConfig): Promise<DetailedCatalog> {
+  const items: SquareCatalogItem[] = [];
+  const itemCategories: Record<string, string[]> = {};
+  const reportingCategory: Record<string, string> = {};
+  const itemModifiers: Record<string, ItemModifierRef[]> = {};
+  let cursor: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const res = await sqPost<CatalogSearchResponse>(config, "/v2/catalog/search", {
+      object_types: ["ITEM"],
+      include_related_objects: true,
+      include_deleted_objects: false,
+      ...(cursor ? { cursor } : {}),
+    });
+    const images = imageUrlMap(res.related_objects);
+    for (const obj of res.objects ?? []) {
+      if (obj.type !== "ITEM" || obj.is_deleted) continue;
+      items.push(mapCatalogItem(obj, images));
+      const d = obj.item_data ?? {};
+      const cats = (d.categories ?? []).map((c) => c.id).filter((x): x is string => !!x);
+      if (cats.length) itemCategories[obj.id] = cats;
+      if (d.reporting_category?.id) reportingCategory[obj.id] = d.reporting_category.id;
+      const mods = (d.modifier_list_info ?? [])
+        .filter((m) => m.enabled !== false && !!m.modifier_list_id)
+        .map((m) => ({
+          id: m.modifier_list_id as string,
+          min: typeof m.min_selected_modifiers === "number" && m.min_selected_modifiers > 0
+            ? m.min_selected_modifiers
+            : 0,
+          max: typeof m.max_selected_modifiers === "number" && m.max_selected_modifiers > 0
+            ? m.max_selected_modifiers
+            : 0,
+        }));
+      if (mods.length) itemModifiers[obj.id] = mods;
+    }
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  return { items, itemCategories, reportingCategory, itemModifiers };
+}
+
+/**
+ * List every non-deleted REGULAR catalog CATEGORY (the product taxonomy). The
+ * parallel MENU_CATEGORY tree (Square Online display) is dropped.
+ * POST /v2/catalog/search.
+ */
+export async function listCategories(config: SquareConfig): Promise<SquareCategory[]> {
+  const cats: SquareCategory[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const res = await sqPost<CatalogSearchResponse>(config, "/v2/catalog/search", {
+      object_types: ["CATEGORY"],
+      include_deleted_objects: false,
+      ...(cursor ? { cursor } : {}),
+    });
+    for (const obj of res.objects ?? []) {
+      const d = obj.category_data;
+      if (obj.type !== "CATEGORY" || obj.is_deleted || !d) continue;
+      if (d.category_type && d.category_type !== "REGULAR_CATEGORY") continue;
+      const name = d.name ?? "";
+      cats.push({
+        id: obj.id,
+        name,
+        slug: catalogSlug(name),
+        parentId: d.parent_category?.id ?? null,
+        isTop: !!d.is_top_level,
+        ordinal: d.ordinal ?? d.parent_category?.ordinal ?? 0,
+      });
+    }
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  return cats;
+}
+
+/**
+ * List every non-deleted MODIFIER_LIST (size/milk/shots…) with its MODIFIER
+ * children, as an id→list map. The per-item min/max bounds are joined from
+ * {@link DetailedCatalog.itemModifiers} when resolving a product.
+ * POST /v2/catalog/search.
+ */
+export async function listModifierLists(
+  config: SquareConfig,
+): Promise<Record<string, SquareModifierList>> {
+  const lists: Record<string, SquareModifierList> = {};
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const res = await sqPost<CatalogSearchResponse>(config, "/v2/catalog/search", {
+      object_types: ["MODIFIER_LIST"],
+      include_deleted_objects: false,
+      ...(cursor ? { cursor } : {}),
+    });
+    for (const obj of res.objects ?? []) {
+      const d = obj.modifier_list_data;
+      if (obj.type !== "MODIFIER_LIST" || obj.is_deleted || !d) continue;
+      const modifiers: SquareModifier[] = (d.modifiers ?? [])
+        .filter((m) => !m.is_deleted && !!m.modifier_data)
+        .sort((a, b) => (a.modifier_data?.ordinal ?? 0) - (b.modifier_data?.ordinal ?? 0))
+        .map((m) => ({
+          id: m.id,
+          name: m.modifier_data?.name ?? "",
+          priceCents: m.modifier_data?.price_money?.amount ?? 0,
+          ...(m.modifier_data?.on_by_default ? { onByDefault: true } : {}),
+        }));
+      lists[obj.id] = {
+        id: obj.id,
+        name: d.name ?? "",
+        selectionType: d.selection_type === "MULTIPLE" ? "MULTIPLE" : "SINGLE",
+        modifiers,
+      };
+    }
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  return lists;
 }
 
 export interface CatalogVariationInput {
