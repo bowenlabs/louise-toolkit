@@ -1,6 +1,6 @@
 {
   "name": "louise-toolkit",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Louise Toolkit — a V8-native toolkit for building editable sites on Cloudflare Workers. Framework-agnostic core primitives (content, db, commerce, email, queues), a SolidJS + ProseKit inline-edit client, and the daisyUI editor theme.",
   "keywords": [
     "astro",

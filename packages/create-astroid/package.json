@@ -1,6 +1,6 @@
 {
   "name": "create-astroid",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Scaffold a new Astroid site — an editable, multi-editor Astro app on Cloudflare Workers — in one command.",
   "keywords": [
     "astro",
