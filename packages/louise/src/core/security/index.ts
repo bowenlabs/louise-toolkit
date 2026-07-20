@@ -6,6 +6,12 @@
 // every site at once (the reason these live in the package, not copy-pasted).
 
 export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from "./sanitize";
+// The same-origin (CSRF) check for cookie-authenticated or money-moving POSTs.
+// It lives in `auth/guard` (where the editor gates use it) but belongs to the
+// security surface too — a public POST that charges a card needs it without
+// pulling in the whole auth barrel. `guard` has no runtime imports, so this adds
+// nothing but the function.
+export { isSameOrigin } from "../auth/guard";
 export { matchRateRule, rateLimit, type RateLimitResult, type RateRule } from "./rate-limit";
 export { getSessionSecret, readSecret, type ReadSecretOptions, type SecretSource } from "./secrets";
 export {

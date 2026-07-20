@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fourthwallToCatalogItem, squareToCatalogItem } from "../src/commerce/adapters.js";
 import { checkoutIdempotencyKey, verifyCheckout } from "../src/commerce/checkout.js";
+import { generateAstroidCheckoutRoute } from "../src/commerce/checkout-scaffold.js";
 import { generateCatalogTable } from "../src/commerce/mirror.js";
 import {
   assertCommerceRoles,
@@ -447,5 +448,39 @@ describe("checkoutIdempotencyKey", () => {
     expect(await checkoutIdempotencyKey(cart, "order", "cart_alice")).not.toBe(
       await checkoutIdempotencyKey(cart, "refund", "cart_alice"),
     );
+  });
+});
+
+describe("generated checkout route", () => {
+  const square = defineAstroid({ ...base, commerce: { provider: "square" } });
+
+  it("is null unless the project takes card payments (Square storefront)", () => {
+    // A marketing site, or a Stripe/Fourthwall project, gets no in-page charge
+    // route — so nothing to gate.
+    expect(generateAstroidCheckoutRoute({ ...base, archetype: "marketing" })).toBeNull();
+  });
+
+  it("gates the money-moving POST to same-origin, like every other public write", () => {
+    // Served, a cross-origin correct-price POST reached this route and returned
+    // 200 while the contact form and vitals beacon 403'd cross-origin — the one
+    // money-moving endpoint was the only ungated public POST. It must refuse a
+    // cross-origin request with a 403.
+    const route = generateAstroidCheckoutRoute(square);
+    expect(route).not.toBeNull();
+    expect(route).toContain('import { isSameOrigin } from "louise-toolkit/security"');
+    expect(route).toContain("if (!isSameOrigin(request)) return json({ error: \"Forbidden\" }, 403)");
+  });
+
+  it("checks the origin BEFORE parsing the body or re-pricing", () => {
+    // Order matters: the gate is worthless if it runs after the work. It must
+    // precede the JSON parse (and everything downstream — verifyCheckout, the
+    // dormancy gate, createPayment).
+    const route = generateAstroidCheckoutRoute(square) as string;
+    const gate = route.indexOf("isSameOrigin(request)");
+    // Anchor on the CALL sites (`verifyCheckout(body.lines`, `createPayment(`),
+    // not the import list where the names first appear.
+    expect(gate).toBeLessThan(route.indexOf("request.json()"));
+    expect(gate).toBeLessThan(route.indexOf("verifyCheckout(body.lines"));
+    expect(gate).toBeLessThan(route.indexOf("createPayment("));
   });
 });
