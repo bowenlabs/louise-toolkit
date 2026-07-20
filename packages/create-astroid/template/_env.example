@@ -7,8 +7,16 @@
 # accounts at all. Replace a value to switch that feature on.
 
 # Signs Better Auth sessions. Generate: `openssl rand -base64 32`.
-# Empty is fine on localhost (a fixed dev secret keeps sign-in working); any
-# deployed host fails closed rather than signing sessions with a known value.
+#
+# Empty is fine under `pnpm dev` — astro dev serves on localhost, where a fixed
+# dev secret keeps the sign-in → session loop working. Any deployed host fails
+# closed rather than signing sessions with a known value.
+#
+# BUT a local `wrangler dev` preview of the BUILT worker is not localhost as far
+# as the app is concerned: wrangler routes the request through your `hosts`
+# domain (astroid.config.ts), so the dev fallback never fires and every editor
+# route 500s with "SESSION_SECRET is not configured". Set a value here before
+# previewing the built worker that way.
 SESSION_SECRET=
 
 # The first editor's email — seeded as an admin `user` row by `pnpm seed:editors`,

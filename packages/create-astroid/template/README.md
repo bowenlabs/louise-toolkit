@@ -16,6 +16,12 @@ cp .env.example .dev.vars   # local secrets for `astro dev`; fill SESSION_SECRET
 pnpm dev                    # astroid dev: regenerate, then astro dev
 ```
 
+> **Previewing the built worker?** `pnpm dev` (astro dev) serves on localhost, so
+> an empty `SESSION_SECRET` is fine there. A local `wrangler dev` against the
+> built `dist/` output routes the request through your `hosts` domain instead of
+> localhost, so the editor routes need a real `SESSION_SECRET` in `.dev.vars` —
+> otherwise sign-in 500s with "SESSION_SECRET is not configured".
+
 ## Deploy
 
 Astroid wrote `wrangler.jsonc` with placeholder binding ids. Pick a path to
@@ -57,6 +63,10 @@ wrangler deploy
 wrangler d1 execute DB --file seed/home.seed.sql --remote
 OWNER_EMAIL=you@example.com pnpm seed:editors
 ```
+
+The seeded page renders immediately. In-editor **search** indexes on publish, so
+a raw-SQL-seeded row isn't searchable until you publish an edit or backfill once
+with `POST /api/louise/pages/reindex` (signed in).
 
 ## Editors & auth
 

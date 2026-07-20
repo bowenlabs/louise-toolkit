@@ -1,0 +1,122 @@
+---
+// The public contact form.
+//
+// The `contact` section — and the scaffolded hero/cta defaults — link here, so
+// without this page a fresh site ships a dead link. It posts to the generated
+// worker's `formRoute`, mounted at /api/louise/forms/inquiries: same-origin POST
+// only, a honeypot field plus a minimum time-on-page, a KV rate limit, then
+// validation against the inquiries form before the row is written. Submissions
+// land in the Inquiries tab of the editor drawer.
+//
+// Yours to edit — the copy, the fields, the layout. (If you remove the `contact`
+// section from astroid.config.ts, the form route stops being mounted and this
+// page's POST will 404; delete the page too, or keep the section.)
+import Site from "../layouts/Site.astro";
+
+export const prerender = false;
+
+// Never cache a form page: `set(false)` emits `no-store`, so neither the worker's
+// edge-cache layer nor anything downstream holds on to it.
+Astro.cache.set(false);
+
+// Stamped at render and posted back, so the form route's `minSeconds` heuristic
+// can tell a person filling in a form from a bot that submitted the instant it
+// loaded.
+const renderedAt = Date.now();
+---
+
+<Site title="Contact" description="Get in touch.">
+  <main class="mx-auto max-w-xl px-6 py-16">
+    <h1 class="text-4xl font-bold">Get in touch</h1>
+    <p class="mt-3 opacity-80">Send us a message and we'll get back to you.</p>
+
+    <form id="contact-form" class="mt-8 grid gap-4" method="post" action="/api/louise/forms/inquiries">
+      <input type="hidden" name="louise_ts" value={renderedAt} />
+      {/* The honeypot the form route checks. Hidden from people, left in the DOM
+          for bots; a non-empty value gets a fake 201 and is never stored. */}
+      <div class="hidden" aria-hidden="true">
+        <label for="website">Website</label>
+        <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="form-control">
+          <span class="label-text">First name</span>
+          <input name="firstName" type="text" autocomplete="given-name" class="input input-bordered w-full" />
+        </label>
+        <label class="form-control">
+          <span class="label-text">Last name</span>
+          <input name="lastName" type="text" autocomplete="family-name" class="input input-bordered w-full" />
+        </label>
+      </div>
+
+      <label class="form-control">
+        <span class="label-text">Email <span aria-hidden="true">*</span></span>
+        <input name="email" type="email" required autocomplete="email" class="input input-bordered w-full" />
+      </label>
+
+      <label class="form-control">
+        <span class="label-text">Regarding</span>
+        <input name="regarding" type="text" class="input input-bordered w-full" />
+      </label>
+
+      <label class="form-control">
+        <span class="label-text">Message <span aria-hidden="true">*</span></span>
+        <textarea name="message" required rows="6" class="textarea textarea-bordered w-full"></textarea>
+      </label>
+
+      <button type="submit" class="btn btn-primary justify-self-start">Send</button>
+
+      {/* Announced, not merely coloured: a status change that's only visual is
+          invisible to a screen reader. */}
+      <p id="contact-status" class="text-sm" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+</Site>
+
+<script>
+  // Progressive enhancement: without JS the form still submits (the route accepts
+  // form-encoded bodies) — the visitor just lands on the JSON response. A
+  // processed <script> (no is:inline) is bundled to a same-origin file, which is
+  // what keeps it inside the CSP's `script-src 'self'`.
+  const form = document.querySelector<HTMLFormElement>("#contact-form");
+  const status = document.querySelector<HTMLParagraphElement>("#contact-status");
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    if (status) status.textContent = "Sending…";
+
+    try {
+      const body = Object.fromEntries(new FormData(form).entries());
+      const response = await fetch(form.action, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        form.reset();
+        if (status) status.textContent = "Thanks — we've got it, and we'll be in touch.";
+        return;
+      }
+
+      // 422 carries per-field violations; 429 is the rate limit. Anything else is
+      // reported as itself rather than as a generic failure.
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; violations?: { field?: string; message?: string }[] }
+        | null;
+      if (status) {
+        status.textContent =
+          payload?.violations?.map((v) => `${v.field ?? "form"}: ${v.message ?? "invalid"}`).join(", ") ||
+          payload?.error ||
+          `Something went wrong (${response.status}).`;
+      }
+    } catch {
+      if (status) status.textContent = "Could not reach the server. Please try again.";
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+</script>

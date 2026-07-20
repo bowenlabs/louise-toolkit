@@ -10,6 +10,17 @@
 --
 -- Seeding it is deliberate: an empty array renders an empty page, and a blank
 -- canvas is a worse first run than having something real to click on and edit.
+--
+-- Full-text search (the editor's Pages search) is kept in sync on PUBLISH, so a
+-- row inserted with raw SQL like this is NOT in the index until you either
+-- publish an edit to it or backfill once with `POST /api/louise/pages/reindex`
+-- (signed in). The page renders fine either way — only in-editor search is
+-- affected.
+--
+-- To override just the <head> title/description (not the on-page H1), add
+-- `seo_title` / `seo_description` columns below. `seo_title` is run through the
+-- config's title template, which already appends the brand — so set the page
+-- part only ("Pricing"), not "Pricing | __BRAND_NAME__".
 INSERT OR IGNORE INTO pages (slug, title, body, sections, status, sort_order, created_at, updated_at)
 VALUES (
   'home',

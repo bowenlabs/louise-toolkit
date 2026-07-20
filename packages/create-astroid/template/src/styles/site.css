@@ -5,6 +5,15 @@
 @plugin "daisyui";
 @import "louise-toolkit/theme/louise.css";
 
+/* Astroid's section components (<Hero>, the section library, etc.) ship as SOURCE
+   inside node_modules, and Tailwind v4 does not scan node_modules by default. So
+   the utilities used ONLY in those files — bg-primary, text-primary-content,
+   items-center, and every other colorway/alignment class — would never be
+   generated, and the whole `_settings` token contract would silently no-op: a
+   section set to `colorway: "brand"` would render on the default background.
+   This tells Tailwind to scan them too. Keep it if you use any astroidjs section. */
+@source "../../node_modules/astroidjs/src/components";
+
 :root {
   --brand: __BRAND_COLOR__;
 }
