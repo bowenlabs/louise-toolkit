@@ -265,12 +265,21 @@ export interface CspOrigins {
 
 export interface SettingsConfig {
   /**
+   * Override the editable base `site_settings` columns. Defaults to Astroid's
+   * standard set (`ASTROID_SETTINGS_COLUMNS`). A **custom-heavy** site whose
+   * settings shape doesn't align with the base column names keeps everything in
+   * `custom` by passing `[]` — otherwise a key that happens to match a base
+   * column name (e.g. `contactEmail`) would route to that column instead of
+   * `custom`, where the site's render reads it.
+   */
+  columns?: string[];
+  /**
    * Site-specific settings keys stored in the `site_settings.custom` JSON column,
-   * on top of Astroid's base columns. The generated `settingsRoute` + Action
-   * accept these; the Settings panel writes them through the `settingsExtension`
-   * groups a site supplies to `mountSettings`. A site with a rich settings shape
-   * (coracle's footer columns, hours table, ui strings, shop/order config) lists
-   * their top-level keys here — everything the base columns don't cover.
+   * on top of (or, with `columns: []`, instead of) Astroid's base columns. The
+   * generated `settingsRoute` + Action accept these; the Settings panel writes
+   * them through the `settingsExtension` groups a site supplies to
+   * `mountSettings`. A site with a rich settings shape (coracle's footer columns,
+   * hours table, ui strings, shop/order config) lists their top-level keys here.
    */
   customKeys?: string[];
   /** Extra media-library image keys beyond the base logo/favicon/OG defaults —

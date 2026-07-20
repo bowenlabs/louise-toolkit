@@ -215,7 +215,11 @@ export function generateAstroidWorker(config: AstroidConfig): string {
     ...(config.settings?.imageKeys ?? []),
   ];
   const settingsCustomKeys = config.settings?.customKeys ?? [];
-  p(`const SETTINGS_COLUMNS = ${JSON.stringify(ASTROID_SETTINGS_COLUMNS)};`);
+  // A custom-heavy site can override (or empty) the editable base columns.
+  const settingsColumns = config.settings?.columns ?? ASTROID_SETTINGS_COLUMNS;
+  // Annotated because a custom-heavy site's `columns: []` would otherwise infer
+  // `any[]` (implicit-any under strict).
+  p(`const SETTINGS_COLUMNS: string[] = ${JSON.stringify(settingsColumns)};`);
   p(`const SETTINGS_IMAGE_KEYS = ${JSON.stringify(settingsImageKeys)};`);
   if (settingsCustomKeys.length) {
     p("// Site-specific keys stored in the site_settings.custom JSON column.");
