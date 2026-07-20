@@ -1,0 +1,33 @@
+# pnpm configuration for this project.
+#
+# Not a workspace — pnpm 10+ reads its settings from THIS file even for a single
+# package, and `overrides` in package.json is silently ignored.
+
+# Postinstall-script approvals. Without these `pnpm install` FAILS outright with
+# ERR_PNPM_IGNORED_BUILDS, because pnpm refuses to run a dependency's build
+# script until you say so — and esbuild and workerd both need theirs. A scaffold
+# whose very first documented command errors is not a scaffold.
+#
+# `sharp: false` denies its heavy native build on purpose. Nothing here imports
+# it: image work goes through the Cloudflare Images binding and the adapter's
+# workerd image service. It arrives only as an OPTIONAL dependency of astro, so
+# denying it skips the build rather than prompting on every install.
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: false
+
+# GHSA-67mh-4wv8-2f99 — esbuild <=0.24.2 lets any website reach its dev SERVER.
+#
+# It arrives through a legacy compat path only: drizzle-kit still ships
+# `@esbuild-kit/esm-loader` (deprecated, "merged into tsx") whose core-utils pins
+# esbuild 0.18.20. drizzle-kit's own direct dependency is already a safe
+# `^0.25.4`, and there is no release that drops the old path — 0.31.10 is current.
+#
+# Scoped to that one parent, so everything else keeps what it resolved. Verified
+# that drizzle-kit still transpiles a TypeScript drizzle.config.ts afterwards.
+# Drop this once drizzle-kit stops depending on @esbuild-kit.
+#
+# KEEP THIS KEY LAST: the CI smoke test appends its own entries here.
+overrides:
+  "@esbuild-kit/core-utils>esbuild": "^0.25.4"

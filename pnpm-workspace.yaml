@@ -11,6 +11,25 @@ packages:
 overrides:
   "@cloudflare/workers-types": "^5.20260714.1"
 
+# GHSA-67mh-4wv8-2f99 — esbuild <=0.24.2 lets any website talk to its dev SERVER.
+#
+# It reaches us only through a legacy compat path: better-auth → drizzle-kit →
+# @esbuild-kit/esm-loader → @esbuild-kit/core-utils, which pins esbuild 0.18.20.
+# drizzle-kit's own direct dependency is already a safe `esbuild ^0.25.4`; the old
+# copy rides in on `@esbuild-kit/*`, which upstream has deprecated ("merged into
+# tsx"). There is no drizzle-kit release that drops it — 0.31.10 is current and
+# still carries it.
+#
+# SCOPED to that one parent rather than a blanket `esbuild` override, so Vite,
+# Astro, and everything else keep whatever they resolved. Verified after the
+# bump that drizzle-kit still transpiles a TypeScript drizzle.config.ts, which is
+# the code path this package exists to serve — the risk being that
+# @esbuild-kit/core-utils was written against the 0.18 API.
+#
+# Nothing here ever runs `esbuild --serve`, so this was low severity in practice;
+# it is fixed because a scoped override is cheap, not because it was urgent.
+  "@esbuild-kit/core-utils>esbuild": "^0.25.4"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.

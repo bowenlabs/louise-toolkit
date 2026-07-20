@@ -287,8 +287,19 @@ jobs:
           # step that resolves the template's imports, so it's the only one that
           # can catch a dependency it forgot to declare.
           cd smoke
-          cp ../pnpm-workspace.yaml .
-          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          # Install with the scaffold's OWN pnpm-workspace.yaml — do not replace
+          # it. It carries the `allowBuilds` approvals without which `pnpm
+          # install` fails outright (ERR_PNPM_IGNORED_BUILDS), which is the first
+          # command the README tells a user to run. This step used to overwrite
+          # that file and append its own approvals, which meant CI proved the
+          # scaffold installs *for CI* and never for a user — it shipped a
+          # scaffold whose first documented command errored.
+          #
+          # `overrides:` is the LAST key in that file, so appending two indented
+          # lines extends it and pins astroidjs/louise-toolkit to THESE tarballs.
+          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
+            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
+            >> pnpm-workspace.yaml
           corepack pnpm install
           corepack pnpm exec astro check
           corepack pnpm exec astro build
@@ -344,8 +355,10 @@ jobs:
           node -e 'JSON.parse(require("fs").readFileSync("folio/package.json","utf8"))'
 
           cd folio
-          cp ../pnpm-workspace.yaml .
-          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          # Same as above: keep the scaffold's own pnpm-workspace.yaml.
+          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
+            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
+            >> pnpm-workspace.yaml
           corepack pnpm install
           corepack pnpm exec astro check
           corepack pnpm exec astro build
