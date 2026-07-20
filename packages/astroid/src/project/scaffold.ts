@@ -24,6 +24,10 @@
 // matter, what a reset email says), so regenerating over it would destroy the
 // work the seam exists to hold.
 
+import {
+  generateAstroidCheckoutRoute,
+  generateAstroidSquareCard,
+} from "../commerce/checkout-scaffold.js";
 import { generateCatalogMigrationSql } from "../commerce/mirror.js";
 import type { AstroidConfig } from "../config.js";
 import { generateMapEmbedComponent, generateMapTileRoute } from "../map/scaffold.js";
@@ -72,6 +76,14 @@ export function generateAstroidScaffoldFiles(config: AstroidConfig): ScaffoldFil
   // created, and the first sync wrote nothing while reporting success.
   const catalogSql = generateCatalogMigrationSql(config);
   if (catalogSql) files.push({ path: "migrations/0003_catalog.sql", contents: catalogSql });
+
+  // --- commerce: the server-authoritative payment seam ----------------------
+  // Scaffold-once: a real store adds shipping, tax, an order row, a receipt.
+  // What's fixed is the sequence that keeps a charge correct.
+  const checkoutRoute = generateAstroidCheckoutRoute(config);
+  if (checkoutRoute) files.push({ path: "src/pages/api/checkout.ts", contents: checkoutRoute });
+  const squareCard = generateAstroidSquareCard(config);
+  if (squareCard) files.push({ path: "src/components/SquareCard.astro", contents: squareCard });
 
   // --- queues: the consumer seam + one receiver per commerce provider --------
   // Both exist to be edited (what a refresh means; which events matter), which

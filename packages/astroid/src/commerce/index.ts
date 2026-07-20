@@ -57,3 +57,10 @@ export {
   defaultSlug,
   type SyncDatabase,
 } from "./sync.js";
+export {
+  astroidCheckoutVars,
+  generateAstroidCheckoutEnv,
+  generateAstroidCheckoutRoute,
+  generateAstroidSquareCard,
+  usesCardCheckout,
+} from "./checkout-scaffold.js";

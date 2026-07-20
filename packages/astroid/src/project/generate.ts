@@ -15,6 +15,7 @@
 //      NEVER clobber them, or it would wipe provisioned ids — so they live in a
 //      separate function the regenerate path doesn't call.
 
+import { astroidCheckoutVars } from "../commerce/checkout-scaffold.js";
 import { astroidCommerceProviders } from "../commerce/roles.js";
 import {
   COMMERCE_PROVIDER_SECRETS,
@@ -255,6 +256,13 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   p("    // Cloudflare Dev Mode or Purge Everything, so a bad prod flip is hard to");
   p("    // undo — this feature was reverted twice for exactly that.");
   p('    "ASTROID_EDGE_CACHE": "false",');
+  for (const v of astroidCheckoutVars(config)) {
+    // Public, not secret — the app id ships to the browser to mount the card
+    // field, and the environment is a choice. Keeping them out of the secret
+    // roster also keeps them out of the dormancy gate, which asks whether we can
+    // safely CALL Square, not whether a card field can render.
+    p(`    ${JSON.stringify(v.name)}: ${JSON.stringify(v.value)},`);
+  }
   p("  },");
   // Secrets are NOT vars: they belong in .dev.vars locally and in `wrangler
   // secret put` / Secrets Store when deployed. Listing the names here is

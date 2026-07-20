@@ -136,6 +136,15 @@ Opt-in capabilities, each pulling real infrastructure:
   receiver, a queue consumer, and a cron safety net. Providers fill **roles**
   (`storefront` / `invoicing`) rather than being "the" provider, because
   `commerce/stripe` has no catalog API and `commerce/fourthwall` has no invoicing.
+  A **Square** storefront also gets the server-authoritative payment seam:
+  `src/pages/api/checkout.ts` re-prices every line from the D1 mirror (the
+  client's price is a staleness check, never an input to the charge), derives an
+  idempotency key from the cart *and* a cart id, and charges only once commerce
+  is really provisioned — otherwise it simulates rather than calling Square with
+  a placeholder credential. `<SquareCard>` mounts the Web Payments card field,
+  which is an iframe from Square's CDN, so the raw card number never reaches the
+  Worker. **The cart itself is yours** — where it lives and what it holds is a
+  project decision, and a half-opinionated cart is worse than none.
 - **`portal`** — a second, fully isolated Better Auth instance for
   customers/members: its own mount, cookie prefix, and `portal_*` tables, so a
   portal account can't sign into the studio.

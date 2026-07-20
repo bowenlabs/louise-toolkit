@@ -101,6 +101,22 @@ customers buying the same items collide, and since providers scope idempotency
 keys per account for ~24h the second buyer is never charged. `scope` is the
 *operation* (`"order"` vs `"refund"`), not an identity.
 
+### Card checkout
+
+`usesCardCheckout`, `generateAstroidCheckoutRoute`, `generateAstroidSquareCard`,
+`astroidCheckoutVars`, `generateAstroidCheckoutEnv`.
+
+Square storefronts only — Fourthwall redirects to its own hosted checkout (no
+token to charge) and Stripe fills `invoicing`, not `storefront`. Generates the
+payment route and the card component; the **cart is not generated**, because
+where it lives is a project decision.
+
+`SQUARE_APP_ID` and `SQUARE_ENVIRONMENT` are emitted as wrangler **vars**, not
+secrets: the app id ships to the browser by design, and folding either into the
+credential roster would also fold it into the dormancy gate — which asks whether
+we can safely *call* Square, a different question from whether a card field can
+render.
+
 ### Catalog mirror
 
 `astroidCatalogSync`, `astroidCatalogUpsert`, `astroidCatalogMirror`,

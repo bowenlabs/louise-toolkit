@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import type { AstroidConfig } from "../src/config.js";
 import { ASTROID_HEALTH_CRON, astroidCrons } from "../src/queues/messages.js";
 import { generateAstroidWrangler } from "../src/project/generate.js";
+import { generateAstroidCheckoutEnv } from "../src/commerce/checkout-scaffold.js";
 import { generateAstroidScaffoldFiles } from "../src/project/scaffold.js";
 import { generateAstroidRealtimeEnv } from "../src/realtime/scaffold.js";
 import { generateAstroidWorker } from "../src/worker/generate.js";
@@ -313,5 +314,65 @@ describe("realtime (ADR 0002)", () => {
   it("types the namespace only when the module is on", () => {
     expect(generateAstroidRealtimeEnv(rt)).toContain("EDIT_SESSION: DurableObjectNamespace;");
     expect(generateAstroidRealtimeEnv(base)).toBe("");
+  });
+});
+
+describe("card checkout", () => {
+  const square: AstroidConfig = { ...base, commerce: { provider: "square" } };
+  const fourthwall: AstroidConfig = { ...base, commerce: { provider: "fourthwall" } };
+  const paths = (c: AstroidConfig) => generateAstroidScaffoldFiles(c).map((f) => f.path);
+
+  it("scaffolds the payment seam for a Square storefront", () => {
+    expect(paths(square)).toContain("src/pages/api/checkout.ts");
+    expect(paths(square)).toContain("src/components/SquareCard.astro");
+  });
+
+  it("is absent for providers that don't take an in-page card", () => {
+    // Fourthwall redirects to its own hosted checkout (no token to charge);
+    // Stripe has no catalog API so it fills `invoicing`, not `storefront`.
+    expect(paths(fourthwall)).not.toContain("src/pages/api/checkout.ts");
+    expect(paths(base)).not.toContain("src/pages/api/checkout.ts");
+    expect(generateAstroidWrangler(fourthwall)).not.toContain("SQUARE_APP_ID");
+  });
+
+  it("charges the SERVER's total, never the client's", () => {
+    const route = generateAstroidScaffoldFiles(square).find(
+      (f) => f.path === "src/pages/api/checkout.ts",
+    )?.contents;
+    expect(route).toContain("verifyCheckout(body.lines, serverPrices)");
+    expect(route).toContain("amount: check.subtotalCents");
+    // Prices come from the mirror, and the conversion rounds: 19.99 * 100 is
+    // 1998.9999999999998, which would fail the exact-equality staleness check
+    // on every single checkout.
+    expect(route).toContain("Math.round(item.price * 100)");
+  });
+
+  it("requires a high-entropy cartId for the idempotency key", () => {
+    const route = generateAstroidScaffoldFiles(square).find(
+      (f) => f.path === "src/pages/api/checkout.ts",
+    )?.contents;
+    expect(route).toContain('checkoutIdempotencyKey(check, "order", cartId)');
+    // Guessable ids let someone else's identical cart dedupe into your charge.
+    expect(route).toContain("/^[0-9a-f-]{36}$/i.test(cartId)");
+  });
+
+  it("simulates rather than calling Square with a dummy credential", () => {
+    const route = generateAstroidScaffoldFiles(square).find(
+      (f) => f.path === "src/pages/api/checkout.ts",
+    )?.contents ?? "";
+    expect(route).toContain("resolveCommerceStatus");
+    // The dormancy check must come BEFORE the charge, or an unprovisioned store
+    // calls the payments API with DUMMY_REPLACE_ME.
+    expect(route.indexOf("status.configured")).toBeLessThan(route.indexOf("createPayment("));
+  });
+
+  it("declares the public Square vars, and keeps them out of the secret roster", () => {
+    // The app id ships to the browser by design; folding it into `credentials`
+    // would also fold it into the dormancy gate, which asks a different question.
+    const wrangler = generateAstroidWrangler(square);
+    expect(wrangler).toContain('"SQUARE_APP_ID": ""');
+    expect(wrangler).toContain('"SQUARE_ENVIRONMENT": "sandbox"');
+    expect(generateAstroidCheckoutEnv(square)).toContain("SQUARE_APP_ID: string;");
+    expect(generateAstroidCheckoutEnv(base)).toBe("");
   });
 });

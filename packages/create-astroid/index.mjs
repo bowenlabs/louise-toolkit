@@ -25,6 +25,7 @@ import {
   generateAstroidEnvBindings,
   generateAstroidPortalLocals,
   generateAstroidProject,
+  generateAstroidCheckoutEnv,
   generateAstroidRealtimeEnv,
   generateAstroidScaffoldFiles,
   generateAstroidSecretsEnv,
@@ -297,6 +298,8 @@ async function main() {
   // The realtime DO namespace, or nothing — same rule as the queue bindings: a
   // declaration is a promise, so never type a binding wrangler.jsonc won't create.
   const realtimeEnv = generateAstroidRealtimeEnv(config);
+  // The Square Web Payments public vars, or nothing.
+  const checkoutEnv = generateAstroidCheckoutEnv(config);
   const tokens = {
     KEY: key,
     BRAND_NAME: name,
@@ -306,8 +309,8 @@ async function main() {
     // Extra CloudflareEnv members the queue pipeline needs, or nothing. A
     // declaration is a promise — a marketing site must not claim a binding its
     // wrangler.jsonc never creates.
-    ASTROID_ENV_BINDINGS: [envBindings, realtimeEnv].filter(Boolean).join("\n")
-      ? `\n${[envBindings, realtimeEnv].filter(Boolean).join("\n")}`
+    ASTROID_ENV_BINDINGS: [envBindings, realtimeEnv, checkoutEnv].filter(Boolean).join("\n")
+      ? `\n${[envBindings, realtimeEnv, checkoutEnv].filter(Boolean).join("\n")}`
       : "",
     // The portal session on App.Locals, or nothing — a project that types a
     // local it never sets invites a null-check nobody needs.
