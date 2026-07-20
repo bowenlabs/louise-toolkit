@@ -46,7 +46,7 @@ export default defineAstroid({
   key: "coracle",
   archetype: "storefront",
   theme: { name: "Coracle Coffee", colors: { brand: "#1f6f78" } },
-  sections: ["hero", "marquee", "featured", "productGrid", "visit"],
+  sections: ["hero", "banner", "productGrid", "locationHours", "contact"],
   commerce: { provider: "square" },
   deploy: { platform: "cloudflare" },
 });
@@ -59,8 +59,8 @@ export default defineAstroid({
   key: "megbowen",
   archetype: "portfolio",
   theme: { name: "Meg Bowen Studio", colors: { brand: "#2b2b2b" } },
-  sections: ["hero", "gallery", "story", "contact"],
-  portal: { enabled: true, gated: true },
+  sections: ["hero", "gallery", "aboutIntro", "contact"],
+  portal: { enabled: true },
   deploy: { platform: "cloudflare" },
 });
 ```
@@ -100,8 +100,19 @@ which is the drift the module exists to kill.
 
 **Checkout is server-authoritative.** `verifyCheckout` treats the client's price
 as a staleness check, never an input to the charge: re-price server-side, refuse
-on mismatch. `checkoutIdempotencyKey` derives a stable key from the verified
-cart, so a double-clicked Pay button charges once.
+on mismatch. `checkoutIdempotencyKey` derives a stable key from the verified cart
+**and a required `identity`**, so a double-clicked Pay button charges once —
+while two customers buying the same thing stay two charges.
+
+```ts
+const key = await checkoutIdempotencyKey(check, "order", cartId);
+```
+
+Pass something stable across a retry of this attempt and distinct between buyers
+(a cart id, checkout-session id, or portal user id). It is required, and empty is
+refused, because a key derived from cart contents alone collides between
+customers: providers scope idempotency keys per account for ~24h, so the second
+buyer's charge is deduped into the first buyer's order and never happens.
 
 ## The webhook pipeline
 
@@ -266,10 +277,28 @@ if (!secrets.configured) {
 
 Partial provisioning counts as dormant. A half-configured integration fails
 mid-checkout rather than at boot, which is precisely the failure this convention
-exists to prevent. The scaffold ships one worked example: Turnstile captcha,
-seeded with the sentinel secret plus Cloudflare's always-passing test site key,
-enforcing only once **both** halves are real — so provisioning one of them can't
-lock you out of your own sign-in.
+exists to prevent.
+
+The scaffold ships one worked example: Turnstile captcha on the **editor
+sign-in**, seeded with the sentinel secret plus Cloudflare's always-passing test
+site key, enforcing only once **both** halves are real — so provisioning one of
+them can't lock you out of your own sign-in.
+
+Both halves matter, and the second one is the reason this is worth spelling out.
+`getLouiseAuth` registers Better Auth's captcha plugin on `/sign-in/magic-link`
+as soon as the pair is real, and that plugin rejects any request without an
+`x-captcha-response` header. So the login page renders the widget under exactly
+the same condition the server arms the check — `turnstileSiteKey` returns null
+for the test key, the same test `activeCaptchaSecret` applies — and forwards the
+token in that header. A gate that turns on server-side while the page keeps
+posting without a token is not a half-configured integration; it is a locked
+door with the owner outside.
+
+The **public contact form** is a separate surface and is not captcha-gated: its
+spam defence is the honeypot, the minimum time-to-submit, and the rate limit.
+`FormSpamConfig.turnstile` exists in the toolkit if you want to add it, but
+`formRoute` is generated without `turnstileSecret`, so switching the flag on
+alone would not enforce anything.
 
 ## CLI
 

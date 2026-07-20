@@ -27,6 +27,30 @@ export function astroidCron(config: AstroidConfig): string | null {
   return cron ?? ASTROID_DEFAULT_CRON;
 }
 
+/**
+ * Daily, at an off-peak-ish minute. The health scan crawls the site's own pages,
+ * so it is deliberately NOT on the hourly catalog cron — hourly would be a
+ * self-inflicted crawl 24× a day to recompute counts that move slowly.
+ */
+export const ASTROID_HEALTH_CRON = "17 4 * * *";
+
+/**
+ * Every cron expression the project needs, in the order they're declared in
+ * `wrangler.jsonc`.
+ *
+ * Cloudflare fires ONE `scheduled` handler for all of them and identifies which
+ * by `controller.cron`, so the generated handler dispatches on that string. That
+ * is why this list is derived in one place rather than assembled at each call
+ * site: the wrangler `triggers.crons` array and the handler's dispatch have to
+ * agree exactly, and a mismatch is a job that silently never runs.
+ */
+export function astroidCrons(config: AstroidConfig): string[] {
+  const crons = [ASTROID_HEALTH_CRON];
+  const catalog = astroidCron(config);
+  if (catalog) crons.push(catalog);
+  return crons;
+}
+
 /** Binding name for the project's queue producer. */
 export const ASTROID_QUEUE_BINDING = "COMMERCE_QUEUE";
 

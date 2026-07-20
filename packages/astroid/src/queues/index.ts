@@ -4,9 +4,11 @@ export { astroidQueueHandler, type QueueHandlerOptions } from "./consumer.js";
 export {
   affectsCatalog,
   ASTROID_DEFAULT_CRON,
+  ASTROID_HEALTH_CRON,
   ASTROID_QUEUE_BINDING,
   type AstroidQueueMessage,
   astroidCron,
+  astroidCrons,
   astroidQueueNames,
   astroidUsesQueues,
   type CatalogRefreshMessage,

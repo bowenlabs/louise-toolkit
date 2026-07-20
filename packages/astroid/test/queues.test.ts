@@ -268,12 +268,15 @@ describe("handleWebhook", () => {
 });
 
 describe("generated worker", () => {
-  it("stays fetch-only without queues", () => {
+  it("carries no QUEUE machinery without queues", () => {
     const out = generateAstroidWorker(base);
     expect(out).not.toContain("queue:");
-    expect(out).not.toContain("scheduled:");
     expect(out).not.toContain("processBatch");
     expect(out).not.toContain("./queue.js");
+    // `scheduled:` IS present — the daily health scan runs on every project,
+    // queues or not. What must be absent is the catalog dispatch.
+    expect(out).toContain("scheduled:");
+    expect(out).not.toContain("catalog_refresh");
   });
 
   it("composes fetch + queue + scheduled when commerce is on", () => {
@@ -287,23 +290,28 @@ describe("generated worker", () => {
     expect(out).toContain('env.COMMERCE_QUEUE.send({ kind: "catalog_refresh" })');
   });
 
-  it("keeps the consumer but drops the cron when it's disabled", () => {
+  it("keeps the consumer but drops the CATALOG cron when it's disabled", () => {
     const out = generateAstroidWorker({ ...shop, queues: { cron: false } });
     expect(out).toContain("queue: (batch, env)");
-    expect(out).not.toContain("scheduled:");
+    // The handler survives for the health scan; only the catalog re-sync goes.
+    expect(out).toContain("scheduled:");
+    expect(out).not.toContain("catalog_refresh");
   });
 });
 
 describe("generated wrangler", () => {
-  it("omits queues + triggers entirely without a consumer", () => {
+  it("omits the queues block without a consumer, but keeps the health cron", () => {
     const out = generateAstroidWrangler(base);
     expect(out).not.toContain('"queues"');
-    expect(out).not.toContain('"triggers"');
+    // Every project schedules the daily health scan, so `triggers` always
+    // exists — with exactly one entry when there's no catalog to re-sync.
+    expect(out).toContain('"triggers": { "crons": ["17 4 * * *"] }');
   });
 
   it("emits the producer, consumer, DLQ, and cron", () => {
     const out = generateAstroidWrangler(shop);
-    expect(out).toContain('"triggers": { "crons": ["0 * * * *"] }');
+    // Health first, then the catalog re-sync — the order `astroidCrons` emits.
+    expect(out).toContain('"triggers": { "crons": ["17 4 * * *","0 * * * *"] }');
     expect(out).toContain('"queue": "acme-commerce", "binding": "COMMERCE_QUEUE"');
     expect(out).toContain('"dead_letter_queue": "acme-commerce-dlq"');
     expect(out).toContain('"max_retries": 5');

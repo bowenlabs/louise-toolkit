@@ -96,6 +96,36 @@ export function edgeCacheKeyUrl(url: string): string {
   return u.toString();
 }
 
+/**
+ * The default edit-mode cookie name — the one `createLouiseMiddleware` sets when
+ * a visitor enters edit mode.
+ *
+ * Exported so the cookie and the predicate that looks for it are declared in one
+ * place. A site (or Astroid) writing its own `"louise_edit"` literal would keep
+ * working right up until the middleware default moved, and then fail by serving
+ * an editor a cached public page — which is the exact bug this whole layer
+ * exists to prevent, and the one that is hardest to notice.
+ */
+export const LOUISE_EDIT_COOKIE = "louise_edit";
+
+/**
+ * Is this an edit-mode request? Detected by the edit cookie.
+ *
+ * Intended as the {@link EdgeCacheConfig.bypass} predicate, so an editor is
+ * never served — nor stores into — the shared public cache entry, and always
+ * gets a fresh personalized render.
+ *
+ * Pass `cookieName` when the middleware was configured with a custom
+ * `editCookie`; the two must agree or the bypass silently stops bypassing.
+ */
+export function isEditRequest(request: Request, cookieName = LOUISE_EDIT_COOKIE): boolean {
+  const cookie = request.headers.get("cookie");
+  if (cookie === null) return false;
+  // Matched at a name boundary so `x_louise_edit=…` can't false-positive into a
+  // permanent cache bypass.
+  return new RegExp(`(?:^|;\\s*)${cookieName}=`).test(cookie);
+}
+
 export function withEdgeCache<Env = unknown>(
   handler: (request: Request, env: Env, ctx: ExecutionContext) => Response | Promise<Response>,
   config: EdgeCacheConfig = {},

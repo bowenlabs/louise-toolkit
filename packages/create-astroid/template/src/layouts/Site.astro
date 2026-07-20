@@ -97,5 +97,14 @@ const settings = {
   <body class="min-h-screen bg-base-100 text-base-content" data-edit-mode={editMode ? "" : undefined}>
     <slot />
     <LouiseEdit versionedPageId={versionedPageId} sections={sections} />
+    {
+      /* Real-visitor Core Web Vitals. A static file from public/, so it is
+         same-origin and already covered by `script-src 'self'` — an inline
+         script with generated content couldn't be hashed into the CSP.
+         `defer` keeps it off the critical path; it reports once per page on
+         visibilitychange via sendBeacon. Skipped in edit mode: an editor's
+         session is not representative field data. */
+      !editMode && <script src="/vitals.js" defer />
+    }
   </body>
 </html>

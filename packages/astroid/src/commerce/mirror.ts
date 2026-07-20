@@ -175,3 +175,77 @@ export function generateCatalogTable(config: AstroidConfig): string | null {
 function camel(name: string): string {
   return name.replace(/[_-](\w)/g, (_, c: string) => c.toUpperCase());
 }
+
+/** SQL column type + constraints for one owned column, matching
+ *  {@link ownedColumnSource}'s Drizzle output. */
+function ownedColumnSql(key: string, col: OwnedColumn): string {
+  const name = SQL_NAME(key);
+  // Drizzle stores booleans and timestamps as INTEGER, json as TEXT.
+  const type = col.type === "boolean" ? "integer" : col.type === "json" ? "text" : col.type;
+  let sql = `  \`${name}\` ${type}`;
+  if (col.default !== undefined) {
+    const lit =
+      typeof col.default === "string"
+        ? `'${col.default.replace(/'/g, "''")}'`
+        : typeof col.default === "boolean"
+          ? col.default
+            ? "1"
+            : "0"
+          : `${col.default}`;
+    sql += ` NOT NULL DEFAULT ${lit}`;
+  }
+  return sql;
+}
+
+/**
+ * The `CREATE TABLE` for the catalog mirror, as a D1 migration.
+ *
+ * Derived from the SAME `astroidCatalogMirror(config)` declaration as
+ * {@link generateCatalogTable}, so the Drizzle schema and the table that
+ * actually exists cannot describe different shapes.
+ *
+ * It has to exist at all because nothing else creates this table. `--commerce`
+ * put `products` in `src/schema.ts` and the queue seam told you to sync into it,
+ * but no migration anywhere in the toolkit created it — so the first catalog
+ * sync hit a missing table, and (because `astroidCatalogSync` swallows per-item
+ * errors) reported success while writing nothing. The documented fallback,
+ * `drizzle-kit generate`, could not help: the template ships a hand-authored
+ * `0000_content.sql` with no drizzle journal, so drizzle-kit has no baseline and
+ * emits a duplicate `0000_` full-CREATE that collides on the next apply.
+ *
+ * Returns null when the project has no commerce.
+ */
+export function generateCatalogMigrationSql(config: AstroidConfig): string | null {
+  if (!config.commerce) return null;
+  const { mode, table, owned } = astroidCatalogMirror(config);
+
+  const cols: string[] = [
+    "  `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL",
+    "  `external_id` text NOT NULL",
+  ];
+  if (mode === "mirror") {
+    cols.push(
+      "  `name` text NOT NULL",
+      "  `price` real NOT NULL DEFAULT 0",
+      "  `images` text",
+      "  `variants` text",
+      "  `external_slug` text",
+    );
+  }
+  cols.push("  `synced_at` integer");
+  for (const [key, col] of Object.entries(owned)) cols.push(ownedColumnSql(key, col));
+  cols.push("  `created_at` integer");
+
+  return [
+    `-- The catalog ${mode} (${table}). Generated from your Astroid commerce config;`,
+    "-- keep it in step with src/schema.ts, which is generated from the same declaration.",
+    `CREATE TABLE IF NOT EXISTS \`${table}\` (`,
+    cols.join(",\n"),
+    ");",
+    "",
+    "-- The sync's idempotency key: a webhook and the cron re-sync racing on the same",
+    "-- product can then only ever collide into one row.",
+    `CREATE UNIQUE INDEX IF NOT EXISTS \`${table}_external_id_unique\` ON \`${table}\` (\`external_id\`);`,
+    "",
+  ].join("\n");
+}

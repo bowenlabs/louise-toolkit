@@ -11,6 +11,26 @@ packages:
 overrides:
   "@cloudflare/workers-types": "^5.20260714.1"
 
+# Two advisories, both reaching us only through `better-auth`'s dev-tooling
+# transitives. Neither is reported by `pnpm audit` (GitHub's DB) — Snyk carries
+# them, so trust the PR check over a clean local audit here.
+#
+# esbuild — SNYK-JS-ESBUILD-17750822, "resources downloaded over insecure
+# protocol", CVSS 9.2. Fixed in 0.28.1. Two paths reach a vulnerable copy:
+# drizzle-kit's own `esbuild ^0.25.4`, and the deprecated
+# `@esbuild-kit/esm-loader` it still ships, whose core-utils pins 0.18.20. A
+# parent-scoped override only covers the second, so this is deliberately blanket
+# — and cheap, because Vite and Astro had already resolved 0.28.1 anyway, so this
+# UNIFIES the tree on one esbuild rather than forcing an odd version anywhere.
+# Verified afterwards that drizzle-kit still transpiles a TypeScript
+# drizzle.config.ts, which is the jump with real risk (@esbuild-kit/core-utils
+# was written against the 0.18 API).
+#
+# ws — CVE-2026-62389, unbounded resource allocation, CVSS 8.7. Fixed in 8.21.1;
+# the tree had a single 8.21.0, so this is a patch bump across one version.
+  esbuild: "^0.28.1"
+  ws: "^8.21.1"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.

@@ -27,6 +27,7 @@ export {
   astroidCatalogMirror,
   BUILT_IN_OWNED,
   type CatalogMirrorConfig,
+  generateCatalogMigrationSql,
   generateCatalogTable,
   type OwnedColumn,
   PULLED_COLUMNS,
@@ -56,3 +57,10 @@ export {
   defaultSlug,
   type SyncDatabase,
 } from "./sync.js";
+export {
+  astroidCheckoutVars,
+  generateAstroidCheckoutEnv,
+  generateAstroidCheckoutRoute,
+  generateAstroidSquareCard,
+  usesCardCheckout,
+} from "./checkout-scaffold.js";

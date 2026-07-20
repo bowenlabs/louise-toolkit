@@ -1,0 +1,38 @@
+# pnpm configuration for this project.
+#
+# Not a workspace — pnpm 10+ reads its settings from THIS file even for a single
+# package, and `overrides` in package.json is silently ignored.
+
+# Postinstall-script approvals. Without these `pnpm install` FAILS outright with
+# ERR_PNPM_IGNORED_BUILDS, because pnpm refuses to run a dependency's build
+# script until you say so — and esbuild and workerd both need theirs. A scaffold
+# whose very first documented command errors is not a scaffold.
+#
+# `sharp: false` denies its heavy native build on purpose. Nothing here imports
+# it: image work goes through the Cloudflare Images binding and the adapter's
+# workerd image service. It arrives only as an OPTIONAL dependency of astro, so
+# denying it skips the build rather than prompting on every install.
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: false
+
+# Two advisories, both reaching a scaffold through `better-auth`'s dev-tooling
+# transitives. Neither shows up in `pnpm audit` (GitHub's DB); Snyk carries them.
+#
+# esbuild — SNYK-JS-ESBUILD-17750822, "resources downloaded over insecure
+# protocol", CVSS 9.2, fixed in 0.28.1. Two paths reach a vulnerable copy:
+# drizzle-kit's own `esbuild ^0.25.4`, and the deprecated `@esbuild-kit/esm-loader`
+# it still ships (whose core-utils pins 0.18.20) — so this is blanket rather than
+# scoped to one parent. Astro and Vite already want 0.28.x, so it unifies the tree
+# rather than forcing an odd version. Verified drizzle-kit still transpiles a
+# TypeScript drizzle.config.ts afterwards.
+#
+# ws — CVE-2026-62389, unbounded resource allocation, CVSS 8.7, fixed in 8.21.1.
+#
+# Drop these once better-auth's transitives move past them.
+#
+# KEEP THIS KEY LAST: the CI smoke test appends its own entries here.
+overrides:
+  esbuild: "^0.28.1"
+  ws: "^8.21.1"

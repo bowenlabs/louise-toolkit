@@ -13,6 +13,8 @@
 // The failure this prevents is not exotic. Accept `unitPrice` from the request
 // body and anyone can buy anything for a penny.
 
+import { AstroidUsageError } from "../errors.js";
+
 /** One line as the CLIENT sent it. Every field is untrusted. */
 export interface ClientLine {
   /** Provider id of the variant/item being bought. */
@@ -115,20 +117,50 @@ export async function verifyCheckout(
 }
 
 /**
- * A deterministic idempotency key for a cart.
+ * A deterministic idempotency key for one buyer's checkout attempt.
  *
- * Providers dedupe on this, so the same key must mean the same charge: it's
- * derived from the verified lines and the total, not from a random value or a
- * timestamp. A customer double-clicking Pay sends the same key twice and is
- * charged once; a customer who changes their cart and pays again sends a
- * different key and is charged correctly.
+ * Providers dedupe on this, so the same key must mean the same charge — which
+ * cuts both ways, and the second direction is the one that costs money. It is
+ * derived from the verified cart *and* `identity`, not from a random value or a
+ * timestamp: a customer double-clicking Pay sends the same key twice and is
+ * charged once, while a customer who changes their cart pays under a different
+ * key and is charged correctly.
+ *
+ * **`identity` is required, and it is what makes the key safe.** Without it the
+ * key was a pure function of the cart contents, so two DIFFERENT customers
+ * buying the same thing for the same price produced byte-identical keys. Stripe
+ * and Square scope idempotency keys per account and retain them for ~24h, so the
+ * provider replayed the first customer's PaymentIntent instead of creating the
+ * second's: the second buyer was never charged, no second order existed, and the
+ * site reported success. On a single-SKU storefront that is ordinary traffic,
+ * not an edge case.
+ *
+ * Pass something stable across a retry of THIS attempt and distinct between
+ * buyers — a cart id, a checkout-session id, or a portal user id. Do not pass a
+ * value that varies per request (a fresh uuid defeats the dedupe and a
+ * double-click charges twice), and do not pass a constant.
+ *
+ * `scope` remains the OPERATION — `"order"` vs `"refund"` — so the two can never
+ * collide for one buyer. It is not an identity and never was.
  */
 export async function checkoutIdempotencyKey(
   verified: { lines: VerifiedLine[]; subtotalCents: number },
   scope: string,
+  identity: string,
 ): Promise<string> {
+  // Empty is rejected rather than defaulted: a falsy identity would silently
+  // restore the collision this parameter exists to close, and a charge that
+  // goes missing is not something the caller finds out about.
+  if (typeof identity !== "string" || identity.trim().length === 0) {
+    throw new AstroidUsageError(
+      "checkoutIdempotencyKey requires a non-empty `identity` (a cart id, checkout-session id, " +
+        "or user id). Without it the key is a function of the cart alone, so two customers " +
+        "buying the same items collide and the second is never charged.",
+    );
+  }
   const canonical = JSON.stringify({
     scope,
+    identity,
     total: verified.subtotalCents,
     lines: verified.lines.map((l) => `${l.variantId}:${l.quantity}:${l.unitPriceCents}`).sort(),
   });

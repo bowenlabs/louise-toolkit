@@ -19,6 +19,7 @@
 
 import { commerceSecretNames, resolveCommerceStatus } from "./commerce/secrets.js";
 import type { AstroidConfig } from "./config.js";
+import { ASTROID_VITALS_SECRET_NAMES } from "./analytics/index.js";
 import { EMAIL_SECRET_NAMES, type MailerEnv, resolveMailerStatus } from "./email/send.js";
 import type { SecretSource } from "./secrets.js";
 
@@ -64,6 +65,10 @@ export function astroidSecretNames(config: AstroidConfig): Record<string, string
   };
   const commerce = commerceSecretNames(config.commerce);
   if (commerce.length > 0) groups.commerce = commerce;
+  // The CWV read-back's API credentials. Collection needs none of this — only
+  // querying the p75 back out does, because the Analytics Engine SQL API is
+  // account-scoped and has no binding.
+  groups.vitals = [...ASTROID_VITALS_SECRET_NAMES];
   return groups;
 }
 

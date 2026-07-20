@@ -9,6 +9,8 @@
 //
 // Pass `versionedPageId` from a page whose `<Editable>` fields should stage drafts
 // + publish (the layout forwards it). Omit it and the bar is Settings-only.
+import astroidConfig from "../../astroid.config.js";
+
 const { editMode, editor } = Astro.locals;
 const { versionedPageId, sections } = Astro.props as {
   versionedPageId?: number;
@@ -20,6 +22,12 @@ const { versionedPageId, sections } = Astro.props as {
 // a `define:vars` script would be `is:inline` with per-request content, which
 // can't be hashed into `script-src` and so would be CSP-blocked.
 const sectionsJson = Array.isArray(sections) ? JSON.stringify(sections) : undefined;
+
+// Is the live multi-editor session on? Read from the config rather than baked in
+// at scaffold time, so adding `realtime` to `modules` later takes effect here
+// too — `astroid generate` regenerates the worker and scaffolds the Durable
+// Object, but this file is yours and is never rewritten.
+const realtimeOn = (astroidConfig.modules ?? []).includes("realtime");
 ---
 
 {
@@ -38,6 +46,7 @@ const sectionsJson = Array.isArray(sections) ? JSON.stringify(sections) : undefi
         data-louise-user={editor?.name ?? "Editor"}
         data-louise-versioned-page={versionedPageId != null ? String(versionedPageId) : undefined}
         data-louise-sections={sectionsJson}
+        data-louise-realtime={realtimeOn ? "1" : undefined}
       />
       <script>
         // Lazy-import the editor client only in edit mode. `mountLouise` renders
@@ -64,6 +73,11 @@ const sectionsJson = Array.isArray(sections) ? JSON.stringify(sections) : undefi
                 onOpenSettings: () =>
                   window.dispatchEvent(new Event(settings.OPEN_SETTINGS_EVENT)),
                 versionedPageId: pageId,
+                // Live multi-editor session (ADR 0002). Present only when the
+                // realtime module is on; the client degrades to the debounced
+                // fetch auto-save whenever it is off OR the socket can't open,
+                // so this is an accelerator, never a dependency.
+                realtime: el.dataset.louiseRealtime === "1",
               });
 
               // The on-canvas section editor. It edits the SAME catalog the

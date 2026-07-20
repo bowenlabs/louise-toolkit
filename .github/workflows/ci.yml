@@ -175,14 +175,131 @@ jobs:
             test -f "smoke/$f" || { echo "scaffold did not write $f"; exit 1; }
           done
 
+          # The scaffold must declare the toolkit versions it was BUILT against.
+          #
+          # Nothing else in this job can check that. The `overrides` above pin
+          # astroidjs/louise-toolkit to the tarballs for every install below —
+          # which is what makes the clean room work, and also what makes the
+          # declared ranges invisible to it. A hand-written range in
+          # template/package.json therefore rots undetected: it once pinned
+          # `^0.1.0` while the template imported `astroidjs/astro`, an export the
+          # newest matching version did not have, so every scaffolded project
+          # died before Astro loaded its config and CI stayed green.
+          #
+          # create-astroid now derives these from its own resolved dependencies;
+          # this asserts the derivation actually happened and points at THESE
+          # tarballs, so re-hardcoding a literal fails here instead of on npm.
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("smoke/package.json", "utf8"));
+            let bad = 0;
+            for (const name of ["astroidjs", "louise-toolkit"]) {
+              const packed = JSON.parse(
+                fs.readFileSync(`node_modules/${name}/package.json`, "utf8"),
+              ).version;
+              const declared = pkg.dependencies[name];
+              const expected = `^${packed}`;
+              if (declared !== expected) {
+                console.error(
+                  `scaffold declares ${name} "${declared}", but the packed version is ` +
+                  `${packed} (expected "${expected}") — template/package.json is stale`,
+                );
+                bad++;
+              }
+            }
+            if (bad) process.exit(1);
+            console.log("scaffold toolkit ranges match the packed versions");
+          '
+
+          # Apply every migration to a throwaway SQLite db and assert the tables
+          # the generated schema reads actually exist.
+          #
+          # Nothing used to run this SQL. `--commerce` declared a `products`
+          # table in src/schema.ts, the queue seam told you to sync into it, and
+          # no migration created it — `astro check` can't see that, and `doctor`
+          # only checks the migrations/ directory exists. The first real catalog
+          # sync was the discovery mechanism.
+          sqlite3 /tmp/smoke.db < smoke/migrations/0000_content.sql
+          for f in smoke/migrations/0001_auth.sql smoke/migrations/0003_catalog.sql; do
+            sqlite3 /tmp/smoke.db < "$f"
+          done
+          for t in pages pages_versions media site_settings inquiries user session products; do
+            found=$(sqlite3 /tmp/smoke.db "SELECT name FROM sqlite_master WHERE type='table' AND name='$t';")
+            test "$found" = "$t" || { echo "migrations did not create table: $t"; exit 1; }
+          done
+          echo "all migrations apply; every generated table exists"
+
+          # The generated worker embeds RAW SQL and raw column names that nothing
+          # else checks against the schema: the Home dashboard's COUNT query, and
+          # the media delete-safety reference columns. `astro check` type-checks
+          # the strings but cannot know whether `pages_versions.parent_id` exists.
+          # Run the one and probe the other against the database just built.
+          sqlite3 /tmp/smoke.db "SELECT (SELECT COUNT(*) FROM pages WHERE status = 'draft') AS drafts, (SELECT COUNT(DISTINCT parent_id) FROM pages_versions WHERE status = 'draft') AS unpublished, (SELECT MAX(updated_at) FROM pages) AS last_edited;" >/dev/null \
+            || { echo "the generated overview SQL does not run against the generated schema"; exit 1; }
+          for c in body sections og_image title; do
+            sqlite3 /tmp/smoke.db "SELECT \"$c\" FROM pages LIMIT 1;" >/dev/null \
+              || { echo "media reference column pages.$c does not exist"; exit 1; }
+          done
+          for c in logo_url favicon_url default_og_image_url site_name; do
+            sqlite3 /tmp/smoke.db "SELECT \"$c\" FROM site_settings LIMIT 1;" >/dev/null \
+              || { echo "media reference column site_settings.$c does not exist"; exit 1; }
+          done
+          echo "generated overview SQL runs; every media reference column exists"
+
+          # The sign-in page must render the Turnstile widget under the SAME
+          # condition the server arms the captcha, and forward the token in the
+          # header Better Auth reads. Get this wrong and provisioning Turnstile —
+          # which .env.example invites you to do — locks the owner out of their
+          # own site with a 403 and no explanation. Nothing type-checks the
+          # relationship between the two halves, so assert it here.
+          grep -q "turnstileSiteKey" smoke/src/pages/login.astro \
+            || { echo "login.astro no longer gates the widget on turnstileSiteKey"; exit 1; }
+          grep -q "x-captcha-response" smoke/src/pages/login.astro \
+            || { echo "login.astro no longer sends the captcha token header"; exit 1; }
+          echo "sign-in captcha wiring present"
+
+          # Every cron declared in wrangler.jsonc must be dispatched by the
+          # generated scheduled handler. Cloudflare fires ONE handler for all
+          # triggers and identifies which by `controller.cron`, so a string that
+          # appears in one and not the other is a job that silently never runs —
+          # no error, no log, just a scan or a re-sync that quietly stopped.
+          node -e '
+            const fs = require("fs");
+            const cfg = fs.readFileSync("smoke/wrangler.jsonc", "utf8");
+            const worker = fs.readFileSync("smoke/src/worker.ts", "utf8");
+            const crons = [...(cfg.match(/"triggers":\s*\{\s*"crons":\s*\[([^\]]*)\]/)?.[1] ?? "")
+              .matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+            if (crons.length === 0) { console.error("no crons declared"); process.exit(1); }
+            let bad = 0;
+            for (const cron of crons) {
+              if (!worker.includes(`controller.cron === "${cron}"`)) {
+                console.error(`cron "${cron}" is declared but the handler never dispatches it`);
+                bad++;
+              }
+            }
+            if (bad) process.exit(1);
+            console.log(`all ${crons.length} cron(s) declared and dispatched: ${crons.join(", ")}`);
+          '
+
           node node_modules/astroidjs/bin/astroid.mjs doctor --cwd smoke
 
           # Install and BUILD the scaffold the way a user would. This is the only
           # step that resolves the template's imports, so it's the only one that
           # can catch a dependency it forgot to declare.
           cd smoke
-          cp ../pnpm-workspace.yaml .
-          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          # Install with the scaffold's OWN pnpm-workspace.yaml — do not replace
+          # it. It carries the `allowBuilds` approvals without which `pnpm
+          # install` fails outright (ERR_PNPM_IGNORED_BUILDS), which is the first
+          # command the README tells a user to run. This step used to overwrite
+          # that file and append its own approvals, which meant CI proved the
+          # scaffold installs *for CI* and never for a user — it shipped a
+          # scaffold whose first documented command errored.
+          #
+          # `overrides:` is the LAST key in that file, so appending two indented
+          # lines extends it and pins astroidjs/louise-toolkit to THESE tarballs.
+          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
+            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
+            >> pnpm-workspace.yaml
           corepack pnpm install
           corepack pnpm exec astro check
           corepack pnpm exec astro build
@@ -205,17 +322,31 @@ jobs:
           # Passing both together also guards the merge hazard they created —
           # each contributes to `modules`, and a naive resolution lets one
           # overwrite the other silently.
+          # --portal is here for the same reason --map/--pwa are: it generates
+          # src/portal-auth.ts and the portal auth catch-all, and until it was
+          # added to a scaffold that runs `astro check`, NOTHING compiled either
+          # of them. The portal's 28 unit tests assert the generator's output as
+          # strings; only this step type-checks the code it produces.
           node node_modules/create-astroid/index.mjs folio \
             --key folio --name "Folio" --archetype portfolio --color "#5b4bff" \
-            --map --pwa
+            --map --pwa --portal --realtime
 
           test -f folio/src/pages/work.astro || {
             echo "portfolio scaffold did not write src/pages/work.astro"; exit 1; }
           for f in src/pages/map/basemap.pmtiles.ts src/components/MapEmbed.astro \
-                   public/sw.js public/manifest.webmanifest; do
+                   public/sw.js public/manifest.webmanifest \
+                   src/portal-auth.ts "src/pages/api/portal-auth/[...all].ts" \
+                   migrations/0002_portal_auth.sql src/edit-session.ts; do
             test -f "folio/$f" || { echo "module scaffold did not write $f"; exit 1; }
           done
-          grep -q 'modules: \["map","pwa"\]' folio/astroid.config.ts || {
+          # The Durable Object binding is worthless without its migration, and the
+          # class must be exported from the ENTRY or wrangler can't resolve
+          # `class_name`. Both are deploy-time failures nothing else here catches.
+          grep -q 'new_sqlite_classes' folio/wrangler.jsonc || {
+            echo "realtime DO has no migration block"; exit 1; }
+          grep -q 'export { EditSessionDO }' folio/src/worker.ts || {
+            echo "the DO class is not exported from the worker entry"; exit 1; }
+          grep -q 'modules: \["map","pwa","realtime"\]' folio/astroid.config.ts || {
             echo "the modules array lost a module"; cat folio/astroid.config.ts; exit 1; }
           # sw.js is plain JS in public/ and the manifest is data — neither is
           # type-checked by anything, so parse them explicitly.
@@ -224,8 +355,10 @@ jobs:
           node -e 'JSON.parse(require("fs").readFileSync("folio/package.json","utf8"))'
 
           cd folio
-          cp ../pnpm-workspace.yaml .
-          printf 'allowBuilds:\n  esbuild: true\n  workerd: true\n  sharp: false\n' >> pnpm-workspace.yaml
+          # Same as above: keep the scaffold's own pnpm-workspace.yaml.
+          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
+            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
+            >> pnpm-workspace.yaml
           corepack pnpm install
           corepack pnpm exec astro check
           corepack pnpm exec astro build

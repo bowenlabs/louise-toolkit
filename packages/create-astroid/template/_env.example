@@ -25,3 +25,16 @@ MAIL_FROM=no-reply@__KEY__.example
 TURNSTILE_SECRET=DUMMY_REPLACE_ME
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 __ASTROID_MODULE_SECRETS__
+
+# --- web vitals -----------------------------------------------------------
+#
+# ONLY needed to read Core Web Vitals back out. Collection works without them:
+# the beacon posts to /api/louise/vitals and the Worker writes to the Analytics
+# Engine dataset regardless. Querying the p75 back out goes through the SQL API,
+# which is account-scoped and has no binding — hence a token.
+#
+# Left as the sentinel, the daily health scan simply skips the query and the
+# Health panel shows "not measured yet". Create a token with Account
+# Analytics:Read at dash.cloudflare.com → My Profile → API Tokens.
+CF_ACCOUNT_ID=DUMMY_REPLACE_ME
+CF_API_TOKEN=DUMMY_REPLACE_ME

@@ -4,3 +4,5 @@
 // regenerated schema/worker/middleware trio + the scaffold-once wrangler.jsonc).
 
 export * from "./generate.js";
+export * from "./actions.js";
+export * from "./scaffold.js";

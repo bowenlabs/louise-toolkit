@@ -77,7 +77,7 @@ async function loadConfig(cwd, explicit) {
 
 // --- commands --------------------------------------------------------------
 async function cmdGenerate(cwd, flags, { quiet = false } = {}) {
-  const { generateAstroidProject } = await import(GENERATORS_URL);
+  const { generateAstroidProject, generateAstroidScaffoldFiles } = await import(GENERATORS_URL);
   const { config } = await loadConfig(cwd, flags.config);
   const files = generateAstroidProject(config);
   for (const file of files) {
@@ -86,12 +86,46 @@ async function cmdGenerate(cwd, flags, { quiet = false } = {}) {
     writeFileSync(abs, file.contents);
     if (!quiet) out(`  ✓ ${file.path}`);
   }
-  if (!quiet) out(`Generated ${files.length} file(s) from your defineAstroid config.`);
+
+  // Scaffold-once files for whatever modules the config switched on.
+  //
+  // Written only when ABSENT — each is a seam the project owns, so overwriting
+  // one would destroy the edit it exists to hold. But a MISSING one is not a
+  // choice the user made: the trio above emits static imports of `./queue.js`
+  // and `./portal-auth.js`, so a config that gained a module after scaffold
+  // regenerated a project that couldn't resolve its own imports. Completing the
+  // config change is what makes "one typed config" true.
+  const created = [];
+  for (const file of generateAstroidScaffoldFiles(config)) {
+    const abs = join(cwd, file.path);
+    const exists = existsSync(abs);
+    if (file.apply === "append-once") {
+      const current = exists ? readFileSync(abs, "utf8") : "";
+      if (file.marker && current.includes(file.marker)) continue;
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, current + file.contents);
+      created.push(file.path);
+      continue;
+    }
+    if (exists) continue;
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, file.contents);
+    created.push(file.path);
+  }
+  for (const path of created) if (!quiet) out(`  + ${path} (scaffolded — yours to edit)`);
+
+  if (!quiet) {
+    out(`Generated ${files.length} file(s) from your defineAstroid config.`);
+    if (created.length > 0) {
+      out(`Scaffolded ${created.length} new module file(s); existing ones were left alone.`);
+    }
+  }
   return files;
 }
 
 async function cmdDoctor(cwd, flags) {
-  const { generateAstroidProject } = await import(GENERATORS_URL);
+  const { generateAstroidProject, generateAstroidScaffoldFiles, astroidUsesQueues } =
+    await import(GENERATORS_URL);
   const { config, path: configPath } = await loadConfig(cwd, flags.config);
 
   const problems = []; // { level: "error" | "warn", msg }
@@ -110,10 +144,26 @@ async function cmdDoctor(cwd, flags) {
     if (!existsSync(abs)) {
       err(`${file.path} is missing — run \`astroid generate\`.`);
     } else if (readFileSync(abs, "utf8") !== file.contents) {
-      warn(`${file.path} is stale (out of sync with your config) — run \`astroid generate\`.`);
+      // An ERROR, not a warning. These three carry a "do not hand-edit" banner
+      // and are a pure function of the config, so "stale" means the project on
+      // disk is not the project the config describes — which is the single
+      // condition doctor exists to catch. As a warning it printed "healthy" and
+      // exited 0, so `pnpm doctor` could not gate CI on it.
+      err(`${file.path} is stale (out of sync with your config) — run \`astroid generate\`.`);
     } else {
       ok(`${file.path} is up to date`);
     }
+  }
+
+  // 1b. Scaffold-once module files. A missing one is an ERROR: the trio above
+  //     emits static imports of `./queue.js` / `./portal-auth.js`, so a config
+  //     that names a module whose seam was never written produces a project that
+  //     cannot resolve its own imports. This is precisely the state that used to
+  //     report "healthy, 2 warning(s)" and exit 0.
+  for (const file of generateAstroidScaffoldFiles(config)) {
+    if (file.apply === "append-once") continue; // accumulated, not owned — see below
+    if (existsSync(join(cwd, file.path))) ok(`${file.path} present`);
+    else err(`${file.path} is missing (required by your config) — run \`astroid generate\`.`);
   }
 
   // 2. wrangler.jsonc bindings — presence checks + placeholder detection. Read as
@@ -124,6 +174,50 @@ async function cmdDoctor(cwd, flags) {
   } else {
     const w = readFileSync(wranglerPath, "utf8");
     const hasBinding = (name) => new RegExp(`"binding"\\s*:\\s*"${name}"`).test(w);
+
+    // wrangler.jsonc is scaffold-once (so a provisioned binding id is never
+    // clobbered), which means a config change can never update it. Nothing
+    // detected the resulting drift: switching on commerce made the generated
+    // worker call `env.COMMERCE_QUEUE.send()` against a wrangler.jsonc with no
+    // queues block at all, and both doctor and deploy reported success.
+    //
+    // So check every binding the GENERATED code actually dereferences, not just
+    // the three the baseline happens to have.
+    const requiredBindings = [
+      { name: "RL", what: "KV namespace", why: "the rate limiter in src/middleware.ts" },
+      { name: "DRAFTS", what: "KV namespace", why: "the autosave draft buffer" },
+      ...(astroidUsesQueues(config)
+        ? [
+            {
+              name: "COMMERCE_QUEUE",
+              what: "Queue",
+              why: "the webhook producer in src/worker.ts",
+            },
+          ]
+        : []),
+    ];
+    for (const b of requiredBindings) {
+      if (hasBinding(b.name)) ok(`wrangler: ${b.what} \`${b.name}\` binding present`);
+      else
+        err(
+          `wrangler.jsonc has no ${b.what} \`${b.name}\` binding, but ${b.why} uses it. ` +
+            "Your config gained a module after this file was scaffolded — add the binding by hand " +
+            "(wrangler.jsonc is never regenerated, so provisioned ids are never clobbered).",
+        );
+    }
+
+    // Email Sending declares its binding as `"name"`, not `"binding"`, so the
+    // regex above cannot see it. Checked separately because sign-in depends on
+    // it: the magic link is console-logged in dev and EMAILED in production, so
+    // a missing binding is a site nobody can sign in to — and it fails only once
+    // deployed, which is the one place nothing in this repo exercises.
+    if (/"send_email"\s*:/.test(w)) ok("wrangler: Email Sending `EMAIL` binding present");
+    else
+      err(
+        "wrangler.jsonc has no `send_email` binding, but production sign-in emails the " +
+          "magic link (it is only console-logged in dev). Add: \"send_email\": [{ \"name\": \"EMAIL\" }]",
+      );
+
     if (hasBinding("DB")) ok("wrangler: D1 `DB` binding present");
     else err("wrangler.jsonc has no D1 `DB` binding.");
     if (hasBinding("MEDIA")) ok("wrangler: R2 `MEDIA` binding present");
@@ -308,8 +402,12 @@ async function cmdDeploy(cwd, flags, rest) {
   const wranglerPath = join(cwd, "wrangler.jsonc");
   if (!existsSync(wranglerPath)) fail("wrangler.jsonc not found — run inside an Astroid project.");
 
-  // Regenerate so the shipped worker/schema always match the config.
-  await cmdGenerate(cwd, flags, { quiet: true });
+  // Regenerate so the shipped worker/schema always match the config — but NOT
+  // on a dry run. This used to sit above the `--dry-run` guard, so a command
+  // that ends by printing "(dry run — nothing executed)" had already rewritten
+  // three files and silently discarded any local edits to them. Probing the
+  // plan on a working branch is exactly when someone has local edits.
+  if (!dryRun) await cmdGenerate(cwd, flags, { quiet: true });
 
   let wrangler = readFileSync(wranglerPath, "utf8");
   const facts = readWranglerFacts(wrangler);

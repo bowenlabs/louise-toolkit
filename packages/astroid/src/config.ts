@@ -77,17 +77,23 @@ export const ASTROID_ARCHETYPE_SECTIONS: Record<Archetype, SectionKind[]> = {
 
 /**
  * Optional capabilities the site switches on. Pluggable, not core — a portfolio
- * site runs none of the commerce ones. `orderTracking` is shared across both
- * coffee brands, so it's first-class but still opt-in.
+ * site runs none of the commerce ones.
+ *
+ * **Every value here is read by something.** The union used to also name
+ * `orderTracking`, `subscriptions`, `giftCards`, and `privateLabel`, none of
+ * which had a single consumer anywhere in the package: setting one type-checked,
+ * passed validation, and did nothing at all — no scaffold, no CSP origin, no
+ * rate rule, no table. A config surface that accepts a setting it ignores is
+ * worse than a smaller one, because the only way to discover the truth is to
+ * deploy and notice the absence.
+ *
+ * They are removed rather than left as TODOs. `orderTracking` in particular has
+ * a real implementation waiting — `src/workflow/` is the ghostfire order tracker,
+ * generalized — but it is reached through `defineWorkflow`, not this flag, and
+ * pretending otherwise is what made the flag misleading. Re-add each one in the
+ * change that wires it.
  */
-export type ModuleKind =
-  | "map"
-  | "orderTracking"
-  | "pwa"
-  | "subscriptions"
-  | "giftCards"
-  | "wholesaleInquiry"
-  | "privateLabel";
+export type ModuleKind = "map" | "pwa" | "realtime" | "wholesaleInquiry";
 
 /** Commerce backend — mirrors Louise's provider set (louise-toolkit/commerce). */
 export type CommerceProvider = "stripe" | "square" | "fourthwall";
@@ -109,10 +115,18 @@ export interface Theme {
 
 export interface Portal {
   enabled: boolean;
-  /** Require a session to view the whole site (Meg Bowen's gated preview), not
-   *  just the account area. Default `false`. */
+  /**
+   * @deprecated NOT IMPLEMENTED — `defineAstroid` throws if this is set.
+   *
+   * It was meant to require a session for the whole site (a pre-launch client
+   * gallery), not just the account area, but nothing ever read it: the guard
+   * table is built from {@link Portal.routes} and `portalGuard` allows any
+   * unmatched path. Until it's wired, gate the site by naming the prefixes in
+   * `routes` — that is the mechanism this would have been sugar for.
+   */
   gated?: boolean;
-  /** Modules exposed inside the account area (e.g. `orderTracking`). */
+  /** Modules exposed inside the account area (e.g. `wholesaleInquiry`, which
+   *  adds the inquiries table even on an archetype that wouldn't have one). */
   features?: ModuleKind[];
   /**
    * Roles a portal account can hold, first being the default for a new account.
@@ -277,7 +291,7 @@ export interface AstroidConfig {
  *   key: "coracle",
  *   archetype: "storefront",
  *   theme: { name: "Coracle Coffee", colors: { brand: "#1f6f78" } },
- *   sections: ["hero", "marquee", "featured", "productGrid", "visit"],
+ *   sections: ["hero", "banner", "productGrid", "locationHours", "contact"],
  *   commerce: { provider: "square" },
  *   deploy: { platform: "cloudflare" },
  * });
@@ -301,6 +315,25 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
   // Fourthwall, a storefront over Stripe) fails here rather than at runtime on
   // the first invoice, as a missing function.
   assertCommerceRoles(config.commerce);
+
+  // `portal.gated` is declared and resolved but read by NOTHING — the guard
+  // table is built from `portal.routes` alone, and `portalGuard` allows any
+  // unmatched path. So a site that set it believed the whole site sat behind a
+  // login (a pre-launch client gallery) while every page outside /portal was
+  // public, and it type-checked.
+  //
+  // Refusing the flag is the only safe state until it's implemented. A security
+  // control that silently does nothing is strictly worse than one that isn't
+  // offered: the first gives false confidence, the second sends you looking for
+  // an answer. Fail loudly, at config load, naming the workaround.
+  if (config.portal?.gated) {
+    throw new AstroidConfigError(
+      "`portal.gated` is not implemented — it is accepted but wires no guard, so the site " +
+        "would be fully public while appearing gated. Remove it, and gate the whole site by " +
+        "listing the prefixes you mean in `portal.routes` (e.g. `[{ prefix: \"/\" }]` with your " +
+        "login and auth paths ahead of it).",
+    );
+  }
 
   return config;
 }

@@ -48,7 +48,8 @@
     "./components/media-meta": {
       "types": "./src/components/media-meta.ts",
       "default": "./src/components/media-meta.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

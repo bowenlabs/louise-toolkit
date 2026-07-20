@@ -17,7 +17,11 @@ export {
   type PortalUser,
 } from "./guard.js";
 export { definePortalNav, type PortalNav, type PortalNavItem } from "./nav.js";
-export { generateAstroidPortalAuth, generateAstroidPortalLocals } from "./scaffold.js";
+export {
+  generateAstroidPortalAuth,
+  generateAstroidPortalAuthRoute,
+  generateAstroidPortalLocals,
+} from "./scaffold.js";
 export {
   type CustomerGuardResult,
   isSameOrigin,

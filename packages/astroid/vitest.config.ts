@@ -12,10 +12,28 @@ export default defineConfig({
       // `exports` map only points at dist/, so without this the suite would
       // silently test whatever was last built — and would fail outright on a
       // fresh clone that hasn't packed louise yet.
+      // Every `louise-toolkit/*` subpath astroid imports at RUNTIME (as opposed
+      // to type-only) needs an entry here. Miss one and the suite passes on any
+      // machine that happens to have `packages/louise/dist` lying around from an
+      // earlier build, and fails in CI — where the astroid tests run BEFORE the
+      // library is packed. That is exactly how this list last went stale.
       "louise-toolkit/security": new URL("../louise/src/core/security/index.ts", import.meta.url)
         .pathname,
       "louise-toolkit/email": new URL("../louise/src/core/email/index.ts", import.meta.url)
         .pathname,
+      "louise-toolkit/analytics": new URL("../louise/src/core/analytics/index.ts", import.meta.url)
+        .pathname,
+      // Reached from `schema/collections.ts`. Unaliased until now only because
+      // no test happened to import that module — a trap armed for whoever wrote
+      // the next one.
+      "louise-toolkit/content/define": new URL(
+        "../louise/src/core/content/define.ts",
+        import.meta.url,
+      ).pathname,
+      "louise-toolkit/content/sections": new URL(
+        "../louise/src/core/content/sections.ts",
+        import.meta.url,
+      ).pathname,
     },
   },
   test: {

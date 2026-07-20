@@ -32,7 +32,7 @@ export function generateAstroidPortalAuth(config: AstroidConfig): string | null 
     "// Auth's defaults because the Louise editor client hardcodes them, so this",
     "// one moves — and if the two ever share a cookie prefix, signing into one",
     "// silently signs you out of the other.",
-    'import { astroidMailTheme, magicLinkEmail, passwordResetEmail, sendTransactional } from "astroidjs";',
+    'import { astroidMailTheme, magicLinkEmail, passwordResetEmail, resolveMailer, sendTransactional } from "astroidjs";',
     'import { env } from "cloudflare:workers";',
     'import { getLouiseAuth } from "louise-toolkit/auth";',
     'import astroidConfig from "../astroid.config.js";',
@@ -57,10 +57,16 @@ export function generateAstroidPortalAuth(config: AstroidConfig): string | null 
       : "      // Accounts are provisioned by staff — no public sign-up.",
     `      disableSignUp: ${!portal.signUp},`,
     "      sendResetPassword: async ({ user, url }) => {",
-    "        await sendTransactional(",
-    "          { binding: env.EMAIL, from: env.MAIL_FROM },",
-    "          [{ to: user.email, content: passwordResetEmail(MAIL_THEME, { url, toEmail: user.email }) }],",
-    "        );",
+    "        // Through `resolveMailer`, NOT a hand-built options object: it is the",
+    "        // only thing that applies the DUMMY_REPLACE_ME sentinel check. Built by",
+    "        // hand, a fresh deploy with a real EMAIL binding but a placeholder",
+    "        // MAIL_FROM read as configured and called the Email API with an envelope",
+    "        // sender of literally \"DUMMY_REPLACE_ME\" — rejected upstream, swallowed",
+    "        // here, and reported to the user as a reset email that was sent.",
+    "        const mailer = await resolveMailer(env);",
+    "        await sendTransactional(mailer, [",
+    "          { to: user.email, content: passwordResetEmail(MAIL_THEME, { url, toEmail: user.email }) },",
+    "        ]);",
     "      },",
     "    },",
     "    // The portal has its own users — never the editor allowlist.",
@@ -90,6 +96,34 @@ export function generateAstroidPortalAuth(config: AstroidConfig): string | null 
     "    return null;",
     "  }",
     "}",
+    "",
+  ].join("\n");
+}
+
+/**
+ * `src/pages/api/portal-auth/[...all].ts` — the portal's Better Auth catch-all,
+ * mounted at its own basePath so it never collides with the studio's
+ * `/api/auth`.
+ *
+ * Lives here rather than as a literal in `create-astroid` for the same reason
+ * the archetype sections moved (#277): the scaffolder is plain JS, so a drifted
+ * import path there is invisible until a user's build fails. It is also the half
+ * `generateAstroidPortalAuth` is useless without — `src/portal-auth.ts` exports
+ * `handlePortalAuth`, and nothing calls it unless this route exists.
+ *
+ * Returns null when the project has no portal.
+ */
+export function generateAstroidPortalAuthRoute(config: AstroidConfig): string | null {
+  if (!astroidPortal(config)) return null;
+  return [
+    "// The portal Better Auth catch-all, mounted at its own basePath so it",
+    "// never collides with the studio's /api/auth.",
+    'import type { APIRoute } from "astro";',
+    'import { handlePortalAuth } from "../../../portal-auth.js";',
+    "",
+    "export const prerender = false;",
+    "",
+    "export const ALL: APIRoute = ({ request }) => handlePortalAuth(request);",
     "",
   ].join("\n");
 }

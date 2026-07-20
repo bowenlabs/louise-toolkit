@@ -516,7 +516,15 @@ export async function assertValidSections(
 }
 
 /** Sanitize the `richText` string fields of one section/block item against its
- *  field defs, leaving everything else untouched. */
+ *  field defs, leaving everything else untouched.
+ *
+ *  Recurses into `array` fields via their `itemFields`. That is not a nicety:
+ *  `SectionField` lets an `array` declare a `richText` item field, and a catalog
+ *  promptly did — Astroid's `faq.items[].answer` is richText and is rendered with
+ *  `set:html`. One level of walking meant it was stored exactly as typed, so the
+ *  "never store raw HTML" invariant held everywhere except the one place a
+ *  catalog author would naturally reach for it, with CSP as the only remaining
+ *  defence. Anything the schema can express, this has to cover. */
 function sanitizeItemRichText(
   item: Record<string, unknown>,
   fields: Record<string, SectionField> | undefined,
@@ -527,6 +535,18 @@ function sanitizeItemRichText(
   for (const [key, field] of Object.entries(fields)) {
     if (field.type === "richText" && typeof out[key] === "string") {
       out = { ...out, [key]: sanitize(out[key] as string) };
+      continue;
+    }
+    // An `array` field holds rows shaped by `itemFields`, which may themselves
+    // declare richText. Nested arrays recurse the same way.
+    if (field.type === "array" && field.itemFields && Array.isArray(out[key])) {
+      const rows = out[key] as unknown[];
+      out = {
+        ...out,
+        [key]: rows.map((row) =>
+          isPlainObject(row) ? sanitizeItemRichText(row, field.itemFields, sanitize) : row,
+        ),
+      };
     }
   }
   return out;
@@ -538,7 +558,9 @@ function sanitizeItemRichText(
  * in place with the light ProseKit editor, #182), so it must be sanitized on write
  * just like the page body; call this from the collection's `beforeChange` next to
  * the body sanitize. Non-array input and unknown `_type`s pass through untouched.
- * (Array item fields are not recursed — richText is a top-level section/block field.)
+ *
+ * `array` item fields ARE recursed, at any depth: a catalog can declare richText
+ * inside `itemFields`, so anything the schema can express must be covered here.
  */
 export function sanitizeSectionsRichText(
   sections: unknown,

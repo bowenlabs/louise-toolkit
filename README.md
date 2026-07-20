@@ -24,7 +24,10 @@ commerce, email, queues, auth, AI, analytics, realtime, workflows — plus a Sol
 ProseKit inline-edit client and the editor theme, published as one tree-shakeable
 package. The core primitives are framework-agnostic (they run in any Worker or a unit
 test); the batteries — the client, the theme, and the opinionated **Astroid** framework
-([coming](#roadmap)) — target Astro on Cloudflare.
+— target Astro on Cloudflare.
+
+Starting a new site? `pnpm create astroid my-site` scaffolds the whole thing.
+Adding editing to an app you already have? `pnpm add louise-toolkit`.
 
 ## Why Louise
 
@@ -51,7 +54,8 @@ packages/
     src/core/      # content, db, media, forms, auth, commerce, email, queues, ai, analytics, realtime, workflows, browser, security, health, worker, editor, errors
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
-  astroid/         # astroidjs — the opinionated meta-framework over Louise + Astro (experimental; unpublished)
+  astroid/         # astroidjs — the opinionated meta-framework over Louise + Astro (pre-1.0)
+  create-astroid/  # create-astroid — `pnpm create astroid`, the one-command scaffold (pre-1.0)
 workers/
   site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
   docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
@@ -87,10 +91,10 @@ reference.
 
 ## Roadmap
 
-Louise is **pre-1.0** and dogfooded on 4 production sites. The current push —
-Cloudflare platform depth, Astro-native APIs, an agent-editable MCP server, and
-**Astroid** (the opinionated framework + `create-astroid` scaffold layered over
-Louise) — is tracked in the open:
+Louise is **pre-1.0** and dogfooded on 4 production sites. **Astroid** and
+`create-astroid` have shipped (both pre-1.0). The current push — Cloudflare
+platform depth, Astro-native APIs, and an agent-editable MCP server — is tracked
+in the open:
 
 - [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1) — the active milestone.
 - [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102) — the umbrella issue tying the work together.

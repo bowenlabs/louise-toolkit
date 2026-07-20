@@ -14,28 +14,22 @@
 // uses, so a fresh project is already in sync.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import {
   ASTROID_ARCHETYPE_SECTIONS,
   ASTROID_MAP_DEPENDENCIES,
-  astroidUsesQueues,
   defineAstroid,
   generateAstroidEnvBindings,
-  generateAstroidGalleryPage,
-  generateAstroidPortalAuth,
   generateAstroidPortalLocals,
   generateAstroidProject,
-  generateAstroidQueueSeam,
-  generatePwaHeaders,
+  generateAstroidCheckoutEnv,
+  generateAstroidRealtimeEnv,
+  generateAstroidScaffoldFiles,
   generateAstroidSecretsEnv,
-  generateAstroidWebhookRoutes,
   generateAstroidWrangler,
-  generateMapEmbedComponent,
-  generateMapTileRoute,
-  generateServiceWorker,
-  generateWebManifest,
 } from "astroidjs";
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "template");
@@ -75,6 +69,51 @@ function parseArgs(argv) {
 
 const slugify = (s) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+
+// --- toolkit versions ------------------------------------------------------
+
+/**
+ * The `astroidjs` + `louise-toolkit` ranges to write into the scaffold.
+ *
+ * DERIVED from this package's own resolved dependencies rather than hard-coded
+ * in template/package.json. A literal there is a second place to remember on
+ * every release, and when it rots the failure is silent and total: the template
+ * imported `astroidjs/astro` while pinning `^0.1.0`, a range whose newest match
+ * had no such export, so every scaffolded project died before Astro loaded its
+ * config. CI could not see it — the clean-room smoke test pins both packages to
+ * tarballs via pnpm `overrides`, which is exactly what erases these ranges.
+ *
+ * `pnpm pack` rewrites `workspace:*` to the concrete version, so in a PUBLISHED
+ * create-astroid the declared dep is already exact and we just widen it to a
+ * caret. Run from the workspace it is still `workspace:*`, so fall back to the
+ * version of the copy actually resolved on disk — which is what the scaffold
+ * would install anyway.
+ *
+ * Caret on a 0.x is minor-locked (`^0.2.0` := `>=0.2.0 <0.3.0`), which is the
+ * behaviour we want while the toolkit is pre-1.0 and marks breaking changes as
+ * minors: patches flow, a breaking minor does not.
+ */
+function toolkitRanges() {
+  const req = createRequire(import.meta.url);
+  const self = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+  const ranges = {};
+  for (const name of ["astroidjs", "louise-toolkit"]) {
+    const declared = self.dependencies?.[name];
+    let version = declared && !declared.startsWith("workspace:") ? declared : undefined;
+    if (!version) {
+      // Both packages export `./package.json`, so this resolves the real copy.
+      version = JSON.parse(readFileSync(req.resolve(`${name}/package.json`), "utf8")).version;
+    }
+    if (!version) {
+      throw new Error(
+        `create-astroid could not determine the ${name} version to scaffold with. ` +
+          "This is a packaging fault — please file an issue rather than editing the scaffold by hand.",
+      );
+    }
+    ranges[name] = `^${version}`;
+  }
+  return ranges;
+}
 
 async function prompt(question, fallback) {
   if (!process.stdin.isTTY) return fallback;
@@ -166,6 +205,8 @@ Options:
   --map                 Add the self-hosted PMTiles/MapLibre location map
   --pwa                 Add an installable PWA: a scoped service worker that
                         never caches /api/* or the editor, plus a manifest
+  --realtime            Add live multi-editor editing: a per-page Durable Object
+                        with presence, field sync, and a rich-text soft-lock
   --portal              Add a customer/member portal: a second, isolated auth
                         instance plus role-gated routes
   -h, --help            Show this help
@@ -211,7 +252,14 @@ async function main() {
   // Opt-in: a service worker is a caching layer over a CMS-edited site, so it
   // is never on unless asked for.
   const pwa = flags.pwa === true || flags.pwa === "true";
-  const modules = [...(map ? ["map"] : []), ...(pwa ? ["pwa"] : [])];
+  // Opt-in: realtime provisions a Durable Object, which is real infrastructure a
+  // single-editor site has no use for.
+  const realtime = flags.realtime === true || flags.realtime === "true";
+  const modules = [
+    ...(map ? ["map"] : []),
+    ...(pwa ? ["pwa"] : []),
+    ...(realtime ? ["realtime"] : []),
+  ];
   // Commerce is opt-in and unprompted: it pulls in a queue consumer, a webhook
   // receiver, and a cron, none of which a plain marketing site should carry.
   const commerceRaw = typeof flags.commerce === "string" ? flags.commerce.toLowerCase() : undefined;
@@ -247,6 +295,11 @@ async function main() {
   const siteUrl = host ? `https://${host}` : `https://${key}.workers.dev`;
   const envBindings = generateAstroidEnvBindings(config);
   const portalLocals = generateAstroidPortalLocals(config);
+  // The realtime DO namespace, or nothing — same rule as the queue bindings: a
+  // declaration is a promise, so never type a binding wrangler.jsonc won't create.
+  const realtimeEnv = generateAstroidRealtimeEnv(config);
+  // The Square Web Payments public vars, or nothing.
+  const checkoutEnv = generateAstroidCheckoutEnv(config);
   const tokens = {
     KEY: key,
     BRAND_NAME: name,
@@ -256,7 +309,9 @@ async function main() {
     // Extra CloudflareEnv members the queue pipeline needs, or nothing. A
     // declaration is a promise — a marketing site must not claim a binding its
     // wrangler.jsonc never creates.
-    ASTROID_ENV_BINDINGS: envBindings ? `\n${envBindings}` : "",
+    ASTROID_ENV_BINDINGS: [envBindings, realtimeEnv, checkoutEnv].filter(Boolean).join("\n")
+      ? `\n${[envBindings, realtimeEnv, checkoutEnv].filter(Boolean).join("\n")}`
+      : "",
     // The portal session on App.Locals, or nothing — a project that types a
     // local it never sets invites a null-check nobody needs.
     ASTROID_PORTAL_LOCALS: portalLocals ? `\n${portalLocals}` : "",
@@ -270,17 +325,22 @@ async function main() {
   // 1. The static floor (Astro app, auth seam, config files) with tokens filled.
   copyTemplate(TEMPLATE_DIR, dir, tokens);
 
-  // 1b. Module dependencies, merged into the copied package.json.
+  // 1b. Toolkit versions + module dependencies, merged into the copied package.json.
   //
   //     Merged by PARSING the file rather than substituting a token into it:
   //     a `__TOKEN__` inside a JSON object makes template/package.json invalid
   //     JSON, and everything that scans a repo for manifests — Snyk, Dependabot,
   //     editors, workspace tooling — parses it and fails. (It did.)
   //
-  //     Only the enabled modules contribute: nobody installs a megabyte of
-  //     mapping library for a site with no map.
-  const extraDeps = { ...(map ? ASTROID_MAP_DEPENDENCIES : {}) };
-  if (Object.keys(extraDeps).length > 0) {
+  //     The `astroidjs` / `louise-toolkit` ranges are DERIVED (see
+  //     `toolkitRanges`), never taken from template/package.json — a hand-written
+  //     range there silently rots into a scaffold that can't build. The literals
+  //     it still carries are placeholders that keep the file valid JSON.
+  //
+  //     Only the enabled modules contribute the rest: nobody installs a megabyte
+  //     of mapping library for a site with no map.
+  const extraDeps = { ...toolkitRanges(), ...(map ? ASTROID_MAP_DEPENDENCIES : {}) };
+  {
     const pkgPath = join(dir, "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
     pkg.dependencies = Object.fromEntries(
@@ -296,64 +356,29 @@ async function main() {
   for (const file of generateAstroidProject(config)) write(dir, file.path, file.contents);
   write(dir, "wrangler.jsonc", generateAstroidWrangler(config));
 
-  // 3b. The queue pipeline's scaffold-once halves, only when this project runs
-  //     a consumer. Both exist to be edited (what a refresh means; which events
-  //     matter), so `astroid generate` must never rewrite them.
-  if (astroidUsesQueues(config)) {
-    write(dir, "src/queue.ts", generateAstroidQueueSeam(config));
-    // One receiver per provider — a site can run two (invoicing + storefront).
-    for (const route of generateAstroidWebhookRoutes(config)) write(dir, route.path, route.contents);
-  }
-
-  // 3b2. The portfolio archetype's gallery page. Scaffold-once — "which assets
-  //      appear, in what order" is the first thing a portfolio site changes.
-  const galleryPage = generateAstroidGalleryPage(config);
-  if (galleryPage) write(dir, "src/pages/work.astro", galleryPage);
-
-  // 3b3. The PWA scaffold: a scoped service worker + manifest, plus the headers
-  //      that keep the worker itself revalidating. Static files under public/,
-  //      not generated source — a service worker is not bundled.
-  const sw = generateServiceWorker(config);
-  if (sw) {
-    write(dir, "public/sw.js", sw);
-    write(dir, "public/manifest.webmanifest", generateWebManifest(config));
-    const headers = generatePwaHeaders(config);
-    const headersPath = join(dir, "public/_headers");
-    writeFileSync(
-      headersPath,
-      (existsSync(headersPath) ? readFileSync(headersPath, "utf8") : "") + headers,
-    );
-  }
-
-  // 3b4. The map module's tile route + embed component. Generated rather than
-  //      shipped in astroidjs so maplibre-gl stays a dependency of the projects
-  //      that actually draw a map.
-  const mapRoute = generateMapTileRoute(config);
-  if (mapRoute) write(dir, "src/pages/map/basemap.pmtiles.ts", mapRoute);
-  const mapEmbed = generateMapEmbedComponent(config);
-  if (mapEmbed) write(dir, "src/components/MapEmbed.astro", mapEmbed);
-
-  // 3c. The portal's second auth instance + its mounted catch-all. Also
-  //     scaffold-once: a site edits the reset email and the role a new account
-  //     gets, but not the mount/cookie/table prefixes that keep it isolated.
-  const portalAuth = generateAstroidPortalAuth(config);
-  if (portalAuth) {
-    write(dir, "src/portal-auth.ts", portalAuth);
-    write(
-      dir,
-      "src/pages/api/portal-auth/[...all].ts",
-      [
-        "// The portal Better Auth catch-all, mounted at its own basePath so it",
-        "// never collides with the studio's /api/auth.",
-        'import type { APIRoute } from "astro";',
-        'import { handlePortalAuth } from "../../../portal-auth.js";',
-        "",
-        "export const prerender = false;",
-        "",
-        "export const ALL: APIRoute = ({ request }) => handlePortalAuth(request);",
-        "",
-      ].join("\n"),
-    );
+  // 3b. Every scaffold-once module file this config implies — the queue seam and
+  //     webhook receivers, the portfolio gallery page, the PWA service worker +
+  //     manifest + headers, the map tile route + embed, the portal's second auth
+  //     instance and its mounted catch-all.
+  //
+  //     ONE list, imported from astroidjs, because `astroid generate` writes the
+  //     same files when a config gains a module after scaffold. Hand-listing them
+  //     here was the only way to produce them, so editing the config — the entire
+  //     premise of the framework — regenerated a trio importing `./queue.js` and
+  //     `./portal-auth.js` that nothing had written, and `astroid doctor` called
+  //     it healthy. Sharing the list is what keeps the two paths honest.
+  for (const file of generateAstroidScaffoldFiles(config)) {
+    if (file.apply === "append-once") {
+      // `public/_headers` accumulates a stanza per module rather than being owned
+      // by one, so append instead of overwriting a sibling module's block.
+      const abs = join(dir, file.path);
+      mkdirSync(dirname(abs), { recursive: true });
+      const current = existsSync(abs) ? readFileSync(abs, "utf8") : "";
+      if (file.marker && current.includes(file.marker)) continue;
+      writeFileSync(abs, current + file.contents);
+      continue;
+    }
+    write(dir, file.path, file.contents);
   }
 
   // 4. The Better Auth migration (louise-toolkit) — auth tables are fenced out of
@@ -405,12 +430,32 @@ async function main() {
       "Next steps:",
       `  cd ${rel}`,
       "  pnpm install",
+      // The auth-migration fallback belongs HERE, in sequence, not in a note
+      // printed after the list. It has to run before `d1 migrations apply`, and
+      // a correction that appears below an ordered list is a correction most
+      // people execute the list without reading: the stub left no `user` table,
+      // so `seed:editors` failed with `no such table: user` and the very first
+      // instruction anyone follows was the one that broke.
+      ...(authMigrationOk
+        ? []
+        : [
+            "  # generate the Better Auth migration (it could not be written at scaffold",
+            "  # time — `louise` is on your path once the install above finishes):",
+            "  pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql",
+            ...(config.portal?.enabled
+              ? [
+                  "  pnpm exec louise gen-auth-schema --table-prefix portal_ \\",
+                  "    --out migrations/0002_portal_auth.sql",
+                ]
+              : []),
+          ]),
       "  # provision the Cloudflare bindings, then fill the ids in wrangler.jsonc:",
       "  wrangler d1 create " + key,
       "  wrangler r2 bucket create " + key + "-media",
       "  wrangler kv namespace create RL && wrangler kv namespace create DRAFTS",
-      "  # apply migrations + seed your first editor:",
+      "  # apply migrations, seed the home page + your first editor:",
       "  wrangler d1 migrations apply DB --remote",
+      "  wrangler d1 execute DB --remote --file seed/home.seed.sql",
       "  OWNER_EMAIL=you@example.com pnpm seed:editors",
       "  # develop / ship:",
       "  pnpm dev            # astroid dev (regenerates, then astro dev)",
@@ -421,12 +466,8 @@ async function main() {
   );
   if (!authMigrationOk) {
     process.stdout.write(
-      "Note: generate the Better Auth migration after install:\n" +
-        "  pnpm exec louise gen-auth-schema --out migrations/0001_auth.sql\n" +
-        (config.portal?.enabled
-          ? "  pnpm exec louise gen-auth-schema --table-prefix portal_ --out migrations/0002_portal_auth.sql\n"
-          : "") +
-        "\n",
+      "Note: the Better Auth migration is a stub — the `gen-auth-schema` step above\n" +
+        "fills it in. Skipping it leaves no `user` table, and `seed:editors` will fail.\n\n",
     );
   }
 }

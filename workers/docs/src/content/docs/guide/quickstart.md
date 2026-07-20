@@ -32,11 +32,14 @@ adapter, with a D1 binding on `env.DB`). Inline editing is progressive
 enhancement — you server-render normally, then mark the editable regions and
 mount the client in edit mode.
 
-:::note[A one-command scaffold is coming]
+:::tip[Starting from scratch? There's a one-command scaffold]
 Standing the whole app up by hand — bindings, migrations, worker wiring — is what
-**Astroid** (the opinionated framework layer over Louise) and its `create-astroid`
-CLI will collapse into one command. That's on the [roadmap](#next-steps); until
-then, add Louise to an app you already have.
+**Astroid** (the opinionated framework layer over Louise) collapses into
+`pnpm create astroid my-site`. It scaffolds an editable Astro app on Cloudflare
+with sign-in, migrations, and the editor already wired.
+
+This page is the other path: adding Louise to an app you already have. See the
+[Astroid guide](/guide/astroid/) if you're starting fresh.
 :::
 
 ### 1. Install

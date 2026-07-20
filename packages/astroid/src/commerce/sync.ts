@@ -17,6 +17,8 @@
 // alone, and owned columns only appear in the INSERT, as defaults for a row
 // that didn't exist yet.
 
+import { AstroidUsageError } from "../errors.js";
+
 /** The provider-agnostic shape an adapter normalizes a product into. */
 export interface CatalogItem {
   /** The provider's id. Unique, stable, and the sync's idempotency key. */
@@ -58,6 +60,15 @@ export interface CatalogSyncResult {
   created: number;
   /** Rows whose pulled fields were refreshed. */
   updated: number;
+  /** Items that threw and were skipped. The next run retries them. */
+  failed: number;
+  /**
+   * One error per failed item, in order, for logging.
+   *
+   * Capped — a catalog-wide failure would otherwise build an array as long as
+   * the catalog just to describe the same fault N times.
+   */
+  errors: { externalId: string; message: string }[];
 }
 
 /** Lowercase, dash-separated, punctuation stripped. */
@@ -180,6 +191,10 @@ export async function astroidCatalogUpsert(
   return { created: true };
 }
 
+/** How many per-item errors to keep. Enough to spot a pattern, bounded so a
+ *  catalog-wide fault doesn't allocate one message per product. */
+const MAX_RECORDED_ERRORS = 10;
+
 /**
  * Sync a whole catalog snapshot.
  *
@@ -189,20 +204,48 @@ export async function astroidCatalogUpsert(
  * left alone — deciding whether a missing item is delisted or just a failed page
  * of an API response is the project's call, not the sync's, and unpublishing
  * someone's whole catalog on a bad response is unrecoverable.
+ *
+ * **A TOTAL failure throws.** Tolerating individual items is the point; silently
+ * reporting `{ created: 0, updated: 0 }` when every write failed is not. The
+ * result carried no failure count, so an unapplied migration or an unavailable
+ * D1 looked exactly like an empty catalog: the queue consumer acked the message,
+ * the cron re-sync acked too, and the site served a frozen catalog indefinitely
+ * with nothing in `wrangler tail`. Throwing when nothing at all landed is what
+ * makes the queue's retry and DLQ do their job.
+ *
+ * Partial failures do NOT throw — they come back in `failed`/`errors` for the
+ * caller to log, because retrying the whole batch to re-attempt a few rows would
+ * undo the tolerance this loop exists to provide.
  */
 export async function astroidCatalogSync(
   items: CatalogItem[],
   options: CatalogSyncOptions,
 ): Promise<CatalogSyncResult> {
-  const result: CatalogSyncResult = { created: 0, updated: 0 };
+  const result: CatalogSyncResult = { created: 0, updated: 0, failed: 0, errors: [] };
   for (const item of items) {
     try {
       const { created } = await astroidCatalogUpsert(item, options);
       if (created) result.created++;
       else result.updated++;
-    } catch {
-      // Skip this item; the next run retries it.
+    } catch (cause) {
+      // Skip this item; the next run retries it — but record it, so "nothing
+      // synced" can be told apart from "nothing to sync".
+      result.failed++;
+      if (result.errors.length < MAX_RECORDED_ERRORS) {
+        result.errors.push({
+          externalId: item.externalId,
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
+      }
     }
+  }
+  if (items.length > 0 && result.failed === items.length) {
+    throw new AstroidUsageError(
+      `Catalog sync failed for all ${items.length} item(s) — nothing was written. ` +
+        `First error: ${result.errors[0]?.message ?? "unknown"}. ` +
+        "This is usually an unapplied migration (the catalog table doesn't exist yet) " +
+        "or an unavailable D1 binding.",
+    );
   }
   return result;
 }

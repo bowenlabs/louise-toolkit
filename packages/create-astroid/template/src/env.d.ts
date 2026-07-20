@@ -13,8 +13,34 @@ type CloudflareEnv = {
   MEDIA: R2Bucket;
   /** Public base for media URLs (the framework-agnostic media route reads this). */
   MEDIA_URL: string;
+  /** The site's public origin — declared in wrangler.jsonc `vars`. Read by the
+   *  health scan to know what to crawl, and by anything else that needs an
+   *  absolute URL from inside the Worker. */
+  SITE_URL: string;
+  /**
+   * Edge caching for published pages — `"true"` to enable (ADR 0004). A string,
+   * not a boolean, because wrangler `vars` are strings.
+   *
+   * Off by default, and the default is the safe state. Enable on a PREVIEW
+   * deploy and walk the activation runbook first: `caches.default` is not
+   * cleared by Cloudflare Dev Mode or Purge Everything.
+   */
+  ASTROID_EDGE_CACHE: string;
   /** Cloudflare Images — upload dimensions + server-side transforms. */
   IMAGES: ImagesBinding;
+  /**
+   * Analytics Engine dataset for real-visitor Core Web Vitals. The ingest route
+   * accepts-and-drops without it, so leaving it unbound is safe — the Health
+   * panel's CWV badge just stays "not measured yet".
+   */
+  VITALS?: AnalyticsEngineDataset;
+  /**
+   * Workers AI — the editor's rewrite + SEO-suggest assists and alt-text
+   * generation on upload. Every consumer degrades on its own: the routes answer
+   * 503 without it (the client then hides the button) and alt-text generation is
+   * best-effort, so a project that never wants AI simply never calls it.
+   */
+  AI: Ai;
   /** KV — the security rate limiter. */
   RL: KVNamespace;
   /** KV — the autosave draft write-buffer (optional; falls back to direct D1). */
@@ -42,6 +68,12 @@ type CloudflareEnv = {
   TURNSTILE_SECRET?: string;
   /** Public Turnstile site key; the always-passing test key keeps captcha off. */
   TURNSTILE_SITE_KEY?: string;
+  /** Cloudflare account id — ONLY for reading Core Web Vitals back out of the
+   *  Analytics Engine SQL API (it is account-scoped and has no binding).
+   *  Unset → the Health panel's CWV badge stays "not measured yet". */
+  CF_ACCOUNT_ID?: string;
+  /** API token with Account Analytics:Read, for the same query. */
+  CF_API_TOKEN?: string;
   /** First editor's email — seeded as an admin, then part of the DB allowlist. */
   OWNER_EMAIL: string;
   /** Optional second bootstrap editor (e.g. your engineer). */

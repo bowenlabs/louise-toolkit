@@ -3,9 +3,25 @@
 // clicking it starts a session and lands on `/?louise` (edit mode on). The gate
 // is enumeration-safe — the response is identical whether or not the email is an
 // editor — so the UI always says "check your email".
+import { env } from "cloudflare:workers";
+import { turnstileSiteKey } from "louise-toolkit/auth";
 import Site from "../layouts/Site.astro";
 
 export const prerender = false;
+
+// Turnstile, rendered ONLY when a real (non-test) site key is set.
+//
+// This has to match the server exactly. `getLouiseAuth` registers Better Auth's
+// captcha plugin on /sign-in/magic-link the moment BOTH halves of the pair are
+// real, and that plugin rejects any request without an `x-captcha-response`
+// header. So a page that never rendered a widget meant provisioning Turnstile —
+// which .env.example openly invites you to do — locked the owner out of their
+// own sign-in, with a 403 and no clue why.
+//
+// `turnstileSiteKey` returns null for the always-passing TEST key, which is the
+// same condition `activeCaptchaSecret` uses server-side. One shared rule, so the
+// widget appears exactly when the server starts demanding a token.
+const siteKey = turnstileSiteKey(env);
 ---
 
 {/* noindex: an editor sign-in page has nothing for a search result to offer. */}
@@ -27,12 +43,33 @@ export const prerender = false;
               class="input input-bordered w-full"
             />
           </label>
+          {
+            siteKey && (
+              /* Turnstile injects a hidden `cf-turnstile-response` input here once
+                 it solves. The submit handler reads it out of the form. */
+              <div class="cf-turnstile" data-sitekey={siteKey} data-size="flexible" />
+            )
+          }
           <button type="submit" class="btn btn-primary">Email me a sign-in link</button>
           <p id="msg" class="text-sm opacity-70" aria-live="polite"></p>
         </div>
       </form>
     </div>
   </main>
+
+  {
+    /* Turnstile's widget script. `is:inline` because it's a remote src Astro must
+       not process; the CSP already allows challenges.cloudflare.com for script,
+       frame, and connect (astroidSecurity). Only loaded when there's a widget. */
+    siteKey && (
+      <script
+        is:inline
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        async
+        defer
+      />
+    )
+  }
 
   {/* Processed (NOT is:inline) so Astro's security.csp hashes it into script-src.
       Keep it dependency-free and static — an is:inline or define:vars script here
@@ -46,10 +83,22 @@ export const prerender = false;
       const email = input?.value.trim();
       if (!email || !msg) return;
       msg.textContent = "Sending…";
+      // Turnstile writes its token into a hidden input it injects into the form.
+      // Better Auth's captcha plugin reads it from the `x-captcha-response`
+      // HEADER (not the body), and rejects the request outright when it's
+      // missing — so this header is what makes a captcha-enabled sign-in work.
+      // Absent when no widget rendered, in which case the plugin isn't active
+      // either and the header is simply not sent.
+      const token = (form as HTMLFormElement).querySelector<HTMLInputElement>(
+        'input[name="cf-turnstile-response"]',
+      )?.value;
       try {
         await fetch("/api/auth/sign-in/magic-link", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(token ? { "x-captcha-response": token } : {}),
+          },
           body: JSON.stringify({ email, callbackURL: "/?louise" }),
         });
         msg.textContent = "If that email is an editor, a sign-in link is on its way.";

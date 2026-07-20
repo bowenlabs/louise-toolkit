@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { BlockCatalog, SectionCatalog } from "../../src/core/content/sections.js";
-import { assertValidSections, validateSections } from "../../src/core/content/sections.js";
+import {
+  assertValidSections,
+  sanitizeSectionsRichText,
+  validateSections,
+} from "../../src/core/content/sections.js";
 import { LouiseValidationError } from "../../src/core/errors.js";
 
 const catalog: SectionCatalog = {
@@ -570,5 +574,83 @@ describe("validateSections — select (closed choice)", () => {
       (v) => v.severity === "error",
     );
     expect(e).toHaveLength(1);
+  });
+});
+
+describe("sanitizeSectionsRichText — nested array item fields", () => {
+  // `SectionField` lets an `array` declare a richText item field, and a real
+  // catalog does: Astroid's `faq.items[].answer` is richText rendered with
+  // `set:html`. The sanitizer walked one level, so that value was stored exactly
+  // as an editor typed it — the "never store raw HTML" invariant held everywhere
+  // except the one place a catalog author would naturally reach for it.
+  const nested: SectionCatalog = {
+    faq: {
+      label: "FAQ",
+      fields: {
+        intro: { type: "richText" },
+        items: {
+          type: "array",
+          itemFields: {
+            question: { type: "text" },
+            answer: { type: "richText" },
+          },
+        },
+      },
+    },
+  };
+  const PAYLOAD = "<img src=x onerror=alert(1)>";
+  const scrub = () => "SANITIZED";
+
+  it("sanitizes richText inside array items", () => {
+    const out = sanitizeSectionsRichText(
+      [{ _type: "faq", intro: PAYLOAD, items: [{ question: PAYLOAD, answer: PAYLOAD }] }],
+      nested,
+      scrub,
+    ) as Record<string, unknown>[];
+
+    expect(out[0].intro).toBe("SANITIZED");
+    const items = out[0].items as Record<string, unknown>[];
+    expect(items[0].answer).toBe("SANITIZED");
+    // A non-richText sibling is left exactly as stored — sanitizing it would
+    // corrupt legitimate text containing angle brackets.
+    expect(items[0].question).toBe(PAYLOAD);
+  });
+
+  it("leaves a non-array value and non-object rows alone", () => {
+    const out = sanitizeSectionsRichText(
+      [
+        { _type: "faq", items: "not-an-array" },
+        { _type: "faq", items: [null, 42, "x"] },
+      ],
+      nested,
+      scrub,
+    ) as Record<string, unknown>[];
+    expect(out[0].items).toBe("not-an-array");
+    expect(out[1].items).toEqual([null, 42, "x"]);
+  });
+
+  it("recurses through arrays nested inside arrays", () => {
+    const deep: SectionCatalog = {
+      pricing: {
+        label: "Pricing",
+        fields: {
+          tiers: {
+            type: "array",
+            itemFields: {
+              name: { type: "text" },
+              features: { type: "array", itemFields: { text: { type: "richText" } } },
+            },
+          },
+        },
+      },
+    };
+    const out = sanitizeSectionsRichText(
+      [{ _type: "pricing", tiers: [{ name: "Pro", features: [{ text: PAYLOAD }] }] }],
+      deep,
+      scrub,
+    ) as Record<string, unknown>[];
+    const tiers = out[0].tiers as Record<string, unknown>[];
+    const features = tiers[0].features as Record<string, unknown>[];
+    expect(features[0].text).toBe("SANITIZED");
   });
 });

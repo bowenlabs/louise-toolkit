@@ -7,9 +7,10 @@ import {
   astroidCommerceProviders,
   astroidCommerceRoles,
 } from "../src/commerce/roles.js";
-import { astroidCatalogUpsert, defaultSlug } from "../src/commerce/sync.js";
+import { astroidCatalogSync, astroidCatalogUpsert, defaultSlug } from "../src/commerce/sync.js";
 import { defineAstroid } from "../src/config.js";
 import type { AstroidConfig } from "../src/config.js";
+import { AstroidUsageError } from "../src/errors.js";
 import { generateAstroidSchema } from "../src/schema/generate.js";
 
 const base: AstroidConfig = {
@@ -343,6 +344,57 @@ describe("verifyCheckout", () => {
   });
 });
 
+describe("catalog sync — failure reporting", () => {
+  const items = [
+    { externalId: "SQ1", name: "A", price: 1 },
+    { externalId: "SQ2", name: "B", price: 2 },
+  ];
+  /** A db whose every statement throws — an unapplied migration, or D1 down. */
+  const brokenDb = () => ({
+    prepare() {
+      throw new Error("no such table: products");
+    },
+  });
+
+  it("THROWS when every item fails, so the queue retries instead of acking", async () => {
+    // It used to return { created: 0, updated: 0 } and never throw, which is
+    // indistinguishable from an empty catalog: the consumer acked, the cron
+    // re-sync acked, and the site served a frozen catalog with nothing in
+    // `wrangler tail`.
+    await expect(
+      astroidCatalogSync(items, { db: brokenDb() as never, table: "products" }),
+    ).rejects.toThrow(AstroidUsageError);
+    await expect(
+      astroidCatalogSync(items, { db: brokenDb() as never, table: "products" }),
+    ).rejects.toThrow(/no such table/);
+  });
+
+  it("reports a PARTIAL failure without throwing — tolerance is the point", async () => {
+    let calls = 0;
+    const flaky = {
+      prepare(sql: string) {
+        calls++;
+        if (calls === 1) throw new Error("transient");
+        return {
+          bind() {
+            return { async run() {}, async first() { return null; } };
+          },
+        };
+      },
+    };
+    const result = await astroidCatalogSync(items, { db: flaky as never, table: "products" });
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatchObject({ externalId: "SQ1", message: "transient" });
+    // The surviving item still landed — a partial catalog beats a stale one.
+    expect(result.created + result.updated).toBe(1);
+  });
+
+  it("does not throw on an empty snapshot — nothing to sync is not a failure", async () => {
+    const result = await astroidCatalogSync([], { db: brokenDb() as never, table: "products" });
+    expect(result).toEqual({ created: 0, updated: 0, failed: 0, errors: [] });
+  });
+});
+
 describe("checkoutIdempotencyKey", () => {
   const cart = {
     lines: [
@@ -352,16 +404,33 @@ describe("checkoutIdempotencyKey", () => {
     subtotalCents: 200,
   };
 
-  it("is stable for the same cart — a double-click charges once", async () => {
-    expect(await checkoutIdempotencyKey(cart, "order")).toBe(
-      await checkoutIdempotencyKey(cart, "order"),
+  it("is stable for one buyer's cart — a double-click charges once", async () => {
+    expect(await checkoutIdempotencyKey(cart, "order", "cart_alice")).toBe(
+      await checkoutIdempotencyKey(cart, "order", "cart_alice"),
     );
+  });
+
+  it("separates DIFFERENT buyers with identical carts", async () => {
+    // The bug this closes: the key was a pure function of the cart, so Alice and
+    // Bob each buying 1×A + 2×B produced byte-identical keys. Providers scope
+    // idempotency keys per account for ~24h, so Bob's charge was deduped into
+    // Alice's order — Bob was never charged and the site reported success.
+    expect(await checkoutIdempotencyKey(cart, "order", "cart_alice")).not.toBe(
+      await checkoutIdempotencyKey(cart, "order", "cart_bob"),
+    );
+  });
+
+  it("refuses an empty identity rather than silently colliding", async () => {
+    // A falsy identity would restore the collision exactly, and the damage is
+    // invisible at the call site — so this must throw, not default.
+    await expect(checkoutIdempotencyKey(cart, "order", "")).rejects.toThrow(AstroidUsageError);
+    await expect(checkoutIdempotencyKey(cart, "order", "   ")).rejects.toThrow(/identity/i);
   });
 
   it("ignores line ORDER but not line content", async () => {
     const reordered = { ...cart, lines: [...cart.lines].reverse() };
-    expect(await checkoutIdempotencyKey(reordered, "order")).toBe(
-      await checkoutIdempotencyKey(cart, "order"),
+    expect(await checkoutIdempotencyKey(reordered, "order", "cart_alice")).toBe(
+      await checkoutIdempotencyKey(cart, "order", "cart_alice"),
     );
 
     const changed = {
@@ -369,14 +438,14 @@ describe("checkoutIdempotencyKey", () => {
       lines: [{ ...cart.lines[0], quantity: 3, subtotalCents: 300 }, cart.lines[1]],
       subtotalCents: 400,
     };
-    expect(await checkoutIdempotencyKey(changed, "order")).not.toBe(
-      await checkoutIdempotencyKey(cart, "order"),
+    expect(await checkoutIdempotencyKey(changed, "order", "cart_alice")).not.toBe(
+      await checkoutIdempotencyKey(cart, "order", "cart_alice"),
     );
   });
 
   it("separates scopes, so an order and a refund never share a key", async () => {
-    expect(await checkoutIdempotencyKey(cart, "order")).not.toBe(
-      await checkoutIdempotencyKey(cart, "refund"),
+    expect(await checkoutIdempotencyKey(cart, "order", "cart_alice")).not.toBe(
+      await checkoutIdempotencyKey(cart, "refund", "cart_alice"),
     );
   });
 });

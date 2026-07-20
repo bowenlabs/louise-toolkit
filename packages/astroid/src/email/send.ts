@@ -128,19 +128,69 @@ export interface MailerOptions {
   logOnly?: boolean;
   /** Sink for the dev log. Defaults to `console.info`; pass one in a test. */
   log?: (message: string) => void;
+  /**
+   * Print the message BODY when a send is skipped.
+   *
+   * The body carries single-use sign-in and password-reset links, so it is only
+   * printed where we can tell we're in development. Set this explicitly when the
+   * detection can't (a local `wrangler dev` against a real account, a test). Do
+   * not set it on a deployed Worker: the log is `wrangler tail` and Logpush.
+   */
+  devLog?: boolean;
 }
 
-/** The console rendering of an unsent message — subject, recipient, and the
- *  plaintext body, because that's where a sign-in link actually is. */
-function describe(mail: OutgoingMail, reason: string): string {
-  return [
+/**
+ * The console rendering of an unsent message.
+ *
+ * The body is the whole point in dev — that's where a sign-in link actually is,
+ * and printing it is what lets you sign in with no mail provider configured.
+ *
+ * It is also a credential. `logOnly` turns on whenever `MAIL_FROM` is unset, and
+ * that can happen in PRODUCTION — a secret that didn't get set, or a Secrets
+ * Store read that failed. The body then went to `console.info`, which means
+ * `wrangler tail` and every Logpush sink, carrying live single-use magic links
+ * and password-reset URLs. Anyone with read access to observability could take
+ * over an editor or portal account.
+ *
+ * So the body is printed only when we can see we're in development. Everywhere
+ * else the log still records that a message went unsent, and why, but not the
+ * credential inside it.
+ */
+function describe(mail: OutgoingMail, reason: string, includeBody: boolean): string {
+  const head = [
     `[astroid:email] ${reason} — not sent`,
     `  to:      ${mail.to}`,
     `  subject: ${mail.content.subject}`,
-    "  ---",
-    ...mail.content.text.split("\n").map((line) => `  ${line}`),
-    "  ---",
-  ].join("\n");
+  ];
+  if (!includeBody) {
+    return [
+      ...head,
+      "  (body withheld — it can contain a single-use sign-in or reset link, and this",
+      "   does not look like a development environment. Set MAIL_FROM and the EMAIL",
+      "   binding to deliver it, or pass `devLog: true` if this really is local.)",
+    ].join("\n");
+  }
+  return [...head, "  ---", ...mail.content.text.split("\n").map((line) => `  ${line}`), "  ---"].join(
+    "\n",
+  );
+}
+
+/**
+ * Best-effort "are we in development?".
+ *
+ * Deliberately conservative — it decides whether a credential is printed, so an
+ * unknown environment must read as production. Workers has no `NODE_ENV`, so we
+ * look at the signals that do exist and let a caller override explicitly.
+ */
+function looksLikeDev(): boolean {
+  // Vite/Astro define this at build time; `import.meta.env` is absent in a plain
+  // Worker, hence the guarded read.
+  const viteDev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
+  if (typeof viteDev === "boolean") return viteDev;
+  const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env?.NODE_ENV;
+  if (typeof nodeEnv === "string") return nodeEnv !== "production";
+  return false;
 }
 
 /**
@@ -170,7 +220,8 @@ export async function sendTransactional(
 
   if (dormant) {
     const reason = options.binding ? "log-only" : "not-configured";
-    for (const mail of mails) log(describe(mail, reason));
+    const includeBody = options.devLog ?? looksLikeDev();
+    for (const mail of mails) log(describe(mail, reason, includeBody));
     return mails.map((mail) => ({
       to: mail.to,
       subject: mail.content.subject,
@@ -203,12 +254,22 @@ export async function sendTransactional(
         messageId: result.value.messageId,
       };
     }
-    return {
-      to: mail.to,
-      subject: mail.content.subject,
-      delivered: false,
-      reason: result.reason instanceof Error ? result.reason.message : String(result.reason),
-    };
+    // A genuine delivery failure is LOGGED, not just returned.
+    //
+    // The result array was the only record of it, and the one caller that
+    // matters — the generated inquiry handler — discards it by design (the row
+    // is already durable, and the visitor must not see a 500 because the owner's
+    // notification bounced). So a dead Email Sending domain or an exhausted
+    // quota produced silence everywhere: a success page for the visitor, nothing
+    // for the owner, and nothing in `wrangler tail`. Weeks later someone asks
+    // why the contact form stopped working.
+    //
+    // Logged here rather than left to callers because this is the only place
+    // that knows a send was attempted and failed; `log` is already injectable
+    // for tests and for routing somewhere other than console.
+    const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+    log(`[astroid:email] delivery FAILED to ${mail.to} (${mail.content.subject}): ${reason}`);
+    return { to: mail.to, subject: mail.content.subject, delivered: false, reason };
   });
 }
 

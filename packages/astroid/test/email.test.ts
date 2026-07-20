@@ -229,6 +229,45 @@ describe("sendTransactional", () => {
     expect(log).toHaveBeenCalledOnce();
   });
 
+  it("WITHHOLDS the body when this isn't a dev environment", async () => {
+    // `logOnly` turns on whenever MAIL_FROM is unset, which can happen in
+    // production (an unset secret, a failed Secrets Store read). The body then
+    // went to console.info — i.e. `wrangler tail` and Logpush — carrying live
+    // single-use magic links. Anyone with observability access could take over
+    // an editor account.
+    const log = vi.fn();
+    await sendTransactional({ from: "a@b.c", log, devLog: false }, [mail("x@y.z")]);
+    const line = log.mock.calls[0][0];
+    expect(line).not.toContain("https://link");
+    expect(line).toContain("body withheld");
+    // It still records THAT a message went unsent, and to whom.
+    expect(line).toContain("x@y.z");
+    expect(line).toContain("not-configured");
+  });
+
+  it("prints the body when the caller says it is dev", async () => {
+    const log = vi.fn();
+    await sendTransactional({ from: "a@b.c", log, devLog: true }, [mail("x@y.z")]);
+    expect(log.mock.calls[0][0]).toContain("https://link");
+  });
+
+  it("logs a genuine delivery failure instead of only returning it", async () => {
+    // The generated inquiry handler discards the results by design (the row is
+    // durable, and a visitor must not see a 500 because the owner's copy
+    // bounced), so this log is the ONLY record a send failed.
+    const log = vi.fn();
+    const send = vi.fn(async () => {
+      throw new Error("domain not verified");
+    });
+    const results = await sendTransactional({ binding: { send }, from: "a@b.c", log }, [
+      mail("owner@acme.co"),
+    ]);
+    expect(results[0].delivered).toBe(false);
+    expect(log).toHaveBeenCalled();
+    expect(log.mock.calls[0][0]).toContain("delivery FAILED");
+    expect(log.mock.calls[0][0]).toContain("owner@acme.co");
+  });
+
   it("handles an empty batch", async () => {
     expect(await sendTransactional({ from: "a@b.c", log: () => {} }, [])).toEqual([]);
   });

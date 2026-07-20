@@ -87,11 +87,13 @@ job it isn't built for.
 If Louise's "assemble the primitives yourself" model sounds like a lot of wiring:
 that's what **Astroid** — the opinionated meta-framework layered over Louise —
 exists to remove. One typed `defineAstroid` config generates the worker routes,
-middleware, schema, and theme a site would otherwise hand-write. Astroid is
-**experimental and not yet published** (it lives in the same workspace so its
-opinions can co-evolve with Louise); it's on the [roadmap](https://github.com/bowenlabs/louise-toolkit/milestone/1),
-not something to install today. Louise is the unopinionated toolkit you can use
-right now.
+middleware, schema, and theme a site would otherwise hand-write, and
+`pnpm create astroid` scaffolds the whole app in one command.
+
+Both are published and both are pre-1.0. The rule of thumb: **adding editing to an
+app you already have → Louise; starting a new site on Cloudflare → Astroid.**
+Astroid lives in the same workspace so its opinions co-evolve with the toolkit.
+See the [Astroid guide](/guide/astroid/).
 
 ## Credibility
 

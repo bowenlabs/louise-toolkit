@@ -15,6 +15,11 @@
 //      NEVER clobber them, or it would wipe provisioned ids — so they live in a
 //      separate function the regenerate path doesn't call.
 
+import {
+  ASTROID_VITALS_BINDING,
+  astroidVitalsDataset,
+} from "../analytics/index.js";
+import { astroidCheckoutVars } from "../commerce/checkout-scaffold.js";
 import { astroidCommerceProviders } from "../commerce/roles.js";
 import {
   COMMERCE_PROVIDER_SECRETS,
@@ -25,9 +30,16 @@ import type { AstroidConfig } from "../config.js";
 import {
   ASTROID_QUEUE_BINDING,
   astroidCron,
+  astroidCrons,
   astroidQueueNames,
   astroidUsesQueues,
 } from "../queues/messages.js";
+import {
+  ASTROID_EDIT_SESSION_CLASS,
+  ASTROID_REALTIME_BINDING,
+  ASTROID_REALTIME_MIGRATION_TAG,
+  usesRealtime,
+} from "../realtime/scaffold.js";
 import { ASTROID_SECRET_PLACEHOLDER } from "../secrets.js";
 import { generateAstroidSchema } from "../schema/generate.js";
 import { generateAstroidMiddleware, generateAstroidWorker } from "../worker/generate.js";
@@ -139,14 +151,37 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
     p("  // No `hosts` in your config → deploys to <name>.workers.dev. Add a");
     p('  // "routes" block with a custom_domain pattern to serve a real domain.');
   }
+  if (usesRealtime(config)) {
+    // The per-page live editing session (ADR 0002). Two halves, and BOTH are
+    // required — a binding with no migration is a deploy error, and the class
+    // must also be exported from the worker entry (the generated src/worker.ts
+    // re-exports it) or wrangler can't resolve `class_name`.
+    p("  // Durable Object: the per-page live editing session (realtime module).");
+    p('  "durable_objects": {');
+    p(
+      `    "bindings": [{ "name": ${JSON.stringify(ASTROID_REALTIME_BINDING)}, "class_name": ${JSON.stringify(ASTROID_EDIT_SESSION_CLASS)} }]`,
+    );
+    p("  },");
+    p("  // A DO class needs a migration tag. `new_sqlite_classes` (NOT");
+    p("  // `new_classes`) because the session keeps its authoritative state in");
+    p("  // `ctx.storage`, which is the SQLite-backed store — and the storage");
+    p("  // backend cannot be changed after the class is first deployed.");
+    p("  \"migrations\": [");
+    p(
+      `    { "tag": ${JSON.stringify(ASTROID_REALTIME_MIGRATION_TAG)}, "new_sqlite_classes": [${JSON.stringify(ASTROID_EDIT_SESSION_CLASS)}] }`,
+    );
+    p("  ],");
+  }
+  // Crons. ONE `scheduled` handler receives all of them and tells them apart by
+  // `controller.cron`, so this list and the handler's dispatch must agree
+  // exactly — both come from `astroidCrons`, which is why it exists.
+  //
+  // Daily: the site-health scan (broken links, missing alt text, SEO gaps).
+  // Hourly (commerce only): the catalog re-sync safety net, so a missed or DLQ'd
+  // webhook can only leave the site stale until the next tick.
+  p(`  "triggers": { "crons": ${JSON.stringify(astroidCrons(config))} },`);
   if (astroidUsesQueues(config)) {
     const { queue, dlq } = astroidQueueNames(config);
-    const cron = astroidCron(config);
-    if (cron) {
-      p("  // Cron safety net: re-sync on a schedule so a missed or DLQ'd webhook");
-      p("  // can only leave the site stale until the next tick.");
-      p(`  "triggers": { "crons": [${JSON.stringify(cron)}] },`);
-    }
     p("  // Provider webhooks are verified at the edge, then enqueued here so the");
     p("  // receiver can return fast. Retries + DLQ routing are Cloudflare's, not");
     p("  // the consumer's — set them here, not in code.");
@@ -182,12 +217,38 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   p("  // Cloudflare Images: the media route reads upload dimensions + backs server-");
   p("  // side re-encode. Also @astrojs/cloudflare's production image service.");
   p('  "images": { "binding": "IMAGES" },');
-  p("  // KV: RL = the security rate limiter; DRAFTS = the autosave write-buffer.");
+  p("  // Analytics Engine: real-visitor Core Web Vitals. Free, and the ingest");
+  p("  // route accepts-and-drops without it, so it costs nothing unused. Reading");
+  p("  // the p75 back out needs CF_ACCOUNT_ID + CF_API_TOKEN (see .env.example) —");
+  p("  // until those are real the Health badge reads 'not measured yet'.");
+  p(
+    `  "analytics_engine_datasets": [{ "binding": ${JSON.stringify(ASTROID_VITALS_BINDING)}, "dataset": ${JSON.stringify(astroidVitalsDataset(config))} }],`,
+  );
+  p("  // Workers AI. Powers the editor's rewrite + SEO-suggest buttons and alt-text");
+  p("  // generation on upload — all of which SHIP IN THE EDITOR DRAWER already and,");
+  p("  // without this binding, were permanently invisible: their routes answer 503");
+  p("  // and the client hides the button. No account setup beyond the binding, and");
+  p("  // every call is editor-gated, so a visitor can never spend your AI budget.");
+  p('  "ai": { "binding": "AI" },');
+  p("  // KV: RL = the security rate limiter (it also holds the daily site-health");
+  p("  // summary under its own key — one small singleton blob, not worth a binding");
+  p("  // someone has to remember to provision); DRAFTS = the autosave write-buffer.");
   p("  // Create each: `wrangler kv namespace create <RL|DRAFTS>`.");
   p('  "kv_namespaces": [');
   p('    { "binding": "RL", "id": "<run: wrangler kv namespace create RL>" },');
   p('    { "binding": "DRAFTS", "id": "<run: wrangler kv namespace create DRAFTS>" },');
   p("  ],");
+  // Email Sending. NOT optional decoration: `src/env.d.ts` declares EMAIL as a
+  // required member, and Better Auth's magic-link path console-logs the link in
+  // dev but calls `env.EMAIL.send(...)` unconditionally in production. Without
+  // this binding that call is a TypeError on a binding that was never created —
+  // so sign-in was impossible on every DEPLOYED site, while every local build
+  // and every CI scaffold passed. Nothing in this repo runs a deployed scaffold,
+  // which is why it survived.
+  p("  // Cloudflare Email Sending — magic-link sign-in + inquiry notifications.");
+  p("  // Sign-in DEPENDS on this: in production the magic link is emailed, not logged.");
+  p("  // Enable Email Sending for your zone, then verify the address in MAIL_FROM.");
+  p('  "send_email": [{ "name": "EMAIL" }],');
   p("  // Public base for media URLs; same-origin keeps media self-contained. Read off");
   p("  // the runtime env by the framework-agnostic media route, so it stays a `var`.");
   p('  "vars": {');
@@ -197,6 +258,22 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   );
   p("    // The editor allowlist / owner. Wire this into your auth seam (src/auth.ts).");
   p('    "OWNER_EMAIL": "",');
+  p("    // Edge caching for published pages (ADR 0004). OFF by default, and the");
+  p("    // default is the safe state: with it off every render is `no-store` and");
+  p("    // the Worker cache layer stores nothing.");
+  p("    //");
+  p("    // Turn it on for a PREVIEW deploy first and walk the activation runbook");
+  p("    // (docs/adr/0004-edge-caching.md). `caches.default` is not cleared by");
+  p("    // Cloudflare Dev Mode or Purge Everything, so a bad prod flip is hard to");
+  p("    // undo — this feature was reverted twice for exactly that.");
+  p('    "ASTROID_EDGE_CACHE": "false",');
+  for (const v of astroidCheckoutVars(config)) {
+    // Public, not secret — the app id ships to the browser to mount the card
+    // field, and the environment is a choice. Keeping them out of the secret
+    // roster also keeps them out of the dormancy gate, which asks whether we can
+    // safely CALL Square, not whether a card field can render.
+    p(`    ${JSON.stringify(v.name)}: ${JSON.stringify(v.value)},`);
+  }
   p("  },");
   // Secrets are NOT vars: they belong in .dev.vars locally and in `wrangler
   // secret put` / Secrets Store when deployed. Listing the names here is

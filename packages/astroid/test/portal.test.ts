@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AstroidConfig } from "../src/config.js";
+import { defineAstroid } from "../src/config.js";
+import { AstroidConfigError } from "../src/errors.js";
 import {
   ASTROID_PORTAL_COOKIE_PREFIX,
   ASTROID_PORTAL_TABLE_PREFIX,
@@ -17,6 +19,27 @@ const base: AstroidConfig = {
   theme: { name: "Acme", colors: { brand: "#1f6e6d" } },
 };
 const withPortal = (portal: AstroidConfig["portal"]): AstroidConfig => ({ ...base, portal });
+
+describe("portal.gated", () => {
+  it("is refused at config load rather than silently wiring nothing", () => {
+    // It was accepted, resolved onto ResolvedPortal, and then read by NOTHING:
+    // the guard table comes from `portal.routes` and portalGuard allows any
+    // unmatched path. A site setting it believed the whole site was behind a
+    // login while every page outside /portal was public — and it type-checked.
+    // A security control that silently does nothing is worse than none.
+    expect(() => defineAstroid(withPortal({ enabled: true, gated: true }))).toThrow(
+      AstroidConfigError,
+    );
+    expect(() => defineAstroid(withPortal({ enabled: true, gated: true }))).toThrow(
+      /not implemented/i,
+    );
+  });
+
+  it("still accepts a portal without it", () => {
+    expect(() => defineAstroid(withPortal({ enabled: true }))).not.toThrow();
+    expect(() => defineAstroid(withPortal({ enabled: true, gated: false }))).not.toThrow();
+  });
+});
 
 describe("portal config", () => {
   it("is null unless explicitly enabled", () => {
