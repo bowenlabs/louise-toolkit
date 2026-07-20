@@ -11,24 +11,25 @@ packages:
 overrides:
   "@cloudflare/workers-types": "^5.20260714.1"
 
-# GHSA-67mh-4wv8-2f99 — esbuild <=0.24.2 lets any website talk to its dev SERVER.
+# Two advisories, both reaching us only through `better-auth`'s dev-tooling
+# transitives. Neither is reported by `pnpm audit` (GitHub's DB) — Snyk carries
+# them, so trust the PR check over a clean local audit here.
 #
-# It reaches us only through a legacy compat path: better-auth → drizzle-kit →
-# @esbuild-kit/esm-loader → @esbuild-kit/core-utils, which pins esbuild 0.18.20.
-# drizzle-kit's own direct dependency is already a safe `esbuild ^0.25.4`; the old
-# copy rides in on `@esbuild-kit/*`, which upstream has deprecated ("merged into
-# tsx"). There is no drizzle-kit release that drops it — 0.31.10 is current and
-# still carries it.
+# esbuild — SNYK-JS-ESBUILD-17750822, "resources downloaded over insecure
+# protocol", CVSS 9.2. Fixed in 0.28.1. Two paths reach a vulnerable copy:
+# drizzle-kit's own `esbuild ^0.25.4`, and the deprecated
+# `@esbuild-kit/esm-loader` it still ships, whose core-utils pins 0.18.20. A
+# parent-scoped override only covers the second, so this is deliberately blanket
+# — and cheap, because Vite and Astro had already resolved 0.28.1 anyway, so this
+# UNIFIES the tree on one esbuild rather than forcing an odd version anywhere.
+# Verified afterwards that drizzle-kit still transpiles a TypeScript
+# drizzle.config.ts, which is the jump with real risk (@esbuild-kit/core-utils
+# was written against the 0.18 API).
 #
-# SCOPED to that one parent rather than a blanket `esbuild` override, so Vite,
-# Astro, and everything else keep whatever they resolved. Verified after the
-# bump that drizzle-kit still transpiles a TypeScript drizzle.config.ts, which is
-# the code path this package exists to serve — the risk being that
-# @esbuild-kit/core-utils was written against the 0.18 API.
-#
-# Nothing here ever runs `esbuild --serve`, so this was low severity in practice;
-# it is fixed because a scoped override is cheap, not because it was urgent.
-  "@esbuild-kit/core-utils>esbuild": "^0.25.4"
+# ws — CVE-2026-62389, unbounded resource allocation, CVSS 8.7. Fixed in 8.21.1;
+# the tree had a single 8.21.0, so this is a patch bump across one version.
+  esbuild: "^0.28.1"
+  ws: "^8.21.1"
 
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the

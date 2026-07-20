@@ -17,17 +17,22 @@ allowBuilds:
   workerd: true
   sharp: false
 
-# GHSA-67mh-4wv8-2f99 — esbuild <=0.24.2 lets any website reach its dev SERVER.
+# Two advisories, both reaching a scaffold through `better-auth`'s dev-tooling
+# transitives. Neither shows up in `pnpm audit` (GitHub's DB); Snyk carries them.
 #
-# It arrives through a legacy compat path only: drizzle-kit still ships
-# `@esbuild-kit/esm-loader` (deprecated, "merged into tsx") whose core-utils pins
-# esbuild 0.18.20. drizzle-kit's own direct dependency is already a safe
-# `^0.25.4`, and there is no release that drops the old path — 0.31.10 is current.
+# esbuild — SNYK-JS-ESBUILD-17750822, "resources downloaded over insecure
+# protocol", CVSS 9.2, fixed in 0.28.1. Two paths reach a vulnerable copy:
+# drizzle-kit's own `esbuild ^0.25.4`, and the deprecated `@esbuild-kit/esm-loader`
+# it still ships (whose core-utils pins 0.18.20) — so this is blanket rather than
+# scoped to one parent. Astro and Vite already want 0.28.x, so it unifies the tree
+# rather than forcing an odd version. Verified drizzle-kit still transpiles a
+# TypeScript drizzle.config.ts afterwards.
 #
-# Scoped to that one parent, so everything else keeps what it resolved. Verified
-# that drizzle-kit still transpiles a TypeScript drizzle.config.ts afterwards.
-# Drop this once drizzle-kit stops depending on @esbuild-kit.
+# ws — CVE-2026-62389, unbounded resource allocation, CVSS 8.7, fixed in 8.21.1.
+#
+# Drop these once better-auth's transitives move past them.
 #
 # KEEP THIS KEY LAST: the CI smoke test appends its own entries here.
 overrides:
-  "@esbuild-kit/core-utils>esbuild": "^0.25.4"
+  esbuild: "^0.28.1"
+  ws: "^8.21.1"
