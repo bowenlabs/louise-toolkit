@@ -124,7 +124,7 @@ async function cmdGenerate(cwd, flags, { quiet = false } = {}) {
 }
 
 async function cmdDoctor(cwd, flags) {
-  const { generateAstroidProject, generateAstroidScaffoldFiles, astroidUsesQueues } =
+  const { generateAstroidProject, generateAstroidScaffoldFiles, astroidUsesQueues, astroidCrons } =
     await import(GENERATORS_URL);
   const { config, path: configPath } = await loadConfig(cwd, flags.config);
 
@@ -224,6 +224,37 @@ async function cmdDoctor(cwd, flags) {
     else err("wrangler.jsonc has no R2 `MEDIA` binding.");
     if (/"main"\s*:\s*"src\/worker\.ts"/.test(w)) ok("wrangler: `main` → src/worker.ts");
     else warn("wrangler.jsonc `main` does not point at src/worker.ts.");
+
+    // Cron triggers. The generated `scheduled` handler dispatches on a fixed set
+    // of cron strings (`astroidCrons`); every one of them MUST be declared here
+    // or Cloudflare never fires it and that job silently never runs. Because
+    // wrangler.jsonc is scaffold-once, a config that gains a cron (e.g. the daily
+    // health scan alongside the hourly catalog sync) can't update it — the exact
+    // drift that shipped a dead daily scan while the handler dispatched on it and
+    // doctor reported healthy. Parse the array from the JSONC text rather than
+    // JSON.parse (comments/trailing commas), matching the binding checks above.
+    const expectedCrons = astroidCrons(config);
+    const cronsMatch = w.match(/"crons"\s*:\s*\[([^\]]*)\]/);
+    if (!cronsMatch) {
+      err(
+        "wrangler.jsonc has no `triggers.crons`, but the generated `scheduled` handler " +
+          `dispatches on ${expectedCrons.map((c) => `"${c}"`).join(", ")}. ` +
+          `Add: "triggers": { "crons": ${JSON.stringify(expectedCrons)} }`,
+      );
+    } else {
+      const declaredCrons = [...cronsMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+      const missingCrons = expectedCrons.filter((c) => !declaredCrons.includes(c));
+      if (missingCrons.length > 0) {
+        err(
+          `wrangler.jsonc \`triggers.crons\` is missing ${missingCrons.map((c) => `"${c}"`).join(", ")} — ` +
+            "the generated `scheduled` handler dispatches on it, so an undeclared cron silently " +
+            `never fires. Set crons to ${JSON.stringify(expectedCrons)}.`,
+        );
+      } else {
+        ok(`wrangler: triggers.crons declares all ${expectedCrons.length} generated cron(s)`);
+      }
+    }
+
     const placeholders = w.match(/<run:[^>]*>|<your-[^>]*>/g);
     if (placeholders) {
       warn(
