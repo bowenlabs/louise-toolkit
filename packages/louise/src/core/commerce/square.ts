@@ -385,12 +385,14 @@ export async function listCatalogDetailed(config: SquareConfig): Promise<Detaile
         .filter((m) => m.enabled !== false && !!m.modifier_list_id)
         .map((m) => ({
           id: m.modifier_list_id as string,
-          min: typeof m.min_selected_modifiers === "number" && m.min_selected_modifiers > 0
-            ? m.min_selected_modifiers
-            : 0,
-          max: typeof m.max_selected_modifiers === "number" && m.max_selected_modifiers > 0
-            ? m.max_selected_modifiers
-            : 0,
+          min:
+            typeof m.min_selected_modifiers === "number" && m.min_selected_modifiers > 0
+              ? m.min_selected_modifiers
+              : 0,
+          max:
+            typeof m.max_selected_modifiers === "number" && m.max_selected_modifiers > 0
+              ? m.max_selected_modifiers
+              : 0,
         }));
       if (mods.length) itemModifiers[obj.id] = mods;
     }
