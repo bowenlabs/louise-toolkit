@@ -1,5 +1,37 @@
 # create-astroid
 
+## 0.3.2
+
+### Patch Changes
+
+- 4236be1: **Document the scaffolded checkout route in the template README.** A storefront
+  already gets a server-authoritative `src/pages/api/checkout.ts` (re-prices
+  server-side, keys idempotency to the cart), but nothing in the README said so — so
+  the failure it prevents was undocumented where a future site author would look.
+  The README now has a "Taking payments" section spelling out that hand-rolling
+  `createPayment` without a stable, cart-scoped idempotency key is exactly what this
+  route exists to avoid: a double-clicked Pay button double-charges, and a constant
+  or omitted key lets two customers' identical carts collide into one charge.
+- de14dab: **Every scaffolded site now ships a CI workflow.** The template carried a
+  `_gitignore` and `_env.example` but no `.github/`, so whether a generated site
+  had CI came down to whether someone remembered to add it — and sibling sites
+  drifted (one had a full pnpm → lint → check → test → build pipeline, another had
+  no `.github` directory at all and nothing gating its pushes).
+
+  The template now includes `_github/workflows/ci.yml`, renamed to
+  `.github/workflows/ci.yml` on scaffold via the same `_`-prefix convention as
+  `_gitignore`. It runs on push + PR (concurrency-cancel), installs pnpm through
+  corepack against a frozen lockfile, and runs `doctor → check → build`, with
+  `lint` and `test` steps that no-op on a fresh scaffold (`--if-present`) and light
+  up automatically once the site adds those scripts. The template also pins
+  `packageManager: pnpm@11.13.0` so local installs and the frozen-lockfile CI use
+  the identical pnpm. The clean-room scaffold smoke test asserts the workflow is
+  written.
+
+- Updated dependencies [fc5a156]
+  - louise-toolkit@0.18.0
+  - astroidjs@0.3.2
+
 ## 0.3.1
 
 ### Patch Changes
