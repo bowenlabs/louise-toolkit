@@ -230,9 +230,29 @@ function makeChromeFocusable(el: HTMLElement): void {
   el.dataset.louiseKbd = "1";
 }
 
+/** A section/block marker rendered with `display: contents` (a common site-side
+ *  attempt to keep the wrapper out of layout) generates NO box — so the ring
+ *  (a box-shadow on the element) can't paint and the toolbar, measured from a
+ *  zero rect, lands at the viewport origin instead of the element's top-right.
+ *  It's a silent, confusing failure, so name it once. The fix is on the SITE:
+ *  give the marker a real box (drop `display: contents`); public renders skip the
+ *  wrapper, so nothing changes off the editor. */
+let warnedBoxlessMarker = false;
+function warnBoxlessMarker(el: HTMLElement): void {
+  if (warnedBoxlessMarker || getComputedStyle(el).display !== "contents") return;
+  warnedBoxlessMarker = true;
+  console.warn(
+    "[louise] A section marker has `display: contents`, so it has no box — the " +
+      "on-canvas ring can't paint and its toolbar mis-places to the viewport origin. " +
+      "Give the marker a real box (remove `display: contents`).",
+    el,
+  );
+}
+
 /** Position a floating toolbar at the top-right of `el`, clamped to the viewport,
  *  and open it. */
 function placeToolbar(toolbar: HTMLElement, el: HTMLElement): void {
+  warnBoxlessMarker(el);
   // Open first: while `display:none` the toolbar has no measurable size, and we
   // need its real width/height to keep it on-screen.
   toolbar.dataset.open = "1";
