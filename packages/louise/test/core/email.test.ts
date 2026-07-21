@@ -51,3 +51,56 @@ describe("sendEmail", () => {
     );
   });
 });
+
+describe("sendEmail with no binding", () => {
+  // The floor: a missing EMAIL binding must LOUDLY SIMULATE in dev, not crash the
+  // request that triggered it. A hand-rolled contact route calling
+  // `sendEmail(env.EMAIL, …)` with no localhost guard used to throw on `env.EMAIL`
+  // being undefined locally — a dead contact form in dev, a 500 in prod misconfig.
+  const link = "https://acme.coffee/api/auth/magic?token=abc";
+
+  it("logs a simulated send and returns { simulated } instead of throwing", async () => {
+    const log = vi.fn();
+    const res = await sendEmail(
+      null,
+      { ...base, html: `<p>${link}</p>`, text: `Sign in:\n${link}` },
+      { simulateWhenUnconfigured: true, devLog: true, log },
+    );
+    expect(res).toEqual({ simulated: true });
+    expect(log).toHaveBeenCalledOnce();
+    // The plaintext body is logged because that's where a sign-in link lives.
+    expect(log.mock.calls[0][0]).toContain(link);
+    expect(log.mock.calls[0][0]).toContain("no binding");
+  });
+
+  it("WITHHOLDS the body when this isn't a dev environment", async () => {
+    // The body carries live single-use magic/reset links; console.info is
+    // `wrangler tail` + Logpush, so it must not leak outside development.
+    const log = vi.fn();
+    const res = await sendEmail(
+      undefined,
+      { ...base, html: `<p>${link}</p>`, text: `Sign in:\n${link}` },
+      { simulateWhenUnconfigured: true, devLog: false, log },
+    );
+    expect(res.simulated).toBe(true);
+    const line = log.mock.calls[0][0];
+    expect(line).not.toContain(link);
+    expect(line).toContain("body withheld");
+    // It still records THAT a message went unsent, and to whom.
+    expect(line).toContain("you@example.com");
+  });
+
+  it("throws in a non-dev context rather than dropping mail in silence", async () => {
+    // The production default: a missing binding is a real misconfiguration, and a
+    // silently-swallowed send is worse than a loud failure.
+    await expect(
+      sendEmail(null, { ...base, html: "x" }, { simulateWhenUnconfigured: false }),
+    ).rejects.toBeInstanceOf(LouiseEmailError);
+  });
+
+  it("names the opt-out in the thrown message", async () => {
+    await expect(
+      sendEmail(null, { ...base, html: "x" }, { simulateWhenUnconfigured: false }),
+    ).rejects.toThrow(/simulateWhenUnconfigured/);
+  });
+});
