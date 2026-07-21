@@ -173,8 +173,23 @@ function astroidConfigSource(config) {
     ...(config.modules?.length ? [`  modules: ${JSON.stringify(config.modules)},`] : []),
     // Must be emitted: `astroid generate` rebuilds the middleware from THIS
     // file, so a config that omitted the portal would regenerate a middleware
-    // with no guard while src/portal-auth.ts sat there unused.
-    ...(config.portal?.enabled ? ["  portal: { enabled: true },"] : []),
+    // with no guard while src/portal-auth.ts sat there unused. And the FULL shape
+    // (tablePrefix, signUp) — not a bare `{ enabled: true }` — so a regenerate
+    // reproduces the SAME unprefixed `user`/`session` seam the 0002_portal_auth
+    // migration created, rather than defaulting the prefix back to `portal_`.
+    ...(config.portal?.enabled
+      ? [
+          "  portal: {",
+          "    enabled: true,",
+          ...(config.portal.tablePrefix !== undefined
+            ? [`    tablePrefix: ${JSON.stringify(config.portal.tablePrefix)},`]
+            : []),
+          ...(config.portal.signUp !== undefined
+            ? [`    signUp: ${JSON.stringify(config.portal.signUp)},`]
+            : []),
+          "  },",
+        ]
+      : []),
     '  deploy: { platform: "cloudflare" },',
     "});",
     "",
@@ -243,9 +258,11 @@ async function main() {
   const archetype = ARCHETYPES.includes(archetypeRaw) ? archetypeRaw : "marketing";
   const color = flags.color || (await prompt("Brand color (hex)", "#5b4bff"));
   const host = flags.host && flags.host !== true ? flags.host : undefined;
-  // Portal + commerce are opt-in and unprompted: each pulls in real
-  // infrastructure a plain marketing site should not carry.
-  const portal = flags.portal === true || flags.portal === "true";
+  // The customer PORTAL is opt-in via --portal, but a storefront IMPLIES one — a
+  // shop has customers who sign in, reorder, and track orders — so enable it there
+  // by default. (Commerce below stays opt-in: infra a marketing site shouldn't carry.)
+  const portal =
+    flags.portal === true || flags.portal === "true" || archetype === "storefront";
   // The map module is opt-in and pulls real weight (maplibre-gl is ~1 MB), so
   // it is never on by default.
   const map = flags.map === true || flags.map === "true";
@@ -284,7 +301,10 @@ async function main() {
     theme: { name, colors: { brand: color } },
     sections: ARCHETYPE_SECTIONS[archetype],
     ...(commerce ? { commerce: { provider: commerce } } : {}),
-    ...(portal ? { portal: { enabled: true } } : {}),
+    // Unprefixed `user`/`session` (customers — email + password), so the studio's
+    // `louise_`-prefixed tables and the portal's never collide (mirrors the
+    // reference storefront). `signUp: true` because a shop lets customers register.
+    ...(portal ? { portal: { enabled: true, tablePrefix: "", signUp: true } } : {}),
     // ONE array, built from every enabled flag. Two separate `...(x ? {modules}
     // : {})` spreads would let the later one overwrite the earlier, silently
     // dropping a module whenever both were passed.
@@ -394,15 +414,17 @@ async function main() {
     // instance. Must match the `tablePrefix` in src/auth.ts and the `louise_user`
     // table the generated `editorsRoute` reads.
     write(dir, "migrations/0001_auth.sql", generateAuthSchemaSql({ tablePrefix: "louise_" }));
-    // The portal's own auth tables. A SECOND set, prefixed — the two instances
-    // share one D1 but never a row, so a portal account can't sign into the
-    // studio and an editor doesn't appear in the portal. Without this migration
-    // the portal builds fine and fails on the first sign-in.
+    // The portal's own auth tables — a SECOND Better Auth instance sharing one D1
+    // but never a row, so a portal account can't sign into the studio and an
+    // editor doesn't appear in the portal. `customers: true` (email + password)
+    // and the config's tablePrefix, so this schema matches the scaffolded
+    // portal-auth.ts exactly. Without this migration the portal builds fine and
+    // fails on the first sign-in with a missing table.
     if (config.portal?.enabled) {
       write(
         dir,
         "migrations/0002_portal_auth.sql",
-        generateAuthSchemaSql({ tablePrefix: "portal_" }),
+        generateAuthSchemaSql({ customers: true, tablePrefix: config.portal.tablePrefix ?? "" }),
       );
     }
     authMigrationOk = true;
@@ -419,8 +441,8 @@ async function main() {
       write(
         dir,
         "migrations/0002_portal_auth.sql",
-        "-- Portal Better Auth tables (prefixed) — generate after install:\n" +
-          "--   pnpm exec louise gen-auth-schema --table-prefix portal_ --out migrations/0002_portal_auth.sql\n",
+        "-- Portal Better Auth tables (customers, unprefixed) — generate after install:\n" +
+          "--   pnpm exec louise gen-auth-schema --out migrations/0002_portal_auth.sql\n",
       );
     }
   }

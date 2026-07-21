@@ -219,8 +219,11 @@ jobs:
           # no migration created it — `astro check` can't see that, and `doctor`
           # only checks the migrations/ directory exists. The first real catalog
           # sync was the discovery mechanism.
-          sqlite3 /tmp/smoke.db < smoke/migrations/0000_content.sql
-          for f in smoke/migrations/0001_auth.sql smoke/migrations/0003_catalog.sql; do
+          #
+          # Apply EVERY migration in order (glob sorts 0000→0003). A hardcoded
+          # subset skipped the portal's 0002_portal_auth, so `user`/`session`
+          # never got created for a storefront and this check failed on `user`.
+          for f in smoke/migrations/*.sql; do
             sqlite3 /tmp/smoke.db < "$f"
           done
           for t in pages pages_versions media site_settings inquiries user session products; do
