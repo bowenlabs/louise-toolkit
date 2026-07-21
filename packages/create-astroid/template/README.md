@@ -103,6 +103,20 @@ pnpm doctor         # validate config, bindings, and generated-file freshness
 wrangler deploy     # or: pnpm astroid deploy
 ```
 
+## Taking payments
+
+Storefront sites (`--commerce square`) are scaffolded with a server-authoritative
+payment route at `src/pages/api/checkout.ts` and a `<SquareCard>` input. **Keep
+its sequence** — extend it (shipping, tax, an order row, a receipt), don't replace
+it. It re-prices every line from the D1 catalog mirror (the client's price is a
+_staleness check_, never an input to the charge — accept a `unitPrice` from the
+request body and anyone buys anything for a penny) and derives the Square
+idempotency key from the verified cart **and** the cart id. Hand-rolling
+`createPayment` without a stable, cart-scoped idempotency key is the failure this
+route exists to prevent: a double-clicked Pay button charges twice, and a
+constant (or omitted) key lets two customers' identical carts collide into a
+single charge.
+
 ## Layout
 
 | Path | What |

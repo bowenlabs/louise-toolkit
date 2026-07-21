@@ -171,7 +171,8 @@ jobs:
             --color "#5b4bff" --host smoke.example --commerce square
 
           for f in astroid.config.ts wrangler.jsonc src/schema.ts src/worker.ts \
-                   src/middleware.ts src/queue.ts src/pages/api/webhooks/square.ts; do
+                   src/middleware.ts src/queue.ts src/pages/api/webhooks/square.ts \
+                   .github/workflows/ci.yml; do
             test -f "smoke/$f" || { echo "scaffold did not write $f"; exit 1; }
           done
 

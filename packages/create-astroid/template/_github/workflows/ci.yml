@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (a force-push mid-run).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # corepack pins pnpm from `packageManager` in package.json; in CI it must
+      # fetch that version without an interactive prompt.
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # pnpm via corepack, pinned by `packageManager` — the same version you
+      # develop with, so `--frozen-lockfile` below always matches the committed
+      # pnpm-lock.yaml. (Commit that lockfile; this step relies on it.)
+      - name: Enable pnpm (corepack)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Validate the config, bindings, and that the generated
+      # src/schema.ts · src/worker.ts · src/middleware.ts trio is still in sync
+      # with astroid.config.ts. A fast fail before the heavier steps.
+      - name: Doctor
+        run: pnpm doctor
+
+      # No-ops on a fresh scaffold; runs automatically once you add a `lint`
+      # script (oxlint/biome) — same for `test` (vitest) further down.
+      - name: Lint
+        run: pnpm run --if-present lint
+
+      - name: Type-check
+        run: pnpm check
+
+      - name: Test
+        run: pnpm run --if-present test
+
+      - name: Build
+        run: pnpm build

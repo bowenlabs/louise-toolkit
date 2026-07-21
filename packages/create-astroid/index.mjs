@@ -34,9 +34,15 @@ import {
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "template");
 
-// Files whose leading `_` is stripped on copy (npm strips real dotfiles from a
-// published package, so they ship as `_gitignore` / `_env.example`).
-const DOTFILE_RENAMES = { _gitignore: ".gitignore", "_env.example": ".env.example" };
+// Files (and dirs) whose leading `_` is stripped on copy (npm strips real
+// dotfiles from a published package, so they ship as `_gitignore` /
+// `_env.example` / `_github/…`). Applied per entry in `copyTemplate`, so a
+// directory renames too — `_github` becomes `.github` and its contents follow.
+const DOTFILE_RENAMES = {
+  _gitignore: ".gitignore",
+  "_env.example": ".env.example",
+  _github: ".github",
+};
 
 // Archetype → default editable home sections. Imported from astroidjs rather
 // than duplicated here: as a literal in this file it could name a section that
