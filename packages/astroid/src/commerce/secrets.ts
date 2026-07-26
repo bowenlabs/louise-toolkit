@@ -22,7 +22,7 @@
 
 import type { CommerceConfig, CommerceProvider } from "../config.js";
 import { type ModuleSecrets, resolveModuleSecrets, type SecretSource } from "../secrets.js";
-import { astroidCommerceProviders, astroidCommerceRoles } from "./roles.js";
+import { astroidCommerceProviders, astroidCommerceRoles, type CommerceRole } from "./roles.js";
 
 /**
  * Per-provider secret names, split by what they gate.
@@ -98,7 +98,7 @@ export function commerceSecretNames(commerce: CommerceConfig | undefined): strin
 export interface ProviderStatus {
   provider: CommerceProvider;
   /** Which role(s) this provider fills for the project. */
-  roles: ("storefront" | "invoicing")[];
+  roles: CommerceRole[];
   /** API credentials — false means no live call can be made. */
   credentials: ModuleSecrets<string>;
   /** Webhook signing secret — false means the receiver answers 503. */
@@ -121,7 +121,7 @@ export interface CommerceStatus {
 /** Read one provider's secrets off an env-shaped record. */
 async function resolveProvider(
   provider: CommerceProvider,
-  roles: ("storefront" | "invoicing")[],
+  roles: CommerceRole[],
   env: Record<string, SecretSource>,
 ): Promise<ProviderStatus> {
   const spec = COMMERCE_PROVIDER_SECRETS[provider];
@@ -184,4 +184,29 @@ export async function resolveCommerceStatus(
     providers: resolved,
     missing: resolved.flatMap((p) => [...p.credentials.missing, ...p.webhook.missing]),
   };
+}
+
+/**
+ * Is THIS provider live?
+ *
+ * `CommerceStatus.configured` is an all-or-nothing aggregate (`every`), which is
+ * the right answer for "is the whole module ready" and the wrong one for gating
+ * a single call site. A two-provider project — Fourthwall for the storefront,
+ * Square for invoicing — reads `configured: false` the moment either half is
+ * unprovisioned, so gating the working Fourthwall checkout on the aggregate
+ * would silently simulate it because SQUARE's secrets are still placeholders.
+ *
+ * Gate each surface on the provider it actually calls.
+ */
+export function providerConfigured(status: CommerceStatus, provider: CommerceProvider): boolean {
+  return status.providers.some((p) => p.provider === provider && p.configured);
+}
+
+/**
+ * Is the provider filling this ROLE live? The role-shaped question, for code
+ * that cares about the capability rather than the vendor — "can I take a
+ * checkout?" rather than "is Square up?".
+ */
+export function roleConfigured(status: CommerceStatus, role: CommerceRole): boolean {
+  return status.providers.some((p) => p.roles.includes(role) && p.configured);
 }

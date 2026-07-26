@@ -22,7 +22,7 @@
 
 import type { AstroidConfig } from "../config.js";
 import { astroidCatalogMirror } from "./mirror.js";
-import { astroidCommerceRoles } from "./roles.js";
+import { astroidCommerceProviders, astroidCommerceRoles } from "./roles.js";
 
 /** Does this project take card payments in-page? Square storefront only. */
 export function usesCardCheckout(config: AstroidConfig): boolean {
@@ -276,23 +276,43 @@ export function generateAstroidSquareCard(config: AstroidConfig): string | null 
   ].join("\n");
 }
 
+/** Does this project talk to Square in ANY role — storefront, invoicing, or
+ *  otherwise? Distinct from {@link usesCardCheckout}, which asks the narrower
+ *  question of whether the in-page card field renders. */
+function usesSquare(config: AstroidConfig): boolean {
+  return astroidCommerceProviders(config.commerce).includes("square");
+}
+
 /**
- * The wrangler `vars` the card input needs, or `[]`.
+ * The wrangler `vars` Square needs, or `[]`.
  *
  * PUBLIC values, so they are vars rather than entries in the secret roster: the
  * application id is shipped to the browser by design, and the environment is a
  * choice, not a credential. Putting them in `credentials` would also fold them
  * into the dormancy gate, which is about whether the module can safely CALL
  * Square — a different question from whether the card field can render.
+ *
+ * The two vars are gated SEPARATELY, and that split is load-bearing.
+ * `SQUARE_ENVIRONMENT` selects the API HOST for every Square call, so it belongs
+ * to any project that talks to Square at all; `SQUARE_APP_ID` only mounts the
+ * browser card field. Gating both on card checkout — as this did until
+ * `invoicing: "square"` became expressible — left a site that runs Square for
+ * invoicing alone with no `SQUARE_ENVIRONMENT`, and `SquareConfig.environment`
+ * defaults to "sandbox". Every production invoice would have been created
+ * against the sandbox: no error, no warning, just money that never arrives.
  */
 export function astroidCheckoutVars(config: AstroidConfig): { name: string; value: string }[] {
-  if (!usesCardCheckout(config)) return [];
-  return [
+  const vars: { name: string; value: string }[] = [];
+  // Browser-only, so card checkout is genuinely the right gate here.
+  if (usesCardCheckout(config)) {
     // Public app id from the Square dashboard (Developer → Credentials).
-    { name: "SQUARE_APP_ID", value: "" },
-    // "sandbox" until you have tested a real card end to end.
-    { name: "SQUARE_ENVIRONMENT", value: "sandbox" },
-  ];
+    vars.push({ name: "SQUARE_APP_ID", value: "" });
+  }
+  if (usesSquare(config)) {
+    // "sandbox" until you have tested a real payment end to end.
+    vars.push({ name: "SQUARE_ENVIRONMENT", value: "sandbox" });
+  }
+  return vars;
 }
 
 /**
@@ -300,12 +320,22 @@ export function astroidCheckoutVars(config: AstroidConfig): { name: string; valu
  * substitutes into `src/env.d.ts`. Empty without card checkout.
  */
 export function generateAstroidCheckoutEnv(config: AstroidConfig): string {
-  if (!usesCardCheckout(config)) return "";
-  return [
-    "  /** Square's PUBLIC application id — shipped to the browser to mount the",
-    "   *  Web Payments card field. Not a secret; see wrangler.jsonc `vars`. */",
-    "  SQUARE_APP_ID: string;",
-    '  /** Square API environment: "sandbox" or "production". */',
-    "  SQUARE_ENVIRONMENT: string;",
-  ].join("\n");
+  // Mirrors the gating in `astroidCheckoutVars` — the app id is card-checkout
+  // only, the environment belongs to any project that calls Square at all.
+  const lines: string[] = [];
+  if (usesCardCheckout(config)) {
+    lines.push(
+      "  /** Square's PUBLIC application id — shipped to the browser to mount the",
+      "   *  Web Payments card field. Not a secret; see wrangler.jsonc `vars`. */",
+      "  SQUARE_APP_ID: string;",
+    );
+  }
+  if (usesSquare(config)) {
+    lines.push(
+      '  /** Square API environment: "sandbox" or "production". Selects the API',
+      "   *  host for EVERY Square call, so it is required for invoicing too. */",
+      "  SQUARE_ENVIRONMENT: string;",
+    );
+  }
+  return lines.join("\n");
 }

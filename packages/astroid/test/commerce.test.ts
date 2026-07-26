@@ -1,13 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { fourthwallToCatalogItem, squareToCatalogItem } from "../src/commerce/adapters.js";
 import { checkoutIdempotencyKey, verifyCheckout } from "../src/commerce/checkout.js";
-import { generateAstroidCheckoutRoute } from "../src/commerce/checkout-scaffold.js";
+import {
+  astroidCheckoutVars,
+  generateAstroidCheckoutEnv,
+  generateAstroidCheckoutRoute,
+} from "../src/commerce/checkout-scaffold.js";
 import { generateCatalogMigrationSql, generateCatalogTable } from "../src/commerce/mirror.js";
 import {
   assertCommerceRoles,
   astroidCommerceProviders,
   astroidCommerceRoles,
 } from "../src/commerce/roles.js";
+import {
+  type CommerceStatus,
+  providerConfigured,
+  roleConfigured,
+} from "../src/commerce/secrets.js";
 import { astroidCatalogSync, astroidCatalogUpsert, defaultSlug } from "../src/commerce/sync.js";
 import { defineAstroid } from "../src/config.js";
 import type { AstroidConfig } from "../src/config.js";
@@ -500,5 +509,76 @@ describe("generated checkout route", () => {
     expect(gate).toBeLessThan(route.indexOf("request.json()"));
     expect(gate).toBeLessThan(route.indexOf("verifyCheckout(body.lines"));
     expect(gate).toBeLessThan(route.indexOf("createPayment("));
+  });
+});
+
+describe("Square vars are gated per-role, not per-card-checkout", () => {
+  // Regression: both vars used to be gated on `usesCardCheckout` (storefront ===
+  // "square"). SQUARE_ENVIRONMENT selects the API HOST, and SquareConfig defaults
+  // it to "sandbox" — so a Square-for-invoicing site got no var and created every
+  // PRODUCTION invoice against the sandbox. No error, no warning, no money.
+  const varNames = (c: AstroidConfig) => astroidCheckoutVars(c).map((v) => v.name);
+
+  it("emits SQUARE_ENVIRONMENT when Square only does invoicing", () => {
+    const config = { ...base, commerce: { storefront: "fourthwall", invoicing: "square" } } as const;
+    expect(varNames(config)).toContain("SQUARE_ENVIRONMENT");
+    // The browser card field isn't mounted, so its public app id is not needed.
+    expect(varNames(config)).not.toContain("SQUARE_APP_ID");
+    expect(generateAstroidCheckoutEnv(config)).toContain("SQUARE_ENVIRONMENT: string;");
+    expect(generateAstroidCheckoutEnv(config)).not.toContain("SQUARE_APP_ID");
+  });
+
+  it("emits both when Square is the storefront (in-page card field)", () => {
+    const config = { ...base, commerce: { provider: "square" } } as const;
+    expect(varNames(config)).toEqual(["SQUARE_APP_ID", "SQUARE_ENVIRONMENT"]);
+    expect(generateAstroidCheckoutEnv(config)).toContain("SQUARE_APP_ID: string;");
+  });
+
+  it("emits neither when the project never talks to Square", () => {
+    const config = { ...base, commerce: { storefront: "fourthwall", invoicing: "stripe" } } as const;
+    expect(varNames(config)).toEqual([]);
+    expect(generateAstroidCheckoutEnv(config)).toBe("");
+  });
+});
+
+describe("per-provider dormancy gating", () => {
+  const status = {
+    configured: false,
+    enabled: true,
+    missing: ["SQUARE_ACCESS_TOKEN"],
+    providers: [
+      {
+        provider: "fourthwall",
+        roles: ["storefront"],
+        credentials: { configured: true, missing: [] },
+        webhook: { configured: true, missing: [] },
+        configured: true,
+      },
+      {
+        provider: "square",
+        roles: ["invoicing"],
+        credentials: { configured: false, missing: ["SQUARE_ACCESS_TOKEN"] },
+        webhook: { configured: false, missing: [] },
+        configured: false,
+      },
+    ],
+  } as unknown as CommerceStatus;
+
+  it("does not let one dormant provider mute a live one", () => {
+    // The aggregate is all-or-nothing by design, and gating a call site on it
+    // would simulate the WORKING Fourthwall checkout just because Square's
+    // secrets are still placeholders.
+    expect(status.configured).toBe(false);
+    expect(providerConfigured(status, "fourthwall")).toBe(true);
+    expect(providerConfigured(status, "square")).toBe(false);
+  });
+
+  it("answers the role-shaped question too", () => {
+    expect(roleConfigured(status, "storefront")).toBe(true);
+    expect(roleConfigured(status, "invoicing")).toBe(false);
+  });
+
+  it("reports false for a provider the project doesn't use at all", () => {
+    expect(providerConfigured(status, "stripe")).toBe(false);
   });
 });

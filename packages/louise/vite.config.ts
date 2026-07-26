@@ -107,6 +107,7 @@ export default {
       "src/core/forms/index.ts",
       "src/core/health/index.ts",
       "src/core/media/index.ts",
+      "src/core/qr/index.ts",
       "src/core/queues/index.ts",
       "src/core/realtime/index.ts",
       "src/core/schema/index.ts",
