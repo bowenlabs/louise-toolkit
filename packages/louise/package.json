@@ -142,6 +142,11 @@
       "import": "./dist/core/media/index.js",
       "default": "./dist/core/media/index.js"
     },
+    "./qr": {
+      "types": "./dist/core/qr/index.d.ts",
+      "import": "./dist/core/qr/index.js",
+      "default": "./dist/core/qr/index.js"
+    },
     "./queues": {
       "types": "./dist/core/queues/index.d.ts",
       "import": "./dist/core/queues/index.js",

@@ -190,8 +190,41 @@ export interface CommerceConfig {
    * Fourthwall as the storefront, because neither can do the other's job.
    */
   invoicing?: CommerceProvider;
+  /**
+   * In-person selling: physical inventory held at real places, sold at a
+   * counter or a market stall rather than through the site's own cart.
+   *
+   * Separate from `storefront` because they are genuinely different jobs and a
+   * site commonly runs both. themidwestartist.com sells print-on-demand merch
+   * through Fourthwall (`storefront`) while originals and self-stocked prints
+   * live in Square (`pos`) across several shops and galleries — one catalog per
+   * rail, neither able to do the other's job.
+   *
+   * What `pos` turns on that `storefront` does not: locations, per-location
+   * pricing, and per-location inventory.
+   */
+  pos?: CommerceProvider;
   /** The catalog mirror's shape — its mode, table name, and owned columns. */
   catalog?: CatalogMirrorConfig;
+  /** Square-specific options. Only meaningful when Square fills some role. */
+  square?: SquareCommerceConfig;
+}
+
+export interface SquareCommerceConfig {
+  /**
+   * How many Square Locations this project sells at.
+   *
+   * `"single"` (the default) is the ordinary case: one location, its id supplied
+   * once as `SQUARE_LOCATION_ID`, and every order placed against it.
+   *
+   * `"multi"` is the multi-merchant model — each merchant is a Location, and the
+   * id comes from the *request* (which merchant's storefront is this?) rather
+   * than from the environment. Setting it stops Astroid requiring
+   * `SQUARE_LOCATION_ID`: a single ambient location id is not merely unnecessary
+   * there, it is a hazard, because anything defaulting to it would silently ring
+   * one merchant's sale against another merchant's books.
+   */
+  locations?: "single" | "multi";
 }
 
 export interface QueuesConfig {
@@ -403,7 +436,7 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
     throw new AstroidConfigError(
       "`portal.gated` is not implemented — it is accepted but wires no guard, so the site " +
         "would be fully public while appearing gated. Remove it, and gate the whole site by " +
-        "listing the prefixes you mean in `portal.routes` (e.g. `[{ prefix: \"/\" }]` with your " +
+        'listing the prefixes you mean in `portal.routes` (e.g. `[{ prefix: "/" }]` with your ' +
         "login and auth paths ahead of it).",
     );
   }

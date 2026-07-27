@@ -37,7 +37,9 @@ export {
   type CommerceStatus,
   commerceSecretNames,
   type ProviderStatus,
+  providerConfigured,
   resolveCommerceStatus,
+  roleConfigured,
 } from "./secrets.js";
 export {
   assertCommerceRoles,

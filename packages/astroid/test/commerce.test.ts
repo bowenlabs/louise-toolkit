@@ -1,13 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import { fourthwallToCatalogItem, squareToCatalogItem } from "../src/commerce/adapters.js";
 import { checkoutIdempotencyKey, verifyCheckout } from "../src/commerce/checkout.js";
-import { generateAstroidCheckoutRoute } from "../src/commerce/checkout-scaffold.js";
+import {
+  astroidCheckoutVars,
+  generateAstroidCheckoutEnv,
+  generateAstroidCheckoutRoute,
+} from "../src/commerce/checkout-scaffold.js";
 import { generateCatalogMigrationSql, generateCatalogTable } from "../src/commerce/mirror.js";
 import {
   assertCommerceRoles,
   astroidCommerceProviders,
   astroidCommerceRoles,
+  hasMultiLocation,
+  hasPos,
 } from "../src/commerce/roles.js";
+import {
+  type CommerceStatus,
+  commerceProviderCredentials,
+  commerceSecretNames,
+  providerConfigured,
+  roleConfigured,
+} from "../src/commerce/secrets.js";
 import { astroidCatalogSync, astroidCatalogUpsert, defaultSlug } from "../src/commerce/sync.js";
 import { defineAstroid } from "../src/config.js";
 import type { AstroidConfig } from "../src/config.js";
@@ -396,7 +409,12 @@ describe("catalog sync — failure reporting", () => {
         if (calls === 1) throw new Error("transient");
         return {
           bind() {
-            return { async run() {}, async first() { return null; } };
+            return {
+              async run() {},
+              async first() {
+                return null;
+              },
+            };
           },
         };
       },
@@ -486,7 +504,7 @@ describe("generated checkout route", () => {
     const route = generateAstroidCheckoutRoute(square);
     expect(route).not.toBeNull();
     expect(route).toContain('import { isSameOrigin } from "louise-toolkit/security"');
-    expect(route).toContain("if (!isSameOrigin(request)) return json({ error: \"Forbidden\" }, 403)");
+    expect(route).toContain('if (!isSameOrigin(request)) return json({ error: "Forbidden" }, 403)');
   });
 
   it("checks the origin BEFORE parsing the body or re-pricing", () => {
@@ -500,5 +518,179 @@ describe("generated checkout route", () => {
     expect(gate).toBeLessThan(route.indexOf("request.json()"));
     expect(gate).toBeLessThan(route.indexOf("verifyCheckout(body.lines"));
     expect(gate).toBeLessThan(route.indexOf("createPayment("));
+  });
+});
+
+describe("Square vars are gated per-role, not per-card-checkout", () => {
+  // Regression: both vars used to be gated on `usesCardCheckout` (storefront ===
+  // "square"). SQUARE_ENVIRONMENT selects the API HOST, and SquareConfig defaults
+  // it to "sandbox" — so a Square-for-invoicing site got no var and created every
+  // PRODUCTION invoice against the sandbox. No error, no warning, no money.
+  const varNames = (c: AstroidConfig) => astroidCheckoutVars(c).map((v) => v.name);
+
+  it("emits SQUARE_ENVIRONMENT when Square only does invoicing", () => {
+    const config = {
+      ...base,
+      commerce: { storefront: "fourthwall", invoicing: "square" },
+    } as const;
+    expect(varNames(config)).toContain("SQUARE_ENVIRONMENT");
+    // The browser card field isn't mounted, so its public app id is not needed.
+    expect(varNames(config)).not.toContain("SQUARE_APP_ID");
+    expect(generateAstroidCheckoutEnv(config)).toContain("SQUARE_ENVIRONMENT: string;");
+    expect(generateAstroidCheckoutEnv(config)).not.toContain("SQUARE_APP_ID");
+  });
+
+  it("emits both when Square is the storefront (in-page card field)", () => {
+    const config = { ...base, commerce: { provider: "square" } } as const;
+    expect(varNames(config)).toEqual(["SQUARE_APP_ID", "SQUARE_ENVIRONMENT"]);
+    expect(generateAstroidCheckoutEnv(config)).toContain("SQUARE_APP_ID: string;");
+  });
+
+  it("emits neither when the project never talks to Square", () => {
+    const config = {
+      ...base,
+      commerce: { storefront: "fourthwall", invoicing: "stripe" },
+    } as const;
+    expect(varNames(config)).toEqual([]);
+    expect(generateAstroidCheckoutEnv(config)).toBe("");
+  });
+});
+
+describe("per-provider dormancy gating", () => {
+  const status = {
+    configured: false,
+    enabled: true,
+    missing: ["SQUARE_ACCESS_TOKEN"],
+    providers: [
+      {
+        provider: "fourthwall",
+        roles: ["storefront"],
+        credentials: { configured: true, missing: [] },
+        webhook: { configured: true, missing: [] },
+        configured: true,
+      },
+      {
+        provider: "square",
+        roles: ["invoicing"],
+        credentials: { configured: false, missing: ["SQUARE_ACCESS_TOKEN"] },
+        webhook: { configured: false, missing: [] },
+        configured: false,
+      },
+    ],
+  } as unknown as CommerceStatus;
+
+  it("does not let one dormant provider mute a live one", () => {
+    // The aggregate is all-or-nothing by design, and gating a call site on it
+    // would simulate the WORKING Fourthwall checkout just because Square's
+    // secrets are still placeholders.
+    expect(status.configured).toBe(false);
+    expect(providerConfigured(status, "fourthwall")).toBe(true);
+    expect(providerConfigured(status, "square")).toBe(false);
+  });
+
+  it("answers the role-shaped question too", () => {
+    expect(roleConfigured(status, "storefront")).toBe(true);
+    expect(roleConfigured(status, "invoicing")).toBe(false);
+  });
+
+  it("reports false for a provider the project doesn't use at all", () => {
+    expect(providerConfigured(status, "stripe")).toBe(false);
+  });
+});
+
+// ── The `pos` role and multi-location Square ─────────────────────────────────
+//
+// `pos` is in-person selling: stock held at real places. It is a separate role
+// from `storefront` because a site commonly runs both — POD merch through one
+// provider, physical originals through another — and because only `pos` needs
+// locations, per-location pricing, and inventory.
+
+describe("commerce role: pos", () => {
+  it("resolves pos independently of storefront and invoicing", () => {
+    const roles = astroidCommerceRoles({
+      storefront: "fourthwall",
+      invoicing: "square",
+      pos: "square",
+    });
+    expect(roles).toEqual({ storefront: "fourthwall", invoicing: "square", pos: "square" });
+  });
+
+  it("counts a provider filling storefront and pos only once", () => {
+    expect(astroidCommerceProviders({ storefront: "square", pos: "square" })).toEqual(["square"]);
+  });
+
+  it("rejects providers whose client cannot do locations or inventory", () => {
+    // Fourthwall's Platform API is create-only for products — it cannot model
+    // stock held at a place, so `pos` is not something it can serve.
+    expect(() => assertCommerceRoles({ pos: "fourthwall" })).toThrow(/can't serve/);
+    expect(() => assertCommerceRoles({ pos: "fourthwall" })).toThrow(/locations\/inventory/);
+    expect(() => assertCommerceRoles({ pos: "stripe" })).toThrow(/can't serve/);
+    // Only Square can, and the error should say so.
+    expect(() => assertCommerceRoles({ pos: "fourthwall" })).toThrow(/square/);
+    expect(() => assertCommerceRoles({ pos: "square" })).not.toThrow();
+  });
+
+  it("still accepts the real themidwestartist.com shape", () => {
+    expect(() =>
+      assertCommerceRoles({
+        storefront: "fourthwall",
+        invoicing: "square",
+        pos: "square",
+        square: { locations: "multi" },
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects a square block when no role is assigned to Square", () => {
+    // Otherwise a typo'd config looks like it opted into multi-location while
+    // nothing actually reads the setting.
+    expect(() =>
+      assertCommerceRoles({ storefront: "fourthwall", square: { locations: "multi" } }),
+    ).toThrow(/no role is assigned to Square/);
+  });
+});
+
+describe("square.locations: multi", () => {
+  it("requires SQUARE_LOCATION_ID for a single-location project", () => {
+    expect(commerceSecretNames({ pos: "square" })).toContain("SQUARE_LOCATION_ID");
+    expect(commerceProviderCredentials("square", { pos: "square" })).toEqual([
+      "SQUARE_ACCESS_TOKEN",
+      "SQUARE_LOCATION_ID",
+    ]);
+  });
+
+  it("DROPS SQUARE_LOCATION_ID when multi-location", () => {
+    // Not merely unnecessary — hazardous. Any path defaulting to an ambient
+    // location id would ring one merchant's sale against another's books, and
+    // would look successful doing it.
+    const commerce = { pos: "square" as const, square: { locations: "multi" as const } };
+    expect(commerceProviderCredentials("square", commerce)).toEqual(["SQUARE_ACCESS_TOKEN"]);
+    expect(commerceSecretNames(commerce)).not.toContain("SQUARE_LOCATION_ID");
+    // The token and webhook secret are still required.
+    expect(commerceSecretNames(commerce)).toEqual(["SQUARE_ACCESS_TOKEN", "SQUARE_WEBHOOK_SECRET"]);
+  });
+
+  it("leaves other providers untouched", () => {
+    const commerce = {
+      storefront: "fourthwall" as const,
+      pos: "square" as const,
+      square: { locations: "multi" as const },
+    };
+    expect(commerceProviderCredentials("fourthwall", commerce)).toEqual([
+      "FOURTHWALL_STOREFRONT_TOKEN",
+    ]);
+    expect(commerceSecretNames(commerce)).toContain("FOURTHWALL_STOREFRONT_TOKEN");
+  });
+
+  it("hasMultiLocation only reports the explicit opt-in", () => {
+    expect(hasMultiLocation(undefined)).toBe(false);
+    expect(hasMultiLocation({ pos: "square" })).toBe(false);
+    expect(hasMultiLocation({ pos: "square", square: { locations: "single" } })).toBe(false);
+    expect(hasMultiLocation({ pos: "square", square: { locations: "multi" } })).toBe(true);
+  });
+
+  it("hasPos is independent of hasStorefront", () => {
+    expect(hasPos({ storefront: "fourthwall" })).toBe(false);
+    expect(hasPos({ pos: "square" })).toBe(true);
   });
 });

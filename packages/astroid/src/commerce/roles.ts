@@ -20,27 +20,35 @@ import { AstroidConfigError } from "../errors.js";
 import type { CommerceConfig, CommerceProvider } from "../config.js";
 
 /** What a provider is being used FOR. */
-export type CommerceRole = "storefront" | "invoicing";
+export type CommerceRole = "storefront" | "invoicing" | "pos";
 
 /**
  * Which roles each provider can serve, derived from the surface its
  * `louise-toolkit/commerce/*` client actually exposes — not from what the
  * vendor's full API could theoretically do.
  *
- *   square      catalog + orders + payments, and `createInvoice`/`publishInvoice`
+ *   square      catalog + orders + payments, `createInvoice`/`publishInvoice`,
+ *               AND locations + per-location price overrides + inventory counts
  *   stripe      invoices + payment intents; NO catalog
- *   fourthwall  catalog + cart; NO invoicing
+ *   fourthwall  catalog + cart; NO invoicing, and NO locations or inventory —
+ *               its Platform API is create-only for products, so it cannot
+ *               model stock held at a place
+ *
+ * Square alone can serve `pos`, and that is a fact about the clients rather than
+ * a preference: `pos` needs `listLocations`, `location_overrides` and
+ * `batchChangeInventory`, none of which the other two clients expose.
  */
 export const PROVIDER_ROLES: Record<CommerceProvider, readonly CommerceRole[]> = {
-  square: ["storefront", "invoicing"],
+  square: ["storefront", "invoicing", "pos"],
   stripe: ["invoicing"],
   fourthwall: ["storefront"],
 };
 
-/** The providers filling each role. Either may be absent. */
+/** The providers filling each role. Any may be absent. */
 export interface ResolvedCommerceRoles {
   storefront?: CommerceProvider;
   invoicing?: CommerceProvider;
+  pos?: CommerceProvider;
 }
 
 /**
@@ -63,15 +71,34 @@ export function astroidCommerceRoles(commerce: CommerceConfig | undefined): Reso
   }
   if (commerce.storefront) roles.storefront = commerce.storefront;
   if (commerce.invoicing) roles.invoicing = commerce.invoicing;
+  if (commerce.pos) roles.pos = commerce.pos;
 
   return roles;
 }
 
 /** Every distinct provider this project talks to, in a stable order. */
 export function astroidCommerceProviders(commerce: CommerceConfig | undefined): CommerceProvider[] {
-  const { storefront, invoicing } = astroidCommerceRoles(commerce);
-  return [...new Set([storefront, invoicing].filter((p): p is CommerceProvider => !!p))];
+  const { storefront, invoicing, pos } = astroidCommerceRoles(commerce);
+  return [...new Set([storefront, invoicing, pos].filter((p): p is CommerceProvider => !!p))];
 }
+
+/**
+ * True when this project sells in person — the switch for locations,
+ * per-location pricing and inventory.
+ */
+export const hasPos = (commerce: CommerceConfig | undefined): boolean =>
+  Boolean(astroidCommerceRoles(commerce).pos);
+
+/**
+ * True when Square is used with more than one Location, i.e. the location id
+ * comes from the request rather than the environment.
+ *
+ * Deliberately independent of which ROLE Square fills: a project could run
+ * multi-location invoicing without a `pos` storefront, and the consequence —
+ * no ambient `SQUARE_LOCATION_ID` — is the same either way.
+ */
+export const hasMultiLocation = (commerce: CommerceConfig | undefined): boolean =>
+  commerce?.square?.locations === "multi";
 
 /** True when this project sells anything at all. */
 export const hasStorefront = (commerce: CommerceConfig | undefined): boolean =>
@@ -101,10 +128,13 @@ export function assertCommerceRoles(commerce: CommerceConfig | undefined): void 
       const able = (Object.keys(PROVIDER_ROLES) as CommerceProvider[]).filter((p) =>
         PROVIDER_ROLES[p].includes(role),
       );
+      const missing = {
+        storefront: "catalog",
+        invoicing: "invoicing",
+        pos: "locations/inventory",
+      }[role];
       throw new AstroidConfigError(
-        `commerce: ${provider} can't serve the "${role}" role — its louise-toolkit client has no ${
-          role === "storefront" ? "catalog" : "invoicing"
-        } API. Providers that can: ${able.join(", ")}.`,
+        `commerce: ${provider} can't serve the "${role}" role — its louise-toolkit client has no ${missing} API. Providers that can: ${able.join(", ")}.`,
       );
     }
   };
@@ -114,4 +144,14 @@ export function assertCommerceRoles(commerce: CommerceConfig | undefined): void 
   if (commerce.provider) known(commerce.provider);
   check("storefront", commerce.storefront);
   check("invoicing", commerce.invoicing);
+  check("pos", commerce.pos);
+
+  // `square.locations` only means something if Square is actually in play.
+  // Silently ignoring it would let a typo'd config look like it had opted into
+  // multi-location when nothing reads the setting.
+  if (commerce.square && !astroidCommerceProviders(commerce).includes("square")) {
+    throw new AstroidConfigError(
+      'commerce.square is set but no role is assigned to Square. Assign it to "storefront", "invoicing" or "pos", or drop the square block.',
+    );
+  }
 }
