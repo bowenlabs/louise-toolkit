@@ -228,15 +228,15 @@ function interleave(data: Uint8Array, version: number, ecc: QrErrorCorrection): 
 
 // ── Matrix ───────────────────────────────────────────────────────────────────
 
-function buildMatrix(
-  codewords: Uint8Array,
-  version: number,
-  ecc: QrErrorCorrection,
-): QrMatrix {
+function buildMatrix(codewords: Uint8Array, version: number, ecc: QrErrorCorrection): QrMatrix {
   const size = version * 4 + 17;
-  const modules: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
+  const modules: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
   // Function modules must not receive data and must not be masked.
-  const reserved: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
+  const reserved: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
 
   const set = (x: number, y: number, dark: boolean) => {
     modules[y]![x] = dark;
