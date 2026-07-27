@@ -1,0 +1,104 @@
+name: Set up the workspace
+description: >-
+  Node + a pinned Vite+ toolchain + a warm pnpm store + `vp install`.
+  Every CI job starts here, so the toolchain is defined in exactly one place.
+
+inputs:
+  vp-version:
+    description: >-
+      PINNED, deliberately. Unpinned, this installed whatever Vite+ had shipped
+      that morning — and `vp` owns the formatter, so its rules could change
+      between two runs of the same commit. A green PR went red overnight with no
+      code change, and formatting drift appeared in packages nobody had touched.
+      Reproducing it locally was impossible until the versions matched.
+
+      Must stay in step with the `vite-plus` devDependency in package.json: that
+      is what `pnpm`-resolved local runs use, and the two disagreeing is the whole
+      failure mode this pin exists to prevent. Bump both together, in one commit,
+      so the reformat it causes is reviewable — the verify step below fails the
+      run if they drift apart.
+    required: false
+    default: 0.2.6
+  cache-suffix:
+    description: >-
+      Distinguishes this job's pnpm store cache entry. Jobs that install only the
+      workspace share the default entry; the scaffold smoke jobs install a whole
+      extra dependency tree that is not in this lockfile, so they take their own
+      entry rather than racing the others to save a store that doesn't describe
+      them. Leave unset unless the job installs something beyond `vp install`.
+    required: false
+    default: workspace
+
+runs:
+  using: composite
+  steps:
+    # Pin the runner to Node 26 (repo engines + .nvmrc). Vite+ runs with
+    # VP_NODE_MANAGER=no below, so it uses this runner Node rather than
+    # managing its own.
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 26
+
+    # The Vite+ install is a curl-fetched tarball, not an npm dependency, so it
+    # is cached by version rather than by lockfile.
+    - name: Restore the Vite+ toolchain
+      id: vp-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.vite-plus
+        key: vite-plus-${{ runner.os }}-${{ inputs.vp-version }}
+
+    - name: Install Vite+
+      if: steps.vp-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        VP_VERSION: ${{ inputs.vp-version }}
+      run: curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
+
+    # Unconditional: a cache hit restores the files but not the PATH entry.
+    # The installer drops the `vp` binary in ~/.vite-plus/bin.
+    - name: Put `vp` on PATH
+      shell: bash
+      run: echo "$HOME/.vite-plus/bin" >> "$GITHUB_PATH"
+
+    # Runs on cache hits too — a stale cache entry is one more way the binary and
+    # the devDependency can drift apart, and it is the way that leaves no trace in
+    # the diff.
+    - name: Verify the pinned Vite+ is what we got
+      shell: bash
+      run: |
+        # Fail loudly here rather than as a mystery formatting diff later.
+        got="$(vp --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+        want="$(node -p "require('./package.json').devDependencies['vite-plus'].replace(/^[^0-9]*/,'')")"
+        echo "vp binary: $got   devDependency: $want"
+        [ "$got" = "$want" ] || {
+          echo "::error::Vite+ version skew — the CI binary ($got) and the vite-plus devDependency ($want) must match, or formatting is not reproducible locally."
+          exit 1
+        }
+
+    # This repo drives pnpm through corepack (the runner has no bare `pnpm`),
+    # so ask corepack's pinned pnpm where its store lives rather than guessing.
+    - name: Locate the pnpm store
+      id: pnpm-store
+      shell: bash
+      env:
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+      run: echo "path=$(corepack pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    # `restore-keys` matters more than the exact key here: the scaffold jobs
+    # resolve a tree this lockfile doesn't describe, so a stale store restored by
+    # prefix still saves them most of a cold install.
+    - name: Cache the pnpm store
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-${{ inputs.cache-suffix }}-
+          pnpm-store-${{ runner.os }}-workspace-
+
+    - name: Install workspace
+      shell: bash
+      env:
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+      run: vp install

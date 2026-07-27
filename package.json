@@ -8,8 +8,11 @@
   "type": "module",
   "scripts": {
     "build": "sh ./scripts/ci-build.sh",
+    "build:site": "vp run site#build",
     "typecheck": "vp run louise#typecheck",
     "check": "vp run louise#check",
+    "fmt:check": "vp fmt --check --ignore-path .oxfmtignore",
+    "fmt": "vp fmt --ignore-path .oxfmtignore",
     "lint:astro": "biome lint .",
     "lint:astro:fix": "biome lint --write .",
     "lint:solid": "corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
