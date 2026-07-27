@@ -107,9 +107,7 @@ fields render:
 mountSettings({
   userName,
   settingsBaseGroups: [], // hide the framework base fields this site doesn't use
-  settingsExtension: [
-    /* the site's own settings groups */
-  ],
+  settingsExtension: [/* the site's own settings groups */],
 });
 ```
 

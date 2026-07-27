@@ -57,9 +57,7 @@ export default composeWorker({
     mediaRoute({
       table: media,
       resolveEditor,
-      referenceSources: [
-        /* … */
-      ],
+      referenceSources: [/* … */],
     }),
     settingsRoute({
       table: siteSettings,
@@ -68,9 +66,7 @@ export default composeWorker({
     }),
     saveRoute({
       resolveEditor,
-      collections: {
-        /* … */
-      },
+      collections: {/* … */},
     }),
     inquiriesRoute({ table: inquiries, resolveEditor }),
   ],

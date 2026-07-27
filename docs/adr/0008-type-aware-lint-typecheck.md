@@ -37,8 +37,8 @@ Two scoping/curation choices keep the gate green and honest:
 
 2. **Two type-aware rules are off** (`no-base-to-string`,
    `restrict-template-expressions`) and a **`test/**` override** relaxes rules that
-assume production intent (`unbound-method`, `no-misused-spread`,
-`no-unused-expressions`, `no-unsafe-optional-chaining`). Rationale:
+   assume production intent (`unbound-method`, `no-misused-spread`,
+   `no-unused-expressions`, `no-unsafe-optional-chaining`). Rationale:
    - Louise's content layer **intentionally** coerces `unknown` values — CMS field
      and setting values, form submissions, error causes, FTS index text — into
      display/serialized strings. Several sites are already `typeof`-guarded (e.g.

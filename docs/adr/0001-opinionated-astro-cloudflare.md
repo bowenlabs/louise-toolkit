@@ -26,7 +26,7 @@ That premise no longer holds, and the consuming sites prove it:
 - **The recommended split is already in production.** `themidwestartist.com`'s
   `actions/index.ts` header reads: _"Astro-native mutation surface … Editor
   mutations live under `/api/louise/_`."* Its `ContactForm.tsx`island already
-calls`actions.inquiry(...)`. The architecture below is largely **ratifying
+  calls`actions.inquiry(...)`. The architecture below is largely **ratifying
   what the sites already do**, not inventing something new.
 
 The real constraint is **supportability for one person**. Bespoke wrappers
