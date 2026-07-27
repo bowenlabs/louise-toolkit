@@ -79,8 +79,7 @@ type CloudflareEnv = {
   /** Optional second bootstrap editor (e.g. your engineer). */
   ENGINEER_EMAIL?: string;
   /** `from` address for outbound email. */
-  MAIL_FROM: string;
-  __ASTROID_ENV_BINDINGS__;
+  MAIL_FROM: string;__ASTROID_ENV_BINDINGS__
 };
 
 // `env` from `cloudflare:workers` is typed as the augmentable `Cloudflare.Env`.
@@ -94,7 +93,6 @@ declare namespace App {
     /** Resolved editor session (authorizes writes). Null when not signed in. */
     editor: import("louise-toolkit/auth").EditorSession | null;
     /** Whether the page should render edit affordances. */
-    editMode: boolean;
-    __ASTROID_PORTAL_LOCALS__;
+    editMode: boolean;__ASTROID_PORTAL_LOCALS__
   }
 }

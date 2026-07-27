@@ -1,7 +1,7 @@
 {
   "name": "__KEY__",
-  "private": true,
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "astroid dev",
     "build": "astroid build",
