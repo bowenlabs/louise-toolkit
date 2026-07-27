@@ -22,7 +22,12 @@
 
 import type { CommerceConfig, CommerceProvider } from "../config.js";
 import { type ModuleSecrets, resolveModuleSecrets, type SecretSource } from "../secrets.js";
-import { astroidCommerceProviders, astroidCommerceRoles, type CommerceRole } from "./roles.js";
+import {
+  astroidCommerceProviders,
+  astroidCommerceRoles,
+  type CommerceRole,
+  hasMultiLocation,
+} from "./roles.js";
 
 /**
  * Per-provider secret names, split by what they gate.
@@ -44,6 +49,8 @@ export const COMMERCE_PROVIDER_SECRETS: Record<
   // payments endpoints refuse a request without one, so a token on its own
   // leaves checkout broken rather than dormant. Requiring both is what makes
   // "configured" mean "can actually take money".
+  //
+  // UNLESS the project is multi-location — see `commerceProviderCredentials`.
   square: {
     credentials: ["SQUARE_ACCESS_TOKEN", "SQUARE_LOCATION_ID"],
     webhook: "SQUARE_WEBHOOK_SECRET",
@@ -79,6 +86,31 @@ export const COMMERCE_PROVIDER_SETUP: Record<CommerceProvider, string> = {
 };
 
 /**
+ * The credentials a provider needs **for this project's configuration**.
+ *
+ * Only Square varies, and only on one name. `SQUARE_LOCATION_ID` is required
+ * for a single-location project because Square's orders and payments endpoints
+ * refuse a request without one. Under `square.locations: "multi"` the location
+ * is a property of the *request* — which merchant's storefront is this? — so an
+ * ambient id is not just unnecessary, it is dangerous: any code path that
+ * defaulted to it would ring one merchant's sale against another merchant's
+ * books, and the sale would look perfectly successful while doing it.
+ *
+ * So it is dropped from the gate entirely rather than left optional. A name that
+ * is present-but-ignored is the kind of thing someone later "fixes" by using it.
+ */
+export function commerceProviderCredentials(
+  provider: CommerceProvider,
+  commerce: CommerceConfig | undefined,
+): readonly string[] {
+  const spec = COMMERCE_PROVIDER_SECRETS[provider];
+  if (provider === "square" && hasMultiLocation(commerce)) {
+    return spec.credentials.filter((name) => name !== "SQUARE_LOCATION_ID");
+  }
+  return spec.credentials;
+}
+
+/**
  * Every secret name this project's commerce configuration needs, deduplicated
  * and in a stable order.
  *
@@ -88,7 +120,7 @@ export const COMMERCE_PROVIDER_SETUP: Record<CommerceProvider, string> = {
  */
 export function commerceSecretNames(commerce: CommerceConfig | undefined): string[] {
   const names = astroidCommerceProviders(commerce).flatMap((provider) => [
-    ...COMMERCE_PROVIDER_SECRETS[provider].credentials,
+    ...commerceProviderCredentials(provider, commerce),
     COMMERCE_PROVIDER_SECRETS[provider].webhook,
   ]);
   return [...new Set(names)];
@@ -123,13 +155,16 @@ async function resolveProvider(
   provider: CommerceProvider,
   roles: CommerceRole[],
   env: Record<string, SecretSource>,
+  commerce: CommerceConfig | undefined,
 ): Promise<ProviderStatus> {
   const spec = COMMERCE_PROVIDER_SECRETS[provider];
   const pick = (names: readonly string[]) =>
     Object.fromEntries(names.map((n) => [n, env[n]])) as Record<string, SecretSource>;
 
   const [credentials, webhook] = await Promise.all([
-    resolveModuleSecrets(pick(spec.credentials)),
+    // Config-aware: a multi-location project must not be held dormant waiting
+    // for a SQUARE_LOCATION_ID it will never legitimately have.
+    resolveModuleSecrets(pick(commerceProviderCredentials(provider, commerce))),
     resolveModuleSecrets(pick([spec.webhook])),
   ]);
 
@@ -172,8 +207,9 @@ export async function resolveCommerceStatus(
     providers.map((provider) =>
       resolveProvider(
         provider,
-        (["storefront", "invoicing"] as const).filter((r) => roles[r] === provider),
+        (["storefront", "invoicing", "pos"] as const).filter((r) => roles[r] === provider),
         env,
+        commerce,
       ),
     ),
   );
