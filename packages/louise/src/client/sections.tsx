@@ -80,11 +80,41 @@ function isInline(field: SectionField): boolean {
   );
 }
 
+/** Rich-text editor options for a section's `richtext` fields — mirrors
+ *  `mountRichText`'s opts. Omit for the default light-inline bubble
+ *  (`{ minimal: true }`): inline formatting only (bold/italic/underline/strike/
+ *  link/colour), the mode #182 designed for section fields.
+ *
+ *  For the full formatting bar, pass `{ minimal: false, grammar: true }`:
+ *  `minimal: false` surfaces the prose block buttons (heading/subheading, lists,
+ *  quote, image) — from the base ProseKit schema — plus the AI-rewrite sparkle,
+ *  and `grammar` lazy-loads Harper. `blocks` is a SEPARATE opt-in: the page-
+ *  BUILDER palette (Hero/Columns/Gallery… #16), meant for full page bodies, not
+ *  a one-line heading field — leave it off for section fields. */
+export type SectionRichTextOptions = {
+  blocks?: boolean;
+  grammar?: boolean;
+  minimal?: boolean;
+  /** Show the "Insert image" button (default true). Pass `false` to drop it from
+   *  a section heading/tagline field where an inline image doesn't belong. */
+  image?: boolean;
+  /** Inline mode — a single-line heading/tagline field: inline formatting only,
+   *  and the value serializes as inline HTML (no block wrapper) so it can't turn
+   *  into a `<p>`/`<h2>` that nests in the site's element and loses its style. */
+  inline?: boolean;
+};
+
 export interface SectionsEditorProps {
   catalog: SectionCatalog;
   /** The block palette (ADR 0005) — enables adding blocks to a section whose
    *  `blocks` policy allows a type. Optional: omit for a sections-only site. */
   blocks?: BlockCatalog;
+  /** Editor options for section `richtext` fields (headings/prose the render
+   *  marks `data-louise-type="richtext"`). Defaults to the light-inline bubble;
+   *  pass `{ minimal: false, grammar: true }` to opt into the full formatting bar
+   *  (heading/list/quote/image buttons + grammar + AI rewrite). See
+   *  {@link SectionRichTextOptions}. */
+  richText?: SectionRichTextOptions;
   pageId: number;
   initial: SectionItem[];
   /** Auto-save inline section edits as a draft on an idle debounce — never
@@ -248,6 +278,7 @@ function wireInline(
   set: StoreSetter,
   onEdit: () => void,
   onBlur?: () => void,
+  richText?: SectionRichTextOptions,
 ): void {
   const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
   for (const node of Array.from(nodes)) {
@@ -268,7 +299,10 @@ function wireInline(
           onEdit();
         },
         undefined,
-        { minimal: true },
+        // Default: the light-inline bubble (#182). A site can opt section
+        // rich-text into the full bar (block buttons + grammar + AI) via
+        // SectionsEditorProps.richText.
+        richText ?? { minimal: true },
       );
       continue;
     }
@@ -386,10 +420,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const set = setState as unknown as StoreSetter;
   const [status, setStatus] = createSignal<Status>("idle");
   const [dirty, setDirty] = createSignal(false);
-  const [adding, setAdding] = createSignal(false);
-  // The "Add section" control, so its palette can exclude it from the
-  // outside-press check and hand focus back on Escape.
-  let addTrigger: HTMLButtonElement | undefined;
+  // The add-section type-picker: null when closed, else the insert index (the new
+  // section takes it, pushing the clicked one down → "insert above") + the anchor
+  // position. Opened from a section toolbar's `+` or the trailing add affordance.
+  const [addPicker, setAddPicker] = createSignal<{
+    index: number;
+    top: number;
+    left: number;
+  } | null>(null);
   // A specific save-failure reason (e.g. a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -454,6 +492,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       set,
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
+      props.richText,
     );
     void loadVersions();
 
@@ -489,6 +528,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         // ⚙ opens the inspector popover (layout + settings) for the section
         // (#182 Phase 4 / ADR 0005 §5).
         onInspect: (i) => openInspector({ kind: "section", index: i }),
+        // `+` opens the type-picker to insert a new section ABOVE this one.
+        onAdd: (i) => openAddPicker(i),
         // Block layer (#182 Phase 2 / ADR 0005): reorder/delete a section's
         // blocks in place — the block analogue of the section ops. Block add/swap
         // still need the fragment-render route (Phase 3).
@@ -736,6 +777,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       set,
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
+      props.richText,
     );
     touched();
   };
@@ -752,12 +794,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // place (no reload), wire its inline fields, then stage a draft via autosave.
   // Falls back to the save-and-reload path if the fragment can't be rendered, so
   // the item is never lost.
-  const addSection = async (type: string) => {
+  const addSection = async (type: string, atIndex = state.items.length) => {
     const def = props.catalog[type];
     if (!def) return;
-    setAdding(false);
+    setAddPicker(null);
     const item = { _type: type, ...blankRecord(def.fields) } as SectionItem;
-    const index = state.items.length; // appended at the end
+    // Insert at `atIndex` — a section's `+` passes its own index, so the new
+    // section takes it and pushes the clicked one down ("insert above"); the
+    // trailing add appends.
+    const index = Math.max(0, Math.min(atIndex, state.items.length));
     set("items", (a: SectionItem[]) => {
       const next = a.slice();
       next.splice(index, 0, item);
@@ -785,6 +830,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       set,
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
+      props.richText,
     );
     touched();
   };
@@ -878,6 +924,28 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
   const closeInspector = () => setInspecting(null);
 
+  // Open the add-section type-picker for inserting at `index`. Anchored to the
+  // section at that index (its `+`); for the trailing add (index === count) it
+  // anchors below the last section, and centres on an empty page.
+  const openAddPicker = (index: number) => {
+    const count = props.host.querySelectorAll("[data-louise-section]").length;
+    const anchorEl =
+      count === 0
+        ? null
+        : props.host.querySelector<HTMLElement>(
+            `[data-louise-section="${Math.min(index, count - 1)}"]`,
+          );
+    const box = anchorEl?.getBoundingClientRect();
+    const atEnd = index >= count;
+    const top = box
+      ? Math.min(Math.max((atEnd ? box.bottom : box.top) + 8, 8), window.innerHeight - 320)
+      : Math.max(80, Math.round(window.innerHeight / 2 - 160));
+    const left = box
+      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
+      : Math.round(window.innerWidth / 2 - 120);
+    setAddPicker({ index, top, left });
+  };
+
   const setLayout = (index: number, layout: string) => {
     set("items", index, "_layout", layout);
     void rerenderSection(index);
@@ -902,6 +970,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     touched();
   };
   const commitField = (t: InspectTarget) => void rerenderSection(inspectSection(t));
+  // Write one field of an array item — for `inline: false` arrays (marquee words,
+  // contact-form topics) whose text has no on-page node, so it's typed here in the
+  // inspector rather than on the canvas.
+  const setItemField = (i: number, key: string, k: number, itemKey: string, value: unknown) => {
+    set("items", i, key, k, itemKey, value);
+    touched();
+  };
   const addItem = (i: number, key: string, itemFields: Record<string, SectionField>) =>
     restructureSection(i, () =>
       set("items", i, key, (arr: unknown) => [
@@ -1056,48 +1131,53 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         </Portal>
       </Show>
 
-      {/* Add section — an on-canvas floating control (the dock that used to host it
-          is gone). Same palette markup as before, now anchored on the page; the
-          per-section edit/move/delete affordances live on the on-canvas toolbar and
-          the ⚙ inspector. */}
-      <div class="louise-sections-add louise-sections-add--floating" data-theme="louise">
-        <button
-          ref={(el) => {
-            addTrigger = el;
-          }}
-          class="louise-btn louise-btn-block"
-          type="button"
-          aria-haspopup="true"
-          aria-expanded={adding()}
-          aria-controls="louise-sections-palette"
-          onClick={() => setAdding((v) => !v)}
-        >
-          <Icon name="plus" /> Add section
-        </button>
-        <Show when={adding()}>
-          {/* A labelled button group, not role="menu": the items are ordinary
-              buttons in the tab order, and "menu" would promise arrow-key roving
-              we don't implement. Escape / an outside press dismiss it. */}
+      {/* Add-section type-picker — a Portal anchored to the section's `+` (insert
+          above) or to the trailing add. Dismisses on outside-press / Escape. The
+          old floating dock button is gone (drawer-last-resort). */}
+      <Show when={addPicker()}>
+        <Portal>
           <div
-            id="louise-sections-palette"
             class="louise-sections-palette"
             role="group"
             aria-label="Add a section"
-            ref={(el) =>
-              onCleanup(
-                wirePopoverDismiss(el, { onClose: () => setAdding(false), trigger: addTrigger }),
-              )
-            }
+            style={{
+              position: "fixed",
+              top: `${addPicker()?.top}px`,
+              left: `${addPicker()?.left}px`,
+              "z-index": "2147483000",
+            }}
+            ref={(el) => onCleanup(wirePopoverDismiss(el, { onClose: () => setAddPicker(null) }))}
           >
             <For each={Object.entries(props.catalog)}>
               {([type, def]) => (
-                <button class="louise-slash-item" type="button" onClick={() => addSection(type)}>
+                <button
+                  class="louise-slash-item"
+                  type="button"
+                  onClick={() => addSection(type, addPicker()?.index)}
+                >
                   {def.label}
                 </button>
               )}
             </For>
           </div>
-        </Show>
+        </Portal>
+      </Show>
+
+      {/* Trailing add: append a section at the end, in-flow (not the old floating
+          dock). On an empty page it's the single centred "+" placeholder. */}
+      <div
+        class="louise-sections-add"
+        classList={{ "louise-sections-add--empty": state.items.length === 0 }}
+        data-theme="louise"
+      >
+        <button
+          class="louise-btn louise-btn-block"
+          type="button"
+          aria-haspopup="true"
+          onClick={() => openAddPicker(state.items.length)}
+        >
+          <Icon name="plus" /> {state.items.length === 0 ? "Add your first section" : "Add section"}
+        </button>
       </div>
 
       {/* Version-history drawer — opened from the bar's History button. A right-side
@@ -1287,9 +1367,37 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                                 <Show
                                   when={field.discriminator}
                                   fallback={
-                                    <span>
-                                      {field.itemLabel ?? "Item"} {k() + 1}
-                                    </span>
+                                    <Show
+                                      when={field.inline === false}
+                                      fallback={
+                                        <span>
+                                          {field.itemLabel ?? "Item"} {k() + 1}
+                                        </span>
+                                      }
+                                    >
+                                      {/* `inline: false` array (marquee words, topics):
+                                          the item text has no on-page node, so type it
+                                          here. One input per scalar itemField. */}
+                                      <For
+                                        each={Object.entries(field.itemFields ?? {}).filter(
+                                          ([, f]) =>
+                                            f.type === "text" ||
+                                            f.type === "textarea" ||
+                                            f.type === "select",
+                                        )}
+                                      >
+                                        {([ik, ifield]) => (
+                                          <ScalarField
+                                            field={ifield}
+                                            value={String(
+                                              (arrItem as Record<string, unknown>)[ik] ?? "",
+                                            )}
+                                            onInput={(v) => setItemField(si(), key, k(), ik, v)}
+                                            onCommit={() => commitField(target)}
+                                          />
+                                        )}
+                                      </For>
+                                    </Show>
                                   }
                                 >
                                   <select
