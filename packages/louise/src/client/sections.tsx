@@ -428,6 +428,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     top: number;
     left: number;
   } | null>(null);
+  // The add-BLOCK type-picker, the block-level analogue of `addPicker`: null when
+  // closed, else the owning section, the insert index within its `blocks`, and the
+  // allowed types. Only opened when a section accepts more than one block type —
+  // single-type sections insert without a prompt.
+  const [blockPicker, setBlockPicker] = createSignal<{
+    section: number;
+    at: number;
+    types: string[];
+    top: number;
+    left: number;
+  } | null>(null);
   // A specific save-failure reason (e.g. a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -878,17 +889,25 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     moveBlockElement(section, block, to);
     touched();
   };
-  // Block add (#182 Phase 3 / ADR 0005 §4): insert a blank block after `block`,
-  // re-render the WHOLE section through the fragment route (blocks render inside
-  // their section's bespoke component, not standalone), swap the section element
-  // in place, re-stamp + re-wire, then autosave. The section's `blocks.allow`
-  // picks the type (single-type sections); a multi-type picker is a later slice.
-  const addBlock = (section: number, block: number) => {
-    const item = state.items[section];
-    const type = props.catalog[item?._type ?? ""]?.blocks?.allow?.[0];
-    const def = type ? props.blocks?.[type] : undefined;
-    if (!type || !def) return; // ambiguous/unknown block type → no-op
-    const at = block + 1;
+  // The block types a section accepts, in catalog order: bounded by the section's
+  // `blocks.allow` when declared, otherwise the whole block catalog (ADR 0005 §4 —
+  // `allow` omitted means "any block type"). Types with no catalog entry are
+  // dropped: without a field shape there is no blank to seed.
+  const allowedBlockTypes = (section: number): string[] => {
+    const policy = props.catalog[state.items[section]?._type ?? ""]?.blocks;
+    if (!policy || !props.blocks) return [];
+    const blocks = props.blocks;
+    return Object.keys(blocks).filter((t) => !policy.allow || policy.allow.includes(t));
+  };
+
+  // Block add (#182 Phase 3 / ADR 0005 §4): insert a blank block of `type` at
+  // `at`, re-render the WHOLE section through the fragment route (blocks render
+  // inside their section's bespoke component, not standalone), swap the section
+  // element in place, re-stamp + re-wire, then autosave.
+  const insertBlock = (section: number, at: number, type: string) => {
+    const def = props.blocks?.[type];
+    if (!def) return; // unknown block type → no-op
+    setBlockPicker(null);
     restructureSection(section, () =>
       set("items", section, "blocks", (b: unknown) => {
         const next = (Array.isArray(b) ? b : []).slice();
@@ -896,6 +915,30 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         return next;
       }),
     );
+  };
+
+  // The block toolbar's `+` (insert AFTER the hovered block — blocks read as a
+  // list you extend downward, unlike the section `+`, which inserts above). One
+  // allowed type inserts straight away; several open the picker, mirroring the
+  // section add-picker one level down.
+  const addBlock = (section: number, block: number) => {
+    const types = allowedBlockTypes(section);
+    const at = block + 1;
+    if (types.length === 0) return; // nothing insertable → no-op
+    if (types.length === 1) {
+      insertBlock(section, at, types[0]);
+      return;
+    }
+    const box = props.host
+      .querySelector(`[data-louise-block="${section}.blocks.${block}"]`)
+      ?.getBoundingClientRect();
+    const top = box
+      ? Math.min(Math.max(box.bottom + 8, 8), window.innerHeight - 320)
+      : Math.max(80, Math.round(window.innerHeight / 2 - 160));
+    const left = box
+      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
+      : Math.round(window.innerWidth / 2 - 120);
+    setBlockPicker({ section, at, types, top, left });
   };
 
   // ── Inspector popover (#182 Phase 4 / ADR 0005 §5) ─────────────────────────
@@ -1161,6 +1204,42 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             </For>
           </div>
         </Portal>
+      </Show>
+
+      {/* Add-BLOCK type-picker — the same palette one level down, anchored under
+          the block whose `+` opened it. Only rendered for sections that accept
+          more than one block type; single-type sections insert with no prompt. */}
+      <Show when={blockPicker()}>
+        {(picker) => (
+          <Portal>
+            <div
+              class="louise-sections-palette"
+              role="group"
+              aria-label="Add a block"
+              style={{
+                position: "fixed",
+                top: `${picker().top}px`,
+                left: `${picker().left}px`,
+                "z-index": "2147483000",
+              }}
+              ref={(el) =>
+                onCleanup(wirePopoverDismiss(el, { onClose: () => setBlockPicker(null) }))
+              }
+            >
+              <For each={picker().types}>
+                {(type) => (
+                  <button
+                    class="louise-slash-item"
+                    type="button"
+                    onClick={() => insertBlock(picker().section, picker().at, type)}
+                  >
+                    {props.blocks?.[type]?.label ?? type}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Portal>
+        )}
       </Show>
 
       {/* Trailing add: append a section at the end, in-flow (not the old floating
