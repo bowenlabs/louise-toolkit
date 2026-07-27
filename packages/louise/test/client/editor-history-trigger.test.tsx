@@ -192,7 +192,7 @@ describe("Edit bar — Done became Sign out (#36)", () => {
     const calls = stubFetch();
     const assign = vi.fn();
     vi.spyOn(window.location, "assign").mockImplementation(assign);
-    mountLouise({ collections: {} }); // returns void — torn down via the flag in afterEach
+    mountLouise({ onOpenSettings: () => {} }); // returns void — torn down via the flag in afterEach
 
     const exit = document.querySelector<HTMLButtonElement>(".louise-exit");
     expect(exit?.tagName).toBe("BUTTON"); // an action, not a link
