@@ -215,7 +215,7 @@ async function cmdDoctor(cwd, flags) {
     else
       err(
         "wrangler.jsonc has no `send_email` binding, but production sign-in emails the " +
-          "magic link (it is only console-logged in dev). Add: \"send_email\": [{ \"name\": \"EMAIL\" }]",
+          'magic link (it is only console-logged in dev). Add: "send_email": [{ "name": "EMAIL" }]',
       );
 
     if (hasBinding("DB")) ok("wrangler: D1 `DB` binding present");
@@ -328,7 +328,9 @@ async function cmdAstro(cwd, subcommand, flags, rest) {
   await cmdGenerate(cwd, flags, { quiet: true });
   const astroBin = resolveBin(cwd, "astro", "astro");
   if (!astroBin) {
-    fail("Could not find `astro` in this project. Run inside an Astroid project (with astro installed).");
+    fail(
+      "Could not find `astro` in this project. Run inside an Astroid project (with astro installed).",
+    );
   }
   const child = spawn(process.execPath, [astroBin, subcommand, ...rest], { stdio: "inherit", cwd });
   child.on("exit", (code) => process.exit(code ?? 0));
@@ -409,7 +411,9 @@ function provisionPlan(facts) {
 /** Look up a just-created resource's id by name via a `… list` JSON command. */
 function lookupId(wranglerBin, cwd, args, pick) {
   try {
-    const rows = JSON.parse(execFileSync(process.execPath, [wranglerBin, ...args], { cwd, encoding: "utf8" }));
+    const rows = JSON.parse(
+      execFileSync(process.execPath, [wranglerBin, ...args], { cwd, encoding: "utf8" }),
+    );
     return pick(Array.isArray(rows) ? rows : []) ?? null;
   } catch {
     return null;
@@ -453,7 +457,9 @@ async function cmdDeploy(cwd, flags, rest) {
   out("  Secrets:  wrangler secret put SESSION_SECRET   (prompted)");
   out("  Deploy:   wrangler deploy\n");
   if (!facts.hasAccount) {
-    out("  ! No account_id set — uncomment it in wrangler.jsonc or export CLOUDFLARE_ACCOUNT_ID.\n");
+    out(
+      "  ! No account_id set — uncomment it in wrangler.jsonc or export CLOUDFLARE_ACCOUNT_ID.\n",
+    );
   }
 
   if (dryRun) {
@@ -464,10 +470,14 @@ async function cmdDeploy(cwd, flags, rest) {
   // Gate the irreversible work behind a clear yes.
   if (!assumeYes) {
     if (!process.stdin.isTTY) {
-      fail("Refusing to provision + deploy non-interactively. Re-run with --yes (or --dry-run to preview).");
+      fail(
+        "Refusing to provision + deploy non-interactively. Re-run with --yes (or --dry-run to preview).",
+      );
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = (await rl.question("Provision the above, then migrate + deploy? [y/N] ")).trim().toLowerCase();
+    const answer = (await rl.question("Provision the above, then migrate + deploy? [y/N] "))
+      .trim()
+      .toLowerCase();
     rl.close();
     if (answer !== "y" && answer !== "yes") {
       out("Aborted.");
@@ -477,7 +487,8 @@ async function cmdDeploy(cwd, flags, rest) {
 
   const wranglerBin = resolveBin(cwd, "wrangler", "wrangler");
   if (!wranglerBin) fail("Could not find `wrangler` in this project (add it as a devDependency).");
-  const runInherit = (args) => spawnSync(process.execPath, [wranglerBin, ...args], { cwd, stdio: "inherit" });
+  const runInherit = (args) =>
+    spawnSync(process.execPath, [wranglerBin, ...args], { cwd, stdio: "inherit" });
 
   // 1) Provision, patching discovered ids back into wrangler.jsonc.
   for (const s of plan) {
@@ -490,17 +501,28 @@ async function cmdDeploy(cwd, flags, rest) {
     }
 
     if (s.kind === "d1") {
-      const id = lookupId(wranglerBin, cwd, ["d1", "list", "--json"], (rows) => rows.find((r) => r.name === s.name)?.uuid);
+      const id = lookupId(
+        wranglerBin,
+        cwd,
+        ["d1", "list", "--json"],
+        (rows) => rows.find((r) => r.name === s.name)?.uuid,
+      );
       if (id) {
-        wrangler = wrangler.replace(/"database_id":\s*"<[^"]*>"/, `"database_id": ${JSON.stringify(id)}`);
+        wrangler = wrangler.replace(
+          /"database_id":\s*"<[^"]*>"/,
+          `"database_id": ${JSON.stringify(id)}`,
+        );
         writeFileSync(wranglerPath, wrangler);
         out(`  ↳ database_id = ${id}`);
       } else {
         out("  ↳ couldn't auto-detect the id — fill database_id in wrangler.jsonc by hand.");
       }
     } else if (s.kind === "kv") {
-      const id = lookupId(wranglerBin, cwd, ["kv", "namespace", "list"], (rows) =>
-        rows.find((r) => typeof r.title === "string" && r.title.endsWith(s.name))?.id,
+      const id = lookupId(
+        wranglerBin,
+        cwd,
+        ["kv", "namespace", "list"],
+        (rows) => rows.find((r) => typeof r.title === "string" && r.title.endsWith(s.name))?.id,
       );
       if (id) {
         wrangler = patchKvId(wrangler, s.name, id);
@@ -514,7 +536,8 @@ async function cmdDeploy(cwd, flags, rest) {
 
   // 2) Migrations.
   out(`\n▸ wrangler d1 migrations apply DB ${remoteArgs.join(" ")}`.trimEnd());
-  if (runInherit(["d1", "migrations", "apply", "DB", ...remoteArgs]).status !== 0) fail("Migrations failed.");
+  if (runInherit(["d1", "migrations", "apply", "DB", ...remoteArgs]).status !== 0)
+    fail("Migrations failed.");
 
   // 3) Secrets (interactive; wrangler prompts for the value).
   out("\n▸ wrangler secret put SESSION_SECRET");

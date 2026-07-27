@@ -133,9 +133,7 @@ describe("media delete-safety", () => {
     // "no references" — an editor can remove an image that's live on the home
     // page with no warning.
     const worker = generateAstroidWorker(base);
-    expect(routeLine(worker, "mediaRoute")).toContain(
-      "referenceSources: MEDIA_REFERENCE_SOURCES",
-    );
+    expect(routeLine(worker, "mediaRoute")).toContain("referenceSources: MEDIA_REFERENCE_SOURCES");
     expect(worker).toContain("const MEDIA_REFERENCE_SOURCES = [");
   });
 
@@ -230,7 +228,7 @@ describe("site health", () => {
     // A failed crawl or a missing table must not abort the whole scan — a
     // partial health report is worth strictly more than none.
     const worker = generateAstroidWorker(base);
-    expect(worker).toContain("checkLinks({ base: origin, paths: [\"/\"] }).catch(() => [])");
+    expect(worker).toContain('checkLinks({ base: origin, paths: ["/"] }).catch(() => [])');
     expect(worker).toContain("return 0;");
   });
 });
@@ -324,7 +322,13 @@ describe("realtime (ADR 0002)", () => {
     const src = file?.contents ?? "";
     // Miss one and the failure is silent: no `webSocketClose` leaks presence
     // forever, no `alarm` never flushes a draft.
-    for (const handler of ["fetch", "webSocketMessage", "webSocketClose", "webSocketError", "alarm"]) {
+    for (const handler of [
+      "fetch",
+      "webSocketMessage",
+      "webSocketClose",
+      "webSocketError",
+      "alarm",
+    ]) {
       expect(src, `DO does not delegate ${handler}`).toContain(`${handler}(`);
     }
     // Lazy: a DO is re-instantiated after a hibernation wake.
@@ -333,13 +337,16 @@ describe("realtime (ADR 0002)", () => {
 
   it("persists through applySaveDraft — one write path, no KV double-coalesce", () => {
     const src =
-      generateAstroidScaffoldFiles(rt).find((f) => f.path === "src/edit-session.ts")?.contents ?? "";
+      generateAstroidScaffoldFiles(rt).find((f) => f.path === "src/edit-session.ts")?.contents ??
+      "";
     expect(src).toContain("applySaveDraft");
     // The DO's alarm IS the coalescer for the page, so routing through the KV
     // write-buffer as well would be two layers of coalescing over one stream.
     // Assert on the deps object actually passed, not the file text — the comment
     // above it in the generated source legitimately names `bufferKv`.
-    expect(src).toContain("{ table: pages, versionsTable: pagesVersions, config: pagesCollection }");
+    expect(src).toContain(
+      "{ table: pages, versionsTable: pagesVersions, config: pagesCollection }",
+    );
     // Guard the collection so a stray target can't write the wrong table.
     expect(src).toContain('target.slug !== "pages"');
   });
@@ -390,9 +397,9 @@ describe("card checkout", () => {
   });
 
   it("simulates rather than calling Square with a dummy credential", () => {
-    const route = generateAstroidScaffoldFiles(square).find(
-      (f) => f.path === "src/pages/api/checkout.ts",
-    )?.contents ?? "";
+    const route =
+      generateAstroidScaffoldFiles(square).find((f) => f.path === "src/pages/api/checkout.ts")
+        ?.contents ?? "";
     expect(route).toContain("resolveCommerceStatus");
     // The dormancy check must come BEFORE the charge, or an unprovisioned store
     // calls the payments API with DUMMY_REPLACE_ME.
@@ -470,12 +477,12 @@ describe("site settings customKeys (FW-3)", () => {
       ...base,
       settings: { customKeys: ["footerColumns", "hours", "ui"], imageKeys: ["heroImage"] },
     });
-    expect(worker).toContain(
-      'const SETTINGS_CUSTOM_KEYS = ["footerColumns","hours","ui"];',
-    );
+    expect(worker).toContain('const SETTINGS_CUSTOM_KEYS = ["footerColumns","hours","ui"];');
     expect(routeLine(worker, "settingsRoute")).toContain("customKeys: SETTINGS_CUSTOM_KEYS");
     // Extra image keys widen the media-strict set.
-    expect(worker).toContain('const SETTINGS_IMAGE_KEYS = ["logoUrl","faviconUrl","defaultOgImageUrl","heroImage"];');
+    expect(worker).toContain(
+      'const SETTINGS_IMAGE_KEYS = ["logoUrl","faviconUrl","defaultOgImageUrl","heroImage"];',
+    );
   });
 });
 

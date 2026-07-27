@@ -99,7 +99,7 @@ id, or user id — something stable across a retry of this attempt and distinct
 between buyers. Without it the key is a function of the cart alone, so two
 customers buying the same items collide, and since providers scope idempotency
 keys per account for ~24h the second buyer is never charged. `scope` is the
-*operation* (`"order"` vs `"refund"`), not an identity.
+_operation_ (`"order"` vs `"refund"`), not an identity.
 
 ### Card checkout
 
@@ -114,7 +114,7 @@ where it lives is a project decision.
 `SQUARE_APP_ID` and `SQUARE_ENVIRONMENT` are emitted as wrangler **vars**, not
 secrets: the app id ships to the browser by design, and folding either into the
 credential roster would also fold it into the dormancy gate — which asks whether
-we can safely *call* Square, a different question from whether a card field can
+we can safely _call_ Square, a different question from whether a card field can
 render.
 
 ### Catalog mirror
@@ -152,7 +152,7 @@ Auth's defaults because the editor client hardcodes them, so the portal is the o
 that moves. Two instances sharing a cookie prefix fails intermittently in
 production and looks like a session bug.
 
-The guard is fail-closed: a session resolver that throws degrades to *signed out*,
+The guard is fail-closed: a session resolver that throws degrades to _signed out_,
 never to signed-in.
 
 ## Analytics

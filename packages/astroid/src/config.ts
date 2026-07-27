@@ -403,7 +403,7 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
     throw new AstroidConfigError(
       "`portal.gated` is not implemented — it is accepted but wires no guard, so the site " +
         "would be fully public while appearing gated. Remove it, and gate the whole site by " +
-        "listing the prefixes you mean in `portal.routes` (e.g. `[{ prefix: \"/\" }]` with your " +
+        'listing the prefixes you mean in `portal.routes` (e.g. `[{ prefix: "/" }]` with your ' +
         "login and auth paths ahead of it).",
     );
   }

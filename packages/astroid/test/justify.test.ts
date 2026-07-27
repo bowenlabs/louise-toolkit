@@ -115,11 +115,14 @@ describe("justifyRows", () => {
 
   it("never emits a zero-width box on a crowded row", () => {
     // 30 tall portraits in a narrow container drives per-box width toward zero.
-    const rows = justifyRows(Array.from({ length: 30 }, () => ({ aspect: 0.4 })), {
-      containerWidth: 320,
-      targetHeight: 120,
-      gap: 4,
-    });
+    const rows = justifyRows(
+      Array.from({ length: 30 }, () => ({ aspect: 0.4 })),
+      {
+        containerWidth: 320,
+        targetHeight: 120,
+        gap: 4,
+      },
+    );
     for (const row of rows) {
       for (const box of row.boxes) expect(box.width).toBeGreaterThanOrEqual(1);
     }

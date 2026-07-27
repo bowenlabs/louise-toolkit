@@ -18,7 +18,6 @@
     "url": "git+https://github.com/bowenlabs/louise-toolkit.git",
     "directory": "packages/create-astroid"
   },
-  "type": "module",
   "bin": {
     "create-astroid": "./index.mjs"
   },
@@ -26,6 +25,7 @@
     "index.mjs",
     "template"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },

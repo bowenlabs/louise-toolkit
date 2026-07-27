@@ -15,10 +15,7 @@
 //      NEVER clobber them, or it would wipe provisioned ids — so they live in a
 //      separate function the regenerate path doesn't call.
 
-import {
-  ASTROID_VITALS_BINDING,
-  astroidVitalsDataset,
-} from "../analytics/index.js";
+import { ASTROID_VITALS_BINDING, astroidVitalsDataset } from "../analytics/index.js";
 import { astroidCheckoutVars } from "../commerce/checkout-scaffold.js";
 import { astroidCommerceProviders } from "../commerce/roles.js";
 import {
@@ -166,7 +163,7 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
     p("  // `new_classes`) because the session keeps its authoritative state in");
     p("  // `ctx.storage`, which is the SQLite-backed store — and the storage");
     p("  // backend cannot be changed after the class is first deployed.");
-    p("  \"migrations\": [");
+    p('  "migrations": [');
     p(
       `    { "tag": ${JSON.stringify(ASTROID_REALTIME_MIGRATION_TAG)}, "new_sqlite_classes": [${JSON.stringify(ASTROID_EDIT_SESSION_CLASS)}] }`,
     );

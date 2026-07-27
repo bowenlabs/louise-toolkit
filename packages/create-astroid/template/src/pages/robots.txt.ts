@@ -19,7 +19,9 @@ export const GET: APIRoute = async (context) => {
   // than relying on crawlers fetching every page to find the meta tag.
   let disableIndexing = false;
   try {
-    const row = await env.DB.prepare("SELECT disable_indexing FROM site_settings WHERE id = 1").first<{
+    const row = await env.DB.prepare(
+      "SELECT disable_indexing FROM site_settings WHERE id = 1",
+    ).first<{
       disable_indexing: number;
     }>();
     disableIndexing = Boolean(row?.disable_indexing);

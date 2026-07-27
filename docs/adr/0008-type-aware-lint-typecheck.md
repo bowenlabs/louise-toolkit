@@ -30,19 +30,19 @@ reason to defer: type-aware lint no longer means adding a second, slower toolcha
 Two scoping/curation choices keep the gate green and honest:
 
 1. **`vite.config.ts` is excluded from lint** (`ignorePatterns`). It is authored as
-   an untyped plain object — Vite+'s config helper and tsdown ship *inside* the
+   an untyped plain object — Vite+'s config helper and tsdown ship _inside_ the
    `vp` binary, so there are no Vite/Rollup plugin typings to import — and it is
    deliberately outside the `src`/`test` tsconfig scope. Linting it would surface
    `implicit-any` on the local plugin, which the standalone `tsgo` gate never sees.
 
 2. **Two type-aware rules are off** (`no-base-to-string`,
    `restrict-template-expressions`) and a **`test/**` override** relaxes rules that
-   assume production intent (`unbound-method`, `no-misused-spread`,
-   `no-unused-expressions`, `no-unsafe-optional-chaining`). Rationale:
+assume production intent (`unbound-method`, `no-misused-spread`,
+`no-unused-expressions`, `no-unsafe-optional-chaining`). Rationale:
    - Louise's content layer **intentionally** coerces `unknown` values — CMS field
      and setting values, form submissions, error causes, FTS index text — into
      display/serialized strings. Several sites are already `typeof`-guarded (e.g.
-     `core/content/codegen.ts`), yet the rule still fires. Type *correctness* is
+     `core/content/codegen.ts`), yet the rule still fires. Type _correctness_ is
      enforced by the `tsgo` gate; these two rules only add noise over a deliberate
      design pattern.
    - Tests reference Vitest spy methods unbound (`expect(spy)`), spread strings,

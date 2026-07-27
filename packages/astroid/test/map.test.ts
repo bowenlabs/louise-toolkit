@@ -140,9 +140,7 @@ describe("servePmtiles", () => {
 describe("astroidMapStyle", () => {
   it("routes the source through the pmtiles protocol", () => {
     const style = astroidMapStyle({ pmtilesUrl: "/map/basemap.pmtiles" });
-    expect((style.sources.protomaps as { url: string }).url).toBe(
-      "pmtiles:///map/basemap.pmtiles",
-    );
+    expect((style.sources.protomaps as { url: string }).url).toBe("pmtiles:///map/basemap.pmtiles");
     expect(style.version).toBe(8);
   });
 
@@ -164,7 +162,10 @@ describe("astroidMapStyle", () => {
     expect(plain.glyphs).toBeUndefined();
     expect(plain.layers.some((l) => l.type === "symbol")).toBe(false);
 
-    const labelled = astroidMapStyle({ pmtilesUrl: "/x", glyphs: "/map/fonts/{fontstack}/{range}.pbf" });
+    const labelled = astroidMapStyle({
+      pmtilesUrl: "/x",
+      glyphs: "/map/fonts/{fontstack}/{range}.pbf",
+    });
     expect(labelled.glyphs).toBe("/map/fonts/{fontstack}/{range}.pbf");
     expect(labelled.layers.some((l) => l.type === "symbol")).toBe(true);
   });

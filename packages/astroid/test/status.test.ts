@@ -44,11 +44,7 @@ describe("commerceSecretNames", () => {
 
   it("does not ask for the same token twice when one provider fills both roles", () => {
     const names = commerceSecretNames({ storefront: "square", invoicing: "square" });
-    expect(names).toEqual([
-      "SQUARE_ACCESS_TOKEN",
-      "SQUARE_LOCATION_ID",
-      "SQUARE_WEBHOOK_SECRET",
-    ]);
+    expect(names).toEqual(["SQUARE_ACCESS_TOKEN", "SQUARE_LOCATION_ID", "SQUARE_WEBHOOK_SECRET"]);
   });
 
   it("asks for nothing when the project sells nothing", () => {
@@ -133,9 +129,9 @@ describe("resolveMailerStatus", () => {
   const binding = { send: async () => ({ messageId: "m1" }) };
 
   it("needs both a binding and a real sender address", async () => {
-    expect((await resolveMailerStatus({ EMAIL: binding, MAIL_FROM: "hi@acme.test" })).configured).toBe(
-      true,
-    );
+    expect(
+      (await resolveMailerStatus({ EMAIL: binding, MAIL_FROM: "hi@acme.test" })).configured,
+    ).toBe(true);
   });
 
   it("names the binding when it is the missing half (the wrangler dev case)", async () => {

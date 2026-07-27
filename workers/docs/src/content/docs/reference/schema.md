@@ -19,7 +19,15 @@ implements [Standard Schema](https://standardschema.dev) works — the core stay
 
 ```ts
 const s: {
-  object, string, number, boolean, enumOf, unknown, record, array, optional
+  object;
+  string;
+  number;
+  boolean;
+  enumOf;
+  unknown;
+  record;
+  array;
+  optional;
 };
 ```
 
@@ -84,7 +92,10 @@ same `instanceof → 422` mapping the rest of the toolkit uses.
 
 ```ts
 function parseJson<Schema>(schema: Schema, raw: string): Promise<StandardParseResult<Output>>;
-function parseModelJson<Schema>(schema: Schema, modelText: string): Promise<StandardParseResult<Output>>;
+function parseModelJson<Schema>(
+  schema: Schema,
+  modelText: string,
+): Promise<StandardParseResult<Output>>;
 ```
 
 Parse **then** validate, so "not JSON" and "wrong shape" come back through the

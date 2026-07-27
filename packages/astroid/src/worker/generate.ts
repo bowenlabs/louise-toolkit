@@ -13,10 +13,7 @@
 // the `astroidPagesWriteHooks` spread, so both write paths enforce one contract.
 
 import type { AstroidConfig } from "../config.js";
-import {
-  ASTROID_VITALS_BINDING,
-  generateAstroidCwvQuery,
-} from "../analytics/index.js";
+import { ASTROID_VITALS_BINDING, generateAstroidCwvQuery } from "../analytics/index.js";
 import { astroidEditorTable } from "../auth/index.js";
 import { astroidPortal } from "../portal/config.js";
 import { ASTROID_HEALTH_CRON, astroidCron, astroidUsesQueues } from "../queues/messages.js";
@@ -210,10 +207,7 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p();
   p("// Editable site_settings columns the Settings panel may write, and which of");
   p("// them resolve to a media-library asset.");
-  const settingsImageKeys = [
-    ...ASTROID_SETTINGS_IMAGE_KEYS,
-    ...(config.settings?.imageKeys ?? []),
-  ];
+  const settingsImageKeys = [...ASTROID_SETTINGS_IMAGE_KEYS, ...(config.settings?.imageKeys ?? [])];
   const settingsCustomKeys = config.settings?.customKeys ?? [];
   // A custom-heavy site can override (or empty) the editable base columns.
   const settingsColumns = config.settings?.columns ?? ASTROID_SETTINGS_COLUMNS;
@@ -264,12 +258,14 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p("async function runHealthScan(env: CloudflareEnv) {");
   p("  const origin = env.SITE_URL ?? MEDIA_BASE;");
   p("  const [brokenLinks, missingAlt, seoGaps] = await Promise.all([");
-  p("    checkLinks({ base: origin, paths: [\"/\"] }).catch(() => []),");
+  p('    checkLinks({ base: origin, paths: ["/"] }).catch(() => []),');
   p("    countRows(env, \"SELECT COUNT(*) AS n FROM media WHERE alt IS NULL OR alt = ''\"),");
   p("    countRows(");
   p("      env,");
-  p('      "SELECT COUNT(*) AS n FROM pages WHERE status = \'published\'" +');
-  p("      \" AND (seo_title IS NULL OR seo_title = '' OR seo_description IS NULL OR seo_description = '')\",");
+  p("      \"SELECT COUNT(*) AS n FROM pages WHERE status = 'published'\" +");
+  p(
+    "      \" AND (seo_title IS NULL OR seo_title = '' OR seo_description IS NULL OR seo_description = '')\",",
+  );
   p("    ),");
   p("  ]);");
   p("  const summary = summarizeHealth({ brokenLinks, missingAlt, seoGaps });");
@@ -312,7 +308,7 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p('    "SELECT" +');
   p("    \" (SELECT COUNT(*) FROM pages WHERE status = 'draft') AS drafts,\" +");
   p(
-    '    " (SELECT COUNT(DISTINCT parent_id) FROM pages_versions WHERE status = \'draft\') AS unpublished," +',
+    "    \" (SELECT COUNT(DISTINCT parent_id) FROM pages_versions WHERE status = 'draft') AS unpublished,\" +",
   );
   p('    " (SELECT MAX(updated_at) FROM pages) AS last_edited",');
   p("  ).first<{ drafts: number; unpublished: number; last_edited: number | null }>();");
@@ -377,7 +373,7 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p("  // Wrapped UNCONDITIONALLY, and that is safe: `withEdgeCache` only stores a");
   p("  // response that carries a cacheable Cloudflare-CDN-Cache-Control directive,");
   p("  // and a page emits one only via `Astro.cache.set(...)` — which the scaffold");
-  p("  // gates on ASTROID_EDGE_CACHE being \"true\" AND the request not being in edit");
+  p('  // gates on ASTROID_EDGE_CACHE being "true" AND the request not being in edit');
   p("  // mode. With the var off (the default) every render is `no-store`, so this");
   p("  // layer stores nothing and is a transparent pass-through.");
   p("  //");

@@ -24,12 +24,12 @@ changes ship as a **minor** bump, so pin an exact version if you depend on one.
 
 ## Which one do I want?
 
-| | Louise | Astroid |
-|---|---|---|
-| You already have an Astro app | ✅ add it | ❌ scaffolds a new one |
-| You want to choose your own schema, routes, auth | ✅ | ❌ it chooses for you |
-| You want a running editable site today | assembly required | one command |
-| You need a page-builder + section library | build it | ships 15 sections |
+|                                                  | Louise            | Astroid                |
+| ------------------------------------------------ | ----------------- | ---------------------- |
+| You already have an Astro app                    | ✅ add it         | ❌ scaffolds a new one |
+| You want to choose your own schema, routes, auth | ✅                | ❌ it chooses for you  |
+| You want a running editable site today           | assembly required | one command            |
+| You need a page-builder + section library        | build it          | ships 15 sections      |
 
 If you're adding editing to an app you already have, use [Louise directly](/guide/quickstart/).
 If you're starting a brand-new site on Cloudflare, start here.
@@ -82,7 +82,7 @@ export default defineAstroid({
 
 **One brand per project.** Every site Astroid targets serves a single brand from a
 single deploy, so the config describes one brand, not an array. What multiplexes
-is *editors* (Louise's org plugin) and *audiences* (a gated portal beside the
+is _editors_ (Louise's org plugin) and _audiences_ (a gated portal beside the
 public site).
 
 ### Archetypes
@@ -139,7 +139,7 @@ Opt-in capabilities, each pulling real infrastructure:
   A **Square** storefront also gets the server-authoritative payment seam:
   `src/pages/api/checkout.ts` re-prices every line from the D1 mirror (the
   client's price is a staleness check, never an input to the charge), derives an
-  idempotency key from the cart *and* a cart id, and charges only once commerce
+  idempotency key from the cart _and_ a cart id, and charges only once commerce
   is really provisioned — otherwise it simulates rather than calling Square with
   a placeholder credential. `<SquareCard>` mounts the Web Payments card field,
   which is an iframe from Square's CDN, so the raw card number never reaches the
@@ -181,7 +181,7 @@ them unmounted meant rendering UI for a subsystem that could never have data.
   `RL` namespace under its own key, so there's no extra binding to provision.
   Until the first scan runs the panel says "not checked yet". The inbox card
   counts unhandled inquiries — the whole table, because the Inquiries tab
-  reviews and *clears* submissions, so a surviving row is one still waiting.
+  reviews and _clears_ submissions, so a surviving row is one still waiting.
 
 ### Edge caching (off by default)
 
@@ -190,7 +190,7 @@ The generated worker wraps Astro's SSR fallback in `withEdgeCache`, Louise's
 `ASTROID_EDGE_CACHE` is `"false"`, so every render emits `no-store` and the layer
 stores nothing.
 
-Why cookie-aware matters: Cloudflare's *automatic* edge cache is keyed by URL and
+Why cookie-aware matters: Cloudflare's _automatic_ edge cache is keyed by URL and
 runs **before** your Worker, so it cannot see the edit cookie — it will serve a
 cached public page to a signed-in editor, drafts and all. `withEdgeCache` runs
 inside the Worker, inspects the request first, and strips the CDN directive from
@@ -213,10 +213,10 @@ so `maxAge` is the real worldwide freshness floor after a publish.
 `scheduled` handler dispatches on `controller.cron` — Cloudflare fires a single
 handler for every trigger and that string is the only way to tell them apart.
 
-| Cron | What runs |
-|---|---|
-| `17 4 * * *` | The daily site-health scan. Always. |
-| `0 * * * *` | The catalog re-sync safety net. Commerce only; `queues.cron: false` disables it. |
+| Cron         | What runs                                                                        |
+| ------------ | -------------------------------------------------------------------------------- |
+| `17 4 * * *` | The daily site-health scan. Always.                                              |
+| `0 * * * *`  | The catalog re-sync safety net. Commerce only; `queues.cron: false` disables it. |
 
 ### Realtime editing
 

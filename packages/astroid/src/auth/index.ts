@@ -59,7 +59,7 @@ export function assertAuthIsolation(config: AstroidConfig): void {
       `portal.cookiePrefix must be set and distinct from the editor's (${JSON.stringify(
         ASTROID_EDITOR_COOKIE_PREFIX,
       )}). Two instances sharing a cookie prefix silently sign you out of one when ` +
-        "you sign into the other. Pick a project-specific prefix (e.g. \"acme_shop\").",
+        'you sign into the other. Pick a project-specific prefix (e.g. "acme_shop").',
     );
   }
   if (portal.tablePrefix === ASTROID_EDITOR_TABLE_PREFIX) {
@@ -67,7 +67,7 @@ export function assertAuthIsolation(config: AstroidConfig): void {
       `portal.tablePrefix must differ from the editor's (${JSON.stringify(
         ASTROID_EDITOR_TABLE_PREFIX,
       )}) — a shared table prefix merges the two instances into one user table. ` +
-        'Leave it unset (the unprefixed `user`/`session` tables) or use a distinct prefix.',
+        "Leave it unset (the unprefixed `user`/`session` tables) or use a distinct prefix.",
     );
   }
 }

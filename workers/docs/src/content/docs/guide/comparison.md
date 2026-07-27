@@ -26,16 +26,16 @@ auth / AI from the same toolkit rather than stitched-together services.
 
 ## On the editing axis
 
-| | **Louise** | TinaCMS | Sanity | Payload |
-| --- | --- | --- | --- | --- |
-| Editing model | Edit the real, server-rendered page **in place** | Contextual editing (React overlay) | Sanity Studio (separate React app) | Generated admin app (React) |
-| Runtime | **V8 / Cloudflare Workers** (no Node) | Node / Git backend | Hosted "Content Lake" (SaaS) | Node (Express or Next.js) |
-| Datastore | **Your D1 + R2** | Git (Markdown/MDX) + Tina Cloud | Sanity-hosted | MongoDB or Postgres |
-| Hosting | **Self-hosted on your Cloudflare account** | Self-host + optional Tina Cloud | SaaS | Self-host |
-| Frontend framework | **Astro** (core primitives framework-agnostic) | React-oriented | Any (headless) | Any (headless) |
-| Separate admin app? | **No** — the site is the surface | No (overlay) | Yes | Yes |
-| Scope | **Full toolkit** (commerce, forms, media, auth, AI, …) | Content | Content | Content (+ plugins) |
-| License / cost | **MIT, no per-seat pricing** | OSS + paid cloud | Free tier → usage pricing | OSS + paid cloud |
+|                     | **Louise**                                             | TinaCMS                            | Sanity                             | Payload                     |
+| ------------------- | ------------------------------------------------------ | ---------------------------------- | ---------------------------------- | --------------------------- |
+| Editing model       | Edit the real, server-rendered page **in place**       | Contextual editing (React overlay) | Sanity Studio (separate React app) | Generated admin app (React) |
+| Runtime             | **V8 / Cloudflare Workers** (no Node)                  | Node / Git backend                 | Hosted "Content Lake" (SaaS)       | Node (Express or Next.js)   |
+| Datastore           | **Your D1 + R2**                                       | Git (Markdown/MDX) + Tina Cloud    | Sanity-hosted                      | MongoDB or Postgres         |
+| Hosting             | **Self-hosted on your Cloudflare account**             | Self-host + optional Tina Cloud    | SaaS                               | Self-host                   |
+| Frontend framework  | **Astro** (core primitives framework-agnostic)         | React-oriented                     | Any (headless)                     | Any (headless)              |
+| Separate admin app? | **No** — the site is the surface                       | No (overlay)                       | Yes                                | Yes                         |
+| Scope               | **Full toolkit** (commerce, forms, media, auth, AI, …) | Content                            | Content                            | Content (+ plugins)         |
+| License / cost      | **MIT, no per-seat pricing**                           | OSS + paid cloud                   | Free tier → usage pricing          | OSS + paid cloud            |
 
 _Competitor details are summarized in good faith and evolve; check each project's
 current docs. The point is architectural shape, not a feature scorecard._

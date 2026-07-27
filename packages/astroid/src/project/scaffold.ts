@@ -101,7 +101,7 @@ export function generateAstroidScaffoldFiles(config: AstroidConfig): ScaffoldFil
       "// here; the generated src/schema.ts re-exports everything from this file, so",
       "// drizzle-kit sees them and the worker can import them. Empty by default.",
       "//",
-      "// e.g.  export const redirects = sqliteTable(\"redirects\", { … });",
+      '// e.g.  export const redirects = sqliteTable("redirects", { … });',
       "export {};",
       "",
     ].join("\n"),

@@ -94,7 +94,12 @@
 .sl-markdown-content :is(h1, h2, h3, h4),
 .content-panel h1,
 h1#_top {
-  font-family: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family:
+    "Roboto Flex",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-weight: 800;
   font-stretch: 110%;
   letter-spacing: -0.015em;

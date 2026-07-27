@@ -81,7 +81,11 @@ export const SECTIONS: SectionCatalog = {
       headingAccent: { type: "text", label: "Heading (accent word)", placeholder: "today." },
       ctaLabel: { type: "text", label: "Button label", placeholder: "Get started →" },
       ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
-      subtext: { type: "text", label: "Subtext", placeholder: "MIT licensed · deploys to the edge" },
+      subtext: {
+        type: "text",
+        label: "Subtext",
+        placeholder: "MIT licensed · deploys to the edge",
+      },
     },
   },
   banner: {

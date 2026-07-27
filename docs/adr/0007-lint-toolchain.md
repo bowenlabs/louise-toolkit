@@ -17,7 +17,7 @@ The repo lints with three tools, each scoped to what the others can't handle:
 
 ## Decision
 
-**Keep the split.** Biome 2 cannot absorb the other two roles, so consolidating onto it would *not* reduce the tool count — it would only add an overlapping linter over `.ts`.
+**Keep the split.** Biome 2 cannot absorb the other two roles, so consolidating onto it would _not_ reduce the tool count — it would only add an overlapping linter over `.ts`.
 
 The blocker is the Solid client:
 
@@ -29,7 +29,7 @@ Given oxlint stays for the client anyway, the rest follows:
 - **Biome's job is minimal and non-overlapping** — it exists solely because oxlint can't parse `.astro`. With its formatter disabled, there's no oxfmt/Biome formatting conflict.
 - **Biome 2's type-aware rules are a nice-to-have, not a reason to migrate.** The rules oxlint enforces on `.ts` are already covered in the `vp` pipeline, and the type-checking gate is `tsgo` (TS7 native) — a separate, authoritative pass. Biome's typed rules would duplicate, not replace, that.
 
-Net: the split is already the *minimum* — three tools because three file/rule domains (`.ts`, `.astro`, Solid reactivity) are each unparseable or unsupported by the others. It is not accidental complexity.
+Net: the split is already the _minimum_ — three tools because three file/rule domains (`.ts`, `.astro`, Solid reactivity) are each unparseable or unsupported by the others. It is not accidental complexity.
 
 ## Consequences
 

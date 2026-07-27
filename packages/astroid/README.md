@@ -33,7 +33,7 @@ The whole shape of a project — its brand + theme + editable home, its commerce
 backend and optional modules — collapses into one typed config. **One brand per
 project:** every site Astroid targets serves a single brand from a single deploy,
 so the config describes one brand, not an array. What actually multiplexes is
-*editors* (Louise's org plugin) and *audiences* (a gated portal beside the public
+_editors_ (Louise's org plugin) and _audiences_ (a gated portal beside the public
 site) — both options on the one brand. The vocabulary is drawn from the real
 sites Astroid targets: a storefront (coracle.coffee), a wholesale front
 (ghostfire.coffee), an artist portfolio (themidwestartist.com), and a plain
@@ -131,16 +131,16 @@ wait on the work.
 Status codes are the only backpressure signal a provider gives you, so each one
 is picked for what it tells the sender to do:
 
-| Situation | Code | Why |
-|---|---|---|
-| Secret unprovisioned | 503 | Dormant is temporary — keep retrying so events delivered before you set the secret still land |
-| Bad / missing signature | 401 | Terminal. It won't verify on retry either, and retrying turns a misconfiguration into a flood |
-| Body isn't JSON | 400 | Terminal for the same reason |
-| Enqueue failed | 503 | The signature checked out, so the event is real — ask for redelivery |
-| Enqueued | 202 | Accepted, not done. That's the point of a queue |
+| Situation               | Code | Why                                                                                           |
+| ----------------------- | ---- | --------------------------------------------------------------------------------------------- |
+| Secret unprovisioned    | 503  | Dormant is temporary — keep retrying so events delivered before you set the secret still land |
+| Bad / missing signature | 401  | Terminal. It won't verify on retry either, and retrying turns a misconfiguration into a flood |
+| Body isn't JSON         | 400  | Terminal for the same reason                                                                  |
+| Enqueue failed          | 503  | The signature checked out, so the event is real — ask for redelivery                          |
+| Enqueued                | 202  | Accepted, not done. That's the point of a queue                                               |
 
 On the consumer side `astroidQueueHandler` owns the dispatch every site wrote: a
-periodic refresh re-syncs, a webhook re-syncs *only* if it touched the catalog,
+periodic refresh re-syncs, a webhook re-syncs _only_ if it touched the catalog,
 and everything else acks as a no-op. That last part matters — order and payment
 events arrive in volume and have nothing local to update, so treating them as
 actionable turns a busy sales day into a refresh storm.
@@ -195,7 +195,7 @@ settings is a site-wide kill switch that beats any page asking to be indexed —
 useful for staging.
 
 `<StructuredData>` emits a schema.org `@graph`: the business, the `WebSite`, and
-optionally the entity the page is *about* (a Product, a VisualArtwork). The
+optionally the entity the page is _about_ (a Product, a VisualArtwork). The
 business `@type` comes from the archetype (`storefront` → `Store`, `portfolio` →
 `Person`); set `seo.businessType` to a narrower subtype whenever you know one.
 The payload is escaped with `escapeJsonLd`, not `JSON.stringify` — `stringify`
@@ -219,7 +219,7 @@ email-bombing target, so the tightest budget in the set), the portal's
 credential surfaces when `portal.enabled`, checkout when `commerce` is set. The
 session-gated editor API stays out on purpose — a limiter that can lock the
 owner out of their own studio is worse than the abuse it stops. Add or override
-via `security.rateRules`, which is matched *before* the defaults, so you replace
+via `security.rateRules`, which is matched _before_ the defaults, so you replace
 one budget rather than the whole set.
 
 **The CSP is composed, and it's split for a reason.** `astroidSecurity(config)`
@@ -229,7 +229,7 @@ Astroid adds the one hash Astro can't produce itself: Solid's hydration
 bootstrap, injected by `@astrojs/solid-js` on every page with an island.
 Computing it from `generateHydrationScript()` means it tracks solid-js upgrades
 instead of going stale as a copy-pasted literal. Meanwhile the generated
-middleware rewrites *only* `style-src`, because Louise's data-driven `style=""`
+middleware rewrites _only_ `style-src`, because Louise's data-driven `style=""`
 carriers need `'unsafe-inline'` and a single hash in that directive would void
 it per spec — the two cannot share one directive.
 
@@ -240,8 +240,8 @@ import astroidConfig from "./astroid.config.ts";
 
 export default defineConfig({
   security: astroidSecurity(astroidConfig),
-  vite: { build: { ...ASTROID_VITE_BUILD } },  // assetsInlineLimit: 0 — an
-});                                            // inlined asset can't be hashed
+  vite: { build: { ...ASTROID_VITE_BUILD } }, // assetsInlineLimit: 0 — an
+}); // inlined asset can't be hashed
 ```
 
 Enabled modules contribute their own origins (a commerce provider's SDK hosts,
@@ -249,8 +249,8 @@ the captcha frame); `security.cspOrigins` adds anything Astroid can't see.
 
 ## Modules are dormant, not broken
 
-Astroid's optional modules are opt-in at the *config* level, never at the
-*account* level: switching commerce on must not require a Square account before
+Astroid's optional modules are opt-in at the _config_ level, never at the
+_account_ level: switching commerce on must not require a Square account before
 `pnpm dev` will boot. So a module whose secrets aren't provisioned is **dormant**
 — it renders, it serves, it says out loud that it's simulated, and it never calls
 upstream with a dummy credential. A fresh clone runs with zero external accounts.

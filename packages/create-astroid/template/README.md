@@ -1,4 +1,4 @@
-# __BRAND_NAME__
+# **BRAND_NAME**
 
 An editable, multi-editor site on Cloudflare Workers — scaffolded with
 [Astroid](https://github.com/bowenlabs/louise-toolkit) (Astro + Louise Toolkit).
@@ -71,7 +71,7 @@ with `POST /api/louise/pages/reindex` (signed in).
 ## Editors & auth
 
 Editors sign in with a magic link (passkeys supported). The allowlist is
-**DB-managed**: an admin `user` row *is* an editor. Seed the first one above; add
+**DB-managed**: an admin `user` row _is_ an editor. Seed the first one above; add
 or remove the rest from the Users panel (backed by the generated `editorsRoute`).
 There are no passwords and no editor list in env to keep in sync.
 
@@ -119,12 +119,12 @@ single charge.
 
 ## Layout
 
-| Path | What |
-| --- | --- |
-| `astroid.config.ts` | The one typed config — brand, archetype, sections. |
-| `src/schema.ts` · `src/worker.ts` · `src/middleware.ts` | **Generated** — don't hand-edit. |
-| `wrangler.jsonc` | Yours to edit — real binding ids, routes, secrets. |
-| `src/auth.ts` | The editor auth seam (Better Auth, DB-managed editors). |
-| `src/pages/` · `src/components/` · `src/layouts/` | Your Astro app. |
-| `migrations/` | `0000_content.sql` (content + FTS) · `0001_auth.sql` (Better Auth). |
-| `scripts/seed-editors.mjs` | Bootstrap the first editor. |
+| Path                                                    | What                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------- |
+| `astroid.config.ts`                                     | The one typed config — brand, archetype, sections.                  |
+| `src/schema.ts` · `src/worker.ts` · `src/middleware.ts` | **Generated** — don't hand-edit.                                    |
+| `wrangler.jsonc`                                        | Yours to edit — real binding ids, routes, secrets.                  |
+| `src/auth.ts`                                           | The editor auth seam (Better Auth, DB-managed editors).             |
+| `src/pages/` · `src/components/` · `src/layouts/`       | Your Astro app.                                                     |
+| `migrations/`                                           | `0000_content.sql` (content + FTS) · `0001_auth.sql` (Better Auth). |
+| `scripts/seed-editors.mjs`                              | Bootstrap the first editor.                                         |

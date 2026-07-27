@@ -396,7 +396,12 @@ describe("catalog sync — failure reporting", () => {
         if (calls === 1) throw new Error("transient");
         return {
           bind() {
-            return { async run() {}, async first() { return null; } };
+            return {
+              async run() {},
+              async first() {
+                return null;
+              },
+            };
           },
         };
       },
@@ -486,7 +491,7 @@ describe("generated checkout route", () => {
     const route = generateAstroidCheckoutRoute(square);
     expect(route).not.toBeNull();
     expect(route).toContain('import { isSameOrigin } from "louise-toolkit/security"');
-    expect(route).toContain("if (!isSameOrigin(request)) return json({ error: \"Forbidden\" }, 403)");
+    expect(route).toContain('if (!isSameOrigin(request)) return json({ error: "Forbidden" }, 403)');
   });
 
   it("checks the origin BEFORE parsing the body or re-pricing", () => {
