@@ -10,507 +10,209 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  # Three independent roots. None of them needs a build, so they all start at
+  # once and the slowest one — not their sum — sets the time to first red.
+  # ---------------------------------------------------------------------------
+
+  lint:
+    name: Lint & dead code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Pin the runner to Node 26 (repo engines + .nvmrc). Vite+ runs with
-      # VP_NODE_MANAGER=no below, so it uses this runner Node rather than managing
-      # its own.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-
-      - name: Install Vite+
-        run: |
-          curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
-          # The installer drops the `vp` binary in ~/.vite-plus/bin.
-          echo "$HOME/.vite-plus/bin" >> "$GITHUB_PATH"
-
-      - name: Install workspace
-        run: vp install
+      - uses: ./.github/actions/setup
 
       - name: Lint & format (Oxlint + Oxfmt)
-        run: vp check
-        working-directory: packages/louise
+        run: corepack pnpm -C packages/louise run check
 
       # oxlint doesn't parse .astro; Biome lints the component scripts (partial
-      # Astro support). Scoped to **/*.astro in biome.json — no overlap with oxlint.
+      # Astro support). Scoped to **/*.astro in biome.json — no overlap with
+      # oxlint.
       - name: Lint .astro (Biome)
-        run: node_modules/.bin/biome lint .
+        run: corepack pnpm run lint:astro
 
-      # `vp check` uses vp's own bundled oxlint and ignores the repo .oxlintrc.json
-      # (and its jsPlugins). Run a standalone oxlint to load eslint-plugin-solid via
-      # jsPlugins and lint the SolidJS inline-edit client (solid/* rules). It MUST
-      # be isolated (`pnpm dlx`, which fetches into a temp store), not a
-      # node_modules dep — a node_modules oxlint shadows vp's and breaks
-      # `vp check` (vp reads its oxlint config from vite.config.ts, which imports
-      # vite-plus, unresolvable to a standalone oxlint).
+      # `vp check` uses vp's own bundled oxlint and ignores the repo
+      # .oxlintrc.json (and its jsPlugins). Run a standalone oxlint to load
+      # eslint-plugin-solid via jsPlugins and lint the SolidJS inline-edit client
+      # (solid/* rules). It MUST be isolated (`pnpm dlx`, which fetches into a
+      # temp store), not a node_modules dep — a node_modules oxlint shadows vp's
+      # and breaks `vp check` (vp reads its oxlint config from vite.config.ts,
+      # which imports vite-plus, unresolvable to a standalone oxlint).
       #
-      # Invoked through `corepack pnpm`, not the `lint:solid` script: the runner
-      # has no bare `pnpm` on PATH (this repo drives pnpm through corepack), and
-      # the script body's own `pnpm dlx` would hit the same wall.
+      # The `lint:solid` script pins both packages, so this fetches the same two
+      # versions every run rather than whatever is newest.
       - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
-        run: corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client
+        run: corepack pnpm run lint:solid
 
       # Dead-code check: unused files and exports across the workspace. Runs on
       # source (entry points mapped in knip.jsonc), so no build is needed.
       - name: Dead-code check (Knip)
-        run: node_modules/.bin/knip
+        run: corepack pnpm run knip
 
-      - name: Type-check
-        run: vp run "louise#typecheck"
+  test:
+    name: Type-check & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Type-check the library
+        run: corepack pnpm -C packages/louise run typecheck
 
       - name: Test
-        run: vp test
-        working-directory: packages/louise
+        run: corepack pnpm -C packages/louise run test
 
       # Astroid's own suite (config validation, the generators, the secret
       # convention). It aliases `louise-toolkit/*` to source in its vitest
       # config, so it needs no build and can run alongside the library's.
       - name: Test (Astroid)
-        run: vp test
-        working-directory: packages/astroid
+        run: corepack pnpm -C packages/astroid run test
 
-      # Build directly (not `vp run louise#pack`): the task-runner form can serve
-      # a cache hit without restoring dist/, leaving the site build unable to
-      # resolve the `louise-toolkit/*` subpaths.
+  # ---------------------------------------------------------------------------
+  # The build fan-out point. Everything below consumes its artifacts rather than
+  # rebuilding, so the library is packed exactly once per run.
+  # ---------------------------------------------------------------------------
+
+  pack:
+    name: Build & pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      # `pnpm run build` here, not `vp run louise#pack`: the task-runner form can
+      # serve a cache hit without restoring dist/, leaving the site build unable
+      # to resolve the `louise-toolkit/*` subpaths.
       - name: Build the library (dist/)
-        run: NODE_PATH=node_modules vp pack
-        working-directory: packages/louise
+        run: corepack pnpm -C packages/louise run build
 
       # Type-check Astroid against the BUILT library, which is why it runs after
-      # the pack above and not next to the louise typecheck.
+      # the build above and not next to the louise type-check in `test`.
       #
       # Astroid's vitest aliases `louise-toolkit/*` to source, so the test suite
-      # resolves imports that the published package may not actually expose —
-      # it cannot see an export-map problem. This step resolves through
-      # node_modules like a real consumer, so a subpath that isn't exported (or
-      # isn't emitted by the build) fails here instead of in someone's install.
+      # resolves imports that the published package may not actually expose — it
+      # cannot see an export-map problem. This resolves through node_modules like
+      # a real consumer, so a subpath that isn't exported (or isn't emitted by
+      # the build) fails here instead of in someone's install.
       #
       # The gap this closes: `louise-toolkit/content/sections` was added as a new
       # export, and nothing in CI would have caught it being missing from the
       # export map or the build output.
       - name: Type-check Astroid (against the built library)
-        run: node_modules/.bin/tsgo --noEmit
-        working-directory: packages/astroid
+        run: corepack pnpm -C packages/astroid run typecheck
 
-      # Build the Astroid CLI (tsgo → dist/) so its generators + bin are runnable.
-      # Invoke tsgo directly (the package's `build` script) rather than via a `vp
-      # run` task — this must actually produce dist/, like the louise pack above.
+      # Build the Astroid CLI (tsgo → dist/) so its generators + bin are
+      # runnable.
       - name: Build the Astroid CLI (dist/)
-        run: node_modules/.bin/tsgo -p tsconfig.build.json
-        working-directory: packages/astroid
+        run: corepack pnpm -C packages/astroid run build
 
-      # Exercise create-astroid end-to-end the way a USER gets it: pack the three
-      # packages, install the tarballs into an empty directory outside the repo,
-      # and scaffold from the installed copy — then validate with `astroid doctor`.
-      #
-      # The clean room is the point. Running the scaffold in-tree (as this step used
-      # to) resolves every import through the workspace's own node_modules, so a
-      # package that forgets to DECLARE a dependency still works — the workspace has
-      # it hoisted anyway. That blind spot shipped a broken `create-astroid` to
-      # the registry once: astroidjs reaches drizzle-orm through
-      # `louise-toolkit/content`, but drizzle-orm is an *optional* peer of
-      # louise-toolkit, so it was never installed for real users and the CLI
-      # died before writing a file. In-tree it passed.
-      #
-      # Four details this depends on, none incidental:
-      #   - `pnpm pack` (not `npm pack`) — only pnpm rewrites `workspace:*` into the
-      #     real version, which is what makes the tarball match a published one.
-      #   - Packing runs each package's `prepublishOnly`, so the artifact is built
-      #     the same way `pnpm publish` would build it.
-      #   - $RUNNER_TEMP is outside the checkout, so there's no workspace root or
-      #     hoisted node_modules above it to resolve stray imports from.
-      #   - The `overrides` block is what actually pins create-astroid's own
-      #     `astroidjs`/`louise-toolkit` deps to THESE tarballs. Installing them
-      #     side by side is not enough: pnpm's node_modules is isolated, so
-      #     create-astroid resolves its own copy — from the REGISTRY — and the run
-      #     silently tests the published packages. (npm only got this right by
-      #     accident, via hoisting.)
-      #
-      # It runs `astro check` + `astro build` on the scaffold, not just `doctor`.
-      # Doctor validates config and file freshness but never resolves an import,
-      # so it cannot see a dependency the template forgot to declare — which is
-      # how a scaffold that couldn't build shipped once already.
-      - name: Scaffold smoke test (clean-room install from packed tarballs)
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+      - name: Pack the three published packages
+        run: scripts/ci/pack-tarballs.sh "$RUNNER_TEMP/louise-pack"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: ${{ runner.temp }}/louise-pack/*.tgz
+          retention-days: 1
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: louise-dist
+          path: packages/louise/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Three consumers of the packed output, in parallel. The two scaffold jobs were
+  # sequential steps sharing one clean room; they now share a warm pnpm store via
+  # the setup action's cache instead, which is what made splitting them cheap.
+  # ---------------------------------------------------------------------------
+
+  smoke-storefront:
+    name: Scaffold smoke — storefront (+ live)
+    runs-on: ubuntu-latest
+    needs: pack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          cache-suffix: scaffold-storefront
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: ${{ runner.temp }}/louise-pack
+
+      - name: Scaffold, verify, and build (clean-room install from tarballs)
         run: |
-          set -euo pipefail
-          PACK="$RUNNER_TEMP/louise-pack"
-          ROOM="$RUNNER_TEMP/louise-clean-room"
-          rm -rf "$PACK" "$ROOM"; mkdir -p "$PACK" "$ROOM"
+          scripts/ci/smoke-storefront.sh \
+            "$RUNNER_TEMP/louise-pack" "$RUNNER_TEMP/louise-clean-room"
 
-          for pkg in louise astroid create-astroid; do
-            ( cd "packages/$pkg" && corepack pnpm pack --pack-destination "$PACK" )
-          done
-          ls -1 "$PACK"
+      - name: Live smoke (serve the built worker, exercise it over HTTP)
+        run: scripts/ci/live-smoke.sh "$RUNNER_TEMP/louise-clean-room/smoke"
 
-          cd "$ROOM"
-          # A bare manifest, written directly: `pnpm init` emits a caret
-          # packageManager range that corepack then refuses to run.
-          echo '{ "name": "clean-room", "private": true }' > package.json
-          # Pin every astroidjs / louise-toolkit resolution — the scaffold's own
-          # install inherits this, so it builds against THESE tarballs too.
-          {
-            echo "overrides:"
-            echo "  astroidjs: \"file:$(ls "$PACK"/astroidjs-*.tgz)\""
-            echo "  louise-toolkit: \"file:$(ls "$PACK"/louise-toolkit-*.tgz)\""
-          } > pnpm-workspace.yaml
-          corepack pnpm add "$PACK"/*.tgz
+      # The worker log is the only way to read a live-smoke failure after the
+      # fact; the script tails it, but the full file is worth keeping.
+      - name: Upload the wrangler dev log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-dev-log
+          path: ${{ runner.temp }}/louise-clean-room/smoke/dev.log
+          retention-days: 3
+          if-no-files-found: ignore
 
-          # `--commerce` exercises the widest scaffold: the queue consumer, the
-          # webhook receiver, and the cron on top of the baseline.
-          node node_modules/create-astroid/index.mjs smoke \
-            --key smoke --name "Smoke Test" --archetype storefront \
-            --color "#5b4bff" --host smoke.example --commerce square
+  smoke-portfolio:
+    name: Scaffold smoke — portfolio
+    runs-on: ubuntu-latest
+    needs: pack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          cache-suffix: scaffold-portfolio
 
-          for f in astroid.config.ts wrangler.jsonc src/schema.ts src/worker.ts \
-                   src/middleware.ts src/queue.ts src/pages/api/webhooks/square.ts \
-                   .github/workflows/ci.yml; do
-            test -f "smoke/$f" || { echo "scaffold did not write $f"; exit 1; }
-          done
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: ${{ runner.temp }}/louise-pack
 
-          # The scaffold must declare the toolkit versions it was BUILT against.
-          #
-          # Nothing else in this job can check that. The `overrides` above pin
-          # astroidjs/louise-toolkit to the tarballs for every install below —
-          # which is what makes the clean room work, and also what makes the
-          # declared ranges invisible to it. A hand-written range in
-          # template/package.json therefore rots undetected: it once pinned
-          # `^0.1.0` while the template imported `astroidjs/astro`, an export the
-          # newest matching version did not have, so every scaffolded project
-          # died before Astro loaded its config and CI stayed green.
-          #
-          # create-astroid now derives these from its own resolved dependencies;
-          # this asserts the derivation actually happened and points at THESE
-          # tarballs, so re-hardcoding a literal fails here instead of on npm.
-          node -e '
-            const fs = require("fs");
-            const pkg = JSON.parse(fs.readFileSync("smoke/package.json", "utf8"));
-            let bad = 0;
-            for (const name of ["astroidjs", "louise-toolkit"]) {
-              const packed = JSON.parse(
-                fs.readFileSync(`node_modules/${name}/package.json`, "utf8"),
-              ).version;
-              const declared = pkg.dependencies[name];
-              const expected = `^${packed}`;
-              if (declared !== expected) {
-                console.error(
-                  `scaffold declares ${name} "${declared}", but the packed version is ` +
-                  `${packed} (expected "${expected}") — template/package.json is stale`,
-                );
-                bad++;
-              }
-            }
-            if (bad) process.exit(1);
-            console.log("scaffold toolkit ranges match the packed versions");
-          '
-
-          # Apply every migration to a throwaway SQLite db and assert the tables
-          # the generated schema reads actually exist.
-          #
-          # Nothing used to run this SQL. `--commerce` declared a `products`
-          # table in src/schema.ts, the queue seam told you to sync into it, and
-          # no migration created it — `astro check` can't see that, and `doctor`
-          # only checks the migrations/ directory exists. The first real catalog
-          # sync was the discovery mechanism.
-          #
-          # Apply EVERY migration in order (glob sorts 0000→0003). A hardcoded
-          # subset skipped the portal's 0002_portal_auth, so `user`/`session`
-          # never got created for a storefront and this check failed on `user`.
-          for f in smoke/migrations/*.sql; do
-            sqlite3 /tmp/smoke.db < "$f"
-          done
-          for t in pages pages_versions media site_settings inquiries user session products; do
-            found=$(sqlite3 /tmp/smoke.db "SELECT name FROM sqlite_master WHERE type='table' AND name='$t';")
-            test "$found" = "$t" || { echo "migrations did not create table: $t"; exit 1; }
-          done
-          echo "all migrations apply; every generated table exists"
-
-          # The generated worker embeds RAW SQL and raw column names that nothing
-          # else checks against the schema: the Home dashboard's COUNT query, and
-          # the media delete-safety reference columns. `astro check` type-checks
-          # the strings but cannot know whether `pages_versions.parent_id` exists.
-          # Run the one and probe the other against the database just built.
-          sqlite3 /tmp/smoke.db "SELECT (SELECT COUNT(*) FROM pages WHERE status = 'draft') AS drafts, (SELECT COUNT(DISTINCT parent_id) FROM pages_versions WHERE status = 'draft') AS unpublished, (SELECT MAX(updated_at) FROM pages) AS last_edited;" >/dev/null \
-            || { echo "the generated overview SQL does not run against the generated schema"; exit 1; }
-          for c in body sections og_image title; do
-            sqlite3 /tmp/smoke.db "SELECT \"$c\" FROM pages LIMIT 1;" >/dev/null \
-              || { echo "media reference column pages.$c does not exist"; exit 1; }
-          done
-          for c in logo_url favicon_url default_og_image_url site_name; do
-            sqlite3 /tmp/smoke.db "SELECT \"$c\" FROM site_settings LIMIT 1;" >/dev/null \
-              || { echo "media reference column site_settings.$c does not exist"; exit 1; }
-          done
-          echo "generated overview SQL runs; every media reference column exists"
-
-          # The sign-in page must render the Turnstile widget under the SAME
-          # condition the server arms the captcha, and forward the token in the
-          # header Better Auth reads. Get this wrong and provisioning Turnstile —
-          # which .env.example invites you to do — locks the owner out of their
-          # own site with a 403 and no explanation. Nothing type-checks the
-          # relationship between the two halves, so assert it here.
-          grep -q "turnstileSiteKey" smoke/src/pages/login.astro \
-            || { echo "login.astro no longer gates the widget on turnstileSiteKey"; exit 1; }
-          grep -q "x-captcha-response" smoke/src/pages/login.astro \
-            || { echo "login.astro no longer sends the captcha token header"; exit 1; }
-          echo "sign-in captcha wiring present"
-
-          # Every cron declared in wrangler.jsonc must be dispatched by the
-          # generated scheduled handler. Cloudflare fires ONE handler for all
-          # triggers and identifies which by `controller.cron`, so a string that
-          # appears in one and not the other is a job that silently never runs —
-          # no error, no log, just a scan or a re-sync that quietly stopped.
-          node -e '
-            const fs = require("fs");
-            const cfg = fs.readFileSync("smoke/wrangler.jsonc", "utf8");
-            const worker = fs.readFileSync("smoke/src/worker.ts", "utf8");
-            const crons = [...(cfg.match(/"triggers":\s*\{\s*"crons":\s*\[([^\]]*)\]/)?.[1] ?? "")
-              .matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-            if (crons.length === 0) { console.error("no crons declared"); process.exit(1); }
-            let bad = 0;
-            for (const cron of crons) {
-              if (!worker.includes(`controller.cron === "${cron}"`)) {
-                console.error(`cron "${cron}" is declared but the handler never dispatches it`);
-                bad++;
-              }
-            }
-            if (bad) process.exit(1);
-            console.log(`all ${crons.length} cron(s) declared and dispatched: ${crons.join(", ")}`);
-          '
-
-          node node_modules/astroidjs/bin/astroid.mjs doctor --cwd smoke
-
-          # Install and BUILD the scaffold the way a user would. This is the only
-          # step that resolves the template's imports, so it's the only one that
-          # can catch a dependency it forgot to declare.
-          cd smoke
-          # Install with the scaffold's OWN pnpm-workspace.yaml — do not replace
-          # it. It carries the `allowBuilds` approvals without which `pnpm
-          # install` fails outright (ERR_PNPM_IGNORED_BUILDS), which is the first
-          # command the README tells a user to run. This step used to overwrite
-          # that file and append its own approvals, which meant CI proved the
-          # scaffold installs *for CI* and never for a user — it shipped a
-          # scaffold whose first documented command errored.
-          #
-          # `overrides:` is the LAST key in that file, so appending two indented
-          # lines extends it and pins astroidjs/louise-toolkit to THESE tarballs.
-          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
-            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
-            >> pnpm-workspace.yaml
-          corepack pnpm install
-          corepack pnpm exec astro check
-          corepack pnpm exec astro build
-
-          # A second scaffold, for the PORTFOLIO archetype. Not redundant: the
-          # storefront run above never emits src/pages/work.astro, so it never
-          # compiles JustifiedGallery.astro or MediaSlot.astro — and .astro files
-          # are invisible to tsgo and vitest, so without this they ship with
-          # nothing having type-checked them at all. `astro check` is the only
-          # thing in the repo that reads them.
-          #
-          # It reuses the clean room's pnpm store, so the marginal cost is the
-          # check itself rather than a second cold install.
-          cd "$ROOM"
-          # --map --pwa on purpose. Both modules generate code that NOTHING else
-          # compiles: the tile route and MapEmbed.astro are written into the
-          # project, and sw.js / the manifest are static files under public/.
-          # Without them here they would ship having been checked nowhere.
-          #
-          # Passing both together also guards the merge hazard they created —
-          # each contributes to `modules`, and a naive resolution lets one
-          # overwrite the other silently.
-          # --portal is here for the same reason --map/--pwa are: it generates
-          # src/portal-auth.ts and the portal auth catch-all, and until it was
-          # added to a scaffold that runs `astro check`, NOTHING compiled either
-          # of them. The portal's 28 unit tests assert the generator's output as
-          # strings; only this step type-checks the code it produces.
-          node node_modules/create-astroid/index.mjs folio \
-            --key folio --name "Folio" --archetype portfolio --color "#5b4bff" \
-            --map --pwa --portal --realtime
-
-          test -f folio/src/pages/work.astro || {
-            echo "portfolio scaffold did not write src/pages/work.astro"; exit 1; }
-          for f in src/pages/map/basemap.pmtiles.ts src/components/MapEmbed.astro \
-                   public/sw.js public/manifest.webmanifest \
-                   src/portal-auth.ts "src/pages/api/portal-auth/[...all].ts" \
-                   migrations/0002_portal_auth.sql src/edit-session.ts; do
-            test -f "folio/$f" || { echo "module scaffold did not write $f"; exit 1; }
-          done
-          # The Durable Object binding is worthless without its migration, and the
-          # class must be exported from the ENTRY or wrangler can't resolve
-          # `class_name`. Both are deploy-time failures nothing else here catches.
-          grep -q 'new_sqlite_classes' folio/wrangler.jsonc || {
-            echo "realtime DO has no migration block"; exit 1; }
-          grep -q 'export { EditSessionDO }' folio/src/worker.ts || {
-            echo "the DO class is not exported from the worker entry"; exit 1; }
-          grep -q 'modules: \["map","pwa","realtime"\]' folio/astroid.config.ts || {
-            echo "the modules array lost a module"; cat folio/astroid.config.ts; exit 1; }
-          # sw.js is plain JS in public/ and the manifest is data — neither is
-          # type-checked by anything, so parse them explicitly.
-          node --check folio/public/sw.js
-          node -e 'JSON.parse(require("fs").readFileSync("folio/public/manifest.webmanifest","utf8"))'
-          node -e 'JSON.parse(require("fs").readFileSync("folio/package.json","utf8"))'
-
-          cd folio
-          # Same as above: keep the scaffold's own pnpm-workspace.yaml.
-          printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
-            "$(ls "$PACK"/astroidjs-*.tgz)" "$(ls "$PACK"/louise-toolkit-*.tgz)" \
-            >> pnpm-workspace.yaml
-          corepack pnpm install
-          corepack pnpm exec astro check
-          corepack pnpm exec astro build
-
-          # Type-check ASTROID'S OWN .astro components.
-          #
-          # `astro check` only diagnoses files inside the project, so components
-          # imported from node_modules/astroidjs are invisible to it — verified
-          # with a deliberate type error, which passed straight through. That
-          # left the whole section library compiling nowhere: tsgo doesn't read
-          # .astro, vitest doesn't either, and a scaffold only surfaces errors in
-          # its OWN files (which is how the mountSections bug was caught).
-          #
-          # Copying them under src/ makes them project files for one check pass.
-          # Run after the build so the copies can't reach the output.
-          cp -r node_modules/astroidjs/src/components src/_astroid_probe
-          corepack pnpm exec astro check
-          rm -rf src/_astroid_probe
-
-      # Everything above BUILDS scaffolds; this one RUNS one. A whole class of
-      # defect is invisible until the worker actually serves a request — the
-      # section catalog not being enforced on the pages write path, a rejected
-      # write answering 500 instead of 422, the colorway utilities missing from
-      # the built CSS, a dead /contact link. Each was green in the unit suites,
-      # `astro check`, AND `astroid doctor`; each was caught by serving a scaffold
-      # on workerd. This reuses the `smoke` scaffold the previous step already
-      # installed and built.
-      - name: Scaffold live smoke (serve the built worker, exercise it over HTTP)
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+      - name: Scaffold, verify, and build (clean-room install from tarballs)
         run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/louise-clean-room/smoke"
-          W=node_modules/.bin/wrangler
-          B=http://localhost:8788
-          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
-          fail() { echo "LIVE SMOKE FAIL: $1"; [ -f dev.log ] && tail -40 dev.log; exit 1; }
+          scripts/ci/smoke-portfolio.sh \
+            "$RUNNER_TEMP/louise-pack" "$RUNNER_TEMP/louise-folio-room"
 
-          # The colorway / alignment utilities live ONLY in astroidjs's section
-          # components — source under node_modules, which Tailwind v4 won't scan
-          # without the template's `@source`. Drop it and these vanish from the
-          # built CSS, and every `_settings` colorway silently renders on the
-          # default surface. (btn-primary survives because daisyUI ships it as
-          # component CSS — which is exactly what hid this.)
-          CSS=$(cat dist/client/_astro/*.css)
-          for u in "bg-primary" "text-primary-content" "items-center"; do
-            grep -q "\.$u" <<<"$CSS" \
-              || fail "section utility .$u missing from built CSS — Tailwind is not scanning astroidjs components"
-          done
-          echo "section-library utilities present in the built CSS"
+  site:
+    name: Build the site
+    runs-on: ubuntu-latest
+    needs: pack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
 
-          # wrangler dev routes the request through the scaffold's `hosts` domain,
-          # so the app is NOT localhost and needs a real SESSION_SECRET — written
-          # beside the config wrangler actually loads (the adapter-emitted one).
-          printf 'SESSION_SECRET=ci-live-smoke-secret\nMAIL_FROM=no-reply@smoke.example\n' \
-            > dist/server/.dev.vars
-
-          # Apply every migration + seed the home page and the first editor into
-          # the local D1 wrangler dev will read (same cwd ⇒ same default persist).
-          $W d1 migrations apply DB --local -c dist/server/wrangler.json --persist-to .wrangler/state
-          $W d1 execute DB --local -c dist/server/wrangler.json --persist-to .wrangler/state --file seed/home.seed.sql
-          OWNER_EMAIL=owner@smoke.example corepack pnpm seed:editors --local
-
-          # Serve on workerd; kill it however we exit. Capture the PID rather
-          # than a `%1` job spec — job control is off in a non-interactive runner
-          # shell, so `%1` would not resolve.
-          $W dev -c dist/server/wrangler.json --persist-to .wrangler/state --port 8788 --local > dev.log 2>&1 &
-          DEV_PID=$!
-          trap 'kill "$DEV_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 90); do if curl -sf -o /dev/null "$B/"; then break; fi; sleep 1; done
-
-          # Public surface + the gate.
-          [ "$(code "$B/")" = "200" ]         || fail "home did not serve 200"
-          [ "$(code "$B/contact")" = "200" ]  || fail "/contact did not serve 200 (dead link regressed?)"
-          [ "$(code "$B/api/louise/overview")" = "401" ] \
-            || fail "editor API not gated — overview is not 401 when signed out"
-
-          # A real sign-in: request a magic link, read the message miniflare wrote
-          # to disk, follow the token, keep the session cookie.
-          curl -s -o /dev/null -X POST -H 'content-type: application/json' -H "Origin: $B" \
-            -H 'CF-Connecting-IP: 10.0.0.1' \
-            -d '{"email":"owner@smoke.example","callbackURL":"/?louise"}' \
-            "$B/api/auth/sign-in/magic-link"
-          TOKEN=""
-          for i in $(seq 1 30); do
-            MD=$(find . -type d -name email-text 2>/dev/null | head -1)
-            if [ -n "$MD" ]; then
-              for f in $(ls -t "$MD"/*.txt 2>/dev/null); do
-                t=$(grep -hoE 'magic-link/verify\?token=[A-Za-z0-9_-]+' "$f" | head -1 | sed 's/.*token=//')
-                if [ -n "$t" ]; then TOKEN="$t"; break; fi
-              done
-            fi
-            if [ -n "$TOKEN" ]; then break; fi
-            sleep 1
-          done
-          [ -n "$TOKEN" ] || fail "no magic-link token was mailed — sign-in is broken"
-          curl -s -o /dev/null -c cookies.txt \
-            "$B/api/auth/magic-link/verify?token=$TOKEN&callbackURL=/?louise"
-          grep -q better-auth cookies.txt || fail "no session cookie issued after verify"
-          [ "$(code -b cookies.txt "$B/api/louise/overview")" = "200" ] \
-            || fail "signed-in overview is not 200"
-
-          PID=$(curl -s -b cookies.txt "$B/api/louise/pages" \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s).pages.find(x=>x.slug==="home");process.stdout.write(p?String(p.id):"")})')
-          [ -n "$PID" ] || fail "could not resolve the seeded home page id"
-
-          # The reason this leg exists: pagesRoute takes no collection config, so
-          # these pass ONLY if the generator wired the section sanitize + validate
-          # hooks into it. Each was a silent 200-and-store before the fix.
-          patch() { code -X PATCH -b cookies.txt -H 'content-type: application/json' -H "Origin: $B" -d "$1" "$B/api/louise/pages/$PID"; }
-          [ "$(patch '{"sections":[{"_type":"definitely-not-a-section","heading":"x"}]}')" = "422" ] \
-            || fail "pagesRoute did not 422 an unknown section _type"
-          [ "$(patch '{"sections":[{"_type":"hero","heading":"x","_settings":{"colorway":"chartreuse"}}]}')" = "422" ] \
-            || fail "pagesRoute did not 422 a _settings token outside its options"
-          curl -s -o /dev/null -X PATCH -b cookies.txt -H 'content-type: application/json' -H "Origin: $B" \
-            -d '{"sections":[{"_type":"faq","heading":"p","items":[{"question":"q","answer":"<p>ok</p><script>window.__XSS__=1</script>"}]}]}' \
-            "$B/api/louise/pages/$PID"
-          if curl -s "$B/" | grep -q '__XSS__'; then
-            fail "pagesRoute did not sanitize section rich text — a <script> reached the public page"
-          fi
-
-          # versionsRoute must answer 422 (the collection hook's LouiseValidationError),
-          # not the unhandled 500 it used to leak. This is a FIRST draft write, so
-          # it flushes to D1 and validates synchronously.
-          vpost() { code -X POST -b cookies.txt -H 'content-type: application/json' -H "Origin: $B" -d "$2" "$B/api/louise/pages/$PID/$1"; }
-          [ "$(vpost versions '{"sections":[{"_type":"definitely-not-a-section"}],"title":"x"}')" = "422" ] \
-            || fail "versionsRoute did not 422 a bad section (regressed to 500?)"
-
-          # The KV write-buffer defers validation: a valid draft opens the buffer
-          # (first write flushes → 201), a bad draft within the window COALESCES
-          # into KV unvalidated (200), and the bad section is validated for the
-          # first time when publish flushes the buffer. That flush ran OUTSIDE the
-          # publish try/catch and leaked a 500; it must now 422 (the content is
-          # kept off the live page either way).
-          [ "$(vpost versions '{"sections":[{"_type":"hero","heading":"ok","_settings":{"colorway":"brand"}}],"title":"x"}')" = "201" ] \
-            || fail "a valid first draft write did not 201"
-          vpost versions '{"sections":[{"_type":"definitely-not-a-section"}],"title":"x"}' >/dev/null
-          [ "$(vpost publish '{}')" = "422" ] \
-            || fail "publish did not 422 when flushing a buffered bad section (regressed to 500?)"
-          curl -s "$B/" | grep -q 'definitely-not-a-section' \
-            && fail "a buffered bad section reached the live page on publish" || true
-
-          # And a VALID structural write still succeeds — the hooks reject bad
-          # input, not all input.
-          [ "$(patch '{"sections":[{"_type":"hero","heading":"Valid","_settings":{"colorway":"brand"}}]}')" = "200" ] \
-            || fail "pagesRoute rejected a VALID section — the hooks are too strict"
-
-          echo "live smoke: served scaffold passed every check"
+      # The site resolves `louise-toolkit/*` through the workspace link, which
+      # points at dist/. Restore the packed build rather than rebuilding it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: louise-dist
+          path: packages/louise/dist
 
       - name: Build the site
-        run: vp run "site#build"
+        run: corepack pnpm run build:site
+
+  # A single required check to protect the branch with, so adding a job later
+  # doesn't mean editing branch protection.
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, test, pack, smoke-storefront, smoke-portfolio, site]
+    steps:
+      - name: Fail if any job did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

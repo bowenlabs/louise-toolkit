@@ -19,7 +19,11 @@
 
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.sh"],
+      // The CI shell scripts (scripts/ci/*.sh) are invoked from
+      // .github/workflows/ci.yml, which knip doesn't read, and the .mjs checks
+      // under scripts/ci/checks/ are invoked from those shell scripts by path.
+      // Neither link is traceable, so both are entries.
+      "entry": ["scripts/**/*.sh", "scripts/ci/checks/*.mjs"],
       // eslint-plugin-solid is loaded by oxlint through .oxlintrc.json's
       // `jsPlugins`, which knip doesn't parse. The `lint:solid` script names it
       // too, but behind `corepack pnpm dlx` — which knip doesn't recognize as a
