@@ -7,12 +7,14 @@ import { defineBasicExtension } from "prosekit/basic";
 import {
   createEditor,
   defineDocChangeHandler,
+  defineKeymap,
   defineNodeAttr,
   htmlFromNode,
   union,
   type Editor,
   type NodeJSON,
 } from "prosekit/core";
+import { DOMSerializer } from "@prosekit/pm/model";
 import { defineBlockquote } from "prosekit/extensions/blockquote";
 import { defineImageUploadHandler, uploadImage } from "prosekit/extensions/image";
 import { defineLink } from "prosekit/extensions/link";
@@ -152,9 +154,28 @@ function ResizableImage(props: SolidNodeViewProps) {
   );
 }
 
-function louiseExtension(blocks = false, grammar = false) {
+/** Serialize a doc as **inline** HTML — the inline content of its block(s),
+ *  concatenated, with no block wrapper. `inline` rich-text fields (a heading, a
+ *  tagline) store inline HTML that the site drops into its own element via
+ *  `set:html` (`<h1 set:html={value}>`); serializing the whole doc would emit a
+ *  `<p>`/`<h2>` wrapper that then nests inside that element and loses its style. */
+function inlineHTMLFromDoc(editor: Editor): string {
+  const { doc } = editor.view.state;
+  const serializer = DOMSerializer.fromSchema(doc.type.schema);
+  const host = document.createElement("div");
+  doc.forEach((block) => host.appendChild(serializer.serializeFragment(block.content)));
+  return host.innerHTML;
+}
+
+function louiseExtension(blocks = false, grammar = false, inline = false) {
   return union(
     defineBasicExtension(),
+    // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
+    // the block-splitting keys so the value stays one inline run — paired with
+    // inlineHTMLFromDoc, the field never gains a block wrapper.
+    ...(inline
+      ? [defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true })]
+      : []),
     defineBlockquote(),
     defineTextColor(),
     // Inline link mark (#182 Phase 5) — surfaced in the format bubble; renders to
@@ -210,6 +231,19 @@ export interface RichTextProps {
    *  omitted — for section rich-text fields (a tagline, a body line), not a full
    *  page body. The schema is unchanged; only the chrome is trimmed. */
   minimal?: boolean;
+  /** Inline mode (#182): a single-line rich-text field — a heading or tagline the
+   *  site renders inside its own element (`<h1 set:html={value}>`). Like `minimal`
+   *  for chrome (inline formatting only), but ALSO constrains the value to inline
+   *  HTML: block-splitting keys are suppressed and the value serializes with no
+   *  block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
+   *  nests in the element and loses its brand style. The level stays whatever the
+   *  site's element is — the editor never changes it. */
+  inline?: boolean;
+  /** Show the "Insert image" button in the block-controls group (default true).
+   *  Only relevant in non-`minimal` mode, where the block controls render. Pass
+   *  `false` to drop it — e.g. a section heading field where an inline image
+   *  makes no sense but the other block buttons (heading/list/quote) do. */
+  image?: boolean;
   class?: string;
 }
 
@@ -228,7 +262,7 @@ export interface RichTextField {
  * the live page stays clean until the editor actually selects text. Reads
  * active mark/node state reactively and runs editor commands.
  */
-function Toolbar(props: { minimal?: boolean }) {
+function Toolbar(props: { minimal?: boolean; image?: boolean }) {
   const editor = useEditor<LouiseEditorExtension>();
   const active = useEditorDerivedValue((e: Editor<LouiseEditorExtension>) => ({
     bold: e.marks.bold.isActive(),
@@ -420,17 +454,19 @@ function Toolbar(props: { minimal?: boolean }) {
           on={active().quote}
           run={() => editor().commands.toggleBlockquote()}
         />
-        <span class="louise-tb-sep" />
-        <Btn icon="image" title="Insert image" run={pickImage} />
-        <input
-          ref={imageInput}
-          type="file"
-          accept="image/*"
-          class="louise-hidden-file"
-          aria-hidden="true"
-          tabindex={-1}
-          onChange={onImagePicked}
-        />
+        <Show when={props.image !== false}>
+          <span class="louise-tb-sep" />
+          <Btn icon="image" title="Insert image" run={pickImage} />
+          <input
+            ref={imageInput}
+            type="file"
+            accept="image/*"
+            class="louise-hidden-file"
+            aria-hidden="true"
+            tabindex={-1}
+            onChange={onImagePicked}
+          />
+        </Show>
       </Show>
       <span class="louise-tb-sep" />
       <div class="louise-tb-color">
@@ -558,7 +594,7 @@ function Toolbar(props: { minimal?: boolean }) {
 
 export function RichText(props: RichTextProps) {
   const editor = createEditor({
-    extension: louiseExtension(props.blocks ?? false, props.grammar ?? false),
+    extension: louiseExtension(props.blocks ?? false, props.grammar ?? false, props.inline ?? false),
     defaultContent: props.initialDoc || "<p></p>",
   });
 
@@ -572,7 +608,7 @@ export function RichText(props: RichTextProps) {
     editor.mount(host);
     props.ref?.({
       getJSON: () => editor.getDocJSON(),
-      getHTML: () => htmlFromNode(editor.view.state.doc),
+      getHTML: () => (props.inline ? inlineHTMLFromDoc(editor) : htmlFromNode(editor.view.state.doc)),
       destroy: () => {
         dispose();
         editor.unmount();
@@ -588,13 +624,13 @@ export function RichText(props: RichTextProps) {
             the live page stays clean until the editor highlights text. */}
         <Show when={props.toolbar !== false}>
           <InlinePopoverRoot class="louise-format-bubble">
-            <Toolbar minimal={props.minimal} />
+            <Toolbar minimal={props.minimal || props.inline} image={props.image} />
           </InlinePopoverRoot>
         </Show>
         <div class={props.class ?? "louise-prose-surface"} ref={host} />
-        {/* Block drag-handle + inserters — omitted in `minimal` (light-inline)
-            mode, where there's no block layer to reorder or insert into. */}
-        <Show when={!props.minimal}>
+        {/* Block drag-handle + inserters — omitted in `minimal`/`inline`
+            (light-inline) modes, where there's no block layer to reorder. */}
+        <Show when={!(props.minimal || props.inline)}>
           {/* Block inserters (#16) — only where blocks are enabled: a visible
               "+ Block" button (deterministic) plus the slash menu (fast path). */}
           <Show when={props.blocks}>
@@ -623,7 +659,7 @@ export function mountRichText(
   el: HTMLElement,
   onChange: () => void,
   initialDoc?: NodeJSON,
-  opts?: { blocks?: boolean; grammar?: boolean; minimal?: boolean },
+  opts?: { blocks?: boolean; grammar?: boolean; minimal?: boolean; image?: boolean; inline?: boolean },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
   let field: RichTextField | null = null;
@@ -635,6 +671,8 @@ export function mountRichText(
         blocks={opts?.blocks}
         grammar={opts?.grammar}
         minimal={opts?.minimal}
+        image={opts?.image}
+        inline={opts?.inline}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;
