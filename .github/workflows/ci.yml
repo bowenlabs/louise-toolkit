@@ -32,9 +32,33 @@ jobs:
       - name: Install workspace
         run: vp install
 
-      - name: Lint & format (Oxlint + Oxfmt)
+      # `vp check` is per-package: it reads its config from that package's
+      # vite.config.ts, so it must be run from inside each one. Only `louise` has
+      # a config (type-aware lint + typeCheck); `astroid` uses vp's defaults.
+      - name: Lint & format — louise (Oxlint + Oxfmt)
         run: vp check
         working-directory: packages/louise
+
+      # astroid was outside the gate entirely until now, which is exactly why it
+      # accumulated formatting drift nobody saw: `vp check` had never run on it.
+      - name: Lint & format — astroid (Oxlint + Oxfmt)
+        run: vp check
+        working-directory: packages/astroid
+
+      # Everything the two package checks don't reach: create-astroid, docs/,
+      # workers/, and the repo root.
+      #
+      # Formatting only, and via `vp fmt` rather than `vp check`, for two
+      # reasons. First, `vp check` from the repo root finds no config and would
+      # silently apply vp's defaults as if they were this repo's style. Second,
+      # `create-astroid/template/` MUST NOT be formatted — its files carry
+      # `__ASTROID_*__` placeholders and are not valid TypeScript standalone, so
+      # formatting them breaks every scaffolded project (see .oxfmtignore).
+      # `vp check` cannot be told to skip them: neither `format.ignorePatterns`
+      # in vite.config.ts nor a package-level .oxfmtrc.json is honoured — the
+      # explicit `--ignore-path` flag is the only mechanism that works.
+      - name: Format — everything else (Oxfmt)
+        run: vp fmt --check --ignore-path .oxfmtignore
 
       # oxlint doesn't parse .astro; Biome lints the component scripts (partial
       # Astro support). Scoped to **/*.astro in biome.json — no overlap with oxlint.

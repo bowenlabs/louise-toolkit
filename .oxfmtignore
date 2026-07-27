@@ -15,3 +15,7 @@
 # Nothing in this repo type-checks the template until it is scaffolded, so the
 # clean-room smoke test is the only thing that catches it. Leave it alone.
 packages/create-astroid/template/
+
+# Changesets are transient: the release tooling consumes and deletes them, and
+# they are authored prose. Formatting them is churn that never reaches a package.
+.changeset/
