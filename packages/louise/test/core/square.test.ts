@@ -6,8 +6,15 @@ import {
   createTeamMember,
   createTimecard,
   listCatalogItems,
+  listLocations,
   mapCatalogItem,
+  presentAt,
+  priceAtLocation,
   publishInvoice,
+  retrieveLocation,
+  retrieveVariationPricesAt,
+  searchOrders,
+  setPhysicalCount,
   updateTimecard,
   upsertCatalogItem,
   verifySquareSignature,
@@ -119,8 +126,24 @@ describe("mapCatalogItem", () => {
       description: "House medium roast",
       imageUrl: "https://cdn.square/img-1.jpg",
       version: 3,
+      // Presence defaults to "sold everywhere" when Square omits the fields,
+      // matching Square's own default for present_at_all_locations.
+      presentAtAllLocations: true,
+      presentAtLocationIds: [],
+      absentAtLocationIds: [],
       variations: [
-        { id: "var-1", name: "12 oz", sku: "HB-12", priceCents: 2000, currency: "USD", version: 5 },
+        {
+          id: "var-1",
+          name: "12 oz",
+          sku: "HB-12",
+          priceCents: 2000,
+          currency: "USD",
+          version: 5,
+          locationOverrides: [],
+          presentAtAllLocations: true,
+          presentAtLocationIds: [],
+          absentAtLocationIds: [],
+        },
       ],
     });
   });
@@ -480,5 +503,336 @@ describe("invoices", () => {
     expect(calls[0]?.url).toBe("https://connect.squareupsandbox.com/v2/invoices/INV1/publish");
     expect(calls[0]?.body).toMatchObject({ version: 0 });
     expect(inv).toMatchObject({ status: "UNPAID", publicUrl: "https://squareup.com/pay/INV1" });
+  });
+});
+
+// ── Multi-merchant: locations, per-location pricing, inventory ───────────────
+//
+// These are the paths where a bug costs real money: charging one merchant's
+// price at another merchant's storefront, or selling stock a shop doesn't hold.
+
+describe("presentAt", () => {
+  const base = { presentAtLocationIds: [], absentAtLocationIds: [] };
+
+  it("treats present_at_location_ids as a WHITELIST when not present everywhere", () => {
+    const presence = { ...base, presentAtAllLocations: false, presentAtLocationIds: ["L1"] };
+    expect(presentAt(presence, "L1")).toBe(true);
+    expect(presentAt(presence, "L2")).toBe(false);
+  });
+
+  it("treats absent_at_location_ids as a BLACKLIST when present everywhere", () => {
+    const presence = { ...base, presentAtAllLocations: true, absentAtLocationIds: ["L2"] };
+    expect(presentAt(presence, "L1")).toBe(true);
+    expect(presentAt(presence, "L2")).toBe(false);
+  });
+
+  it("ignores the whitelist when present everywhere, and vice versa", () => {
+    // The two lists are not symmetric — only the one matching the flag applies.
+    expect(
+      presentAt({ ...base, presentAtAllLocations: true, presentAtLocationIds: ["L9"] }, "L1"),
+    ).toBe(true);
+    expect(
+      presentAt({ ...base, presentAtAllLocations: false, absentAtLocationIds: ["L9"] }, "L1"),
+    ).toBe(false);
+  });
+});
+
+describe("priceAtLocation", () => {
+  const variation = {
+    id: "var-1",
+    name: "Original",
+    sku: null,
+    priceCents: 20000,
+    currency: "USD",
+    version: 1,
+    presentAtAllLocations: true,
+    presentAtLocationIds: [],
+    absentAtLocationIds: [],
+    locationOverrides: [
+      {
+        locationId: "L-gallery",
+        priceCents: 26000,
+        currency: "USD",
+        trackInventory: null,
+        soldOut: null,
+      },
+      // An override that adjusts availability but NOT price.
+      {
+        locationId: "L-popup",
+        priceCents: null,
+        currency: null,
+        trackInventory: false,
+        soldOut: null,
+      },
+    ],
+  };
+
+  it("uses the location's override price where one is set", () => {
+    expect(priceAtLocation(variation, "L-gallery")).toEqual({ amount: 26000, currency: "USD" });
+  });
+
+  it("falls back to the base price at a location with no override", () => {
+    expect(priceAtLocation(variation, "L-studio")).toEqual({ amount: 20000, currency: "USD" });
+  });
+
+  it("falls back to the base price when an override sets no price", () => {
+    // A non-price override must not be read as "free".
+    expect(priceAtLocation(variation, "L-popup")).toEqual({ amount: 20000, currency: "USD" });
+  });
+});
+
+describe("mapCatalogItem — location data", () => {
+  it("carries presence and location overrides through", () => {
+    const item = mapCatalogItem(
+      {
+        id: "item-1",
+        type: "ITEM",
+        present_at_all_locations: false,
+        present_at_location_ids: ["L1"],
+        item_data: {
+          name: "Print",
+          variations: [
+            {
+              id: "var-1",
+              type: "ITEM_VARIATION",
+              present_at_all_locations: true,
+              absent_at_location_ids: ["L2"],
+              item_variation_data: {
+                name: "A3",
+                price_money: { amount: 4500, currency: "USD" },
+                location_overrides: [
+                  { location_id: "L1", price_money: { amount: 5500, currency: "USD" } },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      new Map(),
+    );
+    expect(item.presentAtAllLocations).toBe(false);
+    expect(item.presentAtLocationIds).toEqual(["L1"]);
+    expect(item.variations[0].absentAtLocationIds).toEqual(["L2"]);
+    expect(item.variations[0].locationOverrides).toEqual([
+      { locationId: "L1", priceCents: 5500, currency: "USD", trackInventory: null, soldOut: null },
+    ]);
+    expect(priceAtLocation(item.variations[0], "L1")).toEqual({ amount: 5500, currency: "USD" });
+  });
+});
+
+describe("retrieveVariationPricesAt", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("resolves the override price at the location and omits absent variations", async () => {
+    stubFetch({
+      objects: [
+        {
+          id: "var-here",
+          type: "ITEM_VARIATION",
+          item_variation_data: {
+            price_money: { amount: 1000, currency: "USD" },
+            location_overrides: [
+              { location_id: "L1", price_money: { amount: 1300, currency: "USD" } },
+            ],
+          },
+        },
+        {
+          id: "var-base",
+          type: "ITEM_VARIATION",
+          item_variation_data: { price_money: { amount: 800, currency: "USD" } },
+        },
+        // Sold only at L2 — must not appear in an L1 lookup, so a caller that
+        // requires every id to resolve fails closed instead of overselling.
+        {
+          id: "var-elsewhere",
+          type: "ITEM_VARIATION",
+          present_at_all_locations: false,
+          present_at_location_ids: ["L2"],
+          item_variation_data: { price_money: { amount: 900, currency: "USD" } },
+        },
+      ],
+    });
+
+    const prices = await retrieveVariationPricesAt(
+      CONFIG,
+      ["var-here", "var-base", "var-elsewhere"],
+      "L1",
+    );
+    expect(prices.get("var-here")).toEqual({ amount: 1300, currency: "USD" });
+    expect(prices.get("var-base")).toEqual({ amount: 800, currency: "USD" });
+    expect(prices.has("var-elsewhere")).toBe(false);
+  });
+});
+
+describe("listLocations / retrieveLocation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("normalizes locations and joins the address", async () => {
+    stubFetch({
+      locations: [
+        {
+          id: "L1",
+          name: "Gallery",
+          status: "ACTIVE",
+          currency: "USD",
+          timezone: "America/Chicago",
+          address: {
+            address_line_1: "12 Main St",
+            locality: "Des Moines",
+            administrative_district_level_1: "IA",
+            postal_code: "50309",
+          },
+        },
+      ],
+    });
+    const [loc] = await listLocations(CONFIG);
+    expect(loc).toEqual({
+      id: "L1",
+      name: "Gallery",
+      status: "ACTIVE",
+      currency: "USD",
+      timezone: "America/Chicago",
+      address: "12 Main St, Des Moines, IA, 50309",
+      businessName: null,
+    });
+  });
+
+  it("returns null for a missing location rather than throwing", async () => {
+    // "This merchant has no Square location yet" is a legitimate answer — the
+    // `external` sales_mode depends on it.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ errors: [{ detail: "Not Found" }] }), { status: 404 }),
+      ),
+    );
+    expect(await retrieveLocation(CONFIG, "nope")).toBeNull();
+  });
+});
+
+describe("setPhysicalCount", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends an absolute PHYSICAL_COUNT scoped to the location", async () => {
+    const calls = stubFetch({ counts: [] });
+    await setPhysicalCount(CONFIG, {
+      catalogObjectId: "var-1",
+      locationId: "L1",
+      quantity: 4,
+    });
+    const body = calls[0].body as {
+      idempotency_key: string;
+      changes: { type: string; physical_count: Record<string, unknown> }[];
+    };
+    expect(calls[0].url).toContain("/v2/inventory/changes/batch-create");
+    expect(body.idempotency_key).toBeTruthy();
+    expect(body.changes[0].type).toBe("PHYSICAL_COUNT");
+    expect(body.changes[0].physical_count).toMatchObject({
+      catalog_object_id: "var-1",
+      location_id: "L1",
+      state: "IN_STOCK",
+      // Square wants the quantity as a string.
+      quantity: "4",
+    });
+  });
+});
+
+describe("searchOrders", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("defaults to COMPLETED only, so unpaid orders never count as revenue", async () => {
+    const calls = stubFetch({ orders: [] });
+    await searchOrders(CONFIG, { locationIds: ["L1"] });
+    const body = calls[0].body as { query: { filter: { state_filter?: { states: string[] } } } };
+    expect(body.query.filter.state_filter?.states).toEqual(["COMPLETED"]);
+  });
+
+  it("matches the sort field to the date filter's field", async () => {
+    // Square rejects a search whose sort field differs from the date filter's.
+    const calls = stubFetch({ orders: [] });
+    await searchOrders(CONFIG, {
+      locationIds: ["L1"],
+      startAt: "2026-01-01T00:00:00Z",
+      dateField: "createdAt",
+    });
+    const body = calls[0].body as {
+      query: {
+        filter: { date_time_filter: Record<string, unknown> };
+        sort: { sort_field: string };
+      };
+    };
+    expect(body.query.sort.sort_field).toBe("CREATED_AT");
+    expect(body.query.filter.date_time_filter).toHaveProperty("created_at");
+  });
+
+  it("follows the cursor and stops when it is absent", async () => {
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call++;
+        const page =
+          call === 1 ? { orders: [{ id: "o1" }], cursor: "next" } : { orders: [{ id: "o2" }] };
+        return new Response(JSON.stringify(page), { status: 200 });
+      }),
+    );
+    const orders = await searchOrders(CONFIG, { locationIds: ["L1"] });
+    expect(orders.map((o) => o.id)).toEqual(["o1", "o2"]);
+    expect(call).toBe(2);
+  });
+});
+
+describe("SquareConfig.retry", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("does not retry by default", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return new Response(JSON.stringify({ errors: [{ detail: "slow down" }] }), { status: 429 });
+      }),
+    );
+    await expect(listLocations(CONFIG)).rejects.toThrow(/429/);
+    expect(calls).toBe(1);
+  });
+
+  it("retries a 429 and succeeds", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        if (calls === 1) {
+          return new Response(JSON.stringify({ errors: [{ detail: "slow down" }] }), {
+            status: 429,
+          });
+        }
+        return new Response(JSON.stringify({ locations: [{ id: "L1", name: "Shop" }] }), {
+          status: 200,
+        });
+      }),
+    );
+    const locations = await listLocations({ ...CONFIG, retry: { attempts: 2, baseDelayMs: 1 } });
+    expect(locations).toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+
+  it("never retries a 4xx that is not 429", async () => {
+    // A 401/400 is our bug and will stay wrong — retrying just delays the error.
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return new Response(JSON.stringify({ errors: [{ detail: "bad token" }] }), { status: 401 });
+      }),
+    );
+    await expect(
+      listLocations({ ...CONFIG, retry: { attempts: 3, baseDelayMs: 1 } }),
+    ).rejects.toThrow(/401/);
+    expect(calls).toBe(1);
   });
 });

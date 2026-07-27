@@ -81,7 +81,8 @@ function functionMap(version: number): boolean[][] {
     for (let j = 0; j < pos.length; j++) {
       const last = pos.length - 1;
       if ((i === 0 && j === 0) || (i === 0 && j === last) || (i === last && j === 0)) continue;
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) mark(pos[i]! + dx, pos[j]! + dy);
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++) mark(pos[i]! + dx, pos[j]! + dy);
     }
   }
   for (let i = 0; i < 9; i++) {
@@ -120,9 +121,7 @@ function readMask(m: QrMatrix): number {
   let rem = data;
   for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
   expect(((data << 10) | rem) ^ 0x5412, "format-info BCH must round-trip").toBe(bits);
-  expect(data >>> 3, "format bits must encode the declared ECC level").toBe(
-    ECC_FORMAT_BITS[m.ecc],
-  );
+  expect(data >>> 3, "format bits must encode the declared ECC level").toBe(ECC_FORMAT_BITS[m.ecc]);
   return data & 7;
 }
 
@@ -282,9 +281,7 @@ describe("qr svg", () => {
     const m = encodeQr("hello", { ecc: "M" });
     const svg = qrSvg("hello", { ecc: "M" });
     expect(svg).toContain(`viewBox="0 0 ${m.size + 8} ${m.size + 8}"`);
-    expect(qrSvg("hello", { ecc: "M", margin: 0 })).toContain(
-      `viewBox="0 0 ${m.size} ${m.size}"`,
-    );
+    expect(qrSvg("hello", { ecc: "M", margin: 0 })).toContain(`viewBox="0 0 ${m.size} ${m.size}"`);
   });
 
   it("omits the background when light is null, and sizes only when asked", () => {

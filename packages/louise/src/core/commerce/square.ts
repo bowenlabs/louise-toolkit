@@ -25,6 +25,20 @@ export interface SquareConfig {
   /** Pinned Square-Version. Bump deliberately (response shapes are stable per
    * version). Defaults to SQUARE_VERSION. */
   version?: string;
+  /** Transient-failure retry. OFF by default, so existing callers are byte-for-byte
+   *  unchanged; turn it on for unattended paths (cron sync, queue consumers) where
+   *  a 429 or a 5xx should cost a second rather than fail the job. Never retries a
+   *  4xx other than 429 — those are our bug, not Square's weather. */
+  retry?: SquareRetryConfig;
+}
+
+export interface SquareRetryConfig {
+  /** Attempts AFTER the first try. 0 disables. Defaults to 2. */
+  attempts?: number;
+  /** First backoff step in ms; doubles each attempt. Defaults to 250. */
+  baseDelayMs?: number;
+  /** Ceiling for one backoff step. Defaults to 4000. */
+  maxDelayMs?: number;
 }
 
 // Pin the API version so an account-default upgrade can't silently change
@@ -61,43 +75,88 @@ function squareError(path: string, status: number, body: SquareErrorBody): Error
   return new Error(`Square ${path} ${status}: ${detail}`);
 }
 
-async function sqGet<T>(config: SquareConfig, path: string): Promise<T> {
-  const res = await fetch(`${host(config)}${path}`, { headers: headers(config) });
-  const data = (await res.json()) as T & SquareErrorBody;
-  if (!res.ok) throw squareError(path, res.status, data);
-  return data;
+/** Retryable = Square's weather, not our bug: rate limiting and server faults.
+ *  A 400/401/403/404 means the request itself is wrong and will stay wrong. */
+function retryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
 }
 
-async function sqPost<T>(config: SquareConfig, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${host(config)}${path}`, {
-    method: "POST",
-    headers: headers(config),
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as T & SquareErrorBody;
-  if (!res.ok) throw squareError(path, res.status, data);
-  return data;
+/** `Retry-After` in seconds (Square sends it on 429), or null. Honouring the
+ *  server's own number beats guessing with a backoff curve. */
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers.get("retry-after");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
 }
 
-async function sqPut<T>(config: SquareConfig, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${host(config)}${path}`, {
-    method: "PUT",
-    headers: headers(config),
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as T & SquareErrorBody;
-  if (!res.ok) throw squareError(path, res.status, data);
-  return data;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The single request path every sq* helper goes through.
+ *
+ * Retries only when `config.retry` is set, so behaviour is unchanged for callers
+ * that never opt in. Idempotency is the caller's job and Square's model makes
+ * that workable: every mutating endpoint here takes an `idempotency_key`, so a
+ * retried POST that actually succeeded server-side collapses rather than
+ * double-charging — which is exactly why retrying POSTs is safe at all.
+ */
+async function sqFetch<T>(
+  config: SquareConfig,
+  path: string,
+  init: { method: string; body?: unknown },
+): Promise<T> {
+  const retry = config.retry;
+  const attempts = Math.max(0, retry?.attempts ?? (retry ? 2 : 0));
+  const baseDelay = retry?.baseDelayMs ?? 250;
+  const maxDelay = retry?.maxDelayMs ?? 4000;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= attempts; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${host(config)}${path}`, {
+        method: init.method,
+        headers: headers(config),
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      });
+    } catch (err) {
+      // Network-level failure (DNS, connection reset) — retryable in the same
+      // way a 5xx is, but there is no response to read a status off.
+      lastError = err;
+      if (attempt === attempts) throw err;
+      await sleep(Math.min(baseDelay * 2 ** attempt, maxDelay));
+      continue;
+    }
+
+    const data = (await res.json()) as T & SquareErrorBody;
+    if (res.ok) return data;
+
+    lastError = squareError(path, res.status, data);
+    if (attempt === attempts || !retryableStatus(res.status)) throw lastError;
+
+    // Prefer Square's own Retry-After; otherwise exponential backoff with a
+    // little jitter so concurrent workers don't resynchronize on the same tick.
+    const backoff = Math.min(baseDelay * 2 ** attempt, maxDelay);
+    await sleep(retryAfterMs(res) ?? backoff + Math.random() * baseDelay);
+  }
+  throw lastError;
 }
 
-async function sqDelete<T>(config: SquareConfig, path: string): Promise<T> {
-  const res = await fetch(`${host(config)}${path}`, {
-    method: "DELETE",
-    headers: headers(config),
-  });
-  const data = (await res.json()) as T & SquareErrorBody;
-  if (!res.ok) throw squareError(path, res.status, data);
-  return data;
+function sqGet<T>(config: SquareConfig, path: string): Promise<T> {
+  return sqFetch<T>(config, path, { method: "GET" });
+}
+
+function sqPost<T>(config: SquareConfig, path: string, body: unknown): Promise<T> {
+  return sqFetch<T>(config, path, { method: "POST", body });
+}
+
+function sqPut<T>(config: SquareConfig, path: string, body: unknown): Promise<T> {
+  return sqFetch<T>(config, path, { method: "PUT", body });
+}
+
+function sqDelete<T>(config: SquareConfig, path: string): Promise<T> {
+  return sqFetch<T>(config, path, { method: "DELETE" });
 }
 
 // ── Money ────────────────────────────────────────────────────────────────────
@@ -110,27 +169,135 @@ export type SquareMoney = Money;
 // so `louise-toolkit/commerce/square` keeps exposing it.
 export { centsToMajor };
 
+// ── Locations ────────────────────────────────────────────────────────────────
+//
+// A Square Location is a place that sells. Multi-merchant sites map one merchant
+// to one Location: that is what buys per-merchant pricing (`location_overrides`)
+// and per-merchant stock off a single shared catalog, at no extra cost —
+// Locations are free, and the cap is 300.
+
+export interface SquareLocation {
+  id: string;
+  name: string;
+  /** ACTIVE | INACTIVE. Inactive locations still resolve but should not be sold at. */
+  status: string;
+  /** ISO 4217, e.g. "USD". A location's currency is fixed at creation. */
+  currency: string;
+  timezone: string | null;
+  /** Formatted single-line address, or null when the location has none. */
+  address: string | null;
+  businessName: string | null;
+}
+
+interface RawLocation {
+  id?: string;
+  name?: string;
+  status?: string;
+  currency?: string;
+  timezone?: string;
+  business_name?: string;
+  address?: {
+    address_line_1?: string;
+    address_line_2?: string;
+    locality?: string;
+    administrative_district_level_1?: string;
+    postal_code?: string;
+  };
+}
+
+function mapLocation(raw: RawLocation): SquareLocation {
+  const a = raw.address;
+  const line = [
+    a?.address_line_1,
+    a?.address_line_2,
+    a?.locality,
+    a?.administrative_district_level_1,
+    a?.postal_code,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return {
+    id: raw.id ?? "",
+    name: raw.name ?? "",
+    status: raw.status ?? "",
+    currency: raw.currency ?? "USD",
+    timezone: raw.timezone ?? null,
+    address: line || null,
+    businessName: raw.business_name ?? null,
+  };
+}
+
+/** Every location on the account. GET /v2/locations — unpaginated by design
+ *  (Square caps an account at 300 locations and returns them all). */
+export async function listLocations(config: SquareConfig): Promise<SquareLocation[]> {
+  const res = await sqGet<{ locations?: RawLocation[] }>(config, "/v2/locations");
+  return (res.locations ?? []).map(mapLocation);
+}
+
+/** One location by id, or null when it does not exist. GET /v2/locations/{id}. */
+export async function retrieveLocation(
+  config: SquareConfig,
+  locationId: string,
+): Promise<SquareLocation | null> {
+  try {
+    const res = await sqGet<{ location?: RawLocation }>(
+      config,
+      `/v2/locations/${encodeURIComponent(locationId)}`,
+    );
+    return res.location ? mapLocation(res.location) : null;
+  } catch (err) {
+    // A missing location is a 404 and a legitimate answer ("this merchant has no
+    // Square location yet"), not an error the caller should have to catch.
+    if (err instanceof Error && / 404: /.test(err.message)) return null;
+    throw err;
+  }
+}
+
 // ── Catalog ──────────────────────────────────────────────────────────────────
 
-interface RawCatalogObject {
+/** Per-location presence, carried on the CatalogObject itself (not inside
+ *  `item_data`). Square's model is "present everywhere except…" or "present
+ *  nowhere except…", selected by `present_at_all_locations`. */
+interface RawPresence {
+  present_at_all_locations?: boolean;
+  present_at_location_ids?: string[];
+  absent_at_location_ids?: string[];
+}
+
+/** A per-location price/inventory override on an ITEM_VARIATION. This is what
+ *  makes one shared catalog serve many merchants at different prices. */
+interface RawLocationOverride {
+  location_id?: string;
+  price_money?: { amount?: number; currency?: string };
+  pricing_type?: string;
+  track_inventory?: boolean;
+  sold_out?: boolean;
+}
+
+interface RawVariationData {
+  name?: string;
+  sku?: string;
+  price_money?: { amount?: number; currency?: string };
+  location_overrides?: RawLocationOverride[];
+}
+
+interface RawCatalogObject extends RawPresence {
   id: string;
   type: string;
   version?: number;
   is_deleted?: boolean;
+  /** Present on ITEM_VARIATION objects returned top-level (batch-retrieve). */
+  item_variation_data?: RawVariationData;
   item_data?: {
     name?: string;
     description?: string;
     image_ids?: string[];
-    variations?: {
+    variations?: ({
       id: string;
       type: string;
       version?: number;
-      item_variation_data?: {
-        name?: string;
-        sku?: string;
-        price_money?: { amount?: number; currency?: string };
-      };
-    }[];
+      item_variation_data?: RawVariationData;
+    } & RawPresence)[];
     // Detailed-extraction fields (see listCatalogDetailed). Optional + ignored by
     // the plain listCatalogItems, so adding them is backwards-compatible.
     reporting_category?: { id?: string };
@@ -174,17 +341,69 @@ interface CatalogSearchResponse {
   cursor?: string;
 }
 
-export interface SquareVariation {
+/** Where a catalog object is sold. Square models this as "everywhere except" or
+ *  "nowhere except" — {@link presentAt} collapses that to a single predicate so
+ *  callers never re-derive the logic. */
+export interface SquarePresence {
+  presentAtAllLocations: boolean;
+  presentAtLocationIds: string[];
+  absentAtLocationIds: string[];
+}
+
+/** A per-location price override on a variation. Absent `priceCents` means the
+ *  override adjusts something other than price (availability, inventory
+ *  tracking) and the base price still applies. */
+export interface SquareLocationOverride {
+  locationId: string;
+  priceCents: number | null;
+  currency: string | null;
+  trackInventory: boolean | null;
+  soldOut: boolean | null;
+}
+
+/**
+ * Is this object sold at `locationId`?
+ *
+ * The two lists are not symmetric: `present_at_location_ids` is a whitelist used
+ * when `present_at_all_locations` is false, `absent_at_location_ids` a blacklist
+ * used when it is true. Getting this backwards silently shows a merchant
+ * products they don't carry, so it lives in exactly one place.
+ */
+export function presentAt(presence: SquarePresence, locationId: string): boolean {
+  return presence.presentAtAllLocations
+    ? !presence.absentAtLocationIds.includes(locationId)
+    : presence.presentAtLocationIds.includes(locationId);
+}
+
+export interface SquareVariation extends SquarePresence {
   id: string;
   name: string;
   sku: string | null;
+  /** The BASE price. For what a given merchant charges, use
+   *  {@link priceAtLocation} — the override wins where one exists. */
   priceCents: number;
   currency: string;
+  /** Per-location price overrides, empty when the base price applies everywhere. */
+  locationOverrides: SquareLocationOverride[];
   /** Object version — pass back to {@link upsertCatalogItem} when updating. */
   version: number;
 }
 
-export interface SquareCatalogItem {
+/**
+ * The effective price of a variation at one location: the location's override
+ * if it sets a price, otherwise the base price. This is the single definition of
+ * "what does this cost here", and server-side re-pricing at checkout must use it
+ * rather than trusting a client-submitted amount.
+ */
+export function priceAtLocation(variation: SquareVariation, locationId: string): SquareMoney {
+  const override = variation.locationOverrides.find((o) => o.locationId === locationId);
+  if (override?.priceCents != null) {
+    return { amount: override.priceCents, currency: override.currency ?? variation.currency };
+  }
+  return { amount: variation.priceCents, currency: variation.currency };
+}
+
+export interface SquareCatalogItem extends SquarePresence {
   id: string;
   name: string;
   description: string;
@@ -203,6 +422,28 @@ function imageUrlMap(related: RawCatalogObject[] | undefined): Map<string, strin
   return map;
 }
 
+/** Normalize the three presence fields, defaulting to Square's own default
+ *  (`present_at_all_locations` is true when the field is absent). */
+function mapPresence(raw: RawPresence): SquarePresence {
+  return {
+    presentAtAllLocations: raw.present_at_all_locations ?? true,
+    presentAtLocationIds: raw.present_at_location_ids ?? [],
+    absentAtLocationIds: raw.absent_at_location_ids ?? [],
+  };
+}
+
+function mapLocationOverrides(data: RawVariationData | undefined): SquareLocationOverride[] {
+  return (data?.location_overrides ?? [])
+    .filter((o) => o.location_id)
+    .map((o) => ({
+      locationId: o.location_id as string,
+      priceCents: o.price_money?.amount ?? null,
+      currency: o.price_money?.currency ?? null,
+      trackInventory: o.track_inventory ?? null,
+      soldOut: o.sold_out ?? null,
+    }));
+}
+
 /** Map a raw ITEM object (+ resolved images) to the normalized shape. */
 export function mapCatalogItem(
   obj: RawCatalogObject,
@@ -218,7 +459,9 @@ export function mapCatalogItem(
       sku: v.item_variation_data?.sku ?? null,
       priceCents: v.item_variation_data?.price_money?.amount ?? 0,
       currency: v.item_variation_data?.price_money?.currency ?? "USD",
+      locationOverrides: mapLocationOverrides(v.item_variation_data),
       version: v.version ?? 0,
+      ...mapPresence(v),
     }));
   return {
     id: obj.id,
@@ -227,6 +470,7 @@ export function mapCatalogItem(
     imageUrl: firstImageId ? (images.get(firstImageId) ?? null) : null,
     variations,
     version: obj.version ?? 0,
+    ...mapPresence(obj),
   };
 }
 
@@ -285,13 +529,54 @@ export async function retrieveVariationPrices(
     if (obj.type === "ITEM_VARIATION") {
       // batch-retrieve returns variations as top-level objects with
       // item_variation_data on the object itself.
-      const price = (
-        obj as unknown as {
-          item_variation_data?: { price_money?: { amount?: number; currency?: string } };
-        }
-      ).item_variation_data?.price_money;
+      const price = obj.item_variation_data?.price_money;
       prices.set(obj.id, { amount: price?.amount ?? 0, currency: price?.currency ?? "USD" });
     }
+  }
+  return prices;
+}
+
+/**
+ * Like {@link retrieveVariationPrices}, but resolves each price **at a specific
+ * location** — the location's `location_overrides` price where one exists, else
+ * the base price.
+ *
+ * This is the multi-merchant checkout guard. One shared catalog is sold at
+ * different prices per merchant to absorb each shop's commission, so verifying a
+ * cart against base prices would let a customer pay the cheapest merchant's
+ * price at the dearest merchant's storefront. Re-price against the location the
+ * order is actually being placed at, never against the client's numbers.
+ *
+ * A variation absent at `locationId` is omitted from the result entirely, so a
+ * caller that requires every id to resolve will fail closed rather than silently
+ * selling something the merchant does not carry.
+ */
+export async function retrieveVariationPricesAt(
+  config: SquareConfig,
+  variationIds: string[],
+  locationId: string,
+): Promise<Map<string, SquareMoney>> {
+  const res = await sqPost<{ objects?: RawCatalogObject[] }>(config, "/v2/catalog/batch-retrieve", {
+    object_ids: variationIds,
+  });
+  const prices = new Map<string, SquareMoney>();
+  for (const obj of res.objects ?? []) {
+    if (obj.type !== "ITEM_VARIATION") continue;
+    if (!presentAt(mapPresence(obj), locationId)) continue;
+
+    const data = obj.item_variation_data;
+    const override = mapLocationOverrides(data).find((o) => o.locationId === locationId);
+    if (override?.priceCents != null) {
+      prices.set(obj.id, {
+        amount: override.priceCents,
+        currency: override.currency ?? data?.price_money?.currency ?? "USD",
+      });
+      continue;
+    }
+    prices.set(obj.id, {
+      amount: data?.price_money?.amount ?? 0,
+      currency: data?.price_money?.currency ?? "USD",
+    });
   }
   return prices;
 }
@@ -501,6 +786,54 @@ export interface CatalogVariationInput {
   /** Current Square version — required when UPDATING an existing variation
    *  (Square uses optimistic concurrency; a stale/absent version is rejected). */
   version?: number;
+  /** Per-location price overrides — the multi-merchant pricing lever. Omit to
+   *  sell at the base price everywhere. */
+  locationOverrides?: {
+    locationId: string;
+    /** Omit to override availability/inventory without changing price. */
+    priceCents?: number;
+    currency?: string;
+    trackInventory?: boolean;
+    soldOut?: boolean;
+  }[];
+  /** Where this variation is sold. Omit for "everywhere". */
+  presence?: Partial<SquarePresence>;
+}
+
+/** Serialize presence for a write, omitting the keys the caller didn't set so we
+ *  never overwrite Square-side presence with an accidental default. */
+function presenceBody(presence: Partial<SquarePresence> | undefined) {
+  if (!presence) return {};
+  return {
+    ...(presence.presentAtAllLocations != null
+      ? { present_at_all_locations: presence.presentAtAllLocations }
+      : {}),
+    ...(presence.presentAtLocationIds
+      ? { present_at_location_ids: presence.presentAtLocationIds }
+      : {}),
+    ...(presence.absentAtLocationIds
+      ? { absent_at_location_ids: presence.absentAtLocationIds }
+      : {}),
+  };
+}
+
+function overridesBody(overrides: CatalogVariationInput["locationOverrides"]) {
+  if (!overrides?.length) return {};
+  return {
+    location_overrides: overrides.map((o) => ({
+      location_id: o.locationId,
+      ...(o.priceCents != null
+        ? {
+            price_money: { amount: o.priceCents, currency: o.currency ?? "USD" },
+            // An override that sets a price must also declare its pricing type,
+            // or Square keeps inheriting VARIABLE_PRICING from the parent.
+            pricing_type: "FIXED_PRICING",
+          }
+        : {}),
+      ...(o.trackInventory != null ? { track_inventory: o.trackInventory } : {}),
+      ...(o.soldOut != null ? { sold_out: o.soldOut } : {}),
+    })),
+  };
 }
 
 /**
@@ -524,6 +857,8 @@ export async function upsertCatalogItem(
     variations: CatalogVariationInput[];
     /** Current item version — required when updating an existing ITEM. */
     version?: number;
+    /** Where the ITEM is sold. Omit for "everywhere". */
+    presence?: Partial<SquarePresence>;
     idempotencyKey?: string;
   },
 ): Promise<{ item: SquareCatalogItem; idMappings: Record<string, string> }> {
@@ -537,6 +872,7 @@ export async function upsertCatalogItem(
       type: "ITEM",
       id: itemId,
       ...(input.version != null ? { version: input.version } : {}),
+      ...presenceBody(input.presence),
       item_data: {
         name: input.name,
         description: input.description,
@@ -544,12 +880,14 @@ export async function upsertCatalogItem(
           type: "ITEM_VARIATION",
           id: v.id ?? v.clientId ?? `#var-${i}`,
           ...(v.version != null ? { version: v.version } : {}),
+          ...presenceBody(v.presence),
           item_variation_data: {
             item_id: itemId,
             name: v.name,
             sku: v.sku,
             pricing_type: "FIXED_PRICING",
             price_money: { amount: v.priceCents, currency: v.currency ?? "USD" },
+            ...overridesBody(v.locationOverrides),
           },
         })),
       },
@@ -561,6 +899,91 @@ export async function upsertCatalogItem(
     if (m.client_object_id && m.object_id) idMappings[m.client_object_id] = m.object_id;
   }
   return { item: mapCatalogItem(res.catalog_object, new Map()), idMappings };
+}
+
+/** One ITEM in a {@link batchUpsertCatalogObjects} call. */
+export interface CatalogItemInput {
+  id?: string;
+  /** Stable client key echoed back in `idMappings` for a NEW item. */
+  clientId?: string;
+  name: string;
+  description?: string;
+  variations: CatalogVariationInput[];
+  version?: number;
+  presence?: Partial<SquarePresence>;
+}
+
+/**
+ * Upsert many ITEMs in one call. POST /v2/catalog/batch-upsert.
+ *
+ * The per-object {@link upsertCatalogItem} costs one request per item, which
+ * turns a full catalog push into a rate-limit problem. This batches them —
+ * Square allows up to 1,000 objects per request across at most 10 batches, and
+ * this splits the input accordingly.
+ *
+ * The whole request is atomic: if any object is rejected, none are written. That
+ * is usually what you want for a catalog push (no half-applied price change),
+ * but it does mean one stale `version` fails the entire batch.
+ */
+export async function batchUpsertCatalogObjects(
+  config: SquareConfig,
+  items: CatalogItemInput[],
+  options?: { idempotencyKey?: string },
+): Promise<{ idMappings: Record<string, string>; objects: SquareCatalogItem[] }> {
+  const objects = items.map((item, i) => {
+    const itemId = item.id ?? item.clientId ?? `#item-${i}`;
+    return {
+      type: "ITEM",
+      id: itemId,
+      ...(item.version != null ? { version: item.version } : {}),
+      ...presenceBody(item.presence),
+      item_data: {
+        name: item.name,
+        description: item.description,
+        variations: item.variations.map((v, j) => ({
+          type: "ITEM_VARIATION",
+          id: v.id ?? v.clientId ?? `#var-${i}-${j}`,
+          ...(v.version != null ? { version: v.version } : {}),
+          ...presenceBody(v.presence),
+          item_variation_data: {
+            item_id: itemId,
+            name: v.name,
+            sku: v.sku,
+            pricing_type: "FIXED_PRICING",
+            price_money: { amount: v.priceCents, currency: v.currency ?? "USD" },
+            ...overridesBody(v.locationOverrides),
+          },
+        })),
+      },
+    };
+  });
+
+  // Square: max 1,000 objects per request, max 10 batches per request.
+  const perBatch = Math.max(1, Math.ceil(objects.length / 10));
+  const batches: (typeof objects)[] = [];
+  for (let i = 0; i < objects.length; i += perBatch) {
+    batches.push(objects.slice(i, i + perBatch));
+  }
+
+  const res = await sqPost<{
+    objects?: RawCatalogObject[];
+    id_mappings?: { client_object_id?: string; object_id?: string }[];
+  }>(config, "/v2/catalog/batch-upsert", {
+    idempotency_key: options?.idempotencyKey ?? crypto.randomUUID(),
+    batches: batches.map((objs) => ({ objects: objs })),
+  });
+
+  const idMappings: Record<string, string> = {};
+  for (const m of res.id_mappings ?? []) {
+    if (m.client_object_id && m.object_id) idMappings[m.client_object_id] = m.object_id;
+  }
+  const images = new Map<string, string>();
+  return {
+    idMappings,
+    objects: (res.objects ?? [])
+      .filter((o) => o.type === "ITEM")
+      .map((o) => mapCatalogItem(o, images)),
+  };
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
@@ -595,6 +1018,110 @@ export async function retrieveInventoryCounts(
     quantity: Number(c.quantity ?? 0),
     locationId: c.location_id ?? "",
   }));
+}
+
+/**
+ * One inventory change. `PHYSICAL_COUNT` sets an absolute quantity ("there are 4
+ * here now"); `ADJUSTMENT` moves stock between states by a delta.
+ *
+ * Prefer PHYSICAL_COUNT when reconciling against a real-world count: it is
+ * idempotent in effect, so a replayed message lands on the same number, whereas
+ * a replayed ADJUSTMENT double-counts.
+ */
+export type SquareInventoryChange =
+  | {
+      type: "PHYSICAL_COUNT";
+      catalogObjectId: string;
+      locationId: string;
+      quantity: number;
+      /** Defaults to IN_STOCK. */
+      state?: string;
+      /** RFC 3339. Defaults to now. Square rejects timestamps in the future. */
+      occurredAt?: string;
+    }
+  | {
+      type: "ADJUSTMENT";
+      catalogObjectId: string;
+      locationId: string;
+      quantity: number;
+      fromState: string;
+      toState: string;
+      occurredAt?: string;
+    };
+
+/**
+ * Apply inventory changes. POST /v2/inventory/changes/batch-create.
+ *
+ * Note the direction of truth: D1 owns price, presence and placement, but
+ * **Square owns inventory counts**. This exists for the reconcile path — a
+ * physical recount, or seeding a new merchant's opening stock — not for mirroring
+ * a D1 number over Square's on every sync.
+ */
+export async function batchChangeInventory(
+  config: SquareConfig,
+  changes: SquareInventoryChange[],
+  options?: { idempotencyKey?: string },
+): Promise<SquareInventoryCount[]> {
+  const now = new Date().toISOString();
+  const res = await sqPost<{
+    counts?: {
+      catalog_object_id?: string;
+      state?: string;
+      quantity?: string;
+      location_id?: string;
+    }[];
+  }>(config, "/v2/inventory/changes/batch-create", {
+    idempotency_key: options?.idempotencyKey ?? crypto.randomUUID(),
+    changes: changes.map((c) =>
+      c.type === "PHYSICAL_COUNT"
+        ? {
+            type: "PHYSICAL_COUNT",
+            physical_count: {
+              catalog_object_id: c.catalogObjectId,
+              location_id: c.locationId,
+              state: c.state ?? "IN_STOCK",
+              // Square wants the quantity as a string.
+              quantity: String(c.quantity),
+              occurred_at: c.occurredAt ?? now,
+            },
+          }
+        : {
+            type: "ADJUSTMENT",
+            adjustment: {
+              catalog_object_id: c.catalogObjectId,
+              location_id: c.locationId,
+              from_state: c.fromState,
+              to_state: c.toState,
+              quantity: String(c.quantity),
+              occurred_at: c.occurredAt ?? now,
+            },
+          },
+    ),
+  });
+  return (res.counts ?? []).map((c) => ({
+    catalogObjectId: c.catalog_object_id ?? "",
+    state: c.state ?? "",
+    quantity: Number(c.quantity ?? 0),
+    locationId: c.location_id ?? "",
+  }));
+}
+
+/** Set one variation's absolute on-hand count at one location — the common case
+ *  of {@link batchChangeInventory}, named for what it does. */
+export function setPhysicalCount(
+  config: SquareConfig,
+  input: {
+    catalogObjectId: string;
+    locationId: string;
+    quantity: number;
+    state?: string;
+    occurredAt?: string;
+    idempotencyKey?: string;
+  },
+): Promise<SquareInventoryCount[]> {
+  return batchChangeInventory(config, [{ type: "PHYSICAL_COUNT", ...input }], {
+    idempotencyKey: input.idempotencyKey,
+  });
 }
 
 // ── Orders ────────────────────────────────────────────────────────────────────
@@ -734,6 +1261,84 @@ export async function searchOrdersByCustomer(
     },
   });
   return (res.orders ?? []).map(mapOrder);
+}
+
+/**
+ * Search orders across locations and a date range, following the cursor.
+ * POST /v2/orders/search. The reporting rail: best-sellers, per-merchant sales
+ * totals, reorder suggestions.
+ *
+ * Defaults to `COMPLETED` only. That matters for money questions — leaving the
+ * state filter open counts `OPEN` (unpaid) and `CANCELED` orders as revenue,
+ * which quietly inflates every downstream report.
+ *
+ * `closedAt` is the right axis for accounting (when money settled); `createdAt`
+ * for funnel questions (when the order was raised). They differ for anything not
+ * paid immediately, so the caller picks rather than inheriting a guess.
+ */
+export async function searchOrders(
+  config: SquareConfig,
+  input: {
+    locationIds: string[];
+    /** RFC 3339, inclusive. */
+    startAt?: string;
+    /** RFC 3339, exclusive. */
+    endAt?: string;
+    /** Defaults to ["COMPLETED"]. Pass [] to disable state filtering entirely. */
+    states?: string[];
+    /** Which timestamp the range and sort apply to. Defaults to "closedAt". */
+    dateField?: "closedAt" | "createdAt" | "updatedAt";
+    sortOrder?: "ASC" | "DESC";
+    /** Page size (Square caps at 1000). Defaults to 500. */
+    limit?: number;
+    /** Safety bound on cursor pages. Defaults to 20. */
+    maxPages?: number;
+  },
+): Promise<SquareOrder[]> {
+  const states = input.states ?? ["COMPLETED"];
+  const sortField = (
+    { closedAt: "CLOSED_AT", createdAt: "CREATED_AT", updatedAt: "UPDATED_AT" } as const
+  )[input.dateField ?? "closedAt"];
+  const range =
+    input.startAt || input.endAt
+      ? {
+          [sortField === "CLOSED_AT"
+            ? "closed_at"
+            : sortField === "CREATED_AT"
+              ? "created_at"
+              : "updated_at"]: {
+            ...(input.startAt ? { start_at: input.startAt } : {}),
+            ...(input.endAt ? { end_at: input.endAt } : {}),
+          },
+        }
+      : undefined;
+
+  const orders: SquareOrder[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < (input.maxPages ?? 20); page++) {
+    const res = await sqPost<{ orders?: RawOrder[]; cursor?: string }>(
+      config,
+      "/v2/orders/search",
+      {
+        location_ids: input.locationIds,
+        return_entries: false,
+        limit: input.limit ?? 500,
+        ...(cursor ? { cursor } : {}),
+        query: {
+          filter: {
+            ...(states.length ? { state_filter: { states } } : {}),
+            ...(range ? { date_time_filter: range } : {}),
+          },
+          // Square requires the sort field to match the date filter's field.
+          sort: { sort_field: sortField, sort_order: input.sortOrder ?? "DESC" },
+        },
+      },
+    );
+    orders.push(...(res.orders ?? []).map(mapOrder));
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  return orders;
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────
