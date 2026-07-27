@@ -61,6 +61,7 @@
   },
   "scripts": {
     "build": "tsgo -p tsconfig.build.json",
+    "check": "vp check",
     "prepublishOnly": "tsgo -p tsconfig.build.json",
     "test": "vp test",
     "typecheck": "tsgo --noEmit"
