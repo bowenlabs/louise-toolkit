@@ -594,7 +594,11 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
 
 export function RichText(props: RichTextProps) {
   const editor = createEditor({
-    extension: louiseExtension(props.blocks ?? false, props.grammar ?? false, props.inline ?? false),
+    extension: louiseExtension(
+      props.blocks ?? false,
+      props.grammar ?? false,
+      props.inline ?? false,
+    ),
     defaultContent: props.initialDoc || "<p></p>",
   });
 
@@ -608,7 +612,8 @@ export function RichText(props: RichTextProps) {
     editor.mount(host);
     props.ref?.({
       getJSON: () => editor.getDocJSON(),
-      getHTML: () => (props.inline ? inlineHTMLFromDoc(editor) : htmlFromNode(editor.view.state.doc)),
+      getHTML: () =>
+        props.inline ? inlineHTMLFromDoc(editor) : htmlFromNode(editor.view.state.doc),
       destroy: () => {
         dispose();
         editor.unmount();
@@ -659,7 +664,13 @@ export function mountRichText(
   el: HTMLElement,
   onChange: () => void,
   initialDoc?: NodeJSON,
-  opts?: { blocks?: boolean; grammar?: boolean; minimal?: boolean; image?: boolean; inline?: boolean },
+  opts?: {
+    blocks?: boolean;
+    grammar?: boolean;
+    minimal?: boolean;
+    image?: boolean;
+    inline?: boolean;
+  },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
   let field: RichTextField | null = null;
