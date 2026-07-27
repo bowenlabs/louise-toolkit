@@ -90,7 +90,7 @@ const cog = () =>
     ...(document
       .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
       ?.querySelectorAll("button") ?? []),
-  ].find((b) => b.textContent === "⚙") ?? null;
+  ].find((b) => b.getAttribute("aria-label") === "Layout & settings") ?? null;
 /** Hover the section and click its ⚙ to open the inspector (host of the array UI). */
 const openInspector = () => {
   over(document.querySelector("[data-louise-section]") as Node);
