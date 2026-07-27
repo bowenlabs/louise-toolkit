@@ -17,6 +17,14 @@
 // Solid — so it unit-tests without mounting the editor; the editor wires the
 // structural callbacks to its store + autosave.
 
+// Chrome toolbar button glyphs — phosphor SVGs (currentColor → monochrome white
+// on the bar), not unicode/emoji, so they render consistently everywhere.
+import arrowUp from "@phosphor-icons/core/assets/regular/arrow-up.svg?raw";
+import arrowDown from "@phosphor-icons/core/assets/regular/arrow-down.svg?raw";
+import plusIcon from "@phosphor-icons/core/assets/regular/plus.svg?raw";
+import xIcon from "@phosphor-icons/core/assets/regular/x.svg?raw";
+import wrench from "@phosphor-icons/core/assets/regular/wrench.svg?raw";
+
 /** The attribute each rendered section carries in edit mode. */
 export const SECTION_MARKER_ATTR = "data-louise-section";
 /** The attribute each rendered block carries in edit mode (Phase 2). */
@@ -147,6 +155,9 @@ export interface SectionChromeActions {
   onDelete: (index: number) => void;
   /** Open the inspector for this section (#182 Phase 4) — adds a ⚙ to the toolbar. */
   onInspect?: (index: number) => void;
+  /** Add a section ABOVE this one (opens the type-picker) — adds a `+` to the
+   *  toolbar. The index is the clicked section's index; the new section takes it. */
+  onAdd?: (index: number) => void;
   blocks?: BlockChromeActions;
 }
 
@@ -195,6 +206,9 @@ const CHROME_CSS = `
   align-items: center;
   justify-content: center;
 }
+/* SVG glyphs (e.g. the wrench inspector button) sit at the text glyphs' scale
+ * and inherit color via the asset's currentColor fill. */
+.louise-chrome-btn svg { width: 15px; height: 15px; display: block; }
 .louise-chrome-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.3); }
 .louise-chrome-btn:disabled { opacity: 0.4; cursor: default; }
 .louise-chrome-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
@@ -291,14 +305,14 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     doc.head.appendChild(style);
   }
 
-  const button = (label: string, title: string): HTMLButtonElement => {
+  const button = (icon: string, title: string): HTMLButtonElement => {
     const b = doc.createElement("button");
     b.type = "button";
     b.className = "louise-chrome-btn";
-    b.textContent = label;
+    // The visible label is a phosphor SVG (currentColor); give the button a real
+    // accessible name so a screen reader announces "Move up", not the raw markup.
+    b.innerHTML = icon;
     b.title = title;
-    // The visible label is a glyph (↑ ✕ ⚙) — give the button a real accessible
-    // name so a screen reader announces "Move up", not "up arrow".
     b.setAttribute("aria-label", title);
     return b;
   };
@@ -311,14 +325,15 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     toolbar.setAttribute("role", "toolbar");
     toolbar.setAttribute("aria-orientation", "horizontal");
     toolbar.setAttribute("aria-label", block ? "Block actions" : "Section actions");
-    const up = button("↑", "Move up");
-    const down = button("↓", "Move down");
-    const del = button("✕", delTitle);
+    const up = button(arrowUp, "Move up");
+    const down = button(arrowDown, "Move down");
+    const del = button(xIcon, delTitle);
     // `+` (add after) only when the layer supports it — the block toolbar once
     // the fragment route is wired (#182 Phase 3).
-    const add = addTitle ? button("+", addTitle) : null;
-    // `⚙` opens the inspector (layout + settings) — only when wired (#182 Phase 4).
-    const cog = inspect ? button("⚙", "Layout & settings") : null;
+    const add = addTitle ? button(plusIcon, addTitle) : null;
+    // The wrench opens the inspector (layout + settings) — only when wired (#182
+    // Phase 4).
+    const cog = inspect ? button(wrench, "Layout & settings") : null;
     for (const b of [up, down, del, ...(add ? [add] : []), ...(cog ? [cog] : [])]) {
       toolbar.appendChild(b);
     }
@@ -326,7 +341,12 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     return { toolbar, up, down, del, add, cog };
   };
 
-  const section = makeToolbar(false, "Delete section", undefined, !!opts.onInspect);
+  const section = makeToolbar(
+    false,
+    "Delete section",
+    opts.onAdd ? "Add section above" : undefined,
+    !!opts.onInspect,
+  );
   const blockActions = opts.blocks;
   const block = blockActions
     ? makeToolbar(
@@ -419,6 +439,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
   section.up.addEventListener("click", sectionAct(opts.onMoveUp));
   section.down.addEventListener("click", sectionAct(opts.onMoveDown));
   section.del.addEventListener("click", sectionAct(opts.onDelete));
+  if (section.add && opts.onAdd) section.add.addEventListener("click", sectionAct(opts.onAdd));
   if (section.cog && opts.onInspect)
     section.cog.addEventListener("click", sectionAct(opts.onInspect));
   if (block && blockActions) {
