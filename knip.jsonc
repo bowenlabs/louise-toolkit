@@ -56,6 +56,11 @@
         "src/core/health/index.ts",
         "src/core/media/index.ts",
         "src/core/queues/index.ts",
+        // Public subpath `louise-toolkit/qr`. Nothing imports it inside the
+        // package — a QR encoder has no internal consumer — so knip reads it as
+        // dead code unless it is declared an entry, exactly like every other
+        // subpath in this list.
+        "src/core/qr/index.ts",
         "src/core/realtime/index.ts",
         "src/core/schema/index.ts",
         "src/core/security/index.ts",
