@@ -94,6 +94,23 @@ function exitHref(): string {
   return `${url.pathname}${url.search}`;
 }
 
+/** End the editor session AND drop edit mode — the bar's Sign out
+ *  (coracle.coffee#36). The sign-out call is best-effort: if it fails we still
+ *  leave edit mode, so the user is never stranded in an editor they asked to
+ *  leave. */
+async function signOut(): Promise<void> {
+  try {
+    await fetch("/api/auth/sign-out", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+  } catch {
+    /* best-effort — still drop edit mode below */
+  }
+  location.assign(exitHref());
+}
+
 type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error";
 
 interface Chrome {
@@ -181,10 +198,15 @@ function createChrome(opts: ChromeOptions): Chrome {
   settings.textContent = "Settings";
   settings.addEventListener("click", opts.onOpenSettings);
 
-  const exit = document.createElement("a");
+  // Sign out, not "Done" (coracle.coffee#36). The old anchor only cleared the
+  // edit-mode cookie, so "Done" left the session wide open on a shared machine —
+  // and the only real sign-out was buried in the Settings drawer. A button, not a
+  // link: it ends a session rather than navigating.
+  const exit = document.createElement("button");
+  exit.type = "button";
   exit.className = "louise-exit";
-  exit.href = exitHref();
-  exit.textContent = "Done";
+  exit.textContent = "Sign out";
+  exit.addEventListener("click", () => void signOut());
 
   if (status) {
     // Transient save feedback, trailing the actions. Empty at rest (:empty in CSS

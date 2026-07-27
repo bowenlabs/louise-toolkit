@@ -14,7 +14,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
-import { Icon } from "../icons.jsx";
 import {
   Section,
   SettingsField,
@@ -84,22 +83,6 @@ function coerce(value: unknown, type: SettingsFieldDef["type"]): unknown {
   if (type === "toggle") return Boolean(value);
   if (type === "links") return Array.isArray(value) ? value : [];
   return value ?? "";
-}
-
-/** Ends the session and drops edit mode. */
-async function signOut() {
-  try {
-    await fetch("/api/auth/sign-out", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    });
-  } catch {
-    /* best-effort — still drop edit mode below */
-  }
-  const url = new URL(location.href);
-  url.searchParams.set("louise", "off");
-  location.assign(`${url.pathname}${url.search}`);
 }
 
 export interface SettingsPanelProps {
@@ -232,13 +215,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
         )}
       </For>
 
+      {/* The "Session" group's Sign out moved to the edit bar (coracle.coffee#36):
+          ending a session is an account action, not a site setting, and having it
+          in two places meant the obvious control ("Done") was the one that didn't
+          actually sign you out. */}
       <Show when={props.extras}>{props.extras?.()}</Show>
-
-      <Section title="Session" hint="Sign out of Louise and return to the public site.">
-        <button class="louise-btn louise-btn-danger" type="button" onClick={() => void signOut()}>
-          <Icon name="signOut" /> Sign out
-        </button>
-      </Section>
     </Show>
   );
 }

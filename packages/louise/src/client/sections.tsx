@@ -50,6 +50,7 @@ import {
   type RealtimeSession,
   resolveRealtime,
 } from "./realtime.js";
+import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "./editor-events.js";
 import { Icon } from "./icons.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
@@ -495,7 +496,34 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // Open (or toggle) the version-history drawer, loading versions on the way in.
+  // Shared by the fallback bar button and the Settings top-strip icon.
+  const toggleHistory = (force?: boolean) => {
+    const next = force ?? !showHistory();
+    setShowHistory(next);
+    if (next) void loadVersions();
+  };
+
+  // Whether Louise Settings is mounted, and so owns the History trigger
+  // (coracle.coffee#36). Seeded from the drawer root for the Settings-mounted-first
+  // order, then flipped by SETTINGS_READY_EVENT for the other one.
+  const [settingsMounted, setSettingsMounted] = createSignal(false);
+
   onMount(() => {
+    // Advertise that there is a history drawer to open, so the Settings strip can
+    // show its History icon; cleared on cleanup so the icon can't outlive us.
+    document.documentElement.setAttribute(HISTORY_READY_ATTR, "");
+    setSettingsMounted(!!document.getElementById("louise-drawer-root"));
+    const onSettingsReady = () => setSettingsMounted(true);
+    const onOpenHistory = () => toggleHistory(true);
+    window.addEventListener(SETTINGS_READY_EVENT, onSettingsReady);
+    window.addEventListener(OPEN_HISTORY_EVENT, onOpenHistory);
+    onCleanup(() => {
+      document.documentElement.removeAttribute(HISTORY_READY_ATTR);
+      window.removeEventListener(SETTINGS_READY_EVENT, onSettingsReady);
+      window.removeEventListener(OPEN_HISTORY_EVENT, onOpenHistory);
+    });
+
     wireInline(
       props.host,
       props.catalog,
@@ -1139,18 +1167,20 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           {errorDetail() || "Couldn’t save"}
         </span>
       </Show>
-      <button
-        class="louise-bar-history"
-        type="button"
-        title="Version history"
-        onClick={() => {
-          const next = !showHistory();
-          setShowHistory(next);
-          if (next) void loadVersions();
-        }}
-      >
-        <Icon name="history" /> History
-      </button>
+      {/* History moved into the Settings drawer's top strip (coracle.coffee#36) —
+          the drawer itself stays here, only the trigger moved. This button is the
+          fallback for hosts that mount sections WITHOUT mountSettings, which would
+          otherwise have no way to reach version history at all. */}
+      <Show when={!settingsMounted()}>
+        <button
+          class="louise-bar-history"
+          type="button"
+          title="Version history"
+          onClick={() => toggleHistory()}
+        >
+          <Icon name="history" /> History
+        </button>
+      </Show>
       <SaveActions />
     </>
   );

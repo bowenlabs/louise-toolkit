@@ -23,6 +23,7 @@ import { createSignal, For, type JSX, onCleanup, Show } from "solid-js";
 import { render } from "solid-js/web";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { wireDialogA11y } from "../a11y.js";
+import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "../editor-events.js";
 import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
 import { BUILTIN_CARDS } from "./dashboard/cards.jsx";
@@ -39,6 +40,10 @@ import { UsersPanel } from "./users-panel.jsx";
 
 /** Event the edit-bar's Settings action fires to open Louise Settings. */
 export const OPEN_SETTINGS_EVENT = "louise:open-settings";
+
+// Re-exported so the whole cross-mount event surface stays reachable from the
+// settings entrypoint, the way hosts already consume OPEN_SETTINGS_EVENT.
+export { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT };
 
 /** A site-registered collection tab (the BOTTOM group). The framework panels are
  *  not `CollectionTab`s — they're fixed in the top strip and can't be added here. */
@@ -131,9 +136,23 @@ export function Settings(props: SettingsConfig) {
     showHome() ? "home" : tabs().length === 0 ? "pages" : null,
   );
 
-  const openDrawer = () => setOpen(true);
+  // Whether a sections surface is mounted, and so whether there is any version
+  // history to open. Re-read each time the drawer opens rather than once at
+  // construction: this shell outlives individual sections mounts.
+  const [hasHistory, setHasHistory] = createSignal(false);
+  const openDrawer = () => {
+    setHasHistory(document.documentElement.hasAttribute(HISTORY_READY_ATTR));
+    setOpen(true);
+  };
   window.addEventListener(OPEN_SETTINGS_EVENT, openDrawer);
   onCleanup(() => window.removeEventListener(OPEN_SETTINGS_EVENT, openDrawer));
+
+  // History hands off to the sections drawer and closes this one — two stacked
+  // modals would fight over the focus trap.
+  const openHistory = () => {
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent(OPEN_HISTORY_EVENT));
+  };
 
   const toggleOverlay = (o: FrameworkPanel) => setOverlay((cur) => (cur === o ? null : o));
   const selectTab = (id: string) => {
@@ -175,6 +194,20 @@ export function Settings(props: SettingsConfig) {
                   </button>
                 )}
               </For>
+              {/* History sits with the framework icons but is NOT one: it opens
+                  the sections version drawer rather than an overlay panel, so it
+                  never takes `is-active`/`aria-pressed`. Hidden when no sections
+                  surface is mounted (coracle.coffee#36). */}
+              <Show when={hasHistory()}>
+                <button
+                  class="louise-drawer-close louise-frame-btn"
+                  type="button"
+                  aria-label="Version history"
+                  onClick={openHistory}
+                >
+                  <Icon name="history" />
+                </button>
+              </Show>
               <button
                 class="louise-drawer-close"
                 type="button"
@@ -270,6 +303,11 @@ export function mountSettings(config: SettingsConfig): void {
     ),
     root,
   );
+  // Tell an already-mounted sections surface that History now has a home up here,
+  // so it can drop its own fallback button. The two mount in either order; the
+  // sections side also checks for #louise-drawer-root directly, covering the case
+  // where Settings got there first (coracle.coffee#36).
+  window.dispatchEvent(new CustomEvent(SETTINGS_READY_EVENT));
   // Astro view transitions (#74) replace <body>, orphaning this drawer while its
   // window listeners (e.g. the OPEN_SETTINGS_EVENT handler) live on — so a Settings
   // click after a nav would fire a stale handler. Dispose the Solid root before the
