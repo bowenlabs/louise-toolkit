@@ -26,6 +26,15 @@ import {
 /** Debounce before (re)linting — never per keystroke; wait for a typing pause. */
 const DEBOUNCE_MS = 600;
 
+// Once Harper can't be loaded — most often because the `harper.js` optional peer
+// isn't installed — no later attempt can succeed either. Latch that process-wide
+// on the first failure so the checker degrades to a single log + zero grammar,
+// instead of re-importing (and re-failing) on every editor's every typing pause:
+// that flood spams the console AND does repeated rejected-promise work on the
+// editor's hot path. Reset per page load (module re-eval), so installing the dep
+// + reloading re-enables it with no code change.
+let grammarUnavailable = false;
+
 const grammarKey = new PluginKey<DecorationSet>("louiseGrammar");
 
 // ── Suggestion popover ──────────────────────────────────────────────────────
@@ -147,12 +156,19 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
 
       const run = async (): Promise<void> => {
         timer = null;
+        if (grammarUnavailable) return;
         const gen = generation;
         let linter: GrammarLinter;
         try {
           linter = await (linterPromise ??= createGrammarLinter());
         } catch (err) {
-          console.error("[louise] grammar checker failed to load", err);
+          // Latch off process-wide: a missing/broken `harper.js` won't recover
+          // within the session, so stop retrying (and stop flooding the console).
+          grammarUnavailable = true;
+          console.error(
+            "[louise] grammar checker unavailable — disabling for this session (is the `harper.js` optional peer installed?)",
+            err,
+          );
           return;
         }
         if (destroyed || gen !== generation) return; // superseded by a newer edit
@@ -165,6 +181,7 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
       };
 
       const schedule = (): void => {
+        if (grammarUnavailable) return; // checker latched off — do no hot-path work
         generation++; // invalidate any in-flight lint
         if (timer !== null) clearTimeout(timer);
         timer = setTimeout(() => void run(), DEBOUNCE_MS);
@@ -180,7 +197,9 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
           destroyed = true;
           if (timer !== null) clearTimeout(timer);
           closePopover();
-          void linterPromise?.then((linter) => linter.destroy());
+          // `.catch` so a rejected load (harper.js absent) doesn't surface as an
+          // unhandled rejection when the editor tears down.
+          void linterPromise?.then((linter) => linter.destroy()).catch(() => {});
         },
       };
     },
