@@ -100,8 +100,9 @@ const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", 
 const sectionToolbar = () =>
   document.querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)");
 const cog = () =>
-  [...(sectionToolbar()?.querySelectorAll("button") ?? [])].find((b) => b.textContent === "⚙") ??
-  null;
+  [...(sectionToolbar()?.querySelectorAll("button") ?? [])].find(
+    (b) => b.getAttribute("aria-label") === "Layout & settings",
+  ) ?? null;
 const inspector = () => document.querySelector(".louise-inspector");
 const lastDraft = (calls: Call[]) => {
   const post = calls

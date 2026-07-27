@@ -384,7 +384,37 @@ function ensureLeaveHandlers(): void {
     activeRealtime?.close();
     activeRealtime = null;
   });
+
+  // Inert page navigation while editing: a click on a page link/CTA edits its
+  // label (or does nothing) instead of leaving the page, and a page form doesn't
+  // submit — so an edit session can't be lost to a stray click. Capture phase +
+  // preventDefault only (no stopPropagation), so inline-edit focus still lands and
+  // all CSS/hover is untouched. The editor's own chrome is exempt. This module is
+  // only ever loaded in edit mode, so it's safe to register unconditionally.
+  document.addEventListener(
+    "click",
+    (e) => {
+      const t = e.target as Element | null;
+      if (!t || t.closest(LOUISE_CHROME_SELECTOR)) return;
+      if (t.closest("a[href]")) e.preventDefault();
+    },
+    true,
+  );
+  document.addEventListener(
+    "submit",
+    (e) => {
+      const t = e.target as Element | null;
+      if (t?.closest(LOUISE_CHROME_SELECTOR)) return;
+      e.preventDefault();
+    },
+    true,
+  );
 }
+
+/** The editor's own injected chrome — exempt from the edit-mode navigation guard
+ *  so its links/buttons/forms still work. Page content is everything else. */
+const LOUISE_CHROME_SELECTOR =
+  ".louise-bar,#louise-drawer-root,.louise-inspector,.louise-chrome-toolbar,.louise-format-bubble,.louise-banner,.louise-grammar-popover,.louise-rt";
 
 export function mountLouise(opts: MountLouiseOptions): void {
   // Idempotent within a page render; cleared on `astro:after-swap` so a soft

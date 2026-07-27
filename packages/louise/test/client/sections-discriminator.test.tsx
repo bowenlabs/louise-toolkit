@@ -83,7 +83,7 @@ const cog = () =>
     ...(document
       .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
       ?.querySelectorAll("button") ?? []),
-  ].find((b) => b.textContent === "⚙") ?? null;
+  ].find((b) => b.getAttribute("aria-label") === "Layout & settings") ?? null;
 /** Hover the section and click its ⚙ to open the inspector (where the array UI —
  *  per-variant add buttons + per-item switcher — now lives). */
 const openInspector = () => {

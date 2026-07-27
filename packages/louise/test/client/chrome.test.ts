@@ -648,7 +648,7 @@ describe("chrome — two-layer toolbar / deepest-boundary (#182 Phase 2)", () =>
     over(el.querySelectorAll(`[${BLOCK_MARKER_ATTR}]`)[0].querySelector("h2") as Node); // block 0
     const buttons = blockButtons();
     expect(buttons).toHaveLength(4); // ↑ ↓ ✕ +
-    expect(buttons[3].textContent).toBe("+");
+    expect(buttons[3].getAttribute("aria-label")).toBe("Add block after");
     buttons[3].click();
     expect(added).toEqual([{ section: 0, block: 0 }]);
   });
@@ -672,13 +672,13 @@ describe("chrome — two-layer toolbar / deepest-boundary (#182 Phase 2)", () =>
     // Section ⚙ — hover the section-level field (outside any block).
     over(el.querySelector("h1") as Node);
     const secCog = [...(sectionToolbar()?.querySelectorAll("button") ?? [])].find(
-      (b) => b.textContent === "⚙",
+      (b) => b.getAttribute("aria-label") === "Layout & settings",
     );
     secCog?.click();
     expect(inspectedSection).toEqual([0]);
     // Block ⚙.
     over(el.querySelector(`[${BLOCK_MARKER_ATTR}]`)?.querySelector("h2") as Node);
-    const blkCog = blockButtons().find((b) => b.textContent === "⚙");
+    const blkCog = blockButtons().find((b) => b.getAttribute("aria-label") === "Layout & settings");
     blkCog?.click();
     expect(inspectedBlock).toEqual([{ section: 0, block: 0 }]);
   });
@@ -686,9 +686,13 @@ describe("chrome — two-layer toolbar / deepest-boundary (#182 Phase 2)", () =>
   it("omits the ⚙ when onInspect is not wired", () => {
     setup(1, 1); // no onInspect on section or block actions
     expect(
-      [...(sectionToolbar()?.querySelectorAll("button") ?? [])].some((b) => b.textContent === "⚙"),
+      [...(sectionToolbar()?.querySelectorAll("button") ?? [])].some(
+        (b) => b.getAttribute("aria-label") === "Layout & settings",
+      ),
     ).toBe(false);
-    expect(blockButtons().some((b) => b.textContent === "⚙")).toBe(false);
+    expect(blockButtons().some((b) => b.getAttribute("aria-label") === "Layout & settings")).toBe(
+      false,
+    );
   });
 });
 
