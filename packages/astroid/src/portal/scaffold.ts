@@ -61,7 +61,7 @@ export function generateAstroidPortalAuth(config: AstroidConfig): string | null 
     "        // only thing that applies the DUMMY_REPLACE_ME sentinel check. Built by",
     "        // hand, a fresh deploy with a real EMAIL binding but a placeholder",
     "        // MAIL_FROM read as configured and called the Email API with an envelope",
-    "        // sender of literally \"DUMMY_REPLACE_ME\" — rejected upstream, swallowed",
+    '        // sender of literally "DUMMY_REPLACE_ME" — rejected upstream, swallowed',
     "        // here, and reported to the user as a reset email that was sent.",
     "        const mailer = await resolveMailer(env);",
     "        await sendTransactional(mailer, [",

@@ -22,8 +22,8 @@ versioned pages first," and lists four tasks: (1) DO skeleton, (2) presence + br
 protocol, (3) coalesced persistence, (4) client wiring behind an opt-in flag.
 
 This ADR resolves the open design forks **before** any code so the four implementation PRs
-have a fixed target. It follows ADR 0001's rule — *opinionated where it's expensive,
-framework-agnostic where it's free* — so the DO is a first-class Cloudflare-native
+have a fixed target. It follows ADR 0001's rule — _opinionated where it's expensive,
+framework-agnostic where it's free_ — so the DO is a first-class Cloudflare-native
 primitive, and reuses the existing draft/versions machinery rather than forking a second
 write path.
 
@@ -52,7 +52,7 @@ non-realtime pages, sites without the DO binding, and any client whose socket fa
 
 Crucially, **persistence still lands through `applySaveDraft`** — the same merge-over-pending
 snapshot, the same `${slug}_versions` write, the same publish/superseded-skip semantics, and
-the same #69 D1 session. There is **one write path**; the DO is a new *front end* to it, not a
+the same #69 D1 session. There is **one write path**; the DO is a new _front end_ to it, not a
 parallel store. This keeps drafts, version history, publish, and read-your-writes intact.
 
 ### 2. Reconciliation model — **field-level last-writer-wins + awareness/soft-locks, not a CRDT (yet)**
@@ -62,7 +62,7 @@ and the server draft-merge is already field-level LWW. So v1 reconciliation matc
 
 - **Structured fields** (text/number/select/sections field values): **LWW broadcast** — the
   last `change` for a field wins and is echoed to peers, with **awareness** ("Baylee is
-  editing the hero") rendered from presence so a same-field collision is *visible*, not silent.
+  editing the hero") rendered from presence so a same-field collision is _visible_, not silent.
 - **Rich-text body** (ProseMirror / the `[...slug]` body): LWW on a whole-document field is
   lossy if two people type at once, so v1 applies a **soft field-lock** — the first editor to
   focus the body claims it (`claim`), peers see it read-only + a "locked by Baylee" badge until
@@ -70,7 +70,7 @@ and the server draft-merge is already field-level LWW. So v1 reconciliation matc
   matters.
 
 **Why not a CRDT now:** Yjs/Automarge would add a substantial dependency and rich-text
-merge/transport complexity for a tool whose common case is *two editors on different fields*.
+merge/transport complexity for a tool whose common case is _two editors on different fields_.
 Field-level LWW + presence + a rich-text soft-lock covers that case and makes conflicts
 observable. A **CRDT upgrade for the body field is an explicit future path** (swap the
 soft-lock for a Yjs doc synced through the same DO), not a v1 requirement.
@@ -91,15 +91,15 @@ soft-lock for a Yjs doc synced through the same DO), not a v1 requirement.
 
 Envelope: `{ v: 1, t: <type>, ... }`. Types:
 
-| type | dir | payload | purpose |
-|------|-----|---------|---------|
-| `hello` | c→s | `{ editorName }` | post-auth handshake (identity comes from the session, see §Auth; `editorName` is display only) |
-| `welcome` | s→c | `{ you, peers, snapshot, locks }` | current presence + latest field snapshot + held locks |
-| `presence` | s→c | `{ peers }` | join/leave/heartbeat diff |
-| `change` | c→s / s→c | `{ field, value, rev }` | a field edit; server assigns/checks `rev`, rebroadcasts to peers |
-| `claim` / `release` | c↔s | `{ field }` | acquire/release the rich-text soft-lock |
-| `ack` | s→c | `{ rev }` | change persisted-intent acknowledged |
-| `bye` | c→s | — | graceful close |
+| type                | dir       | payload                           | purpose                                                                                        |
+| ------------------- | --------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `hello`             | c→s       | `{ editorName }`                  | post-auth handshake (identity comes from the session, see §Auth; `editorName` is display only) |
+| `welcome`           | s→c       | `{ you, peers, snapshot, locks }` | current presence + latest field snapshot + held locks                                          |
+| `presence`          | s→c       | `{ peers }`                       | join/leave/heartbeat diff                                                                      |
+| `change`            | c→s / s→c | `{ field, value, rev }`           | a field edit; server assigns/checks `rev`, rebroadcasts to peers                               |
+| `claim` / `release` | c↔s       | `{ field }`                       | acquire/release the rich-text soft-lock                                                        |
+| `ack`               | s→c       | `{ rev }`                         | change persisted-intent acknowledged                                                           |
+| `bye`               | c→s       | —                                 | graceful close                                                                                 |
 
 The DO holds authoritative field state + a `Map<socket, presence>`; it validates every
 `change` (field is in the collection config; `claim` respected for locked fields), rebroadcasts
@@ -124,7 +124,7 @@ evolve.
 ## Auth & security
 
 - The WebSocket **upgrade request** passes the **same guard as the editor routes** —
-  `resolveEditor` + the same-origin check (`guardEditor`) — *before* `acceptWebSocket`. An
+  `resolveEditor` + the same-origin check (`guardEditor`) — _before_ `acceptWebSocket`. An
   unauthenticated or cross-origin upgrade is rejected with 401/403; no socket is accepted.
 - Identity is taken from the **server-resolved editor session**, never from the client's
   `hello` payload (which is display-only), so a client can't spoof another editor.
@@ -160,11 +160,11 @@ Modern declarative form (wrangler ≥ recent; SQLite-backed DO):
 // workers/site/wrangler.jsonc
 {
   "durable_objects": {
-    "bindings": [{ "name": "EDIT_SESSION", "class_name": "EditSessionDO" }]
+    "bindings": [{ "name": "EDIT_SESSION", "class_name": "EditSessionDO" }],
   },
   "exports": {
-    "EditSessionDO": { "type": "durable-object", "storage": "sqlite" }
-  }
+    "EditSessionDO": { "type": "durable-object", "storage": "sqlite" },
+  },
 }
 ```
 
@@ -173,9 +173,9 @@ Legacy equivalent (if the installed wrangler still wants `migrations`):
 ```jsonc
 {
   "durable_objects": {
-    "bindings": [{ "name": "EDIT_SESSION", "class_name": "EditSessionDO" }]
+    "bindings": [{ "name": "EDIT_SESSION", "class_name": "EditSessionDO" }],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EditSessionDO"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EditSessionDO"] }],
 }
 ```
 
@@ -187,6 +187,7 @@ when PR 1 lands.
 ## Consequences
 
 **Positive**
+
 - Real multi-editor collaboration + presence; same-field conflicts become visible.
 - One write path — the DO reuses `applySaveDraft`, so drafts/versions/publish/#69 sessions all
   keep working; no second store to reconcile.
@@ -195,6 +196,7 @@ when PR 1 lands.
 - The DO's coalescing further relieves auto-save write volume (the #68/#70 motivation).
 
 **Negative / risks**
+
 - A new stateful primitive (DO) to own and test; WebSocket + hibernation + alarm code is
   trickier to test than a stateless route (mitigate with `getWebSockets`/attachment-level unit
   tests + an E2E in the astro-preview harness).
@@ -203,6 +205,7 @@ when PR 1 lands.
 - Client complexity: two publish paths (socket vs fetch) with a fallback seam to keep correct.
 
 **Non-goals (v1)**
+
 - Not a CRDT / character-level rich-text merge (future upgrade path noted).
 - Not realtime for non-versioned "edit the live row" pages.
 - Not a third-party realtime service (see Alternatives).
@@ -215,7 +218,7 @@ when PR 1 lands.
   body-field upgrade path, not the v1 baseline.
 - **Third-party realtime (Liveblocks / PartyKit / Ably).** Faster to presence, but adds an
   external dependency + cost + data-egress, and contradicts ADR 0001's Cloudflare-native core
-  and the #103 self-hosted framing. A per-page DO *is* the native answer.
+  and the #103 self-hosted framing. A per-page DO _is_ the native answer.
 - **Keep polling / short-poll the drafts endpoint.** No new primitive, but no true presence, no
   live cursors, and it re-introduces the write-volume problem #70 fixed. Rejected.
 

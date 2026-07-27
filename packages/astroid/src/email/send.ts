@@ -170,9 +170,12 @@ function describe(mail: OutgoingMail, reason: string, includeBody: boolean): str
       "   binding to deliver it, or pass `devLog: true` if this really is local.)",
     ].join("\n");
   }
-  return [...head, "  ---", ...mail.content.text.split("\n").map((line) => `  ${line}`), "  ---"].join(
-    "\n",
-  );
+  return [
+    ...head,
+    "  ---",
+    ...mail.content.text.split("\n").map((line) => `  ${line}`),
+    "  ---",
+  ].join("\n");
 }
 
 /**

@@ -13,7 +13,7 @@ The Worker entry (`workers/site/src/worker.ts`) is a `composeWorker(...)` over a
 
 Two hard constraints frame any answer (both from the issue and ADR 0001):
 
-- **`WorkerRoute` is a public primitive.** It is exported from `louise-toolkit/worker`, every editor factory returns one, sites compose them, and `runEditorRoute` runs the *same* factory from an Astro `APIRoute` (no Worker `ctx`). A router swap must stay an **internal** detail or an **optional adapter** — it cannot change that public shape.
+- **`WorkerRoute` is a public primitive.** It is exported from `louise-toolkit/worker`, every editor factory returns one, sites compose them, and `runEditorRoute` runs the _same_ factory from an Astro `APIRoute` (no Worker `ctx`). A router swap must stay an **internal** detail or an **optional adapter** — it cannot change that public shape.
 - **Zero runtime dependencies.** `louise-toolkit`'s `dependencies` is `{}` today. Hono would be the **first** runtime dep in the core package.
 
 ## What the spike did
@@ -22,10 +22,10 @@ A self-contained spike (`scratchpad/hono-spike/`, throwaway — not merged): Hon
 
 ### Measurements
 
-| Bundle (minimal editor app: guard middleware + 8 routes) | minified | gzipped |
-| --- | --- | --- |
-| `hono` (default, SmartRouter = RegExp + Trie) | 19.1 KB | **7.8 KB** |
-| `hono/tiny` (PatternRouter) | 11.6 KB | **4.9 KB** |
+| Bundle (minimal editor app: guard middleware + 8 routes) | minified | gzipped    |
+| -------------------------------------------------------- | -------- | ---------- |
+| `hono` (default, SmartRouter = RegExp + Trie)            | 19.1 KB  | **7.8 KB** |
+| `hono/tiny` (PatternRouter)                              | 11.6 KB  | **4.9 KB** |
 
 ### Findings
 
@@ -37,7 +37,7 @@ A self-contained spike (`scratchpad/hono-spike/`, throwaway — not merged): Hon
 
 4. **Behavioral deltas to watch.** Hono returns **404 (not 405)** on a method mismatch by default; the factories return explicit 405s today. Preserving 405 needs an extra guard. Minor, but a real migration cost across ~15 routes.
 
-5. **The public-API boundary blunts the typed-RPC win.** Because `WorkerRoute` must stay the public primitive and factories must still run under `runEditorRoute` (no `ctx`), Hono can only live *behind* the `/api/louise` mount as an internal adapter. Hono's RPC-mode end-to-end types would therefore **not** flow to the public factory API — they'd only exist inside the confined mount. The strongest reason to adopt Hono (typed client, pairing with #72) is the one the constraints most weaken.
+5. **The public-API boundary blunts the typed-RPC win.** Because `WorkerRoute` must stay the public primitive and factories must still run under `runEditorRoute` (no `ctx`), Hono can only live _behind_ the `/api/louise` mount as an internal adapter. Hono's RPC-mode end-to-end types would therefore **not** flow to the public factory API — they'd only exist inside the confined mount. The strongest reason to adopt Hono (typed client, pairing with #72) is the one the constraints most weaken.
 
 6. **The WS route gets no benefit.** `realtimeRoute` (#71) forwards a WebSocket upgrade by reusing the original request (`Upgrade`/`Connection` are forbidden header names, so the request can't be reconstructed). Routing it through Hono changes nothing about that forwarding.
 

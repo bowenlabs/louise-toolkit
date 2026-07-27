@@ -29,10 +29,7 @@ import { ASTROID_ARCHETYPE_SECTIONS, type SectionKind } from "../src/config.js";
  * anywhere — and adding a section type means touching two files.
  */
 function dispatcherTypes(): string[] {
-  const src = readFileSync(
-    new URL("../src/components/Section.astro", import.meta.url),
-    "utf8",
-  );
+  const src = readFileSync(new URL("../src/components/Section.astro", import.meta.url), "utf8");
   const start = src.indexOf("const COMPONENTS");
   if (start === -1) throw new Error("Section.astro no longer declares a COMPONENTS map");
   // Up to the line that closes the object literal, tolerating `};` or
@@ -270,7 +267,10 @@ describe("collectSectionMediaUrls", () => {
   it("ignores an unknown section type and empty values", () => {
     expect(
       collectSectionMediaUrls(
-        [{ _type: "nope", image: "/media/x.jpg" }, { _type: "banner", image: "" }],
+        [
+          { _type: "nope", image: "/media/x.jpg" },
+          { _type: "banner", image: "" },
+        ],
         catalog,
       ),
     ).toEqual([]);
@@ -278,7 +278,13 @@ describe("collectSectionMediaUrls", () => {
 
   it("walks blocks against the block catalog", () => {
     const urls = collectSectionMediaUrls(
-      [{ _type: "banner", image: "/media/a.jpg", blocks: [{ _type: "figure", pic: "/media/d.jpg" }] }],
+      [
+        {
+          _type: "banner",
+          image: "/media/a.jpg",
+          blocks: [{ _type: "figure", pic: "/media/d.jpg" }],
+        },
+      ],
       catalog,
       { figure: { label: "Figure", fields: { pic: { type: "image" } } } },
     );
@@ -305,7 +311,15 @@ describe("collectSectionMediaUrls", () => {
       },
     };
     const urls = collectSectionMediaUrls(
-      [{ _type: "rich", parts: [{ kind: "image", src: "/media/v.jpg" }, { kind: "quote", text: "hi" }] }],
+      [
+        {
+          _type: "rich",
+          parts: [
+            { kind: "image", src: "/media/v.jpg" },
+            { kind: "quote", text: "hi" },
+          ],
+        },
+      ],
       disc,
     );
     expect(urls).toEqual(["/media/v.jpg"]);

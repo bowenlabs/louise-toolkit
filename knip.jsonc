@@ -25,7 +25,7 @@
       // too, but behind `corepack pnpm dlx` — which knip doesn't recognize as a
       // package reference the way it does a bare `pnpm dlx`. Either way it's a
       // real dependency: oxlint resolves the plugin from node_modules.
-      "ignoreDependencies": ["eslint-plugin-solid"]
+      "ignoreDependencies": ["eslint-plugin-solid"],
     },
 
     // The library's package.json `exports` map points at ./dist/*, which only
@@ -67,9 +67,9 @@
         "src/core/worker/index.ts",
         "src/core/workflows/index.ts",
         "assets/fonts/build.mjs",
-        "test/**/*.test.ts"
+        "test/**/*.test.ts",
       ],
-      "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs", "assets/**/*.mjs"]
+      "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs", "assets/**/*.mjs"],
     },
 
     // Same story as the library: the `exports` map points at ./dist/*, so map
@@ -80,7 +80,7 @@
       // imported from a scaffolded project's astro.config.mjs, never from
       // anything in this repo.
       "entry": ["src/index.ts", "src/astro/index.ts", "test/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs"]
+      "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs"],
     },
 
     "workers/docs": {
@@ -89,14 +89,14 @@
       "entry": ["src/styles/**/*.css"],
       // Referenced throughout the docs prose as code samples but never imported
       // at build time; kept as a workspace link.
-      "ignoreDependencies": ["louise-toolkit"]
+      "ignoreDependencies": ["louise-toolkit"],
     },
 
     "workers/site": {
       // Runnable example handlers sliced into /examples/* pages via `?raw`
       // imports, which knip can't follow into the raw source.
-      "entry": ["src/lib/examples/*.ts"]
-    }
+      "entry": ["src/lib/examples/*.ts"],
+    },
   },
 
   // Missing/unlisted deps are noisy under this toolchain (workerd `cloudflare:*`
@@ -105,6 +105,6 @@
   // type-check and build. Keep knip focused on dead code.
   "rules": {
     "unlisted": "off",
-    "unresolved": "off"
-  }
+    "unresolved": "off",
+  },
 }

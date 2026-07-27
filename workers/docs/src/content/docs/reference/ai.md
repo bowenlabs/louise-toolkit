@@ -37,7 +37,11 @@ for response caching, cost caps, fallbacks, and logging.
 ## `generateAltText(runner, image, opts?)`
 
 ```ts
-function generateAltText(runner, image: ArrayBuffer | Uint8Array | number[], opts?: AltTextOptions): Promise<string | null>;
+function generateAltText(
+  runner,
+  image: ArrayBuffer | Uint8Array | number[],
+  opts?: AltTextOptions,
+): Promise<string | null>;
 ```
 
 Generate concise alt text for an image via a vision model
@@ -69,7 +73,10 @@ const tighter = await rewriteText(env.AI, draft, { mode: "tighten" });
 ```ts
 function suggestSeo(runner, content: string, opts?: SeoOptions): Promise<SeoSuggestion | null>;
 
-interface SeoSuggestion { title: string | null; description: string | null }
+interface SeoSuggestion {
+  title: string | null;
+  description: string | null;
+}
 ```
 
 Suggest an SEO title + meta description from page content, using Workers AI JSON
@@ -85,7 +92,13 @@ import { embed, indexContent, semanticSearch, removeContentVector } from "louise
 
 function embed(runner, text, opts?): Promise<number[] | null>;
 function indexContent(index, runner, namespace, id, text, opts?): Promise<boolean>;
-function semanticSearch(index, runner, namespace, query, opts?): Promise<{ id: number; score: number }[]>;
+function semanticSearch(
+  index,
+  runner,
+  namespace,
+  query,
+  opts?,
+): Promise<{ id: number; score: number }[]>;
 function removeContentVector(index, namespace, id): Promise<void>;
 ```
 

@@ -176,7 +176,7 @@ export async function servePmtiles(
     const got = object.range ?? {};
     const start =
       got.offset ?? (parsed.kind === "suffix" ? object.size - parsed.suffix : parsed.offset);
-    const length = got.length ?? (got.suffix ?? object.size - start);
+    const length = got.length ?? got.suffix ?? object.size - start;
     return new Response(head ? null : (object.body ?? null), {
       status: 206,
       headers: headers({

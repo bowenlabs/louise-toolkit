@@ -134,7 +134,7 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
     "      //",
     `      //   const items = (await listCatalog(token)).map(${provider ?? "provider"}ToCatalogItem);`,
     `      //   const r = await astroidCatalogSync(items, { db: env.DB, table: ${JSON.stringify(table)} });`,
-    "      //   if (r.failed > 0) console.warn(\"[catalog] skipped\", r.failed, r.errors);",
+    '      //   if (r.failed > 0) console.warn("[catalog] skipped", r.failed, r.errors);',
     "      //",
     "      // The sync is idempotent (keyed on the provider's id) and never",
     "      // writes an owner-edited column, so it's safe to run on every event.",

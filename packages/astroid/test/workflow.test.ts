@@ -5,7 +5,11 @@ import {
   normalizeSpecs,
   overrideWorkflowStage,
 } from "../src/workflow/advance.js";
-import { defineWorkflow, workflowAuditTable, workflowOverrideTable } from "../src/workflow/config.js";
+import {
+  defineWorkflow,
+  workflowAuditTable,
+  workflowOverrideTable,
+} from "../src/workflow/config.js";
 import { generateWorkflowRoute, generateWorkflowSchema } from "../src/workflow/generate.js";
 import { AstroidConfigError } from "../src/errors.js";
 
@@ -85,9 +89,7 @@ describe("advanceWorkflowStage", () => {
     expect(result).toEqual({ ok: true, stage: 1, complete: false });
     expect(stub.stage).toBe(1);
     // Initials are normalized on the way in.
-    expect(stub.audit).toEqual([
-      { id: "GF-1", stage: 0, specs: null, initials: "BB" },
-    ]);
+    expect(stub.audit).toEqual([{ id: "GF-1", stage: 0, specs: null, initials: "BB" }]);
   });
 
   it("reports completion when the last stage is signed", async () => {
@@ -131,7 +133,9 @@ describe("advanceWorkflowStage", () => {
     await advanceWorkflowStage({ ...base(), db: stub });
     // The very first statement must be the guarded write — a SELECT-then-UPDATE
     // leaves a window between the two.
-    expect(stub.calls[0].sql).toMatch(/^UPDATE orders SET stage = \? WHERE id = \? AND stage = \?$/);
+    expect(stub.calls[0].sql).toMatch(
+      /^UPDATE orders SET stage = \? WHERE id = \? AND stage = \?$/,
+    );
     expect(stub.calls[0].binds).toEqual([1, "GF-1", 0]);
   });
 
@@ -148,12 +152,14 @@ describe("advanceWorkflowStage", () => {
     expect(
       await advanceWorkflowStage({ ...base({ actor: { initials: "  " } }), db: stub }),
     ).toMatchObject({ ok: false, status: 422 });
-    expect(
-      await advanceWorkflowStage({ ...base({ expectedStage: 9 }), db: stub }),
-    ).toMatchObject({ ok: false, status: 422 });
-    expect(
-      await advanceWorkflowStage({ ...base({ expectedStage: -1 }), db: stub }),
-    ).toMatchObject({ ok: false, status: 422 });
+    expect(await advanceWorkflowStage({ ...base({ expectedStage: 9 }), db: stub })).toMatchObject({
+      ok: false,
+      status: 422,
+    });
+    expect(await advanceWorkflowStage({ ...base({ expectedStage: -1 }), db: stub })).toMatchObject({
+      ok: false,
+      status: 422,
+    });
     // Nothing moved on any of them.
     expect(stub.stage).toBe(0);
   });
@@ -300,8 +306,9 @@ describe("generateWorkflowSchema", () => {
   it("emits the override log only when overrides are on", () => {
     expect(generateWorkflowSchema(wf).source).toContain("orders_override_log");
     expect(
-      generateWorkflowSchema(defineWorkflow({ key: "orders", stages: ["a", "b"], overrides: false }))
-        .source,
+      generateWorkflowSchema(
+        defineWorkflow({ key: "orders", stages: ["a", "b"], overrides: false }),
+      ).source,
     ).not.toContain("override_log");
   });
 

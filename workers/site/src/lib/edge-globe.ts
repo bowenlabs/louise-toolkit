@@ -83,7 +83,12 @@ export function initEdgeGlobe(canvas: HTMLCanvasElement, opts: EdgeGlobeOptions 
   // Wireframe shell.
   const wmesh = new Mesh(
     new SphereGeometry(0.992, 28, 28),
-    new MeshBasicMaterial({ color: wireColor, wireframe: true, transparent: true, opacity: wireOpacity }),
+    new MeshBasicMaterial({
+      color: wireColor,
+      wireframe: true,
+      transparent: true,
+      opacity: wireOpacity,
+    }),
   );
   group.add(wmesh);
 
@@ -106,7 +111,11 @@ export function initEdgeGlobe(canvas: HTMLCanvasElement, opts: EdgeGlobeOptions 
     const p2 = randPoint();
     const d = p1.distanceTo(p2);
     if (d < 0.6 || d > 1.7) continue;
-    const mid = p1.clone().add(p2).normalize().multiplyScalar(1 + d * 0.42);
+    const mid = p1
+      .clone()
+      .add(p2)
+      .normalize()
+      .multiplyScalar(1 + d * 0.42);
     const curve = new QuadraticBezierCurve3(p1, mid, p2);
     const ageo = new BufferGeometry().setFromPoints(curve.getPoints(48));
     const amat = new LineBasicMaterial({ color: arcColor, transparent: true, opacity: 0 });
@@ -116,7 +125,13 @@ export function initEdgeGlobe(canvas: HTMLCanvasElement, opts: EdgeGlobeOptions 
       new MeshBasicMaterial({ color: arcColor, transparent: true }),
     );
     group.add(dot);
-    arcs.push({ curve, mat: amat, dot, t: Math.random() * 1.6, speed: 0.14 + Math.random() * 0.22 });
+    arcs.push({
+      curve,
+      mat: amat,
+      dot,
+      t: Math.random() * 1.6,
+      speed: 0.14 + Math.random() * 0.22,
+    });
   }
 
   let mouseY = 0;

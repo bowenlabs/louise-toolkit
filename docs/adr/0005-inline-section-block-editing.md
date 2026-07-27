@@ -16,10 +16,10 @@
 ## Context
 
 A Louise **section** is one item of a page's `sections` JSON array —
-`{ _type, ...fields }` — that the *site* renders with its own bespoke component;
+`{ _type, ...fields }` — that the _site_ renders with its own bespoke component;
 Louise owns editing only (`core/content/sections.ts`, `client/sections.tsx`).
 Field types are `text` / `textarea` / `array` / `image`, and the **only** nesting
-available today is a `type: "array"` field with a single *homogeneous* `itemFields`
+available today is a `type: "array"` field with a single _homogeneous_ `itemFields`
 shape (e.g. `featureGrid.items`). Editing is **hybrid**: visible text is edited in
 place over the real render via `data-louise-sfield="<i>.<key>"` markers; everything
 structural — which sections exist, their order, array membership, and any
@@ -28,10 +28,10 @@ non-visible field — lives in a floating **dock** (bottom-left). Structural cha
 
 That model has a gap and a contradiction:
 
-- **Gap.** There is no way to organise the pieces *within* a section, to swap one
+- **Gap.** There is no way to organise the pieces _within_ a section, to swap one
   component for another, or to change a section's layout — a section is a monolith
   with a flat field set (plus one homogeneous array).
-- **Contradiction.** Louise's whole thesis is *"edit in place on the real design."*
+- **Contradiction.** Louise's whole thesis is _"edit in place on the real design."_
   The dock is the one surface that breaks it: a side panel of proxy controls for
   things you are looking straight at. It is also the surface that forces a reload
   on every structural edit.
@@ -45,8 +45,8 @@ relocates its Save/Publish onto the edit bar (`.louise-bar-actions`), so removin
 it is largely subtractive.
 
 Like ADR 0002/0003, this ADR fixes the design forks **before** any code, so the
-implementation PRs have a fixed target. It follows ADR 0001's rule — *opinionated
-where it's expensive, framework-agnostic where it's free* — and reuses the
+implementation PRs have a fixed target. It follows ADR 0001's rule — _opinionated
+where it's expensive, framework-agnostic where it's free_ — and reuses the
 existing schema, validator, marker, and editor machinery rather than forking new
 paths.
 
@@ -60,22 +60,30 @@ of `ArrayFieldConfig.discriminator` (`core/content/types.ts`) one level up: the
 same `_type`-selects-a-field-map model sections already use, nested.
 
 ```ts
-interface BlockItem { _type: string; [key: string]: unknown }
+interface BlockItem {
+  _type: string;
+  [key: string]: unknown;
+}
 
 interface SectionItem {
   _type: string;
-  blocks?: BlockItem[];            // NEW — the organising layer
-  [key: string]: unknown;          // direct fields still allowed (back-compat)
+  blocks?: BlockItem[]; // NEW — the organising layer
+  [key: string]: unknown; // direct fields still allowed (back-compat)
 }
 
 interface SectionDef {
-  label: string; icon?: string;
+  label: string;
+  icon?: string;
   fields: Record<string, SectionField>;
-  blocks?: { allow?: string[]; min?: number; max?: number };   // NEW
+  blocks?: { allow?: string[]; min?: number; max?: number }; // NEW
 }
 
 type BlockCatalog = Record<string, BlockDef>;
-interface BlockDef { label: string; icon?: string; fields: Record<string, SectionField> }
+interface BlockDef {
+  label: string;
+  icon?: string;
+  fields: Record<string, SectionField>;
+}
 ```
 
 Block fields reuse `SectionField` **verbatim**, so `validateSectionField` extends
@@ -83,7 +91,7 @@ with one `blocks` branch (each block validated against `BlockCatalog[block._type
 recursively) and the `Rule` chain still applies. Storage is unchanged — `sections`
 stays one JSON column. Everything is additive: `blocks` is optional, existing
 catalogs and the four dogfood sites are untouched, and a section may mix direct
-fields *and* blocks during a transition.
+fields _and_ blocks during a transition.
 
 **Ship it incrementally.** First land `discriminator` support on `SectionField`
 type `array` — the concept is already specced on the collection side
@@ -125,7 +133,7 @@ Delete the bottom-left sections dock. Its per-item structural controls move onto
 the canvas as overlay chrome; its Save/Publish already live on the edit bar. The
 edit bar (`.louise-bar`) and the Settings drawer are unchanged.
 
-- **Rings** are drawn as `box-shadow` *on the section/block element itself* — never
+- **Rings** are drawn as `box-shadow` _on the section/block element itself_ — never
   clipped by an `overflow` ancestor, never mis-measured against a separate overlay.
   **Toolbars** are `position: absolute` children; **"+" inserters** sit between
   siblings. Hit-testing is **deepest-boundary-wins** (a block hover doesn't light
@@ -133,27 +141,27 @@ edit bar (`.louise-bar`) and the Settings drawer are unchanged.
   block is active.
 - **Colour coding:** orange = the section layer, blue = the block layer. This
   overlaps the edit bar's own blue = Settings / orange = Done. Accepted and
-  recorded here: the two are disambiguated by *treatment* (glassy pill text buttons
+  recorded here: the two are disambiguated by _treatment_ (glassy pill text buttons
   vs. on-canvas outline rings), not hue.
 - **Autosave is the only save path** (#68): edits stage a draft on an idle
   debounce, the bar shows live status (Unsaved → Saving… → Draft saved) plus
   Publish, and there is no manual Save button. Autosave never publishes.
 - **Three surfaces, three scopes**, kept distinct: the **edit bar** acts on the
-  *page* (publish / status / settings / done); the **Settings drawer** on the
-  *site* (pages, media, users, health); the new **inspector rail** (§5) on the
-  *selected element*.
+  _page_ (publish / status / settings / done); the **Settings drawer** on the
+  _site_ (pages, media, users, health); the new **inspector rail** (§5) on the
+  _selected element_.
 
 ### 4. Structural ops: instant where the markup exists; a fragment route where it doesn't
 
 The reason structural edits reload today is that only the server can render the
 site's components. That constraint splits cleanly, and most of it dissolves:
 
-- **Reorder / delete / duplicate** move or clone DOM nodes that are *already
-  rendered* and reconcile the store — **no server, no reload**. This is the
+- **Reorder / delete / duplicate** move or clone DOM nodes that are _already
+  rendered_ and reconcile the store — **no server, no reload**. This is the
   headline win over today's reload-on-every-structural-change.
 - **Add / swap-type** need markup that doesn't exist yet. Add a **per-item
   fragment-render route**: POST the one item (`{ _type, ...fields }`, or the
-  section's `{ blocks: [...] }`), the server renders *that item* through the same
+  section's `{ blocks: [...] }`), the server renders _that item_ through the same
   section render path and returns its HTML, the client splices it in and re-runs
   `wireInline` on it. No full reload, and the editor still authors **zero markup**
   — the server owns rendering (ADR 0001). This supersedes the current
@@ -163,29 +171,29 @@ site's components. That constraint splits cleanly, and most of it dissolves:
 
 ```ts
 interface SectionItem {
-  _layout?: string;                        // a named layout variant
-  _settings?: Record<string, unknown>;     // background, spacing, columns, alignment…
+  _layout?: string; // a named layout variant
+  _settings?: Record<string, unknown>; // background, spacing, columns, alignment…
   // …
 }
 interface SectionDef {
-  layouts?: Record<string, { label: string }>;   // the _layout options
-  settings?: Record<string, SectionField>;         // dock-edited (inline: false)
+  layouts?: Record<string, { label: string }>; // the _layout options
+  settings?: Record<string, SectionField>; // dock-edited (inline: false)
 }
 ```
 
 Blocks carry the same `_settings`. Louise stores only the chosen **token** and the
-setting *values* — **never layout CSS**. The site component reads `_layout` /
+setting _values_ — **never layout CSS**. The site component reads `_layout` /
 `_settings` and switches its own grid/flex/background, so the design stays 100%
 site-owned (the same contract as today's bespoke renders). The **inspector rail**
 is the surface for this — contextual per selection, with an Outline tree for
-navigation — replacing the dock's per-item forms. It is deliberately *not* the
-Settings drawer and *not* the edit bar (§3).
+navigation — replacing the dock's per-item forms. It is deliberately _not_ the
+Settings drawer and _not_ the edit bar (§3).
 
 ### 6. Rich text: a ProseKit brand-colour mark bound to `BrandTheme` tokens
 
 Text colour is a **closed brand palette**, not a freeform picker. Extend the
 existing ProseKit editor (`client/RichText.tsx`, `core/content/richtext.ts`) with
-an inline text-colour **mark** whose attribute is a brand *token key*
+an inline text-colour **mark** whose attribute is a brand _token key_
 (`brand` / `secondary` / `tertiary` / `accent` — ADR 0003's `Colorway`), resolved
 to an actual colour by the site theme at render time. Stored content therefore
 stays token-based and theme-aware, and a brand re-theme flows through with no
@@ -197,18 +205,18 @@ illustration; production uses ProseKit marks, never `execCommand`.)
 
 **Positive**
 
-- Makes *"edit on the real design"* true for **structure**, not just text — the
+- Makes _"edit on the real design"_ true for **structure**, not just text — the
   dock was the one surface that broke the thesis, and reorder/delete/duplicate
   become instant with no server round-trip.
 - **Additive and reuse-heavy.** `blocks` / `_settings` / `_layout` are optional;
-  existing sites keep working. It *generalises* an existing pattern
+  existing sites keep working. It _generalises_ an existing pattern
   (`discriminator`) rather than inventing one, and reuses `SectionField`, the
   validator recursion, the depth-agnostic store/marker machinery,
   `createBlockRegistry`, the ProseKit editor, and the edit bar + drawer. Small
   net-new surface.
 - **Fits ADR 0003.** `<Section>` / `<Editable>` are the render home for blocks and
   the deeper markers; the brand-colour mark reuses `Colorway`. This pulls the
-  reference site *up* to the primitive standard rather than forking a model.
+  reference site _up_ to the primitive standard rather than forking a model.
 
 **Negative / risks**
 
@@ -216,14 +224,14 @@ illustration; production uses ProseKit marks, never `execCommand`.)
   hit-testing are genuine client work. Mitigated by drawing rings as `box-shadow`
   on the element, deepest-boundary-wins selection, and `:has()` — all proven in
   the prototype.
-- The fragment-render route is a real new server contract. Scoped to a *single
-  item's* render and reusing the site's existing section render path, not a second
+- The fragment-render route is a real new server contract. Scoped to a _single
+  item's_ render and reusing the site's existing section render path, not a second
   renderer.
 - A wholly generic block model risks becoming a page builder / config language —
   the same risk ADR 0003 flags for a generic `<Section>`. Mitigation: bespoke,
   site-owned sections stay first-class; `blocks.allow` bounds each section's
   palette; **flat ordered `blocks` ship first, named slots are deferred**.
-- Colour overload (orange/blue mean section/block *and* Done/Settings). Accepted;
+- Colour overload (orange/blue mean section/block _and_ Done/Settings). Accepted;
   disambiguated by treatment.
 
 **Non-goals**
@@ -242,7 +250,7 @@ illustration; production uses ProseKit marks, never `execCommand`.)
 - [ ] **Phase 0** — `discriminator` on `SectionField` type `array` + validator +
       the dock/inspector type-switcher. The proving slice; reuses the collection-side
       spec and builds the swap UI once.
-- [ ] **Phase 1** — on-canvas chrome over the *current* section model: outline
+- [ ] **Phase 1** — on-canvas chrome over the _current_ section model: outline
       rings, floating toolbars, "+" inserters, drag-to-reorder, and the inspector
       rail; delete the floating dock; reorder/delete/duplicate go instant. No schema
       change — validates the hard UX first.

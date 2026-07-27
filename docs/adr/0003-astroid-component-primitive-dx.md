@@ -6,14 +6,14 @@
   roadmap item #4 (`<Section>` / `<Editable>` / `<Collection>` primitives); epic
   #102
 - **Scope:** `packages/astroid` — the component layer only. No runtime code ships
-  with this ADR; it fixes the conventions the primitives are built to *before*
+  with this ADR; it fixes the conventions the primitives are built to _before_
   they exist, so the four planned components land consistent instead of
   drifting.
 
 ## Context
 
-ADR 0001 committed Astroid/Louise to *"everything as typed and structured as
-possible,"* with types flowing schema → API → client. The **component layer** is
+ADR 0001 committed Astroid/Louise to _"everything as typed and structured as
+possible,"_ with types flowing schema → API → client. The **component layer** is
 the last rung on that ladder and the only one still un-standardised: today every
 site hand-writes its sections. The reference marketing site is representative —
 `workers/site/src/sections/Hero.astro` and `FeatureGrid.astro` each declare an
@@ -35,8 +35,8 @@ to misuse, rather than each one making its own choices.
 
 The prop-typing techniques below are the well-known Astro + TypeScript DX
 patterns (polymorphic `as`, declarative props over class names, `keyof typeof`,
-typed rest spreading); this ADR's contribution is *adopting them as the Astroid
-convention* and binding them to Astroid's own vocabulary (`SectionKind`,
+typed rest spreading); this ADR's contribution is _adopting them as the Astroid
+convention_ and binding them to Astroid's own vocabulary (`SectionKind`,
 `BrandTheme`, the `data-louise-*` edit markers).
 
 ## Decision
@@ -48,14 +48,14 @@ paired with the concrete Astroid surface it governs.
 
 Every literal-set prop is a union of string literals so the editor autocompletes
 it and `astro check` rejects a typo before build. Astroid's vocabulary already
-*is* these unions (`SectionKind`, `Archetype`, `CommerceProvider`), so props
+_is_ these unions (`SectionKind`, `Archetype`, `CommerceProvider`), so props
 reference them directly.
 
 ```ts
 // astroid: the colorway is a closed set, not an open string.
 type Colorway = "brand" | "secondary" | "tertiary" | "accent";
 interface Props {
-  kind: SectionKind;      // from config.ts — one source of truth
+  kind: SectionKind; // from config.ts — one source of truth
   colorway?: Colorway;
   align?: "start" | "center" | "end";
 }
@@ -63,7 +63,7 @@ interface Props {
 
 ### 2. Declarative props map to tokens — components never take raw class names
 
-Following ADR 0001's "opinionated where it's expensive": callers describe *intent*
+Following ADR 0001's "opinionated where it's expensive": callers describe _intent_
 (`colorway="brand"`), and the component owns the token→class mapping. This is
 exactly `FeatureGrid`'s existing `CARD_CLASS` table, promoted to the shared
 primitive and keyed to the `BrandTheme.colors` set (`brand`/`secondary`/
@@ -84,7 +84,7 @@ colorway to the map and the prop type updates itself; there is no second list to
 forget.
 
 ```ts
-type Colorway = keyof typeof CARD_CLASS;   // "brand" | "secondary" | "tertiary"
+type Colorway = keyof typeof CARD_CLASS; // "brand" | "secondary" | "tertiary"
 ```
 
 ### 4. Polymorphic elements via a typed `as`, with a typed `...rest` escape hatch
@@ -97,7 +97,7 @@ via Astro's `HTMLAttributes` — so `<Editable as="a" href="…">` type-checks
 ```ts
 import type { HTMLTag, Polymorphic } from "astro/types";
 type Props<Tag extends HTMLTag> = Polymorphic<{ as: Tag }> & {
-  field: string;          // the data-louise-sfield path (see §5)
+  field: string; // the data-louise-sfield path (see §5)
 };
 const { as: Tag = "div", field, ...rest } = Astro.props;
 ```
@@ -106,12 +106,11 @@ const { as: Tag = "div", field, ...rest } = Astro.props;
 
 The inline-edit markers the sites stamp by hand today —
 `data-louise-sfield={edit ? \`${idx}.heading\` : undefined}`, plus
-`data-louise-multiline` — become the single responsibility of `<Editable>`. The
-`_editMode` / `_editIndex` pair stops being copy-pasted into every section's
-`Props`: it moves to an Astro context/slot the section library reads, so authors
-write `<Editable field="heading">` and the primitive emits the correct marker
+`data-louise-multiline`— become the single responsibility of`<Editable>`. The
+`\_editMode`/`\_editIndex`pair stops being copy-pasted into every section's`Props`: it moves to an Astro context/slot the section library reads, so authors
+write `<Editable field="heading">`and the primitive emits the correct marker
 (or plain output outside edit mode). This keeps the edit contract in one place
-and typed, instead of restated in each `interface Props`.
+and typed, instead of restated in each`interface Props`.
 
 ### 6. `<Section>` is a discriminated union over `SectionKind`; `<Collection>` is typed by its Zod schema
 
@@ -125,11 +124,12 @@ hand-written interface.
 ## Consequences
 
 **Positive**
+
 - The primitives ship with one consistent, autocompleting prop surface; a typo or
   a wrong `kind` fails at `astro check`, not in the browser.
 - Formalises what the sites already do (`FeatureGrid` colorways, the
   `data-louise-sfield` markers, `_editMode` plumbing) instead of inventing a new
-  model — low conceptual cost, and it pulls the reference site *up* to the
+  model — low conceptual cost, and it pulls the reference site _up_ to the
   standard (the same direction ADR 0001 set).
 - Token→class indirection means a `BrandTheme` change re-skins every brand with no
   markup edits — the multi-brand premise in the README's `defineAstroid` example.
@@ -137,6 +137,7 @@ hand-written interface.
   is no parallel list to keep in sync.
 
 **Negative / risks**
+
 - Polymorphic + discriminated-union props are more type-machinery than a plain
   `interface`; kept in the primitives (`packages/astroid`), not pushed onto
   end-site authors, whose surface stays `<Section kind="…">`.
@@ -146,9 +147,10 @@ hand-written interface.
   through it.
 
 **Non-goals**
-- Not a component *framework* or a styling system — Tailwind + daisyUI + the
+
+- Not a component _framework_ or a styling system — Tailwind + daisyUI + the
   `louise` theme stay the styling layer (ADR 0001). This standardises prop
-  *shapes*, not the CSS.
+  _shapes_, not the CSS.
 - Not a retro-migration of `workers/site`'s bespoke sections. They adopt the
   primitives opportunistically; nothing forces a rewrite.
 

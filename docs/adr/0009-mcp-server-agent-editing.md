@@ -11,8 +11,8 @@
 
 The substrate the issue leans on already exists and was verified for this ADR:
 
-- **`createLocalApi` (`core/content/localApi.ts`)** — typed `find`/`findByID`/`count`/`search`/`reindexSearch`/`create`/`update`/`deleteByID`. Every method takes a `context` (Louise types it `{ session }`) as its first argument and runs the matching **access function** before touching D1 (`read` for `find`/`findByID`/`search`/`count`, `create`/`update`/`delete` for the writes). This *is* the tool surface, and the access enforcement is already wired.
-- **`CollectionAccess` (`core/content/types.ts:355`)** — per-operation `AccessFn`s: `create`, `read`, `update`, `delete`, and a **separate** `publish`. "No access fn configured ⇒ that op is unconditionally allowed." An agent that passes a human's `EditorSession` as `context` therefore gets *exactly* that human's permissions with no new authz code.
+- **`createLocalApi` (`core/content/localApi.ts`)** — typed `find`/`findByID`/`count`/`search`/`reindexSearch`/`create`/`update`/`deleteByID`. Every method takes a `context` (Louise types it `{ session }`) as its first argument and runs the matching **access function** before touching D1 (`read` for `find`/`findByID`/`search`/`count`, `create`/`update`/`delete` for the writes). This _is_ the tool surface, and the access enforcement is already wired.
+- **`CollectionAccess` (`core/content/types.ts:355`)** — per-operation `AccessFn`s: `create`, `read`, `update`, `delete`, and a **separate** `publish`. "No access fn configured ⇒ that op is unconditionally allowed." An agent that passes a human's `EditorSession` as `context` therefore gets _exactly_ that human's permissions with no new authz code.
 - **Draft/version model (`core/editor/versions.ts`, `createVersionedLocalApi`)** — collections with `versions.drafts` get a `${slug}_versions` table and a `published_version_id` pointer; the live row is never mutated directly. `applySaveDraft` merges an edit into the newest pending draft and writes a new draft version; `publish` (gated by the distinct `publish` access fn) promotes it. This is the "writes go through drafts, not straight to published" path #103 calls for — already built.
 - **Editor route pattern (`core/editor/*`, `guardEditor`/`ResolveEditor`, `composeWorker`)** — framework-generic factories returning a `WorkerRoute`, mounted by `composeWorker` and runnable from Astro via `runEditorRoute`. The MCP endpoint is the same shape with a JSON-RPC body.
 - **Auth guard (`core/auth/guard.ts`)** — `requireEditor` runs a same-origin (`Origin`/`Referer`) CSRF check on mutations and **rejects when neither header is present**, so a non-browser client can't write on a session cookie alone.
@@ -51,7 +51,7 @@ Write tools call `applySaveDraft` / the versioned API's `saveDraft` — edits la
 
 ### 5. Auth: a bearer-token path distinct from the cookie/same-origin gate
 
-A headless agent sends no `Origin`/`Referer`, so `requireEditor`'s CSRF check would reject every write. The MCP endpoint therefore authenticates via a **bearer token** that `resolveMcpSession(request, env)` maps to an `EditorSession` (satisfying `ResolveEditor`'s shape); the token *is* the CSRF defense, so the same-origin check is bypassed for token-authenticated requests only. Tokens are scoped — which collections, read-vs-write, draft-vs-publish — and revocable. A browser-origin session cookie continues to work for same-origin callers (e.g. our own in-app AI assists).
+A headless agent sends no `Origin`/`Referer`, so `requireEditor`'s CSRF check would reject every write. The MCP endpoint therefore authenticates via a **bearer token** that `resolveMcpSession(request, env)` maps to an `EditorSession` (satisfying `ResolveEditor`'s shape); the token _is_ the CSRF defense, so the same-origin check is bypassed for token-authenticated requests only. Tokens are scoped — which collections, read-vs-write, draft-vs-publish — and revocable. A browser-origin session cookie continues to work for same-origin callers (e.g. our own in-app AI assists).
 
 ### 6. Packaging & distribution
 
@@ -61,16 +61,16 @@ New `./mcp` export in `packages/louise/package.json` (mirroring `./editor`/`./co
 
 Shipped as vertical, independently reviewable slices, per the repo's PR-per-slice norm:
 
-1. **`louise/mcp` core + tool generation** — pure `collectionTools(config)`, JSON-Schema from fields, `admin.hidden`/`readOnly` handling, section/block catalog wiring. Fully unit-testable, no transport. *(task: tool generation)*
-2. **Read MVP + transport** — hand-rolled Streamable-HTTP JSON-RPC `mcpRoute()` `WorkerRoute`; `initialize`/`tools/list`/`tools/call`; read tools over `createLocalApi` with the session as `context`. *(task: read tools MVP)*
-3. **Auth for headless agents** — `resolveMcpSession` bearer-token path → `EditorSession`, scoped + revocable tokens, same-origin bypass for token requests only. *(task: session/auth)*
-4. **Draft-gated write tools** — `update_field`/`add_section`/`add_block`/`create` via `applySaveDraft`; separate `publish` tool via the `publish` access fn; per-version agent provenance. *(task: write tools gated through drafts + `can()`)*
-5. **Publish + register** — `./mcp` export, Starlight docs, changeset, MCP-registry listing + manifest. *(task: publish + register)*
+1. **`louise/mcp` core + tool generation** — pure `collectionTools(config)`, JSON-Schema from fields, `admin.hidden`/`readOnly` handling, section/block catalog wiring. Fully unit-testable, no transport. _(task: tool generation)_
+2. **Read MVP + transport** — hand-rolled Streamable-HTTP JSON-RPC `mcpRoute()` `WorkerRoute`; `initialize`/`tools/list`/`tools/call`; read tools over `createLocalApi` with the session as `context`. _(task: read tools MVP)_
+3. **Auth for headless agents** — `resolveMcpSession` bearer-token path → `EditorSession`, scoped + revocable tokens, same-origin bypass for token requests only. _(task: session/auth)_
+4. **Draft-gated write tools** — `update_field`/`add_section`/`add_block`/`create` via `applySaveDraft`; separate `publish` tool via the `publish` access fn; per-version agent provenance. _(task: write tools gated through drafts + `can()`)_
+5. **Publish + register** — `./mcp` export, Starlight docs, changeset, MCP-registry listing + manifest. _(task: publish + register)_
 
 ## Consequences
 
 - Core stays zero-dep; the MCP server is a `WorkerRoute` `composeWorker` mounts and `runEditorRoute` runs from Astro — no new public transport contract.
-- Agents inherit human permissions verbatim (the `can()` path) and cannot bypass validation or hooks, because they call the *same* Local API.
+- Agents inherit human permissions verbatim (the `can()` path) and cannot bypass validation or hooks, because they call the _same_ Local API.
 - Agent edits are safe-by-default: draft-scoped, with publish a separately-gated privilege and an audit trail on every version.
 - One genuinely new security surface — the bearer-token issuer/scoper/revoker — is introduced deliberately in slice 3 and is the highest-review-value part of the feature.
 

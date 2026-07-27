@@ -4,10 +4,10 @@ Latin-subset variable woff2 files served from our own Cloudflare edge, so the
 public site (`src/styles/fonts.css`) never requests fonts from Google (#194).
 Both are licensed under the SIL Open Font License 1.1 (see the `*-OFL.txt` files).
 
-| File | Family | Axes kept | Size |
-| --- | --- | --- | --- |
-| `RobotoFlex-latin.woff2` | Roboto Flex | `wght` 100–1000, `wdth` 25–151% | ~55 KB |
-| `JetBrainsMono-latin.woff2` | JetBrains Mono | `wght` 100–800 | ~39 KB |
+| File                        | Family         | Axes kept                       | Size   |
+| --------------------------- | -------------- | ------------------------------- | ------ |
+| `RobotoFlex-latin.woff2`    | Roboto Flex    | `wght` 100–1000, `wdth` 25–151% | ~55 KB |
+| `JetBrainsMono-latin.woff2` | JetBrains Mono | `wght` 100–800                  | ~39 KB |
 
 Roboto Flex keeps only the two axes the design uses; the other 11 (`opsz`,
 `GRAD`, `slnt`, `XOPQ`, `YOPQ`, `XTRA`, `YTUC`, `YTLC`, `YTAS`, `YTDE`, `YTFI`)

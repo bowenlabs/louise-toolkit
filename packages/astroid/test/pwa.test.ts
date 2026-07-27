@@ -95,7 +95,9 @@ describe("generateServiceWorker", () => {
     const source = sw();
     // Navigations: content changes, so cache is the fallback, not the source.
     expect(source).toContain("req.mode === 'navigate'");
-    expect(source).toContain(".catch(() => caches.match(req).then((r) => r || caches.match(SCOPE)))");
+    expect(source).toContain(
+      ".catch(() => caches.match(req).then((r) => r || caches.match(SCOPE)))",
+    );
     // Hashed assets: the name changes when the content does, so cache-first is safe.
     expect(source).toContain("url.pathname.startsWith('/_astro/')");
     expect(source).toContain("caches.match(req).then(");
@@ -168,6 +170,8 @@ describe("generatePwaHeaders", () => {
     // location, and sw.js sits at the root — so every scope is narrower.
     // Emitting it anyway (as the reference does) implies a requirement that
     // isn't there, which misleads whoever later moves the script.
-    expect(generatePwaHeaders(withPwa({ scope: "/order" }))).not.toContain("Service-Worker-Allowed");
+    expect(generatePwaHeaders(withPwa({ scope: "/order" }))).not.toContain(
+      "Service-Worker-Allowed",
+    );
   });
 });

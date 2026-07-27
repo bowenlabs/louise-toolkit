@@ -74,7 +74,12 @@ function parseArgs(argv) {
 }
 
 const slugify = (s) =>
-  s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
 
 // --- toolkit versions ------------------------------------------------------
 
@@ -258,17 +263,20 @@ async function main() {
   const dirArg = positionals[0] ?? flags.dir;
   const rawName = flags.name || (dirArg ? basename(resolve(dirArg)) : undefined);
   const name = await prompt("Brand / site name", rawName || "My Astroid Site");
-  const key = slugify(flags.key || (await prompt("Project key (slug)", slugify(name) || "my-site")));
+  const key = slugify(
+    flags.key || (await prompt("Project key (slug)", slugify(name) || "my-site")),
+  );
   const dir = resolve(dirArg || (await prompt("Directory", key)) || key);
-  const archetypeRaw = (flags.archetype || (await prompt(`Archetype (${ARCHETYPES.join("/")})`, "marketing"))).toLowerCase();
+  const archetypeRaw = (
+    flags.archetype || (await prompt(`Archetype (${ARCHETYPES.join("/")})`, "marketing"))
+  ).toLowerCase();
   const archetype = ARCHETYPES.includes(archetypeRaw) ? archetypeRaw : "marketing";
   const color = flags.color || (await prompt("Brand color (hex)", "#5b4bff"));
   const host = flags.host && flags.host !== true ? flags.host : undefined;
   // The customer PORTAL is opt-in via --portal, but a storefront IMPLIES one — a
   // shop has customers who sign in, reorder, and track orders — so enable it there
   // by default. (Commerce below stays opt-in: infra a marketing site shouldn't carry.)
-  const portal =
-    flags.portal === true || flags.portal === "true" || archetype === "storefront";
+  const portal = flags.portal === true || flags.portal === "true" || archetype === "storefront";
   // The map module is opt-in and pulls real weight (maplibre-gl is ~1 MB), so
   // it is never on by default.
   const map = flags.map === true || flags.map === "true";

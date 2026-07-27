@@ -21,8 +21,7 @@ export const ASTROID_PMTILES_KEY = "map/basemap.pmtiles";
 export const ASTROID_PMTILES_PATH = "/map/basemap.pmtiles";
 
 /** True when this project switched the map module on. */
-export const usesMap = (config: AstroidConfig): boolean =>
-  (config.modules ?? []).includes("map");
+export const usesMap = (config: AstroidConfig): boolean => (config.modules ?? []).includes("map");
 
 /**
  * `src/pages/map/basemap.pmtiles.ts` — the range-serving tile route.
@@ -123,7 +122,7 @@ export function generateMapEmbedComponent(config: AstroidConfig): string | null 
     "",
     "{",
     "  show ? (",
-    '    <div',
+    "    <div",
     '      class="astroid-map"',
     "      data-astroid-map",
     "      data-lat={nlat}",
@@ -166,12 +165,12 @@ export function generateMapEmbedComponent(config: AstroidConfig): string | null 
     "      })));",
     "",
     "    const init = async (el: HTMLElement) => {",
-    '      const lat = Number(el.dataset.lat);',
-    '      const lng = Number(el.dataset.lng);',
+    "      const lat = Number(el.dataset.lat);",
+    "      const lng = Number(el.dataset.lng);",
     "      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;",
     "",
     "      const { maplibregl, Protocol } = await load();",
-    '      // Register the pmtiles:// protocol once so MapLibre range-reads the',
+    "      // Register the pmtiles:// protocol once so MapLibre range-reads the",
     "      // archive instead of requesting tile URLs.",
     '      maplibregl.addProtocol("pmtiles", new Protocol().tile);',
     "",
@@ -179,7 +178,7 @@ export function generateMapEmbedComponent(config: AstroidConfig): string | null 
     "        container: el,",
     '        style: JSON.parse(el.dataset.style ?? "{}"),',
     "        center: [lng, lat],",
-    '        zoom: Number(el.dataset.zoom ?? 15),',
+    "        zoom: Number(el.dataset.zoom ?? 15),",
     "        // A map that swallows page scroll is a trap on mobile; cooperative",
     "        // gestures require an explicit modifier/two fingers to pan.",
     "        cooperativeGestures: true,",
@@ -189,7 +188,7 @@ export function generateMapEmbedComponent(config: AstroidConfig): string | null 
     "      });",
     '      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");',
     "",
-    "      const pin = document.createElement(\"div\");",
+    '      const pin = document.createElement("div");',
     "      pin.style.cssText =",
     `        "width:18px;height:18px;border-radius:999px;background:${brand};" +`,
     '        "border:3px solid #fff;box-shadow:0 0 0 6px rgba(0,0,0,0.12);";',

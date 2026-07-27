@@ -48,8 +48,7 @@ export interface PwaConfig {
 }
 
 /** True when this project switched the PWA on. */
-export const usesPwa = (config: AstroidConfig): boolean =>
-  (config.modules ?? []).includes("pwa");
+export const usesPwa = (config: AstroidConfig): boolean => (config.modules ?? []).includes("pwa");
 
 /** Resolved PWA settings — config over derivation over default. */
 export function resolvePwa(config: AstroidConfig): Required<Omit<PwaConfig, "shell">> & {
@@ -102,8 +101,18 @@ export function generateWebManifest(config: AstroidConfig): string | null {
         // A maskable icon is a separate asset, not a flag on the same file: the
         // platform crops it to its own shape, so the artwork needs padding the
         // `any` icon shouldn't have.
-        { src: "/icons/maskable-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
-        { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        {
+          src: "/icons/maskable-192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "maskable",
+        },
+        {
+          src: "/icons/maskable-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        },
       ],
     },
     null,

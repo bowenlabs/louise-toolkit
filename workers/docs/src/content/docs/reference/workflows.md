@@ -37,7 +37,11 @@ Starts a new Workflow instance (the producer, mirroring `enqueue`). A `create` f
 with an existing id throws, so a stable key coalesces a double-trigger:
 
 ```ts
-await startWorkflow(env.PUBLISH_WORKFLOW, { collection: "pages", id }, { id: `publish:pages:${id}` });
+await startWorkflow(
+  env.PUBLISH_WORKFLOW,
+  { collection: "pages", id },
+  { id: `publish:pages:${id}` },
+);
 ```
 
 ## `defineWorkflow(steps, initialState?)`
@@ -49,10 +53,13 @@ function defineWorkflow<Env, Params, State extends object>(
 ): (env: Env, event: Readonly<WorkflowEvent<Params>>, step: WorkflowStep) => Promise<State>;
 
 interface WorkflowPipelineStep<Env, Params, State extends object> {
-  name: string;                 // stable — Workflows keys the persisted result by it
-  config?: WorkflowStepConfig;  // per-step retries / backoff / timeout
-  run: (ctx: { env: Env; payload: Readonly<Params>; state: Readonly<State> })
-    => Promise<Partial<State> | void> | Partial<State> | void;
+  name: string; // stable — Workflows keys the persisted result by it
+  config?: WorkflowStepConfig; // per-step retries / backoff / timeout
+  run: (ctx: {
+    env: Env;
+    payload: Readonly<Params>;
+    state: Readonly<State>;
+  }) => Promise<Partial<State> | void> | Partial<State> | void;
 }
 ```
 
@@ -73,21 +80,39 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { defineWorkflow } from "louise-toolkit/workflows";
 import { reindexDoc } from "louise-toolkit/content";
 
-interface PublishParams { collection: string; id: number }
-interface PublishState { ogKey?: string; reindexed?: boolean; notified?: boolean }
+interface PublishParams {
+  collection: string;
+  id: number;
+}
+interface PublishState {
+  ogKey?: string;
+  reindexed?: boolean;
+  notified?: boolean;
+}
 
 const runPublish = defineWorkflow<Env, PublishParams, PublishState>([
-  { name: "og",      run: ({ env, payload }) => ({ ogKey: renderAndStoreOg(env, payload) }) },
-  { name: "cache",   run: ({ env, state }) => { void warmCache(env, state.ogKey); } },
-  { name: "reindex", config: { retries: { limit: 5, delay: "10 seconds" } },
-                     run: async ({ env, payload }) => {
-                       await reindexDoc(db(env.DB), pages, pagesCollection, payload.id);
-                       return { reindexed: true };
-                     } },
-  { name: "webhook", run: async ({ env, payload }) => {
-                       await fetch(env.PUBLISH_WEBHOOK, { method: "POST", body: JSON.stringify(payload) });
-                       return { notified: true };
-                     } },
+  { name: "og", run: ({ env, payload }) => ({ ogKey: renderAndStoreOg(env, payload) }) },
+  {
+    name: "cache",
+    run: ({ env, state }) => {
+      void warmCache(env, state.ogKey);
+    },
+  },
+  {
+    name: "reindex",
+    config: { retries: { limit: 5, delay: "10 seconds" } },
+    run: async ({ env, payload }) => {
+      await reindexDoc(db(env.DB), pages, pagesCollection, payload.id);
+      return { reindexed: true };
+    },
+  },
+  {
+    name: "webhook",
+    run: async ({ env, payload }) => {
+      await fetch(env.PUBLISH_WEBHOOK, { method: "POST", body: JSON.stringify(payload) });
+      return { notified: true };
+    },
+  },
 ]);
 
 export class PublishWorkflow extends WorkflowEntrypoint<Env, PublishParams> {
@@ -108,6 +133,6 @@ bind it in `wrangler.jsonc`:
 
 :::note[Cloudflare owns durability]
 Retry limits, backoff, and step persistence are Workflows' job — configure retries per step via
-`config.retries`. A step's own throw surfaces as-is so Workflows can retry it; only failing to *start*
+`config.retries`. A step's own throw surfaces as-is so Workflows can retry it; only failing to _start_
 an instance raises `LouiseWorkflowError`.
 :::

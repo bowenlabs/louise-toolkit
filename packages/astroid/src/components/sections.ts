@@ -30,12 +30,7 @@
 // import is TYPE-ONLY, so it erases at build and never drags the validator (or
 // drizzle, which that entry pulls in) into a page bundle.
 
-import type {
-  SectionCatalog,
-  SectionDef,
-  SectionField,
-  SectionItem,
-} from "louise-toolkit/content";
+import type { SectionCatalog, SectionDef, SectionField, SectionItem } from "louise-toolkit/content";
 
 export type { SectionCatalog, SectionDef, SectionField, SectionItem };
 
