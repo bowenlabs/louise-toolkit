@@ -154,9 +154,7 @@ path** (`waitUntil`), so a slow webhook/mail never delays the visitor:
 ```ts
 defineForm({
   name: "inquiries",
-  fields: {
-    /* … */
-  },
+  fields: {/* … */},
   notify: { webhook: env.SLACK_WEBHOOK, email: { to: "hello@studio.com" } },
 });
 ```
