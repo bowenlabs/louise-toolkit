@@ -1,5 +1,270 @@
 # louise-toolkit
 
+## 0.19.0
+
+### Minor Changes
+
+- e7e0f56: Editor: the block toolbar's `+` opens a type-picker when a section accepts more than one block type.
+
+  **Why.** `addBlock` resolved the new block's type as `blocks.allow[0]` — the first
+  allowed type — so a section declaring `allow: ["image", "text", "button"]` could
+  only ever grow `image` blocks, and the other two were unreachable from the canvas.
+  That made the block layer usable for single-type sections only, which is not what
+  ADR 0005 §4 promises and is what blocked a block-capable Content section.
+
+  **What changed.** `+` now resolves the section's full allowed set and:
+
+  - **one type** — inserts it straight away, unchanged from before (no prompt for a
+    choice that isn't a choice);
+  - **several types** — opens the same palette the section `+` uses, anchored under
+    the block, labelled `Add a block`, dismissed on outside-press / Escape.
+
+  Insertion stays **after** the hovered block. That is deliberately the opposite of
+  the section `+` (which inserts _above_): a section list is navigated as a page you
+  push things down in, whereas a section's blocks read as a list you extend
+  downward.
+
+  **`allow` omitted now means "any block type".** ADR 0005 §4 always defined it that
+  way, but `allow?.[0]` on an absent `allow` yielded `undefined`, so `blocks: {}`
+  silently produced a dead `+`. Those sections now offer the whole `BlockCatalog`.
+  A section with no `blocks` policy at all is unaffected — it is not opted into the
+  block layer and gets no add affordance.
+
+  Block types listed in `allow` that have no `BlockCatalog` entry are dropped from
+  the picker rather than offered: without a field shape there is no blank to seed.
+
+- e7e0f56: Editor: History moves into the Settings drawer, and the bar's "Done" becomes a real "Sign out".
+
+  Phase 2 of the editor overhaul (coracle.coffee#36) — declutter the bar and stop
+  splitting account actions across two surfaces.
+
+  ## History
+
+  The version-history **trigger** moved into the Settings drawer's top strip, next
+  to Pages/Media/Settings. The **drawer itself did not move** and is still not a
+  Settings panel: versions are per-**page**, Settings is global, and the sections
+  surface mounts independently of `mountSettings`. Making history a panel would have
+  meant threading a page context into a global shell and losing history entirely on
+  sections-only hosts.
+
+  So the two surfaces hand off through window events, and each degrades on its own:
+
+  - A mounted sections surface sets `data-louise-history` on `<html>`. Settings only
+    renders the History icon when it's there, so the icon is never a dead button on
+    a host that mounts Settings but no sections.
+  - Clicking History closes the Settings drawer before opening the history one —
+    two stacked modals would fight over the focus trap.
+  - Sections keeps its own bar History button **only** when Settings isn't mounted.
+    It detects `#louise-drawer-root` on mount and also listens for
+    `SETTINGS_READY_EVENT`, so either mount order resolves correctly.
+
+  New exports from `louise-toolkit/editor` settings: `OPEN_HISTORY_EVENT`,
+  `SETTINGS_READY_EVENT`, `HISTORY_READY_ATTR`.
+
+  ## Sign out
+
+  ⚠️ **The bar's rightmost action now ends the session.** "Done" was an `<a>` to
+  `?louise=off`, which cleared the edit-mode cookie and left the session fully
+  open — so on a shared machine the control that _looks_ like leaving didn't log
+  anyone out, and the only real sign-out was buried in the Settings drawer. It is
+  now a `<button>` labelled **Sign out** that POSTs `/api/auth/sign-out` and _then_
+  drops edit mode. The sign-out call is best-effort: if it fails, edit mode is still
+  dropped, so a user can't be stranded in an editor they asked to leave.
+
+  The duplicate **Session → Sign out** group is gone from the Settings panel.
+  `settingsExtras` is unaffected. No CSS change — `.louise-exit` already shared its
+  rule block with `.louise-settings`, which was already a button.
+
+- e7e0f56: Editor overhaul, Phase 0 (correctness) + Phase 1 (chrome and the add flow).
+
+  Backfills the changeset for #323, which merged without one.
+
+  ## Correctness
+
+  **Grammar checker latches off when `harper.js` is missing.** A missing or broken
+  optional peer made the editor re-import — and re-fail — the linter on every typing
+  pause, flooding the console and doing repeated rejected-promise work on the hot
+  path, which could intermittently break a section save. The first load failure now
+  latches a module-scoped flag: log once, stop scheduling. Teardown gained a
+  `.catch` so a pending load can't surface as an unhandled rejection.
+
+  **Page links, CTAs and forms are inert while editing.** A stray click on a link
+  used to navigate away mid-session; a form could submit. Both are now suppressed in
+  edit mode, so the click lands on the label as an inline edit instead. Implemented
+  as capture-phase `preventDefault` only — no `stopPropagation` — so inline-edit
+  focus still arrives and site CSS/hover is untouched. The editor's own chrome is
+  exempt.
+
+  **Rich text gained an `inline` single-line mode.** Editing a heading or tagline
+  used to be able to turn it into a `<p>`/`<h2>` nested _inside_ the site's own
+  heading element, silently losing the brand style. `inline` restricts to inline
+  formatting, suppresses block-splitting keys, and serializes the value as inline
+  HTML with no block wrapper. An `image` toggle controls the insert-image button.
+  Threaded through `mountRichText`.
+
+  ## Chrome and the add flow
+
+  **Toolbar glyphs are phosphor SVGs** (arrow-up/down, x, plus, wrench) rather than
+  unicode/emoji — monochrome, `currentColor`, consistent across platforms.
+
+  ⚠️ **This changes how toolbar buttons are located.** They no longer carry glyph
+  text, so any selector or test matching on `textContent` (`"⚙"`, `"+"`, `"✕"`)
+  stops matching. Use the `aria-label` instead — e.g. `"Layout & settings"`,
+  `"Add block after"`, `"Add section above"`.
+
+  **`SectionChromeActions.onAdd`** is new (optional): supplying it gives the section
+  toolbar a `+`.
+
+  **The `+` opens a type-picker that inserts ABOVE the clicked section.** The
+  floating "Add section" control is gone, replaced by an in-flow trailing add — and
+  a single centred `+` on an empty page. `addSection(type, atIndex)` takes the
+  insert index.
+
+  **`inline: false` array fields render an editable input per item** in the
+  inspector, so array content (marquee words, contact topics) is finally typeable
+  rather than read-only.
+
+  Additive and backwards-compatible throughout — existing behavior is unchanged
+  unless a site opts in via `richText` or `onAdd`. The glyph-to-SVG change is the
+  one thing that can break a downstream selector.
+
+- 5b4d17b: `richTextModes` — per-field rich-text presets for section fields.
+
+  **Why.** `SectionsEditorProps.richText` applied one options object to _every_
+  `data-louise-type="richtext"` field on the page, which falls apart as soon as a
+  site has both kinds of rich text. A site whose headings need `inline` (so editing
+  an `<h1>` can't produce a nested `<p>` that loses the brand style) was forcing that
+  same single-line mode onto prose bodies, where it suppresses exactly the block
+  formatting — paragraphs, lists — that a body needs.
+
+  A render now opts an individual field into a named preset by stamping
+  `data-louise-rt` beside the type marker:
+
+  ```ts
+  mountSections(el, {
+    richText: { inline: true }, // every heading
+    richTextModes: { prose: { minimal: false, grammar: true } }, // opted-in bodies
+  });
+  ```
+
+  ```astro
+  <div data-louise-type="richtext" data-louise-rt="prose" set:html={body} />
+  ```
+
+  Resolution is per field: the named mode, else `richText`, else the light-inline
+  bubble. An **unknown** mode name falls back to the site default rather than
+  throwing — a render stamped for a mode the mount doesn't declare should degrade to
+  the default, not lose its editor.
+
+  Fully additive: a mount that sets no `richTextModes` behaves exactly as before.
+
+- 977a2de: Square multi-location: per-merchant pricing, presence, batch catalog + inventory writes, and reporting.
+
+  **Why.** A multi-merchant site maps each merchant to a Square **Location**, which
+  is what buys per-merchant pricing and per-merchant stock off one shared catalog at
+  no extra cost (Locations are free; the cap is 300). The client had none of the
+  location surface, so every one of those reads and writes was unavailable.
+
+  **`listLocations` / `retrieveLocation`.** `retrieveLocation` returns `null` on a
+  404 rather than throwing: "this merchant has no Square location yet" is a
+  legitimate state, not an exception the caller should have to catch.
+
+  **Per-location pricing and presence, on read and write.** `SquareVariation` gains
+  `locationOverrides`, and both it and `SquareCatalogItem` carry the three presence
+  fields. Two helpers hold the logic so no caller re-derives it:
+
+  - `presentAt(presence, locationId)` — Square's two lists are **not** symmetric:
+    `present_at_location_ids` is a whitelist used when `present_at_all_locations` is
+    false, `absent_at_location_ids` a blacklist used when it is true. Inverting that
+    silently shows a merchant products they do not carry.
+  - `priceAtLocation(variation, locationId)` — the location's override price where
+    one is set, else the base price. An override that adjusts availability without
+    setting a price correctly falls back rather than reading as free.
+
+  `upsertCatalogItem` and `CatalogVariationInput` accept `presence` and
+  `locationOverrides`; unset keys are omitted from the request body so a write never
+  clobbers Square-side presence with an accidental default. An override that sets a
+  price also sends `pricing_type: FIXED_PRICING`, without which Square keeps
+  inheriting `VARIABLE_PRICING` from the parent.
+
+  **`retrieveVariationPricesAt`** — the multi-merchant checkout guard. Verifying a
+  cart against base prices would let a customer pay the cheapest merchant's price at
+  the dearest merchant's storefront, so re-price against the location the order is
+  actually placed at. A variation absent at that location is **omitted** from the
+  result, so a caller requiring every id to resolve fails closed instead of selling
+  stock the merchant does not carry.
+
+  **`batchUpsertCatalogObjects`** — one request instead of one per item, which is
+  what keeps a full catalog push from becoming a rate-limit problem. Splits across
+  Square's 10-batch limit. The call is atomic: one stale `version` fails the whole
+  batch, which is the right trade for a price push (no half-applied change).
+
+  **`batchChangeInventory` / `setPhysicalCount`.** Note the direction of truth —
+  D1 owns price, presence and placement; **Square owns inventory counts**. These
+  exist for the reconcile path (a physical recount, seeding a new merchant's opening
+  stock), not for mirroring a D1 number over Square's. Prefer `PHYSICAL_COUNT`: it
+  sets an absolute quantity, so a replayed message lands on the same number, whereas
+  a replayed `ADJUSTMENT` double-counts.
+
+  **`searchOrders`** — the reporting rail (best-sellers, per-merchant totals,
+  reorder suggestions), following the cursor. Defaults to `COMPLETED` only: leaving
+  the state filter open counts `OPEN` and `CANCELED` orders as revenue and quietly
+  inflates every downstream report. The sort field is derived from the date field,
+  because Square rejects a search where the two disagree.
+
+  **`SquareConfig.retry`** — opt-in transient-failure retry with `Retry-After`
+  support and jittered exponential backoff, for unattended paths (cron sync, queue
+  consumers). **Off by default**, so existing callers are unchanged. Retries 429 and
+  5xx only — a 400/401 is our bug and will stay wrong. Retrying POSTs is safe here
+  precisely because every mutating endpoint already takes an `idempotency_key`.
+
+  `mapCatalogItem`'s return value gains fields (additive; only exact-equality
+  assertions are affected).
+
+- 977a2de: Square hosted checkout links, a QR encoder, and two silent-failure fixes.
+
+  **`louise-toolkit/commerce/square`** — `createPaymentLink` / `retrievePaymentLink` /
+  `deletePaymentLink` over `/v2/online-checkout/payment-links`, plus the `sqDelete`
+  helper they need. Prefer the `order` form over `quickPay`: it is the only one that
+  carries a `referenceId` onto the resulting Order, which is how an in-person sale
+  stays attributable — the reference survives into the merchant's own Square
+  dashboard and the Transactions export. Its line items may be ad-hoc, so a site can
+  sell from its own catalog without mirroring anything into Square first. The
+  alternative rail (`commerce/square-web`) mounts a card field only; a hosted link
+  gets Apple Pay / Google Pay / Cash App Pay from a config flag, which is what a
+  shopper standing in a shop with a phone actually wants. Order line-item
+  serialization is now shared with `createOrder` so the two cannot drift.
+
+  **`louise-toolkit/qr`** — a new subpath: a vendored ISO/IEC 18004 byte-mode
+  encoder (`encodeQr`) and SVG rendering (`qrSvg`, `qrDataUri`). Vendored rather
+  than depended on because the package ships with zero runtime dependencies and QR
+  is a frozen spec — the same call already made for hand-rolled SVG in
+  `core/browser/og-card.ts`. Byte mode only: the payloads are URLs, so alphanumeric
+  mode could never apply. Full 8-mask penalty evaluation (fixing a mask produces
+  codes some scanners refuse), a 4-module quiet zone by default, and dark modules
+  emitted as ONE run-merged `<path>` rather than a rect per module — roughly 4x
+  smaller, which is what keeps a code inlineable. Pure string generation, no
+  bindings, so a QR route works with every commerce secret still a placeholder.
+  Hand `qrSvg()` to `core/browser/resvg.ts` for a PNG.
+
+  **`astroidjs` — `SQUARE_ENVIRONMENT` was withheld from invoicing-only sites.**
+  Both Square vars were gated on `usesCardCheckout` (storefront === `"square"`), but
+  `SQUARE_ENVIRONMENT` selects the API host for _every_ Square call and
+  `SquareConfig.environment` defaults to `"sandbox"`. A project running
+  `{ storefront: "fourthwall", invoicing: "square" }` therefore got no var and
+  created every **production** invoice against the sandbox — no error, no warning.
+  The two vars are now gated separately: `SQUARE_APP_ID` for the browser card field,
+  `SQUARE_ENVIRONMENT` whenever Square holds any role. Same fix in
+  `generateAstroidCheckoutEnv`.
+
+  **`astroidjs` — per-provider dormancy gating.** `CommerceStatus.configured` is an
+  all-or-nothing `every()`, correct for "is the module ready" and wrong for gating a
+  single call site: with Fourthwall live and Square dormant it reads `false`, so
+  gating on it would have simulated the _working_ Fourthwall checkout. Adds
+  `providerConfigured(status, provider)` and `roleConfigured(status, role)`;
+  `ProviderStatus.roles` widens to `CommerceRole[]`. The aggregate is unchanged, so
+  this is additive.
+
 ## 0.18.0
 
 ### Minor Changes

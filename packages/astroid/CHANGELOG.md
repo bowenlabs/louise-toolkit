@@ -1,5 +1,141 @@
 # astroidjs
 
+## 0.4.0
+
+### Minor Changes
+
+- e7e0f56: `AstroidConfig.blockCatalog` — thread the site's block types into the `pages` write contract.
+
+  **Why.** `validateSections` and `sanitizeSectionsRichText` have both taken a
+  `blockCatalog` since ADR 0005, but Astroid's write hooks passed neither and the
+  config had no key to put one in. So a site could declare `blocks: { allow: [...] }`
+  on a section, wire the on-canvas block toolbar, add a block — and have every save
+  422 with "unknown block type". The editor looked like it worked and nothing
+  persisted.
+
+  Unlike `sectionCatalog` there is no built-in vocabulary to fall back on: block
+  types are wholly site-defined. So the default is `{}`, which is correct for a
+  sections-only site (with no section declaring a `blocks` policy, no block is ever
+  reached) and load-bearing for everyone else.
+
+  **It gates sanitization too, not just validation.** A block's rich-text fields are
+  only scrubbed when its def is resolvable, so this is what makes a `richText` block
+  field go through `sanitizeRichHtml` on write.
+
+  Wired into both write paths — the collection's `beforeChange` hook (the
+  `versionsRoute` path) and `astroidPagesWriteHooks` (the raw `pagesRoute` path) —
+  so the two keep enforcing one contract.
+
+  Sites using the block layer must now set it:
+
+  ```ts
+  export default defineAstroidConfig({
+    sectionCatalog: SECTIONS,
+    blockCatalog: BLOCKS, // ← required once any section declares `blocks`
+  });
+  ```
+
+  Additive: a site that sets neither is unchanged.
+
+- 977a2de: A `pos` commerce role, and `square.locations: "multi"` for multi-merchant projects.
+
+  **`pos` — in-person selling as its own role.** Physical stock held at real places
+  and sold at a counter, rather than through the site's own cart. It is separate
+  from `storefront` because a site commonly runs both, and the two need different
+  things: only `pos` needs locations, per-location pricing, and inventory.
+
+  themidwestartist.com is the case in point — print-on-demand merch through
+  Fourthwall (`storefront`), originals and self-stocked prints through Square
+  (`pos`) across several shops and galleries. Neither provider can do the other's
+  job, which is the same reason `invoicing` already exists.
+
+  Only Square can serve `pos`, and that is a fact about the clients rather than a
+  preference: the role needs `listLocations`, `location_overrides` and
+  `batchChangeInventory`, none of which the Stripe or Fourthwall clients expose.
+  Fourthwall's Platform API is create-only for products, so it cannot model stock
+  held at a place at all. `assertCommerceRoles` rejects the assignment at config
+  load with a message naming the alternatives, rather than at runtime as a missing
+  function.
+
+  **`commerce.square.locations`.** `"single"` (the default) is the ordinary case:
+  one location, its id supplied once as `SQUARE_LOCATION_ID`. `"multi"` is the
+  multi-merchant model, where each merchant is a Square Location and the location
+  id comes from the _request_ — which merchant's storefront is this? — rather than
+  from the environment.
+
+  Setting `"multi"` **drops `SQUARE_LOCATION_ID` from the provider's credential
+  gate entirely.** Not because it is merely unnecessary, but because it is
+  hazardous: any code path that defaulted to an ambient location id would ring one
+  merchant's sale against another merchant's books, and would look perfectly
+  successful doing it. Leaving the name present-but-ignored is the kind of thing
+  someone later "fixes" by using it, so it is removed rather than made optional.
+  The access token and webhook secret are unchanged, and other providers are
+  untouched.
+
+  A `commerce.square` block with no role assigned to Square is now a config error —
+  otherwise a typo'd config looks like it opted into multi-location while nothing
+  reads the setting.
+
+  **New exports:** `hasPos(commerce)`, `hasMultiLocation(commerce)`, and
+  `commerceProviderCredentials(provider, commerce)` — the config-aware replacement
+  for reading `COMMERCE_PROVIDER_SECRETS[provider].credentials` directly.
+  `CommerceRole` gains `"pos"`, and `ResolvedCommerceRoles` gains an optional
+  `pos`. All additive; existing configs and role resolution are unchanged.
+
+### Patch Changes
+
+- 977a2de: Square hosted checkout links, a QR encoder, and two silent-failure fixes.
+
+  **`louise-toolkit/commerce/square`** — `createPaymentLink` / `retrievePaymentLink` /
+  `deletePaymentLink` over `/v2/online-checkout/payment-links`, plus the `sqDelete`
+  helper they need. Prefer the `order` form over `quickPay`: it is the only one that
+  carries a `referenceId` onto the resulting Order, which is how an in-person sale
+  stays attributable — the reference survives into the merchant's own Square
+  dashboard and the Transactions export. Its line items may be ad-hoc, so a site can
+  sell from its own catalog without mirroring anything into Square first. The
+  alternative rail (`commerce/square-web`) mounts a card field only; a hosted link
+  gets Apple Pay / Google Pay / Cash App Pay from a config flag, which is what a
+  shopper standing in a shop with a phone actually wants. Order line-item
+  serialization is now shared with `createOrder` so the two cannot drift.
+
+  **`louise-toolkit/qr`** — a new subpath: a vendored ISO/IEC 18004 byte-mode
+  encoder (`encodeQr`) and SVG rendering (`qrSvg`, `qrDataUri`). Vendored rather
+  than depended on because the package ships with zero runtime dependencies and QR
+  is a frozen spec — the same call already made for hand-rolled SVG in
+  `core/browser/og-card.ts`. Byte mode only: the payloads are URLs, so alphanumeric
+  mode could never apply. Full 8-mask penalty evaluation (fixing a mask produces
+  codes some scanners refuse), a 4-module quiet zone by default, and dark modules
+  emitted as ONE run-merged `<path>` rather than a rect per module — roughly 4x
+  smaller, which is what keeps a code inlineable. Pure string generation, no
+  bindings, so a QR route works with every commerce secret still a placeholder.
+  Hand `qrSvg()` to `core/browser/resvg.ts` for a PNG.
+
+  **`astroidjs` — `SQUARE_ENVIRONMENT` was withheld from invoicing-only sites.**
+  Both Square vars were gated on `usesCardCheckout` (storefront === `"square"`), but
+  `SQUARE_ENVIRONMENT` selects the API host for _every_ Square call and
+  `SquareConfig.environment` defaults to `"sandbox"`. A project running
+  `{ storefront: "fourthwall", invoicing: "square" }` therefore got no var and
+  created every **production** invoice against the sandbox — no error, no warning.
+  The two vars are now gated separately: `SQUARE_APP_ID` for the browser card field,
+  `SQUARE_ENVIRONMENT` whenever Square holds any role. Same fix in
+  `generateAstroidCheckoutEnv`.
+
+  **`astroidjs` — per-provider dormancy gating.** `CommerceStatus.configured` is an
+  all-or-nothing `every()`, correct for "is the module ready" and wrong for gating a
+  single call site: with Fourthwall live and Square dormant it reads `false`, so
+  gating on it would have simulated the _working_ Fourthwall checkout. Adds
+  `providerConfigured(status, provider)` and `roleConfigured(status, role)`;
+  `ProviderStatus.roles` widens to `CommerceRole[]`. The aggregate is unchanged, so
+  this is additive.
+
+- Updated dependencies [e7e0f56]
+- Updated dependencies [e7e0f56]
+- Updated dependencies [e7e0f56]
+- Updated dependencies [5b4d17b]
+- Updated dependencies [977a2de]
+- Updated dependencies [977a2de]
+  - louise-toolkit@0.19.0
+
 ## 0.3.2
 
 ### Patch Changes
