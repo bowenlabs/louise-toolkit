@@ -29,6 +29,48 @@ import wrench from "@phosphor-icons/core/assets/regular/wrench.svg?raw";
 export const SECTION_MARKER_ATTR = "data-louise-section";
 /** The attribute each rendered block carries in edit mode (Phase 2). */
 export const BLOCK_MARKER_ATTR = "data-louise-block";
+/** The attribute a rendered link/CTA carries in edit mode (coracle.coffee#38). */
+export const LINK_MARKER_ATTR = "data-louise-link";
+
+/** Which field holds a marked link's destination — the parsed form of a
+ *  `data-louise-link` marker. `block` is absent for a section-level CTA. */
+export interface LinkRef {
+  section: number;
+  block?: number;
+  /** The field key on that section/block, e.g. `ctaHref`. */
+  key: string;
+}
+
+/**
+ * Parse a `data-louise-link` value into a {@link LinkRef}, or `null` if it isn't
+ * one of the two supported shapes:
+ *
+ *   "<i>.<key>"                 → section i's `<key>`     (a section-level CTA)
+ *   "<i>.blocks.<j>.<key>"      → block j's `<key>`       (a CTA inside a block)
+ *
+ * Unlike a block marker this points at a **field**, not a container: a link's
+ * identity is the destination it edits, and move/delete belong to whatever owns
+ * it. Malformed stamps are skipped rather than crashing the chrome, matching the
+ * section and block readers.
+ */
+export function parseLinkMarker(value: string | null): LinkRef | null {
+  if (!value) return null;
+  const parts = value.split(".");
+  const nonNegative = (n: number) => Number.isInteger(n) && n >= 0;
+
+  if (parts.length === 2) {
+    const section = Number(parts[0]);
+    if (!nonNegative(section) || !parts[1]) return null;
+    return { section, key: parts[1] };
+  }
+  if (parts.length === 4 && parts[1] === "blocks") {
+    const section = Number(parts[0]);
+    const block = Number(parts[2]);
+    if (!nonNegative(section) || !nonNegative(block) || !parts[3]) return null;
+    return { section, block, key: parts[3] };
+  }
+  return null;
+}
 
 /** A marked section element and its stamped array index. */
 export interface MarkedSection {
@@ -159,6 +201,20 @@ export interface SectionChromeActions {
    *  toolbar. The index is the clicked section's index; the new section takes it. */
   onAdd?: (index: number) => void;
   blocks?: BlockChromeActions;
+  /** Supply to light the LINK layer (coracle.coffee#38) — a violet ring and a
+   *  wrench-only toolbar over any element carrying a `data-louise-link` marker.
+   *  Omit for a chrome without link editing. */
+  links?: LinkChromeActions;
+}
+
+/** Actions the link toolbar exposes. Wrench ONLY, deliberately: a CTA's position
+ *  and existence belong to whatever contains it — the section or block — so
+ *  offering move/delete here would either duplicate those or, worse, imply a link
+ *  can be reordered independently of the copy around it. All this layer owns is
+ *  "where does it go". */
+export interface LinkChromeActions {
+  // Property (arrow) form — see BlockChromeActions above.
+  onInspect: (ref: LinkRef) => void;
 }
 
 const CHROME_STYLE_ID = "louise-chrome-style";
@@ -169,6 +225,12 @@ const CHROME_CSS = `
 }
 [${BLOCK_MARKER_ATTR}].louise-block-active {
   box-shadow: 0 0 0 2px var(--louise-blue, #1481ef);
+  border-radius: 4px;
+}
+/* Violet, not green or yellow: those two are reserved for the reference rings
+   (internal-shared / external-source) in Phase 3, and a link is neither. */
+[${LINK_MARKER_ATTR}].louise-link-active {
+  box-shadow: 0 0 0 2px var(--louise-violet, #7c3aed);
   border-radius: 4px;
 }
 .louise-chrome-toolbar {
@@ -357,8 +419,27 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
       )
     : null;
 
+  // The link toolbar is built inline rather than through makeToolbar: it carries
+  // one button, and threading "no move, no delete, no add" through that factory
+  // would make every existing call site read as a pile of undefineds.
+  const linkActions = opts.links;
+  const linkToolbar = ((): { toolbar: HTMLElement; cog: HTMLButtonElement } | null => {
+    if (!linkActions) return null;
+    const toolbar = doc.createElement("div");
+    toolbar.className = "louise-chrome-toolbar louise-link-toolbar";
+    toolbar.dataset.open = "0";
+    toolbar.setAttribute("role", "toolbar");
+    toolbar.setAttribute("aria-orientation", "horizontal");
+    toolbar.setAttribute("aria-label", "Link actions");
+    const cog = button(wrench, "Link destination");
+    toolbar.appendChild(cog);
+    doc.body.appendChild(toolbar);
+    return { toolbar, cog };
+  })();
+
   let activeSection: { index: number; el: HTMLElement } | null = null;
   let activeBlock: { ref: BlockRef; el: HTMLElement } | null = null;
+  let activeLink: { ref: LinkRef; el: HTMLElement } | null = null;
 
   const clearSection = (): void => {
     activeSection?.el.classList.remove("louise-chrome-active");
@@ -370,9 +451,29 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     activeBlock = null;
     if (block) block.toolbar.dataset.open = "0";
   };
+  const clearLink = (): void => {
+    activeLink?.el.classList.remove("louise-link-active");
+    activeLink = null;
+    if (linkToolbar) linkToolbar.toolbar.dataset.open = "0";
+  };
+
+  const activateLink = (ref: LinkRef, el: HTMLElement): void => {
+    if (!linkToolbar) return;
+    // A link nests inside its section (and possibly a block), so lighting it must
+    // suppress both — exactly one layer is active at a time.
+    clearSection();
+    clearBlock();
+    if (activeLink && activeLink.el !== el) {
+      activeLink.el.classList.remove("louise-link-active");
+    }
+    activeLink = { ref, el };
+    el.classList.add("louise-link-active");
+    placeToolbar(linkToolbar.toolbar, el);
+  };
 
   const activateSection = (index: number, el: HTMLElement): void => {
     clearBlock();
+    clearLink();
     if (activeSection && activeSection.el !== el) {
       activeSection.el.classList.remove("louise-chrome-active");
     }
@@ -387,6 +488,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
   const activateBlock = (ref: BlockRef, el: HTMLElement): void => {
     if (!block) return;
     clearSection();
+    clearLink();
     if (activeBlock && activeBlock.el !== el) {
       activeBlock.el.classList.remove("louise-block-active");
     }
@@ -400,19 +502,38 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
 
   const onOver = (e: Event): void => {
     const target = e.target as Node | null;
-    if (target && (section.toolbar.contains(target) || block?.toolbar.contains(target))) return;
+    if (
+      target &&
+      (section.toolbar.contains(target) ||
+        block?.toolbar.contains(target) ||
+        linkToolbar?.toolbar.contains(target))
+    ) {
+      return;
+    }
     const from = target instanceof Element ? target : (target?.parentElement ?? null);
-    const selector = block
-      ? `[${BLOCK_MARKER_ATTR}], [${SECTION_MARKER_ATTR}]`
-      : `[${SECTION_MARKER_ATTR}]`;
+    // Selector order doesn't decide the winner — `closest` returns the tightest
+    // marked ancestor regardless — but every participating layer has to be in it.
+    const selector = [
+      ...(linkToolbar ? [`[${LINK_MARKER_ATTR}]`] : []),
+      ...(block ? [`[${BLOCK_MARKER_ATTR}]`] : []),
+      `[${SECTION_MARKER_ATTR}]`,
+    ].join(", ");
     const el = from?.closest<HTMLElement>(selector) ?? null;
     if (!el) {
       clearSection();
       clearBlock();
+      clearLink();
       return;
     }
     // Deepest-boundary-wins: `closest` returns the tightest marked ancestor, so a
-    // block (nested in its section) beats the section it lives in.
+    // link beats the block it sits in, which beats the section around that.
+    if (linkToolbar && el.hasAttribute(LINK_MARKER_ATTR)) {
+      const ref = parseLinkMarker(el.getAttribute(LINK_MARKER_ATTR));
+      if (ref) {
+        activateLink(ref, el);
+        return;
+      }
+    }
     if (block && el.hasAttribute(BLOCK_MARKER_ATTR)) {
       const ref = parseBlockMarker(el.getAttribute(BLOCK_MARKER_ATTR));
       if (ref) {
@@ -425,6 +546,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     else {
       clearSection();
       clearBlock();
+      clearLink();
     }
   };
 
@@ -452,6 +574,13 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     if (block.cog && blockActions.onInspect) {
       block.cog.addEventListener("click", blockAct(blockActions.onInspect));
     }
+  }
+  if (linkToolbar && linkActions) {
+    const onInspect = linkActions.onInspect;
+    linkToolbar.cog.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      if (activeLink) onInspect(activeLink.ref);
+    });
   }
   // ── Keyboard path (a11y) ───────────────────────────────────────────────────
   // The hover chrome above is mouse-only; mirror it for the keyboard so a section
@@ -601,6 +730,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     doc.removeEventListener("keydown", onKeyDown, true);
     clearSection();
     clearBlock();
+    clearLink();
     // Remove only the keyboard affordances we added (never an author's own attrs).
     for (const el of doc.querySelectorAll<HTMLElement>("[data-louise-kbd]")) {
       el.removeAttribute("tabindex");
@@ -609,6 +739,7 @@ export function mountSectionChrome(opts: SectionChromeActions): () => void {
     }
     section.toolbar.remove();
     block?.toolbar.remove();
+    linkToolbar?.toolbar.remove();
     doc.getElementById(CHROME_STYLE_ID)?.remove();
   };
 }

@@ -31,6 +31,7 @@ import {
   deleteBlockElement,
   deleteSectionElement,
   insertSectionElement,
+  type LinkRef,
   moveBlockElement,
   mountSectionChrome,
   moveSectionElement,
@@ -614,6 +615,18 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           // `+` add only when a block catalog is available (it needs the block's
           // field shape to seed a blank); gates the toolbar's add button too.
           ...(props.blocks ? { onAdd: (r: BlockRef) => addBlock(r.section, r.block) } : {}),
+        },
+        // Link layer (#38): a violet ring + wrench over any marked CTA. The wrench
+        // opens the inspector of whatever OWNS the link — the destination is a
+        // field on that section or block, so this is the same popover the ⚙ opens,
+        // reached from the link itself rather than from the container around it.
+        links: {
+          onInspect: (r: LinkRef) =>
+            openInspector(
+              r.block === undefined
+                ? { kind: "section", index: r.section }
+                : { kind: "block", section: r.section, block: r.block },
+            ),
         },
       }),
     );
