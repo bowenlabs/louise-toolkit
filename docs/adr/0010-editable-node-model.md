@@ -75,21 +75,32 @@ Replace the three hardcoded layers with **one recursive editable node**. Every
 marked element declares three things:
 
 - **path** — one grammar, one parser, one re-stamper.
-- **role** — `container` (holds ordered children) · `item` (a child) · `value` (a
-  field).
+- **capabilities** — independent, not an exclusive role:
+  - `ordered` — has a position in a parent's list, so it can move and delete;
+  - `children` — holds an ordered list, so it can be added to;
+  - `fields` — has an inspector.
 - **source** — where its truth lives: `page` (staged into a draft) · `shared`
   (site settings; immediate) · `external` (mirrored, e.g. Square; config-only).
+
+> Capabilities must be independent because **a section is both**: an item of the
+> page's ordered list _and_ a container of blocks. An exclusive
+> `container | item | value` enum cannot express that, and modelling it that way
+> would reintroduce per-layer special cases — the exact failure this ADR exists to
+> remove. A "value" (a link, a field) is then just a node with neither `ordered`
+> nor `children`, which is why its wrench-only toolbar falls out rather than being
+> hand-built.
 
 Everything the chrome does becomes derived rather than built:
 
 - **Ring colour = f(source)**, not f(depth). Own content keeps depth shading;
   `shared` is green and `external` is yellow. The epic's two-tier ring stops being
   two new layers and becomes a property of a node.
-- **Toolbar = f(role, capabilities)**. A container offers add; an item offers
-  move/delete; anything inspectable offers a wrench. The link layer's wrench-only
-  bar _derives_ from declaring only `inspect`, instead of being hand-built.
-- **An empty container renders an "add first child" affordance automatically**,
-  because containment is modelled. Defect 1 above is dissolved, not patched.
+- **Toolbar = f(capabilities)**. `children` adds a `+`; `ordered` adds
+  move/delete; `fields` adds a wrench. The link layer's wrench-only bar _derives_
+  from a node with only `fields`, instead of being hand-built.
+- **A node with `children` and none renders an "add first child" affordance
+  automatically**, at every depth. Defect 1 above is dissolved, not patched — and
+  the page-level empty state stops being a special case too.
 - **Suppression is generic deepest-wins over one attribute** — the 24 manual
   `clear*` calls collapse to one.
 
