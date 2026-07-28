@@ -1,6 +1,11 @@
 # ADR 0005 — Inline section & block editing: on-canvas chrome, a block layer, and the fragment-render contract
 
-- **Status:** Proposed (2026-07-18)
+- **Status:** Proposed (2026-07-18) — **§2 (the three-attribute marker contract)
+  and §3 (the per-layer chrome) are superseded by [ADR 0010](./0010-editable-node-model.md)**
+  (2026-07-28). The fragment-render contract, instant structural ops, and the
+  inspector stand and are generalised there. Note especially that this ADR's
+  "blocks are flat; they do not nest in v1" is a limitation of the hand-rolled
+  layer model, not a product decision.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0003 (Astroid `<Section>` / `<Editable>` primitives), ADR 0001
   (opinionated where it's expensive), #12 (structure builder), #13 (block
