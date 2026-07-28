@@ -58,6 +58,20 @@ function resolveSectionCatalog(config: AstroidConfig) {
 }
 
 /**
+ * The block catalog a `pages` write is validated + sanitized against (ADR 0005).
+ * Defaults to empty, which is correct for a sections-only site: with no section
+ * declaring a `blocks` policy, no block is ever reached.
+ *
+ * It is NOT optional once a site does declare one. Unlike the section catalog
+ * there's no built-in fallback to borrow — block types are wholly site-defined —
+ * so an unset catalog means every block `_type` reads as unknown and the write
+ * 422s, and block rich text goes unsanitized because its def can't be resolved.
+ */
+function resolveBlockCatalog(config: AstroidConfig) {
+  return config.blockCatalog ?? {};
+}
+
+/**
  * Return a copy of a `pages` write payload with its `sections` rich-text fields
  * sanitized against the project media base — a no-op when the write carries no
  * `sections`. Pure; leaves every other field (and a partial PATCH's absent ones)
@@ -73,8 +87,11 @@ export function sanitizeAstroidPageSections(
 ): Record<string, unknown> {
   if (data.sections === undefined) return data;
   const mediaBase = pageMediaBase(config);
-  const sections = sanitizeSectionsRichText(data.sections, resolveSectionCatalog(config), (html) =>
-    sanitizeRichHtml(html, { mediaBase }),
+  const sections = sanitizeSectionsRichText(
+    data.sections,
+    resolveSectionCatalog(config),
+    (html) => sanitizeRichHtml(html, { mediaBase }),
+    resolveBlockCatalog(config),
   );
   return { ...data, sections };
 }
@@ -95,6 +112,7 @@ export async function assertAstroidPageSections(
   await assertValidSections(resolveSectionCatalog(config), data.sections, {
     operation,
     mediaBase: pageMediaBase(config),
+    blockCatalog: resolveBlockCatalog(config),
   });
 }
 

@@ -20,7 +20,7 @@
 // (coracle), a wholesale front (ghostfire), an artist portfolio (megbowen), and a
 // plain marketing baseline (louise-web).
 
-import type { SectionCatalog } from "louise-toolkit/content";
+import type { BlockCatalog, SectionCatalog } from "louise-toolkit/content";
 import type { RateRule } from "louise-toolkit/security";
 import { assertAuthIsolation } from "./auth/index.js";
 import type { CatalogMirrorConfig } from "./commerce/mirror.js";
@@ -352,6 +352,20 @@ export interface AstroidConfig {
    * write paths agree. Omit to use Astroid's built-in catalog.
    */
   sectionCatalog?: SectionCatalog;
+  /**
+   * The site's catalog of BLOCK types (ADR 0005) — the block-level analogue of
+   * {@link sectionCatalog}, and required for any section whose def declares a
+   * `blocks` policy.
+   *
+   * Without it the server has no field shape to check a block against, so
+   * `validateSections` rejects every block `_type` as unknown and a block-bearing
+   * write 422s — the on-canvas block toolbar appears to work and then nothing
+   * saves. It also gates block rich-text **sanitization**: block fields are only
+   * scrubbed when their def is resolvable here.
+   *
+   * Omit for a sections-only site (no section declares `blocks`).
+   */
+  blockCatalog?: BlockCatalog;
   /** Optional capabilities switched on for this site. */
   modules?: ModuleKind[];
   /** Gated account/portal area (order tracking, client galleries). */

@@ -18,10 +18,13 @@ export {
 // Shell + registry API.
 export {
   type CollectionTab,
+  HISTORY_READY_ATTR,
+  OPEN_HISTORY_EVENT,
+  OPEN_SETTINGS_EVENT,
+  SETTINGS_READY_EVENT,
   Settings,
   type SettingsConfig,
   mountSettings,
-  OPEN_SETTINGS_EVENT,
 } from "./shell.jsx";
 
 // Drawer action footer — the active panel/editor pushes its save/cancel/publish

@@ -50,6 +50,7 @@ import {
   type RealtimeSession,
   resolveRealtime,
 } from "./realtime.js";
+import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "./editor-events.js";
 import { Icon } from "./icons.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
@@ -428,6 +429,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     top: number;
     left: number;
   } | null>(null);
+  // The add-BLOCK type-picker, the block-level analogue of `addPicker`: null when
+  // closed, else the owning section, the insert index within its `blocks`, and the
+  // allowed types. Only opened when a section accepts more than one block type —
+  // single-type sections insert without a prompt.
+  const [blockPicker, setBlockPicker] = createSignal<{
+    section: number;
+    at: number;
+    types: string[];
+    top: number;
+    left: number;
+  } | null>(null);
   // A specific save-failure reason (e.g. a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -484,7 +496,34 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
+  // Open (or toggle) the version-history drawer, loading versions on the way in.
+  // Shared by the fallback bar button and the Settings top-strip icon.
+  const toggleHistory = (force?: boolean) => {
+    const next = force ?? !showHistory();
+    setShowHistory(next);
+    if (next) void loadVersions();
+  };
+
+  // Whether Louise Settings is mounted, and so owns the History trigger
+  // (coracle.coffee#36). Seeded from the drawer root for the Settings-mounted-first
+  // order, then flipped by SETTINGS_READY_EVENT for the other one.
+  const [settingsMounted, setSettingsMounted] = createSignal(false);
+
   onMount(() => {
+    // Advertise that there is a history drawer to open, so the Settings strip can
+    // show its History icon; cleared on cleanup so the icon can't outlive us.
+    document.documentElement.setAttribute(HISTORY_READY_ATTR, "");
+    setSettingsMounted(!!document.getElementById("louise-drawer-root"));
+    const onSettingsReady = () => setSettingsMounted(true);
+    const onOpenHistory = () => toggleHistory(true);
+    window.addEventListener(SETTINGS_READY_EVENT, onSettingsReady);
+    window.addEventListener(OPEN_HISTORY_EVENT, onOpenHistory);
+    onCleanup(() => {
+      document.documentElement.removeAttribute(HISTORY_READY_ATTR);
+      window.removeEventListener(SETTINGS_READY_EVENT, onSettingsReady);
+      window.removeEventListener(OPEN_HISTORY_EVENT, onOpenHistory);
+    });
+
     wireInline(
       props.host,
       props.catalog,
@@ -878,17 +917,25 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     moveBlockElement(section, block, to);
     touched();
   };
-  // Block add (#182 Phase 3 / ADR 0005 §4): insert a blank block after `block`,
-  // re-render the WHOLE section through the fragment route (blocks render inside
-  // their section's bespoke component, not standalone), swap the section element
-  // in place, re-stamp + re-wire, then autosave. The section's `blocks.allow`
-  // picks the type (single-type sections); a multi-type picker is a later slice.
-  const addBlock = (section: number, block: number) => {
-    const item = state.items[section];
-    const type = props.catalog[item?._type ?? ""]?.blocks?.allow?.[0];
-    const def = type ? props.blocks?.[type] : undefined;
-    if (!type || !def) return; // ambiguous/unknown block type → no-op
-    const at = block + 1;
+  // The block types a section accepts, in catalog order: bounded by the section's
+  // `blocks.allow` when declared, otherwise the whole block catalog (ADR 0005 §4 —
+  // `allow` omitted means "any block type"). Types with no catalog entry are
+  // dropped: without a field shape there is no blank to seed.
+  const allowedBlockTypes = (section: number): string[] => {
+    const policy = props.catalog[state.items[section]?._type ?? ""]?.blocks;
+    if (!policy || !props.blocks) return [];
+    const blocks = props.blocks;
+    return Object.keys(blocks).filter((t) => !policy.allow || policy.allow.includes(t));
+  };
+
+  // Block add (#182 Phase 3 / ADR 0005 §4): insert a blank block of `type` at
+  // `at`, re-render the WHOLE section through the fragment route (blocks render
+  // inside their section's bespoke component, not standalone), swap the section
+  // element in place, re-stamp + re-wire, then autosave.
+  const insertBlock = (section: number, at: number, type: string) => {
+    const def = props.blocks?.[type];
+    if (!def) return; // unknown block type → no-op
+    setBlockPicker(null);
     restructureSection(section, () =>
       set("items", section, "blocks", (b: unknown) => {
         const next = (Array.isArray(b) ? b : []).slice();
@@ -896,6 +943,30 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         return next;
       }),
     );
+  };
+
+  // The block toolbar's `+` (insert AFTER the hovered block — blocks read as a
+  // list you extend downward, unlike the section `+`, which inserts above). One
+  // allowed type inserts straight away; several open the picker, mirroring the
+  // section add-picker one level down.
+  const addBlock = (section: number, block: number) => {
+    const types = allowedBlockTypes(section);
+    const at = block + 1;
+    if (types.length === 0) return; // nothing insertable → no-op
+    if (types.length === 1) {
+      insertBlock(section, at, types[0]);
+      return;
+    }
+    const box = props.host
+      .querySelector(`[data-louise-block="${section}.blocks.${block}"]`)
+      ?.getBoundingClientRect();
+    const top = box
+      ? Math.min(Math.max(box.bottom + 8, 8), window.innerHeight - 320)
+      : Math.max(80, Math.round(window.innerHeight / 2 - 160));
+    const left = box
+      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
+      : Math.round(window.innerWidth / 2 - 120);
+    setBlockPicker({ section, at, types, top, left });
   };
 
   // ── Inspector popover (#182 Phase 4 / ADR 0005 §5) ─────────────────────────
@@ -1096,18 +1167,20 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           {errorDetail() || "Couldn’t save"}
         </span>
       </Show>
-      <button
-        class="louise-bar-history"
-        type="button"
-        title="Version history"
-        onClick={() => {
-          const next = !showHistory();
-          setShowHistory(next);
-          if (next) void loadVersions();
-        }}
-      >
-        <Icon name="history" /> History
-      </button>
+      {/* History moved into the Settings drawer's top strip (coracle.coffee#36) —
+          the drawer itself stays here, only the trigger moved. This button is the
+          fallback for hosts that mount sections WITHOUT mountSettings, which would
+          otherwise have no way to reach version history at all. */}
+      <Show when={!settingsMounted()}>
+        <button
+          class="louise-bar-history"
+          type="button"
+          title="Version history"
+          onClick={() => toggleHistory()}
+        >
+          <Icon name="history" /> History
+        </button>
+      </Show>
       <SaveActions />
     </>
   );
@@ -1161,6 +1234,42 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             </For>
           </div>
         </Portal>
+      </Show>
+
+      {/* Add-BLOCK type-picker — the same palette one level down, anchored under
+          the block whose `+` opened it. Only rendered for sections that accept
+          more than one block type; single-type sections insert with no prompt. */}
+      <Show when={blockPicker()}>
+        {(picker) => (
+          <Portal>
+            <div
+              class="louise-sections-palette"
+              role="group"
+              aria-label="Add a block"
+              style={{
+                position: "fixed",
+                top: `${picker().top}px`,
+                left: `${picker().left}px`,
+                "z-index": "2147483000",
+              }}
+              ref={(el) =>
+                onCleanup(wirePopoverDismiss(el, { onClose: () => setBlockPicker(null) }))
+              }
+            >
+              <For each={picker().types}>
+                {(type) => (
+                  <button
+                    class="louise-slash-item"
+                    type="button"
+                    onClick={() => insertBlock(picker().section, picker().at, type)}
+                  >
+                    {props.blocks?.[type]?.label ?? type}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Portal>
+        )}
       </Show>
 
       {/* Trailing add: append a section at the end, in-flow (not the old floating

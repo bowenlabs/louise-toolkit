@@ -21,6 +21,19 @@ const BLOCK_CATALOG: BlockCatalog = {
   feature: { label: "Feature", fields: { name: { type: "text" } } },
 };
 
+// A section accepting SEVERAL block types — `+` must open a picker rather than
+// guessing. `open` bounds nothing (no `allow`), so it takes the whole catalog.
+const MULTI_CATALOG: SectionCatalog = {
+  grid: { label: "Grid", fields: {}, blocks: { allow: ["feature", "quote"] } },
+  open: { label: "Open", fields: {}, blocks: {} },
+};
+
+const MULTI_BLOCKS: BlockCatalog = {
+  feature: { label: "Feature", fields: { name: { type: "text" } } },
+  quote: { label: "Quote", fields: { name: { type: "text" } } },
+  aside: { label: "Aside", fields: { name: { type: "text" } } },
+};
+
 interface Call {
   url: string;
   method: string;
@@ -88,17 +101,21 @@ function pageHost(names: string[]): HTMLElement {
   return host;
 }
 
-const initial = (names: string[]): SectionItem[] => [
-  { _type: "grid", blocks: names.map((name) => ({ _type: "feature", name })) },
+const initial = (names: string[], type = "grid"): SectionItem[] => [
+  { _type: type, blocks: names.map((name) => ({ _type: "feature", name })) },
 ];
 
-function mount(host: HTMLElement, names: string[]): () => void {
+function mount(
+  host: HTMLElement,
+  names: string[],
+  opts: { catalog?: SectionCatalog; blocks?: BlockCatalog; sectionType?: string } = {},
+): () => void {
   vi.spyOn(window.location, "reload").mockImplementation(() => {});
   return mountSections(host, {
-    catalog: CATALOG,
-    blocks: BLOCK_CATALOG,
+    catalog: opts.catalog ?? CATALOG,
+    blocks: opts.blocks ?? BLOCK_CATALOG,
     pageId: 1,
-    initial: initial(names),
+    initial: initial(names, opts.sectionType),
     autoSave: { debounceMs: 0 },
   });
 }
@@ -112,15 +129,23 @@ const domBlockNames = (host: HTMLElement) =>
   [...host.querySelectorAll("[data-louise-block]")].map((b) => b.querySelector("div")?.textContent);
 const domBlockMarkers = (host: HTMLElement) =>
   [...host.querySelectorAll("[data-louise-block]")].map((b) => b.getAttribute("data-louise-block"));
-const lastDraftBlocks = (calls: Call[]): Array<{ name?: string }> => {
+const lastDraftBlocks = (calls: Call[]): Array<{ name?: string; _type?: string }> => {
   const posts = calls.filter(
     (c) => c.method === "POST" && c.url === "/api/louise/pages/1/versions",
   );
   const body = posts.at(-1)?.body as
-    | { sections: Array<{ blocks?: Array<{ name?: string }> }> }
+    | { sections: Array<{ blocks?: Array<{ name?: string; _type?: string }> }> }
     | undefined;
   return body?.sections[0].blocks ?? [];
 };
+// The add-section / add-block type-picker palettes, told apart by aria-label.
+const palette = (label: string) => document.querySelector(`[aria-label="${label}"]`);
+const paletteLabels = (label: string) =>
+  [...(palette(label)?.querySelectorAll("button") ?? [])].map((b) => b.textContent);
+const paletteButton = (label: string, text: string) =>
+  [...(palette(label)?.querySelectorAll("button") ?? [])].find(
+    (b) => b.textContent === text,
+  ) as HTMLButtonElement;
 
 let dispose: (() => void) | undefined;
 afterEach(() => {
@@ -186,5 +211,64 @@ describe("mountSections — block chrome wiring (#182 Phase 2)", () => {
 
     // A draft was staged for the new shape.
     expect(lastDraftBlocks(calls)).toHaveLength(3);
+  });
+});
+
+describe("mountSections — multi-type block add-picker", () => {
+  it("opens a picker of the allowed types and inserts the chosen one after the block", async () => {
+    const calls = stubFetch();
+    const host = pageHost(["A", "B"]);
+    dispose = mount(host, ["A", "B"], { catalog: MULTI_CATALOG, blocks: MULTI_BLOCKS });
+    await flush();
+
+    over(host.querySelectorAll("[data-louise-block]")[0].querySelector("div") as Node); // hover A
+    blockToolbarButtons()[3].click(); // + add block after A
+    await flush();
+
+    // Nothing inserted yet — the picker asks which type first, bounded by `allow`
+    // (so `aside`, which the catalog has but the section disallows, is absent).
+    expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote"]);
+    expect(calls.some((c) => c.url === "/louise-fragment")).toBe(false);
+
+    paletteButton("Add a block", "Quote").click();
+    await flush();
+    await flush();
+
+    // The chosen type landed at index 1 — after A, before B.
+    expect(lastDraftBlocks(calls).map((b) => b._type)).toEqual(["feature", "quote", "feature"]);
+    expect(domBlockMarkers(host)).toEqual(["0.blocks.0", "0.blocks.1", "0.blocks.2"]);
+    expect(document.querySelector('[aria-label="Add a block"]')).toBeNull(); // picker closed
+  });
+
+  it("offers the whole block catalog when the section declares no `allow`", async () => {
+    stubFetch();
+    const host = pageHost(["A"]);
+    dispose = mount(host, ["A"], {
+      catalog: MULTI_CATALOG,
+      blocks: MULTI_BLOCKS,
+      sectionType: "open",
+    });
+    await flush();
+
+    over(host.querySelector("[data-louise-block]")?.querySelector("div") as Node);
+    blockToolbarButtons()[3].click();
+    await flush();
+
+    expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote", "Aside"]);
+  });
+
+  it("inserts without a picker when only one type is allowed", async () => {
+    const calls = stubFetch();
+    const host = pageHost(["A"]);
+    dispose = mount(host, ["A"]); // CATALOG: allow: ["feature"]
+    await flush();
+
+    over(host.querySelector("[data-louise-block]")?.querySelector("div") as Node);
+    blockToolbarButtons()[3].click();
+    await flush();
+    await flush();
+
+    expect(document.querySelector('[aria-label="Add a block"]')).toBeNull();
+    expect(lastDraftBlocks(calls)).toHaveLength(2);
   });
 });

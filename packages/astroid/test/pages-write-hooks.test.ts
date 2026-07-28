@@ -132,6 +132,58 @@ describe("assertAstroidPageSections", () => {
   });
 });
 
+// ADR 0005 block layer. Both write paths have to resolve a block's def to check
+// (or scrub) it, and unlike the section catalog there's no built-in vocabulary to
+// fall back on — block types are wholly site-defined. So `config.blockCatalog` is
+// load-bearing: without it the on-canvas block toolbar appears to work and every
+// save 422s.
+describe("astroidPagesWriteHooks — block catalog (ADR 0005)", () => {
+  const sectionCatalog = {
+    content: { label: "Content", fields: {}, blocks: { allow: ["text"] } },
+  };
+  const blockCatalog = {
+    text: { label: "Text", fields: { body: { type: "richText" as const } } },
+  };
+  const withBlocks: AstroidConfig = { ...config, sectionCatalog, blockCatalog };
+  const withoutBlocks: AstroidConfig = { ...config, sectionCatalog };
+
+  const page = (body = "hi") => ({
+    sections: [{ _type: "content", blocks: [{ _type: "text", body }] }],
+  });
+
+  it("rejects every block as unknown when no blockCatalog is configured", async () => {
+    // The regression this seam fixes: the section type resolves fine, so the write
+    // looks valid right up until the block's own def can't be found.
+    await expect(
+      astroidPagesWriteHooks(withoutBlocks).validate(page(), { operation: "update" }),
+    ).rejects.toThrow(/unknown block type/i);
+  });
+
+  it("accepts the same write once the blockCatalog is configured (both paths)", async () => {
+    await expect(
+      astroidPagesWriteHooks(withBlocks).validate(page(), { operation: "update" }),
+    ).resolves.toBeUndefined();
+
+    const hook = astroidPagesCollection(withBlocks).hooks?.beforeChange?.[0];
+    if (!hook) throw new Error("pages collection has no beforeChange hook");
+    await expect(hook({ data: page() } as never)).resolves.toBeDefined();
+  });
+
+  it("still rejects a block type the section's `allow` policy excludes", async () => {
+    const bad = { sections: [{ _type: "content", blocks: [{ _type: "image" }] }] };
+    await expect(
+      astroidPagesWriteHooks(withBlocks).validate(bad, { operation: "update" }),
+    ).rejects.toThrow(/not allowed in this section/i);
+  });
+
+  it("sanitizes a block's rich text — the catalog gates scrubbing, not just validation", () => {
+    const out = sanitizeAstroidPageSections(withBlocks, page("<p>ok</p><script>x=1</script>"));
+    const body = (out.sections as { blocks: { body: string }[] }[])[0].blocks[0].body;
+    expect(body).not.toContain("<script>");
+    expect(body).toContain("ok");
+  });
+});
+
 describe("site sectionCatalog injection (FW-2)", () => {
   // A site with bespoke sections (coracle's `homeHero` etc.) registers its own
   // catalog; the write hooks must then validate ITS `_type`s, not the built-in
