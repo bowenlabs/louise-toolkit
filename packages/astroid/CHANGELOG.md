@@ -1,5 +1,13 @@
 # astroidjs
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [53afba9]
+- Updated dependencies [a57e375]
+  - louise-toolkit@0.20.0
+
 ## 0.4.0
 
 ### Minor Changes
