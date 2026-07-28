@@ -67,6 +67,9 @@ export {
   type SectionItem,
   type SectionsEditorProps,
 } from "./sections.jsx";
+// One destination offered by a `link` field's page picker — sites pass their
+// code-defined routes as `SectionsEditorProps.builtInRoutes` (#38).
+export type { PageChoice } from "./link-field.jsx";
 // Headless <Form> render helper (#46, Tier 2) — renders a `defineForm` catalog
 // with the SAME validation the server runs, and posts to its `formRoute`.
 export { Form, type FormProps, mountForm } from "./forms.jsx";

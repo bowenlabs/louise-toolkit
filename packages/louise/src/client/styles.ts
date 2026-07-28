@@ -591,6 +591,11 @@ const CSS = `
 
 .louise-form { display: flex; flex-direction: column; gap: 14px; }
 .louise-field { display: flex; flex-direction: column; gap: 5px; }
+/* A toggle field reads as "[x] Open in new tab", not a stacked label over a lone
+   checkbox — so this one flips to a row. (No backticks in this file: the CSS
+   lives in a template literal and one would terminate it.) */
+.louise-field-inline { flex-direction: row; align-items: center; gap: 8px; }
+.louise-field-inline input { margin: 0; }
 .louise-field label,
 .louise-field-label { font-size: 12px; font-weight: 600; color: #475569; }
 .louise-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; }

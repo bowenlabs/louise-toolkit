@@ -29,9 +29,12 @@ import {
   AutocompletePositioner,
   AutocompleteRoot,
 } from "prosekit/solid/autocomplete";
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show } from "solid-js";
 import { wirePopoverDismiss } from "./a11y.js";
 import { Icon } from "./icons.jsx";
+// The link editor moved out to be shared with the sections inspector (#38) —
+// same control, two hosts. It was defined privately here first.
+import { LinkField } from "./link-field.jsx";
 
 export interface BlockAttrSpec {
   default: string;
@@ -497,63 +500,6 @@ function defineGalleryBlock(): Extension {
    to `<div data-block="button" class="pb-button"><a href="…">label</a></div>` —
    the div keeps class + data-block, the anchor keeps href, both surviving the
    sanitizer with no class needed on <a>. */
-
-// Page list for the link picker, fetched once per session and shared.
-let pagesCache: { slug: string; title: string }[] | null = null;
-
-/** Link editor: a page picker (pulled from the louise-toolkit/editor `pages` list)
- *  plus a free URL field, so a link can target an internal page or any URL.
- *  Commits on change/blur (not per keystroke) to avoid remounting the node view
- *  mid-type. */
-function LinkField(props: { href: string; onChange: (href: string) => void }) {
-  const [pages, setPages] = createSignal(pagesCache ?? []);
-  const [url, setUrl] = createSignal(props.href);
-  onMount(() => {
-    if (pagesCache) return;
-    void fetch("/api/louise/pages", { headers: { accept: "application/json" } })
-      .then((r) =>
-        r.ok ? (r.json() as Promise<{ pages?: { slug: string; title: string }[] }>) : { pages: [] },
-      )
-      .then((d) => {
-        pagesCache = d.pages ?? [];
-        setPages(pagesCache);
-      })
-      .catch(() => {});
-  });
-  return (
-    <>
-      <Show when={pages().length > 0}>
-        <select
-          class="louise-select"
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            if (v) {
-              setUrl(v);
-              props.onChange(v);
-            }
-          }}
-        >
-          <option value="">Link to a page…</option>
-          <For each={pages()}>
-            {(p) => (
-              <option value={`/${p.slug}`} selected={url() === `/${p.slug}`}>
-                {p.title}
-              </option>
-            )}
-          </For>
-        </select>
-      </Show>
-      <input
-        class="louise-input"
-        value={url()}
-        placeholder="https://… or /path"
-        aria-label="Link URL"
-        onInput={(e) => setUrl(e.currentTarget.value)}
-        onChange={() => props.onChange(url())}
-      />
-    </>
-  );
-}
 
 const ButtonView: SolidNodeViewComponent = (props) => {
   const attrs = () => props.node.attrs as { label?: string; href?: string };

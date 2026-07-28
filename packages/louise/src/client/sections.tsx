@@ -25,7 +25,7 @@
 // so a keystroke is a fine-grained path write (`set("items", i, key, value)`) that
 // updates only that leaf — no row teardown, no focus loss.
 
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import {
   type BlockRef,
   deleteBlockElement,
@@ -52,6 +52,7 @@ import {
 } from "./realtime.js";
 import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "./editor-events.js";
 import { Icon } from "./icons.jsx";
+import { LinkField, type PageChoice, setBuiltInRoutes } from "./link-field.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
@@ -130,6 +131,17 @@ export interface SectionsEditorProps {
    *   richTextModes: { prose: { minimal: false, grammar: true } }, // bodies
    */
   richTextModes?: Record<string, SectionRichTextOptions>;
+  /**
+   * Code-defined routes to offer in a `link` field's page picker, alongside the
+   * `pages` rows it fetches (#38).
+   *
+   * The picker's page list comes from `/api/louise/pages`, which only knows about
+   * DB-backed pages. A site's hand-authored routes — `/shop`, `/contact` — have no
+   * row, so without this the picker is missing exactly the destinations most CTAs
+   * point at and reads as broken. Same idea as the Settings Pages panel's
+   * `builtInPages`.
+   */
+  builtInRoutes?: PageChoice[];
   pageId: number;
   initial: SectionItem[];
   /** Auto-save inline section edits as a draft on an idle debounce — never
@@ -526,6 +538,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [settingsMounted, setSettingsMounted] = createSignal(false);
 
   onMount(() => {
+    // The link picker's choices are module-level (shared by every wrench on the
+    // page), so register the site's code routes once here rather than threading
+    // the prop down to each field (#38).
+    setBuiltInRoutes(props.builtInRoutes);
+
     // Advertise that there is a history drawer to open, so the Settings strip can
     // show its History icon; cleared on cleanup so the icon can't outlive us.
     document.documentElement.setAttribute(HISTORY_READY_ATTR, "");
@@ -1451,8 +1468,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   <div class="louise-inspector-group">
                     <For each={editFields()}>
                       {([key, field]) => (
-                        <Show
-                          when={field.type === "image"}
+                        <Switch
                           fallback={
                             <label class="louise-field">
                               <span class="louise-field-label">{field.label ?? humanize(key)}</span>
@@ -1465,15 +1481,50 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                             </label>
                           }
                         >
-                          <ImageDockField
-                            label={field.label ?? humanize(key)}
-                            value={String(inspectItem(target)?.[key] ?? "")}
-                            onSet={(url) => {
-                              setField(target, key, url);
-                              commitField(target);
-                            }}
-                          />
-                        </Show>
+                          <Match when={field.type === "image"}>
+                            <ImageDockField
+                              label={field.label ?? humanize(key)}
+                              value={String(inspectItem(target)?.[key] ?? "")}
+                              onSet={(url) => {
+                                setField(target, key, url);
+                                commitField(target);
+                              }}
+                            />
+                          </Match>
+                          {/* Destination (#38): a page picker + free URL, rather
+                              than the bare text input an href used to get. Commits
+                              on change (not per keystroke) — commitField re-renders
+                              the section through the fragment route. */}
+                          <Match when={field.type === "link"}>
+                            <div class="louise-field">
+                              <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                              <LinkField
+                                href={String(inspectItem(target)?.[key] ?? "")}
+                                ariaLabel={field.label ?? humanize(key)}
+                                onChange={(href) => {
+                                  setField(target, key, href);
+                                  commitField(target);
+                                }}
+                              />
+                            </div>
+                          </Match>
+                          {/* Toggle (#38): a real boolean, so "open in new tab"
+                              stores true/false rather than a yes/no string that
+                              would read truthy either way in the site render. */}
+                          <Match when={field.type === "toggle"}>
+                            <label class="louise-field louise-field-inline">
+                              <input
+                                type="checkbox"
+                                checked={inspectItem(target)?.[key] === true}
+                                onChange={(e) => {
+                                  setField(target, key, e.currentTarget.checked);
+                                  commitField(target);
+                                }}
+                              />
+                              <span class="louise-field-label">{field.label ?? humanize(key)}</span>
+                            </label>
+                          </Match>
+                        </Switch>
                       )}
                     </For>
                   </div>

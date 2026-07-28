@@ -23,6 +23,14 @@ import { isMediaUrl } from "../media/storage.js";
 // header and `content/define.ts`.
 import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
+/** Schemes a `link` field may name. Deliberately the SAME allowlist the HTML
+ *  sanitizer applies to markup `href`s (`core/security/sanitize.ts`) — a
+ *  destination should be no more permissive because it was typed into the
+ *  inspector instead of pasted into rich text. Duplicated rather than imported to
+ *  keep `core/content` free of a `core/security` dependency; the two are asserted
+ *  identical in test. */
+const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
+
 // `image` is a media URL (string), edited in the dock via an upload/clear control
 // rather than in place; it validates as a string like text/textarea.
 //
@@ -41,7 +49,15 @@ import { type ValidationBuilder, type ValidationFieldContext, validateValue } fr
 // `_layout` already worked this way — `validateLayout` rejects a token that
 // isn't a declared layout — so this closes the asymmetry rather than inventing a
 // concept.
-export type SectionFieldType = "text" | "textarea" | "richText" | "array" | "image" | "select";
+export type SectionFieldType =
+  | "text"
+  | "textarea"
+  | "richText"
+  | "array"
+  | "image"
+  | "select"
+  | "link"
+  | "toggle";
 
 export interface SectionField {
   type: SectionFieldType;
@@ -481,6 +497,34 @@ async function validateSectionField(
           severity: "error",
         });
       }
+    }
+  } else if (field.type === "link") {
+    // A destination (string). Empty means "no link yet" — the site component
+    // decides what an unset CTA renders.
+    //
+    // The scheme check is the point of the type. A link value is rendered
+    // straight into `href={…}` by the site's own component, which never passes
+    // through the HTML sanitizer (that only sees rich-text markup) — so before
+    // this existed a `text`-typed href could hold `javascript:alert(1)` and would
+    // validate, persist, and render as a working XSS vector for every visitor.
+    // Same allowlist the sanitizer applies to markup hrefs, so the two agree.
+    if (value !== undefined && value !== null && value !== "") {
+      if (typeof value !== "string") {
+        out.push({ path, message: `${path} must be a string`, severity: "error" });
+      } else if (!SAFE_LINK_URL.test(value.trim())) {
+        out.push({
+          path,
+          message: `${path} must be an http(s) URL, a mailto: address, or a site path — got ${JSON.stringify(value)}`,
+          severity: "error",
+        });
+      }
+    }
+  } else if (field.type === "toggle") {
+    // A boolean (or absent). Deliberately strict: a stored "true"/"false" string
+    // would be truthy either way in the site render, so silently coercing here
+    // would turn a bad write into a wrong page rather than an error.
+    if (value !== undefined && value !== null && typeof value !== "boolean") {
+      out.push({ path, message: `${path} must be true or false`, severity: "error" });
     }
   } else if (value !== undefined && value !== null && typeof value !== "string") {
     // text / textarea — a string (or absent). Empty string is allowed.

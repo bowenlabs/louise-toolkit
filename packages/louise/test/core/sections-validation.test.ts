@@ -6,6 +6,7 @@ import {
   validateSections,
 } from "../../src/core/content/sections.js";
 import { LouiseValidationError } from "../../src/core/errors.js";
+import { sanitizeRichHtml } from "../../src/core/security/sanitize.js";
 
 const catalog: SectionCatalog = {
   hero: {
@@ -652,5 +653,100 @@ describe("sanitizeSectionsRichText — nested array item fields", () => {
     const tiers = out[0].tiers as Record<string, unknown>[];
     const features = tiers[0].features as Record<string, unknown>[];
     expect(features[0].text).toBe("SANITIZED");
+  });
+});
+
+// `link` and `toggle` (coracle.coffee#38). The scheme check is the reason `link`
+// exists as a type at all: a link value is rendered straight into `href={…}` by
+// the site's own component and never passes through the HTML sanitizer, so a
+// `text`-typed href could hold `javascript:` and validate, persist, and render as
+// a working XSS vector for every visitor.
+describe("validateSections — link (destination)", () => {
+  const linkCatalog: SectionCatalog = {
+    cta: {
+      label: "CTA",
+      fields: {
+        href: { type: "link", inline: false },
+        newTab: { type: "toggle", inline: false },
+      },
+    },
+  };
+  const linkErrors = async (value: unknown) =>
+    (await validateSections(linkCatalog, value)).filter((v) => v.severity === "error");
+  const withHref = (href: unknown) => [{ _type: "cta", href }];
+
+  it.each([
+    ["an absolute https URL", "https://example.com/x"],
+    ["an http URL", "http://example.com"],
+    ["a site path", "/shop"],
+    ["a fragment", "#visit"],
+    ["a relative path", "./thanks"],
+    ["a mailto address", "mailto:hi@example.com"],
+    ["empty (no link yet)", ""],
+  ])("accepts %s", async (_label, href) => {
+    expect(await linkErrors(withHref(href))).toEqual([]);
+  });
+
+  it.each([
+    ["javascript:", "javascript:alert(1)"],
+    ["mixed-case javascript:", "JaVaScRiPt:alert(1)"],
+    ["leading-whitespace javascript:", "  javascript:alert(1)"],
+    ["data: URI", "data:text/html;base64,PHNjcmlwdD4="],
+    ["vbscript:", "vbscript:msgbox(1)"],
+  ])("rejects %s", async (_label, href) => {
+    const errs = await linkErrors(withHref(href));
+    expect(errs).toHaveLength(1);
+    expect(errs[0].path).toBe("sections[0].href");
+  });
+
+  it("rejects a non-string destination", async () => {
+    expect(await linkErrors(withHref(42))).toHaveLength(1);
+  });
+
+  it("is a no-op when the field is absent (a partial write)", async () => {
+    expect(await linkErrors([{ _type: "cta" }])).toEqual([]);
+  });
+
+  it("accepts booleans for a toggle and rejects a stringly one", async () => {
+    expect(await linkErrors([{ _type: "cta", newTab: true }])).toEqual([]);
+    expect(await linkErrors([{ _type: "cta", newTab: false }])).toEqual([]);
+    // "false" would be truthy in the site render — coercing here would turn a bad
+    // write into a wrong page instead of an error.
+    expect(await linkErrors([{ _type: "cta", newTab: "false" }])).toHaveLength(1);
+  });
+});
+
+// The `link` allowlist is duplicated from the HTML sanitizer's (core/content must
+// not depend on core/security), so pin the two together behaviourally: a
+// destination should be no more permissive because it was typed into the
+// inspector instead of pasted into rich text. Compared by OUTCOME rather than by
+// regex source, so an equivalent rewrite of either stays green and a real
+// divergence still fails.
+describe("link validation agrees with the rich-text href sanitizer", () => {
+  const linkCatalog: SectionCatalog = {
+    cta: { label: "CTA", fields: { href: { type: "link", inline: false } } },
+  };
+  const linkAccepts = async (href: string) =>
+    (await validateSections(linkCatalog, [{ _type: "cta", href }])).filter(
+      (v) => v.severity === "error",
+    ).length === 0;
+  // The sanitizer drops a disallowed href attribute but keeps the <a>.
+  const sanitizerAccepts = (href: string) =>
+    sanitizeRichHtml(`<a href="${href}">x</a>`).includes("href");
+
+  it.each([
+    "https://example.com",
+    "http://example.com",
+    "/shop",
+    "#visit",
+    "./thanks",
+    "mailto:hi@example.com",
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "data:text/html;base64,PHNjcmlwdD4=",
+    "vbscript:msgbox(1)",
+    "tel:+15551234567",
+  ])("agrees on %s", async (href) => {
+    expect(await linkAccepts(href)).toBe(sanitizerAccepts(href));
   });
 });
