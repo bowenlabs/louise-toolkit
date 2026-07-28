@@ -116,6 +116,20 @@ export interface SectionsEditorProps {
    *  (heading/list/quote/image buttons + grammar + AI rewrite). See
    *  {@link SectionRichTextOptions}. */
   richText?: SectionRichTextOptions;
+  /**
+   * Named rich-text presets a render can opt individual fields into, by stamping
+   * `data-louise-rt="<name>"` next to `data-louise-type="richtext"`. Falls back to
+   * {@link richText} for any field that names no mode (or an unknown one).
+   *
+   * `richText` alone is all-or-nothing, which breaks down as soon as one page has
+   * both kinds of rich text: a site whose headings need `inline` (so editing can't
+   * turn an `<h1>` into a nested `<p>`) would force that same single-line mode onto
+   * a prose body, losing paragraphs and lists. Per-field modes let both coexist:
+   *
+   *   richText: { inline: true },                              // headings
+   *   richTextModes: { prose: { minimal: false, grammar: true } }, // bodies
+   */
+  richTextModes?: Record<string, SectionRichTextOptions>;
   pageId: number;
   initial: SectionItem[];
   /** Auto-save inline section edits as a draft on an idle debounce — never
@@ -280,6 +294,7 @@ function wireInline(
   onEdit: () => void,
   onBlur?: () => void,
   richText?: SectionRichTextOptions,
+  richTextModes?: Record<string, SectionRichTextOptions>,
 ): void {
   const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
   for (const node of Array.from(nodes)) {
@@ -300,10 +315,11 @@ function wireInline(
           onEdit();
         },
         undefined,
-        // Default: the light-inline bubble (#182). A site can opt section
-        // rich-text into the full bar (block buttons + grammar + AI) via
-        // SectionsEditorProps.richText.
-        richText ?? { minimal: true },
+        // Per-field mode first (`data-louise-rt`), then the site-wide default,
+        // then the light-inline bubble (#182). An unknown mode name falls back
+        // rather than throwing: a render stamped for a mode the mount doesn't
+        // declare should degrade to the site default, not lose its editor.
+        richTextModes?.[node.dataset.louiseRt ?? ""] ?? richText ?? { minimal: true },
       );
       continue;
     }
@@ -532,6 +548,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
+      props.richTextModes,
     );
     void loadVersions();
 
@@ -817,6 +834,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
+      props.richTextModes,
     );
     touched();
   };
@@ -870,6 +888,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       touched,
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
+      props.richTextModes,
     );
     touched();
   };
