@@ -1565,7 +1565,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     aria-label="Close"
                     onClick={closeInspector}
                   >
-                    ✕
+                    <Icon name="x" />
                   </button>
                 </div>
 

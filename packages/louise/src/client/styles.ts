@@ -794,7 +794,14 @@ const CSS = `
   border: none;
   background: transparent;
   cursor: pointer;
+  /* The glyph is an inline Phosphor SVG sized to 1em, so font-size is what
+     scales it — and the flex centring is what keeps it off the text baseline,
+     the same shape .louise-drawer-close uses. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
+  line-height: 1;
   color: #64748b;
   padding: 2px 6px;
   border-radius: 6px;
