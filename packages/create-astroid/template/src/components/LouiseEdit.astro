@@ -64,7 +64,10 @@ const realtimeOn = (astroidConfig.modules ?? []).includes("realtime");
         // mountLouise and mountSettings are idempotent per page; mountSections is
         // not, and it is also the one that needs disposing on a view-transition
         // nav so its flush and unsaved-changes listeners don't outlive the page.
-        let teardown = null;
+        // Annotated, not inferred: `= null` alone infers `null`, and `astro check`
+        // runs strict — the scaffold smoke fails on ts(7034)/ts(7005) before a
+        // scaffolded site ever builds.
+        let teardown: (() => void) | null = null;
         let generation = 0;
 
         function boot() {
