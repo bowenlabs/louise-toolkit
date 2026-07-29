@@ -11,7 +11,13 @@
 // settings / external) is resolved here and expressed as `tone`, so adding the
 // reference rings changes this function and nothing in the chrome.
 
-import type { BlockCatalog, SectionCatalog, SectionItem } from "../core/content/sections.js";
+import { isInlineField } from "../core/content/field-types.js";
+import type {
+  BlockCatalog,
+  SectionCatalog,
+  SectionField,
+  SectionItem,
+} from "../core/content/sections.js";
 import type { NodeDescriptor, NodePath } from "./node.js";
 
 /** Everything `describeNode` needs to answer. Passed per call rather than closed
@@ -21,12 +27,6 @@ export interface DescribeContext {
   items: SectionItem[];
   catalog: SectionCatalog;
   blocks?: BlockCatalog;
-}
-
-/** A field is edited in place when it has a visible text node to click. The
- *  inspector is for everything else — which is what makes a node "inspectable". */
-function isInlineField(type: string, inline: boolean | undefined): boolean {
-  return inline ?? (type === "text" || type === "textarea" || type === "richText");
 }
 
 /** Whether a section/block def has anything worth opening an inspector for.
@@ -42,7 +42,7 @@ function hasInspectableContent(def: {
   if (def.layouts && Object.keys(def.layouts).length > 0) return true;
   if (def.settings && Object.keys(def.settings).length > 0) return true;
   return Object.entries(def.fields).some(
-    ([, f]) => f.type === "array" || !isInlineField(f.type, f.inline),
+    ([, f]) => f.type === "array" || !isInlineField(f as SectionField),
   );
 }
 

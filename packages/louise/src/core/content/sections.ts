@@ -15,7 +15,11 @@
 // `Rule` machinery (via `validateValue`) for any per-field `validation` chain.
 
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
-import { isMediaUrl } from "../media/storage.js";
+// The field-type registry owns what each `type` means — its validation and
+// whether it's edited in place (ADR 0010 A2). Importing it for the side effect of
+// registering the built-ins as well as for the checker: a catalog naming `"link"`
+// is only meaningful once something has defined it.
+import { validateFieldType } from "./field-types.js";
 // The drizzle-free Rule engine, NOT the `./validation.js` barrel — that half
 // imports `drizzle-orm` (an *optional* peer) for its uniqueness queries, and
 // importing it here would drag drizzle into every consumer of these section
@@ -23,32 +27,15 @@ import { isMediaUrl } from "../media/storage.js";
 // header and `content/define.ts`.
 import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
-/** Schemes a `link` field may name. Deliberately the SAME allowlist the HTML
- *  sanitizer applies to markup `href`s (`core/security/sanitize.ts`) — a
- *  destination should be no more permissive because it was typed into the
- *  inspector instead of pasted into rich text. Duplicated rather than imported to
- *  keep `core/content` free of a `core/security` dependency; the two are asserted
- *  identical in test. */
-const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
-
-// `image` is a media URL (string), edited in the dock via an upload/clear control
-// rather than in place; it validates as a string like text/textarea.
+// What each of these MEANS — how it validates, whether it's edited in place —
+// lives in `field-types.ts`, one registration apiece. This union is now only the
+// authoring surface: the names a catalog may write, kept as a literal union so a
+// typo is a compile error rather than a silent no-op at render time.
 //
-// `richText` is inline-editable prose stored as a sanitized HTML string (like the
-// page body) — edited in place with the light ProseKit editor (#182), so it
-// carries bold/italic/link/brand-colour marks. It validates as a string; the save
-// path sanitizes it (see `sanitizeSectionsRichText`).
-// `select` is a CLOSED CHOICE — a value that must be one of a declared set.
-// It exists because the token model needs it: `_settings` and `_layout` store
-// tokens the site maps to CSS (ADR 0005 §5), and a token set is closed by
-// definition. Without it a four-value setting like a colorway had to be declared
-// as `text`, which rendered a free-text box in the inspector and pushed the
-// consequence of a typo all the way to render time, where the site silently fell
-// back to a default instead of the write being rejected.
-//
-// `_layout` already worked this way — `validateLayout` rejects a token that
-// isn't a declared layout — so this closes the asymmetry rather than inventing a
-// concept.
+// A site registering its own type via `defineFieldType` widens the runtime but
+// not this union; it authors that field as a `string`-typed `type` today. Closing
+// that gap is A2 slice 2's business, when the settings drawer's parallel type set
+// merges in.
 export type SectionFieldType =
   | "text"
   | "textarea"
@@ -467,68 +454,12 @@ async function validateSectionField(
         }
       }
     }
-  } else if (field.type === "image") {
-    // A media URL (string). With `mediaBase`, a non-empty value must be served
-    // from the media library — an external hotlink is rejected.
-    if (value !== undefined && value !== null) {
-      if (typeof value !== "string") {
-        out.push({ path, message: `${path} must be a string`, severity: "error" });
-      } else if (value !== "" && options.mediaBase && !isMediaUrl(options.mediaBase, value)) {
-        out.push({
-          path,
-          message: `${path} must be an uploaded media asset, not an external URL`,
-          severity: "error",
-        });
-      }
-    }
-  } else if (field.type === "select") {
-    // A closed choice. Absent is a no-op (presence is the route allowlist's
-    // job), and empty string means "cleared" — the picker's blank option, which
-    // hands the decision back to the site component's own default. Anything
-    // else must be a declared option.
-    if (value !== undefined && value !== null && value !== "") {
-      const allowed = (field.options ?? []).map((o) => o.value);
-      if (typeof value !== "string" || !allowed.includes(value)) {
-        out.push({
-          path,
-          message: `${path} has an unknown value ${JSON.stringify(value)}${
-            allowed.length > 0 ? ` (expected ${allowed.join(" | ")})` : ""
-          }`,
-          severity: "error",
-        });
-      }
-    }
-  } else if (field.type === "link") {
-    // A destination (string). Empty means "no link yet" — the site component
-    // decides what an unset CTA renders.
-    //
-    // The scheme check is the point of the type. A link value is rendered
-    // straight into `href={…}` by the site's own component, which never passes
-    // through the HTML sanitizer (that only sees rich-text markup) — so before
-    // this existed a `text`-typed href could hold `javascript:alert(1)` and would
-    // validate, persist, and render as a working XSS vector for every visitor.
-    // Same allowlist the sanitizer applies to markup hrefs, so the two agree.
-    if (value !== undefined && value !== null && value !== "") {
-      if (typeof value !== "string") {
-        out.push({ path, message: `${path} must be a string`, severity: "error" });
-      } else if (!SAFE_LINK_URL.test(value.trim())) {
-        out.push({
-          path,
-          message: `${path} must be an http(s) URL, a mailto: address, or a site path — got ${JSON.stringify(value)}`,
-          severity: "error",
-        });
-      }
-    }
-  } else if (field.type === "toggle") {
-    // A boolean (or absent). Deliberately strict: a stored "true"/"false" string
-    // would be truthy either way in the site render, so silently coercing here
-    // would turn a bad write into a wrong page rather than an error.
-    if (value !== undefined && value !== null && typeof value !== "boolean") {
-      out.push({ path, message: `${path} must be true or false`, severity: "error" });
-    }
-  } else if (value !== undefined && value !== null && typeof value !== "string") {
-    // text / textarea — a string (or absent). Empty string is allowed.
-    out.push({ path, message: `${path} must be a string`, severity: "error" });
+  } else {
+    // Every non-structural type is the registry's business (ADR 0010 A2). What
+    // was an if/else ladder here — one arm per type, and a fallthrough that
+    // quietly covered text/textarea/richText — is now one lookup, so adding a
+    // type never means remembering to come back and edit this function.
+    out.push(...validateFieldType(value, { field, path, mediaBase: options.mediaBase }));
   }
 
   // Per-field declared rules (required/min/max/custom…), reusing the content Rule
