@@ -14,6 +14,7 @@
 
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
+import { isSafeLinkUrl } from "../content/sections.js";
 import { db } from "../db/index.js";
 import type { ValidationViolation } from "../errors.js";
 import { isMediaUrl } from "../media/index.js";
@@ -43,6 +44,42 @@ export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
   path?: string;
   /** Singleton row id. Default 1. */
   id?: number;
+}
+
+/**
+ * Reject any link row whose `href` names a scheme a site must not render.
+ *
+ * Settings hold `navLinks` / `socialLinks` as arrays of `{ label, href }`, and a
+ * site renders them straight into `<a href={…}>` in its chrome — on every page.
+ * Nothing checked them: an editor could store `javascript:alert(1)` as a nav
+ * destination and it would persist and render as a working link for every
+ * visitor. Sections closed exactly this hole with the `link` field type, whose
+ * own comment spells out the vector; settings never got the same treatment.
+ *
+ * Shape-driven rather than key-driven, deliberately. An `imageKeys`-style
+ * allowlist means every site must remember to configure it, and the one that
+ * forgets is the one that gets hit. Any patched value that is an array of objects
+ * carrying an `href` is a link list — that key has one meaning — so a site's own
+ * custom link setting is covered without opting in.
+ *
+ * Non-link values pass through untouched; this is not a type checker.
+ */
+export function validateSettingsLinks(patch: Record<string, unknown>): ValidationViolation[] {
+  const violations: ValidationViolation[] = [];
+  for (const [key, value] of Object.entries(patch)) {
+    if (!Array.isArray(value)) continue;
+    value.forEach((row, i) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return;
+      const href = (row as Record<string, unknown>).href;
+      if (href === undefined || isSafeLinkUrl(href)) return;
+      violations.push({
+        path: `${key}[${i}].href`,
+        message: `${key}[${i}].href must be an http(s) URL, a mailto: address, or a site path — got ${JSON.stringify(href)}`,
+        severity: "error",
+      });
+    });
+  }
+  return violations;
 }
 
 /**
@@ -153,6 +190,15 @@ export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRout
   const rows = (await database.select().from(table).limit(1)) as Record<string, unknown>[];
   const current = rows[0];
   if (!current) return { ok: false, status: 404, error: "No settings row" };
+
+  // Link-scheme strictness: a stored `href` is rendered into the site chrome on
+  // every page, so it gets the same allowlist a section's `link` field does.
+  // Unconditional — there is no config to forget, and no site wants the other
+  // behaviour.
+  const linkViolations = validateSettingsLinks(patch);
+  if (linkViolations.length > 0) {
+    return { ok: false, status: 422, error: "Invalid link field(s)", violations: linkViolations };
+  }
 
   // Media-strictness: image settings (logo, favicon, share image…) must point at
   // a media-library URL — an external hotlink is rejected before write.

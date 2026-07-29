@@ -31,6 +31,23 @@ import { type ValidationBuilder, type ValidationFieldContext, validateValue } fr
  *  identical in test. */
 const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
 
+/**
+ * Whether `value` is a destination Louise will store and a site may render into
+ * an `href`.
+ *
+ * Exported because a stored destination is not only a section field: site
+ * settings hold `navLinks` / `socialLinks`, and those are rendered into the site
+ * chrome on every page. One predicate, so the two paths cannot disagree about
+ * what `javascript:` means.
+ *
+ * Empty is safe — "no link yet" is a value, and what an unset link renders is the
+ * site component's decision.
+ */
+export function isSafeLinkUrl(value: unknown): boolean {
+  if (typeof value !== "string" || value === "") return true;
+  return SAFE_LINK_URL.test(value.trim());
+}
+
 // `image` is a media URL (string), edited in the dock via an upload/clear control
 // rather than in place; it validates as a string like text/textarea.
 //
