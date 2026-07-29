@@ -76,6 +76,36 @@ describe("describeNode — sections", () => {
     expect(at([2])?.children).toEqual({ count: 0 });
   });
 
+  // The chrome can't name what goes inside a container — its own label describes
+  // the container, and using it produced "Add the first Hero" on a hero whose
+  // children are CTAs (live QA, 2026-07-28). So the name is resolved here, where
+  // the block policy actually is.
+  it("names the child when the container accepts exactly one kind", () => {
+    const one = {
+      items: [{ _type: "strip", blocks: [] }] as SectionItem[],
+      catalog: { strip: { label: "Strip", fields: {}, blocks: { allow: ["text"] } } },
+      blocks,
+    };
+    expect(describeNode([0], one)?.children).toEqual({ count: 0, label: "Text" });
+  });
+
+  it("gives no child name when several kinds are allowed", () => {
+    // `content` takes text OR button — there is no singular answer, and inventing
+    // one would misname whichever the editor actually picks.
+    expect(at([2])?.children).toEqual({ count: 0 });
+  });
+
+  it("names the child from the whole catalog when the policy bounds nothing", () => {
+    // `allow` omitted means "any block type" (ADR 0005 §4), so a one-entry
+    // catalog still has a single answer.
+    const open = {
+      items: [{ _type: "open", blocks: [] }] as SectionItem[],
+      catalog: { open: { label: "Open", fields: {}, blocks: {} } },
+      blocks: { text: blocks.text },
+    };
+    expect(describeNode([0], open)?.children).toEqual({ count: 0, label: "Text" });
+  });
+
   it("holds nothing when the editor was given no block catalog", () => {
     // The `+` seeds a blank from the block's field shape, so without a catalog
     // there is nothing to add and the capability must not appear.
