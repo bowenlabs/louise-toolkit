@@ -800,6 +800,57 @@ export interface CatalogVariationInput {
   presence?: Partial<SquarePresence>;
 }
 
+/**
+ * Square's cap on ITEM_VARIATIONs under one ITEM. Asserted rather than
+ * discovered: it is the ceiling a per-merchant-variation design hits first, and
+ * the alternative is a 400 partway through a catalog push.
+ */
+const MAX_VARIATIONS_PER_ITEM = 250;
+
+/**
+ * Square's rule: a variation may only be present where its parent item is.
+ *
+ * Violating it does not error — it produces a silent partial state where the
+ * item renders at a location with no purchasable variation under it. That is
+ * miserable to debug in the wild and trivial to catch here, so this throws
+ * before the write rather than after.
+ *
+ * Only checked when the item declares an explicit location set. `presentAtAllLocations`
+ * (the default) makes any variation set a subset by definition.
+ */
+function assertVariationPresence(
+  itemPresence: Partial<SquarePresence> | undefined,
+  variations: { name: string; presence?: Partial<SquarePresence> }[],
+): void {
+  const itemLocations = itemPresence?.presentAtLocationIds;
+  if (!itemLocations || itemPresence?.presentAtAllLocations) return;
+  const allowed = new Set(itemLocations);
+  for (const variation of variations) {
+    const stray = (variation.presence?.presentAtLocationIds ?? []).filter((id) => !allowed.has(id));
+    if (stray.length > 0) {
+      throw new Error(
+        `Square catalog write: variation "${variation.name}" is present at ${stray.join(", ")}, ` +
+          `where its parent item is not. A variation's locations must be a subset of its item's.`,
+      );
+    }
+  }
+}
+
+/** Both write-path guards, in the order a caller hits them. */
+function assertWritableItem(input: {
+  name: string;
+  presence?: Partial<SquarePresence>;
+  variations: { name: string; presence?: Partial<SquarePresence> }[];
+}): void {
+  if (input.variations.length > MAX_VARIATIONS_PER_ITEM) {
+    throw new Error(
+      `Square catalog write: item "${input.name}" has ${input.variations.length} variations, ` +
+        `over Square's cap of ${MAX_VARIATIONS_PER_ITEM}.`,
+    );
+  }
+  assertVariationPresence(input.presence, input.variations);
+}
+
 /** Serialize presence for a write, omitting the keys the caller didn't set so we
  *  never overwrite Square-side presence with an accidental default. */
 function presenceBody(presence: Partial<SquarePresence> | undefined) {
@@ -862,6 +913,7 @@ export async function upsertCatalogItem(
     idempotencyKey?: string;
   },
 ): Promise<{ item: SquareCatalogItem; idMappings: Record<string, string> }> {
+  assertWritableItem(input);
   const itemId = input.id ?? "#item";
   const res = await sqPost<{
     catalog_object?: RawCatalogObject;
@@ -931,6 +983,7 @@ export async function batchUpsertCatalogObjects(
   options?: { idempotencyKey?: string },
 ): Promise<{ idMappings: Record<string, string>; objects: SquareCatalogItem[] }> {
   const objects = items.map((item, i) => {
+    assertWritableItem(item);
     const itemId = item.id ?? item.clientId ?? `#item-${i}`;
     return {
       type: "ITEM",
@@ -984,6 +1037,82 @@ export async function batchUpsertCatalogObjects(
       .filter((o) => o.type === "ITEM")
       .map((o) => mapCatalogItem(o, images)),
   };
+}
+
+/**
+ * A catalog object exactly as Square returned it.
+ *
+ * Deliberately open — an index signature, not a modelled interface. The whole
+ * point of {@link readModifyWriteCatalog} is that fields this client does not
+ * know about survive the round trip, and a closed type would invite callers to
+ * rebuild the object from the parts it names, which is the bug being prevented.
+ */
+export type SquareCatalogObject = {
+  id: string;
+  type: string;
+  version?: number;
+  [key: string]: unknown;
+};
+
+/**
+ * Read a catalog object, mutate it, and write it back without losing anything.
+ *
+ * Square documents this failure verbatim: *"If a client reads an object at an
+ * older API version and writes it back at a newer version, fields that were
+ * introduced between those two versions will be absent from the request, and the
+ * server will interpret that absence"* — as an intentional clear. The same hazard
+ * applies to any read-modify-write that reconstructs the object from the fields
+ * it happens to model: whatever it didn't model is silently erased.
+ *
+ * So this never rebuilds. It reads the raw object, hands that object to
+ * `mutate`, and writes back what it got — with the version Square returned (for
+ * optimistic concurrency) and the same pinned `Square-Version` on both calls,
+ * which is what makes the round trip symmetrical.
+ *
+ * ```ts
+ * await readModifyWriteCatalog(config, "VAR123", (object) => {
+ *   const data = object.item_variation_data as Record<string, unknown>;
+ *   data.price_money = { amount: 1800, currency: "USD" };
+ * });
+ * ```
+ *
+ * `mutate` may edit in place or return a replacement. Returning `null` or
+ * `undefined` from an in-place edit is normal — only a returned object replaces.
+ *
+ * Prefer {@link upsertCatalogItem} when creating or wholesale-replacing an item;
+ * this is for touching one field of something that already exists, which is
+ * exactly when accidental erasure is most likely and least visible.
+ */
+export async function readModifyWriteCatalog(
+  config: SquareConfig,
+  objectId: string,
+  mutate: (object: SquareCatalogObject) => SquareCatalogObject | void | Promise<
+    SquareCatalogObject | void
+  >,
+  options?: { idempotencyKey?: string },
+): Promise<SquareCatalogObject> {
+  const read = await sqGet<{ object?: SquareCatalogObject }>(
+    config,
+    `/v2/catalog/object/${encodeURIComponent(objectId)}`,
+  );
+  if (!read.object) throw new Error(`Square catalog object ${objectId} not found`);
+
+  // Captured BEFORE the mutator runs: it edits in place, so reading this
+  // afterwards would read whatever the mutator left there. The version must be
+  // the one THIS read returned — that is the whole optimistic-concurrency
+  // contract. A concurrent write bumps it and Square rejects ours rather than
+  // silently overwriting someone else's change.
+  const version = read.object.version;
+  const mutated = (await mutate(read.object)) ?? read.object;
+  const object = { ...mutated, version };
+
+  const write = await sqPost<{ catalog_object?: SquareCatalogObject }>(
+    config,
+    "/v2/catalog/object",
+    { idempotency_key: options?.idempotencyKey ?? crypto.randomUUID(), object },
+  );
+  if (!write.catalog_object) throw new Error(`Square catalog write for ${objectId} returned none`);
+  return write.catalog_object;
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────

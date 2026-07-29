@@ -11,6 +11,7 @@ import {
   mapCatalogItem,
   presentAt,
   priceAtLocation,
+  readModifyWriteCatalog,
   publishInvoice,
   retrieveLocation,
   retrieveVariationPricesAt,
@@ -289,6 +290,146 @@ describe("upsertCatalogItem", () => {
     expect(calls[0]?.body).toMatchObject({
       object: { id: "ITEM1", version: 7, item_data: { variations: [{ id: "VAR1", version: 3 }] } },
     });
+  });
+
+  it("refuses a variation sold where its parent item is not", async () => {
+    // Square accepts this and produces a silent partial state: the item renders
+    // at L2 with no purchasable variation under it.
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        presence: { presentAtLocationIds: ["L1"] },
+        variations: [
+          { name: "12 oz", priceCents: 2000, presence: { presentAtLocationIds: ["L1", "L2"] } },
+        ],
+      }),
+    ).rejects.toThrow(/present at L2, where its parent item is not/);
+    // Thrown before the write, not after a 400.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("allows any variation locations when the item is present everywhere", async () => {
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      presence: { presentAtAllLocations: true },
+      variations: [{ name: "12 oz", priceCents: 2000, presence: { presentAtLocationIds: ["L9"] } }],
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses more than 250 variations, the cap a per-merchant design hits first", async () => {
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        variations: Array.from({ length: 251 }, (_, i) => ({
+          name: `v${i}`,
+          priceCents: 100,
+        })),
+      }),
+    ).rejects.toThrow(/251 variations, over Square's cap of 250/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("readModifyWriteCatalog", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A variation carrying fields this client does not model, which is the point. */
+  const stored = {
+    id: "VAR1",
+    type: "ITEM_VARIATION",
+    version: 42,
+    present_at_all_locations: false,
+    present_at_location_ids: ["L1", "L2"],
+    item_variation_data: {
+      item_id: "ITEM1",
+      name: "12 oz",
+      sku: "HB-12",
+      pricing_type: "FIXED_PRICING",
+      price_money: { amount: 2000, currency: "USD" },
+      location_overrides: [
+        { location_id: "L2", price_money: { amount: 1800, currency: "USD" }, track_inventory: true },
+      ],
+      // A field introduced after this client's pinned Square-Version would look
+      // exactly like this: unknown to us, meaningful to the seller.
+      measurement_unit_id: "MU_GRAMS",
+    },
+  };
+
+  function stubReadWrite() {
+    const calls: { url: string; method: string; body: unknown }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({
+          url,
+          method: String(init.method ?? "GET"),
+          body: init.body ? JSON.parse(String(init.body)) : null,
+        });
+        const json = calls.length === 1 ? { object: stored } : { catalog_object: stored };
+        return new Response(JSON.stringify(json), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    return calls;
+  }
+
+  it("round-trips every field, including ones it does not model", async () => {
+    // The failure this guards is silent by definition — a dropped field reads as
+    // an intentional clear — so it needs an explicit diff, not a spot check.
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => {
+      const data = object.item_variation_data as Record<string, unknown>;
+      data.price_money = { amount: 2200, currency: "USD" };
+    });
+
+    const written = (calls[1]?.body as { object: typeof stored }).object;
+    expect(written).toEqual({
+      ...stored,
+      item_variation_data: {
+        ...stored.item_variation_data,
+        price_money: { amount: 2200, currency: "USD" },
+      },
+    });
+    // Named explicitly: these are what a rebuild-from-parts helper would drop.
+    const data = written.item_variation_data as Record<string, unknown>;
+    expect(data.location_overrides).toEqual(stored.item_variation_data.location_overrides);
+    expect(data.measurement_unit_id).toBe("MU_GRAMS");
+    expect(written.present_at_location_ids).toEqual(["L1", "L2"]);
+  });
+
+  it("writes back the version it read, so a concurrent write loses rather than clobbers", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => {
+      // A caller trying to force a version cannot: the read's wins.
+      object.version = 1;
+    });
+    expect((calls[1]?.body as { object: { version: number } }).object.version).toBe(42);
+  });
+
+  it("reads then writes, pinning the same Square-Version on both", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", () => {});
+    expect(calls[0]?.method).toBe("GET");
+    expect(calls[0]?.url).toContain("/v2/catalog/object/VAR1");
+    expect(calls[1]?.method).toBe("POST");
+    expect(calls[1]?.url).toContain("/v2/catalog/object");
+  });
+
+  it("accepts a replacement object returned from the mutator", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => ({ ...object, custom_attribute: 1 }));
+    expect((calls[1]?.body as { object: Record<string, unknown> }).object.custom_attribute).toBe(1);
+  });
+
+  it("throws when the object is gone, rather than writing a fresh one", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    await expect(readModifyWriteCatalog(CONFIG, "GONE", () => {})).rejects.toThrow(/not found/);
   });
 });
 
