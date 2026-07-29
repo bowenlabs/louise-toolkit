@@ -1,6 +1,8 @@
 # ADR 0010 — The editable-node model: one recursive node, one field registry, one marker
 
-- **Status:** Proposed (2026-07-28)
+- **Status:** Accepted (2026-07-28) — A1 shipped in `louise-toolkit@0.21.0` /
+  `astroidjs@0.5.0` (2026-07-29). Amended below where building it changed the
+  answer.
 - **Deciders:** Baylee (solo maintainer)
 - **Supersedes:** ADR 0005 §2 (the three-attribute marker contract) and §3 (the
   per-layer chrome). The rest of 0005 — the fragment-render contract, instant
@@ -110,6 +112,10 @@ drawer. A new type is one registration instead of five edits, the two parallel
 systems merge, and a type may declare an async options source — which is exactly
 what #37's Square pickers need.
 
+> **Amended while building A2 (see below).** The single call does not survive the
+> server/client boundary. The schema facts (`validate`, `inline`) live in
+> `core/content`; the editor is registered client-side against the same names.
+
 `richTextModes` (shipped 0.20.0) becomes ordinary field-level options. It was a
 symptom: editor options were mount-level when they always belonged to the field.
 
@@ -160,6 +166,56 @@ the anchor that should ring. Under the catalog-decides model `nodeAt` must walk
 **outward** until something resolves. That is a change to the deepest-wins lookup,
 not a flag.
 
+### Resolved while building A2
+
+**`defineFieldType` cannot carry its editor.** The single call above assumes one
+registration holds validation _and_ the editor component. It doesn't survive the
+boundary the registry sits on.
+
+`core/content` is server-safe on purpose — `sections.ts` won't even import the
+`./validation.js` barrel, because that half pulls in `drizzle-orm` and would drag
+an optional peer into every consumer — and astroid imports this graph from
+`schema/collections.ts`, inside a Worker. A Solid component in those objects puts
+the client framework in that bundle.
+
+So the registration splits by what each side can hold: the **schema** facts
+(`validate`, `inline`) in `core/content`, read by the server validator and the
+client alike so they cannot disagree; the **editor control** registered
+client-side against the same names. A plain type is one registration, one with a
+bespoke control is two — against five before, which is the claim that mattered.
+
+Two predicates are copied into the registry rather than imported, each with a
+test asserting it still agrees with its original: the link allowlist (from the
+HTML sanitizer, as before) and `isMediaUrl`. The second is new and the reason is
+the same boundary — it is three lines behind ~600 lines of image byte-sniffing,
+and because registration is a module-scope side effect a bundler cannot shake
+that back out. The editor would ship a JPEG header parser to answer a
+string-prefix question.
+
+**A runtime type still can't be authored.** `SectionFieldType` is a closed union,
+so a type registered by a site widens the registry but not the type a catalog may
+write. Closing that is the settings-drawer merge's business, when the two parallel
+type sets become one.
+
+### Amended after A1 shipped: the codemod
+
+The Migration section below called for a codemod. Measured against all four
+consuming sites once A1 was real, that is more machinery than the job needs:
+**62 stamps across 27 files**, and every real one is a literal template expression
+— one `{String(i)}`, three `blockAttr(j)`, seven `{edit ? … }`, the remainder test
+fixtures and prose.
+
+The rename is a `perl -pi -e` with a `(?!s)` guard so `data-louise-sections`
+survives. Writing and verifying a codemod would cost more than the rename it
+performs, and the ADR's own reason for wanting one — that the stamps are
+"mechanical and regular" — is exactly why a one-liner suffices.
+
+The lockstep claim also needs correcting. `0.21.0` shipped A1 before any site
+migrated, so "sites land in lockstep with the release" did not happen as written.
+It is recoverable rather than broken: the sites pin `^0.20.0`, and pre-1.0 caret
+ranges do not admit `0.21.0`, so nothing upgraded by accident. They now move from
+`0.20.0` to the A2 release, taking both marker changes in one pass.
+
 ## Staging
 
 Deliberately two arcs, because the evidence is not evenly distributed.
@@ -193,8 +249,8 @@ than carrying aliases.
   `data-louise-link="<path>"` all become `data-louise-node="<path>"`, with `role`
   and `source` supplied by the catalog rather than inferred from the attribute
   name. `data-louise-sfield` is folded in as a `value` node.
-- A **codemod** rewrites the stamps. They are mechanical and regular — today's QA
-  showed every one of coracle's is a literal template expression.
+- A **one-line rename** rewrites the stamps — see the A2 amendment below; the
+  codemod this originally called for is not worth writing.
 - Sites land in lockstep with the release. Coracle is the proving ground; it is
   the only site currently exercising blocks and links.
 - Rejected: an aliasing compat shim. It keeps two contracts alive indefinitely,
