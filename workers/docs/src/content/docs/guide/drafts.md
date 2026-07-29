@@ -75,7 +75,7 @@ work-in-progress instead of reverting it (see below).
 A save sends only the fields it changed, and the route backfills the rest. That
 works cleanly when **one** surface drives a page's drafts. Mounting two versioned
 surfaces on the same page — e.g. `mountLouise({ versionedPageId })` for an inline
-body **and** a sections dock for the same page id — is not the supported model:
+body **and** a sections editor for the same page id — is not the supported model:
 
 - Each surface would render its own **Save draft** / **Publish**. The framework
   de-dupes the shared edit bar (only the first surface's actions land on it), but

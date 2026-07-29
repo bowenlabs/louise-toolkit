@@ -123,10 +123,17 @@ function mountSections(
 The editor for [Louise Sections](/guide/sections/) — component-rendered pages
 whose content is stored as typed JSON, not HTML. Takes over `el` (the wrapper
 around the server-rendered sections): visible text nodes marked with
-`data-louise-sfield` become editable in place, and a floating control dock adds /
-reorders / removes sections and edits non-visible fields. Text saves `PATCH` the
-whole `sections` array to the pages route; structural changes persist and reload.
-Returns a disposer.
+`data-louise-sfield` become editable in place, and every element marked with
+`data-louise-node="<path>"` gets on-canvas chrome — a ring plus a toolbar that
+moves, deletes, and adds, with a wrench for the fields you can't click (arrays,
+images, `inline: false`). Text saves `PATCH` the whole `sections` array to the
+pages route; structural changes persist and reload. Returns a disposer.
+
+The toolbar is derived, not hardcoded: the editor resolves each marker's path
+against the catalog, and the chrome draws move/delete for a node with a position,
+an add for one that holds children, and a wrench for one with configurable
+fields. `"0"` is a section, `"0.blocks.1"` a block, `"0.ctaHref"` a single field
+whose wrench opens a field-scoped inspector.
 
 `autoSave` (default **on**) stages a **draft** on an idle debounce as you edit in
 place, dropping the manual Save draft button (Publish stays, and is never
@@ -222,8 +229,8 @@ preview thumbnail only (e.g. a CDN resizer like `cfImage`); and `allowUrl` bring
 back the raw-URL text input for a site that knowingly wants it. All default off.
 
 `MediaPicker` is the query-free variant of `MediaUrlPicker` for surfaces mounted
-outside the Settings' TanStack Query provider (e.g. the sections dock) — it powers
-**Choose from media** on section `image` fields.
+outside the Settings' TanStack Query provider (e.g. the sections inspector) — it
+powers **Choose from media** on section `image` fields.
 
 ### Data layer
 
