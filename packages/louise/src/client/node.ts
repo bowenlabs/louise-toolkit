@@ -31,6 +31,11 @@ export type PathSegment = number | string;
 /** A parsed `data-louise-node` value — a path into the page's `sections` JSON. */
 export type NodePath = PathSegment[];
 
+/** Anything the readers can scan. NOT `ParentNode`: that DOM mixin isn't
+ *  structurally satisfied by `Element` once `@cloudflare/workers-types` is in
+ *  scope, so a plain `container.querySelectorAll` caller fails to typecheck. */
+export type NodeRoot = Document | Element;
+
 /** The single marker attribute every editable node carries in edit mode. */
 export const NODE_MARKER_ATTR = "data-louise-node";
 
@@ -122,9 +127,7 @@ export function nodeAt(node: Node | null): { el: HTMLElement; path: NodePath } |
 }
 
 /** Every marked node under `root`, in document order. */
-export function readNodeMarkers(
-  root: ParentNode = document,
-): { el: HTMLElement; path: NodePath }[] {
+export function readNodeMarkers(root: NodeRoot = document): { el: HTMLElement; path: NodePath }[] {
   const out: { el: HTMLElement; path: NodePath }[] = [];
   for (const el of root.querySelectorAll<HTMLElement>(`[${NODE_MARKER_ATTR}]`)) {
     const path = parseNodePath(el.getAttribute(NODE_MARKER_ATTR));
@@ -138,18 +141,26 @@ export function readNodeMarkers(
  *
  *  Descendants are rewritten by PREFIX, so a block's fields follow its block, and
  *  a block follows its section, without any of them knowing their own depth. */
-export function restampNode(el: HTMLElement, from: NodePath, to: NodePath): void {
+export function restampNode(
+  el: HTMLElement,
+  from: NodePath,
+  to: NodePath,
+  attrs: readonly string[] = [NODE_MARKER_ATTR],
+): void {
   const fromStr = formatNodePath(from);
   const toStr = formatNodePath(to);
   if (fromStr === toStr) return;
-  const rewrite = (target: HTMLElement): void => {
-    const cur = target.getAttribute(NODE_MARKER_ATTR);
+  const rewrite = (target: HTMLElement, attr: string): void => {
+    const cur = target.getAttribute(attr);
     if (cur === null) return;
-    if (cur === fromStr) target.setAttribute(NODE_MARKER_ATTR, toStr);
+    if (cur === fromStr) target.setAttribute(attr, toStr);
+    // The dot matters: without it "0.blocks.1" would also match "0.blocks.10".
     else if (cur.startsWith(`${fromStr}.`)) {
-      target.setAttribute(NODE_MARKER_ATTR, `${toStr}${cur.slice(fromStr.length)}`);
+      target.setAttribute(attr, `${toStr}${cur.slice(fromStr.length)}`);
     }
   };
-  rewrite(el);
-  for (const d of el.querySelectorAll<HTMLElement>(`[${NODE_MARKER_ATTR}]`)) rewrite(d);
+  for (const attr of attrs) {
+    rewrite(el, attr);
+    for (const d of el.querySelectorAll<HTMLElement>(`[${attr}]`)) rewrite(d, attr);
+  }
 }
