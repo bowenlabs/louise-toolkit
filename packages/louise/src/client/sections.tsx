@@ -8,9 +8,10 @@
 //
 // The UX is HYBRID, and fully on-canvas (the old floating "dock" is gone, #182):
 //  • TEXT is edited IN PLACE on the live bespoke render. Each editable text node
-//    carries a `data-louise-sfield="<idx>.<key>[.<j>.<subKey>]"` marker; we make
-//    it contenteditable and write keystrokes straight into the store. No panel,
-//    no reload — you type on the real design.
+//    carries the SAME `data-louise-node` marker a section does, one path deeper
+//    (`"<idx>.<key>[.<j>.<subKey>]"`); the catalog says the field is edited in
+//    place, and we make it contenteditable and write keystrokes straight into the
+//    store. No panel, no reload — you type on the real design.
 //  • STRUCTURE (reorder / delete / add a node) is the on-canvas chrome — one ring
 //    + toolbar over the hovered `data-louise-node`, drawn from the capabilities
 //    `describeNode` resolves for its path (ADR 0010; see node-chrome.ts).
@@ -305,14 +306,14 @@ interface VersionRow {
   versionData?: { sections?: SectionItem[] } | null;
 }
 
-/** Parse a `data-louise-sfield` path ("1.items.2.title") into store-write args,
+/** Parse a marker path ("1.items.2.title") into store-write args,
  *  coercing the numeric segments (section index, array index) to numbers. */
 function pathToArgs(path: string): (string | number)[] {
   return path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p));
 }
 
 /**
- * The field definition a `data-louise-sfield` path addresses.
+ * The field definition a marker path addresses.
  *
  * Three shapes, which is one more than the placeholder lookup used to handle:
  *
@@ -362,9 +363,10 @@ function placeholderFor(
 }
 
 /**
- * Wire in-place editing over the bespoke render: every `[data-louise-sfield]`
- * text node becomes contenteditable and writes into the shared store. Runs once
- * on mount (the nodes are server-rendered and stable until a structural reload).
+ * Wire in-place editing over the bespoke render: every marked node whose field
+ * the catalog says is edited in place becomes contenteditable and writes into the
+ * shared store. Runs once on mount (the nodes are server-rendered and stable
+ * until a structural reload).
  */
 function wireInline(
   host: HTMLElement,
@@ -393,22 +395,36 @@ function wireInline(
     richTextModes?.[node.dataset.louiseRt ?? ""] ??
     richText ?? { minimal: true };
 
-  const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
+  // ONE marker, and the catalog decides what happens to it (ADR 0010 A2). This
+  // scanned `[data-louise-sfield]` and read `data-louise-type="richtext"` and
+  // `data-louise-multiline` off the element — three attributes the render stamped
+  // to describe a field the catalog already fully described. Now the marker says
+  // only WHERE the field is; whether it's edited in place, and with which editor,
+  // comes from its type.
+  const nodes = host.querySelectorAll<HTMLElement>(`[${NODE_MARKER_ATTR}]`);
   for (const node of Array.from(nodes)) {
-    const path = node.dataset.louiseSfield;
+    const path = node.getAttribute(NODE_MARKER_ATTR);
     if (!path) continue;
-    // Rich-text section field (#182): mount the light ProseKit editor (inline
-    // formatting bubble only) instead of a plaintext contenteditable, and persist
-    // the field's HTML (stega-cleaned) into the shared store. The save path
-    // sanitizes it (sanitizeSectionsRichText) and the site renders it via set:html
-    // — the same store/marker path, just an HTML value instead of textContent.
-    if (node.dataset.louiseType === "richtext") {
+    const field = fieldAtPath(path, catalog, items, blocks);
+    // Not a field at all (a section or block boundary), or a field edited in the
+    // inspector rather than on the page. Either way the chrome owns it, not this.
+    if (!field || !isInline(field)) continue;
+
+    // Rich text (#182): the light ProseKit editor instead of a plaintext
+    // contenteditable, persisting the field's HTML (stega-cleaned). The save path
+    // sanitizes it (sanitizeSectionsRichText) and the site renders it via
+    // set:html — the same store/marker path, an HTML value instead of textContent.
+    if (field.type === "richText") {
       node.classList.add("louise-editable", "louise-sfield");
       let rt: RichTextField;
       rt = mountRichText(
         node,
         () => {
-          set("items", ...pathToArgs(node.dataset.louiseSfield ?? path), stegaClean(rt.getHTML()));
+          set(
+            "items",
+            ...pathToArgs(node.getAttribute(NODE_MARKER_ATTR) ?? path),
+            stegaClean(rt.getHTML()),
+          );
           onEdit();
         },
         undefined,
@@ -423,7 +439,10 @@ function wireInline(
     // Native browser spellcheck on multiline (textarea-backed, prose-y) fields
     // only; single-line headline/label fields stay off, where red squiggles are
     // just noise (#142). Rich-text prose uses ProseKit + Harper (#110) instead.
-    const multiline = node.hasAttribute("data-louise-multiline");
+    //
+    // Read from the type now, not a stamped `data-louise-multiline` — `textarea`
+    // is the declaration that a field holds more than one line.
+    const multiline = field.type === "textarea";
     node.setAttribute("spellcheck", multiline ? "true" : "false");
     // Give the region a name for assistive tech — the placeholder hint is the
     // field's human label, and it's otherwise only CSS ::before content.
@@ -436,9 +455,13 @@ function wireInline(
     }
     node.addEventListener("input", () => {
       // Re-read the marker (don't close over `path`): an instant reorder/delete
-      // re-stamps `data-louise-sfield`, so the current attribute is the source of
-      // truth for which store path this node now writes to (#182 Phase 1).
-      set("items", ...pathToArgs(node.dataset.louiseSfield ?? path), node.textContent ?? "");
+      // re-stamps it, so the current attribute is the source of truth for which
+      // store path this node now writes to (#182 Phase 1).
+      set(
+        "items",
+        ...pathToArgs(node.getAttribute(NODE_MARKER_ATTR) ?? path),
+        node.textContent ?? "",
+      );
       onEdit();
     });
     // Flush a pending auto-save when the editor tabs out of this field.

@@ -100,13 +100,74 @@ describe("mountNodeChrome — deepest wins, with no per-kind knowledge", () => {
     expect(document.querySelectorAll(".louise-node-active")).toHaveLength(1);
   });
 
-  it("treats a node the editor doesn't recognise as unmarked", () => {
+  it("clears when nothing up the tree resolves", () => {
     const { field } = tree();
     dispose = mountNodeChrome({ ...noopActions, resolve: () => null });
 
     over(field);
     expect(ringed()).toBeNull();
     expect(toolbar()?.dataset.open).toBe("0");
+  });
+});
+
+// Under A1 an unresolved node meant "clear", which was right while only
+// ring-worthy things carried a marker. A2 marks everything editable, so the
+// tightest marker under the pointer is usually an inline field that resolves to
+// no chrome by design — and stopping there would make the page feel dead
+// wherever text sits (ADR 0010 A2, #346).
+describe("mountNodeChrome — walking outward past nodes with no chrome", () => {
+  it("rings the anchor when the pointer is on its inline label", () => {
+    // The concrete case the ADR names: a CTA's text is a `text` field (edited in
+    // place, no chrome); the anchor around it is the `href` (a wrench).
+    const section = document.createElement("div");
+    section.setAttribute("data-louise-node", "0");
+    const anchor = document.createElement("a");
+    anchor.setAttribute("data-louise-node", "0.href");
+    const label = document.createElement("span");
+    label.setAttribute("data-louise-node", "0.label");
+    label.textContent = "Shop";
+    anchor.appendChild(label);
+    section.appendChild(anchor);
+    document.body.appendChild(section);
+
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: (path) =>
+        formatNodePath(path) === "0.href"
+          ? { fields: true, tone: "value", label: "Button link" }
+          : null, // `0.label` is inline; `0` is deliberately unresolvable here
+    });
+
+    over(label);
+    expect(ringed()).toBe(anchor);
+    expect(shownButtons()).toEqual(["Button link"]);
+  });
+
+  it("keeps going past several unresolved ancestors", () => {
+    const { section, field } = tree();
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: (path) =>
+        formatNodePath(path) === "0"
+          ? { ordered: { index: 0, count: 1 }, tone: "section", label: "Hero" }
+          : null,
+    });
+
+    // Two marked ancestors between the pointer and the thing that rings.
+    over(field);
+    expect(ringed()).toBe(section);
+  });
+
+  it("still prefers the deepest node that DOES resolve", () => {
+    // The walk must not weaken deepest-wins — it only skips what has no chrome.
+    const { block, field } = tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+
+    over(field);
+    expect(ringed()).toBe(field); // resolves, so the walk stops immediately
+
+    over(block.firstChild ?? block);
+    expect(ringed()).toBe(field);
   });
 });
 
@@ -131,8 +192,10 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
 
     over(field);
     // The pre-0010 link layer hand-built a separate wrench-only toolbar to get
-    // this. Here it is the absence of `ordered` and `children`.
-    expect(shownButtons()).toEqual(["Layout & settings"]);
+    // this. Here it is the absence of `ordered` and `children` — and the button
+    // is named after the field, since "Layout & settings" describes a container's
+    // panel and this one opens a single field.
+    expect(shownButtons()).toEqual(["link"]);
   });
 
   it("disables move at the ends of the list", () => {

@@ -11,10 +11,11 @@
 // Two marker responsibilities:
 //   • the BOUNDARY (`data-louise-node="<path>"`, ADR 0010) is stamped here,
 //     because only the dispatcher knows an item's position;
-//   • the FIELDS (`data-louise-sfield`) are stamped by `<Editable base={base}
-//     field="…">` inside each component, because only the component knows which
-//     of its text nodes are editable. (ADR 0010 Phase A2 folds these into the node
-//     marker once the field registry can say which fields want chrome.)
+//   • the FIELDS are stamped by `<Editable base={base} field="…">` inside each
+//     component, because only the component knows which of its text nodes are
+//     editable. Since A2 those carry the SAME `data-louise-node` attribute, one
+//     path deeper — the catalog says whether a field is edited in place, so the
+//     marker no longer has to.
 //
 // Blocks recurse through this same component with a deeper `base`. That's the
 // whole trick: a component never learns its own depth, so a type that renders as

@@ -60,7 +60,7 @@ function stubFetch(): Call[] {
         const cards = (item?.blocks ?? [])
           .map(
             (b, j) =>
-              `<article data-louise-node="0.blocks.${j}"><div data-louise-sfield="0.blocks.${j}.name">${b.name ?? ""}</div></article>`,
+              `<article data-louise-node="0.blocks.${j}"><div data-louise-node="0.blocks.${j}.name">${b.name ?? ""}</div></article>`,
           )
           .join("");
         return Promise.resolve(
@@ -86,7 +86,7 @@ function stubFetch(): Call[] {
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 /** A stand-in for the server-rendered page: one marked section whose blocks each
- *  carry `data-louise-node` + an inner `data-louise-sfield` name node. */
+ *  carry `data-louise-node` + an inner `data-louise-node` name node. */
 function pageHost(names: string[]): HTMLElement {
   const host = document.createElement("div");
   const sec = document.createElement("section");
@@ -95,7 +95,7 @@ function pageHost(names: string[]): HTMLElement {
     const card = document.createElement("article");
     card.setAttribute("data-louise-node", `0.blocks.${j}`);
     const node = document.createElement("div");
-    node.setAttribute("data-louise-sfield", `0.blocks.${j}.name`);
+    node.setAttribute("data-louise-node", `0.blocks.${j}.name`);
     node.textContent = name;
     card.appendChild(node);
     sec.appendChild(card);
@@ -131,11 +131,12 @@ const toolbarButtons = () =>
   [
     ...(document.querySelector(".louise-chrome-toolbar")?.querySelectorAll("button") ?? []),
   ] as HTMLButtonElement[];
-/** The rendered BLOCK elements — depth is read off the path, since the section
- *  around them carries the same attribute. */
+/** The rendered BLOCK elements. One attribute covers sections, blocks AND fields
+ *  since A2, so depth is read off the path: a block's ends at its position
+ *  (`0.blocks.1`), a field inside it at a key (`0.blocks.1.name`). */
 const blockEls = (host: HTMLElement) =>
   [...host.querySelectorAll<HTMLElement>("[data-louise-node]")].filter((el) =>
-    (el.getAttribute("data-louise-node") ?? "").includes(".blocks."),
+    /\.blocks\.\d+$/.test(el.getAttribute("data-louise-node") ?? ""),
   );
 const domBlockNames = (host: HTMLElement) =>
   blockEls(host).map((b) => b.querySelector("div")?.textContent);

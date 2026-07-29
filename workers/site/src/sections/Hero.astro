@@ -12,7 +12,7 @@
 // hero (flat ctaLabel/ctaHref/installCommand) still renders via a fallback while
 // the shared DB is re-seeded.
 //
-// In edit mode it stamps `data-louise-sfield` on the visible text nodes so the
+// In edit mode it stamps `data-louise-node` on the visible text nodes so the
 // client can make them editable in place, and always renders those nodes (even
 // when empty) so there's something to click into. `ctaHref` and the install
 // command have no clean visible node, so they're edited in the block's dock
@@ -97,7 +97,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
       class="mb-[34px] inline-flex items-center gap-2 rounded-full border-[1.5px] border-primary px-4 py-1.5 text-[13px] font-bold tracking-[0.1em] text-[#6cb2ff]"
     >
       <Icon svg={lightningFillSvg} class="text-[15px] text-accent" />
-      <span data-louise-sfield={edit ? `${idx}.badge` : undefined}>
+      <span data-louise-node={edit ? `${idx}.badge` : undefined}>
         {badge || (edit ? "" : "V8-NATIVE · RUNS ON CLOUDFLARE WORKERS")}
       </span>
     </div>
@@ -105,10 +105,10 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
     <h1
       class="lt-display lt-stretch-140 mb-[30px] text-[clamp(44px,8.5vw,104px)] leading-[.94] tracking-[-0.02em]"
     >
-      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+      <span data-louise-node={edit ? `${idx}.heading` : undefined}>
         {heading || (edit ? "" : "Stop building")}
       </span><br />
-      <span class="text-[#2f92f5]" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+      <span class="text-[#2f92f5]" data-louise-node={edit ? `${idx}.headingAccent` : undefined}>
         {headingAccent || (edit ? "" : "admin panels.")}
       </span>
     </h1>
@@ -117,8 +117,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
         mount into it; the stored value is sanitized HTML rendered via set:html. */}
     <div
       class="louise-rt-field mx-auto mb-10 max-w-[30em] text-[clamp(17px,2.2vw,21px)] leading-[1.6] text-pretty text-[#aab3c2]"
-      data-louise-sfield={edit ? `${idx}.tagline` : undefined}
-      data-louise-type={edit ? "richtext" : undefined}
+      data-louise-node={edit ? `${idx}.tagline` : undefined}
       set:html={tagline ||
         (edit
           ? ""
@@ -148,7 +147,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
               data-louise-node={blockNode(j)}
               class="inline-block rounded-full bg-primary px-[34px] py-4 text-[17px] font-extrabold text-primary-content transition hover:-translate-y-0.5 hover:bg-[#2f92f5]"
               href={a.href || "https://docs.louisetoolkit.com/guide/getting-started"}
-              data-louise-sfield={edit ? ctaLabelPath(j) : undefined}
+              data-louise-node={edit ? ctaLabelPath(j) : undefined}
             >
               {a.label || (edit ? "" : "Get started")}
             </a>

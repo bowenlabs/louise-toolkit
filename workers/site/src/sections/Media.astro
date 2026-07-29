@@ -1,7 +1,7 @@
 ---
 // Bespoke media section — a site-owned figure (image + caption). The image and
 // its alt text are edited in the dock (upload/clear + a text field with no
-// visible node); the caption is edited in place via a `data-louise-sfield`
+// visible node); the caption is edited in place via a `data-louise-node`
 // marker. In edit mode with no image yet, a placeholder keeps the section
 // visible and clickable so it can be filled from the dock.
 interface Props {
@@ -30,7 +30,7 @@ const idx = _editIndex;
       (edit || caption) && (
         <figcaption
           class="mt-3 text-center text-sm text-base-content/60"
-          data-louise-sfield={edit ? `${idx}.caption` : undefined}
+          data-louise-node={edit ? `${idx}.caption` : undefined}
         >
           {caption}
         </figcaption>

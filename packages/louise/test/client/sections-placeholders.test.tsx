@@ -2,7 +2,7 @@
 //
 // An empty inline field has nothing to click, so the render emits the node anyway
 // and the editor labels it from the catalog — `placeholder`, else `label`, else a
-// humanised key. Resolving that means walking a `data-louise-sfield` path back to
+// humanised key. Resolving that means walking a `data-louise-node` path back to
 // the field that declared it, which has three shapes.
 //
 // The BLOCK shape was missing. `<i>.blocks.<j>.<key>` starts with `blocks`, which
@@ -60,13 +60,13 @@ function pageHost(): HTMLElement {
   sec.setAttribute("data-louise-node", "0");
   for (const path of ["0.heading", "0.subheading", "0.leadPara", "0.items.0.caption"]) {
     const n = document.createElement("div");
-    n.setAttribute("data-louise-sfield", path);
+    n.setAttribute("data-louise-node", path);
     sec.appendChild(n);
   }
   const card = document.createElement("article");
   card.setAttribute("data-louise-node", "0.blocks.0");
   const nameNode = document.createElement("div");
-  nameNode.setAttribute("data-louise-sfield", "0.blocks.0.name");
+  nameNode.setAttribute("data-louise-node", "0.blocks.0.name");
   card.appendChild(nameNode);
   sec.appendChild(card);
   host.appendChild(sec);
@@ -75,7 +75,7 @@ function pageHost(): HTMLElement {
 }
 
 const hintFor = (host: HTMLElement, path: string) =>
-  host.querySelector<HTMLElement>(`[data-louise-sfield="${path}"]`)?.dataset.louisePlaceholder;
+  host.querySelector<HTMLElement>(`[data-louise-node="${path}"]`)?.dataset.louisePlaceholder;
 
 let dispose: (() => void) | undefined;
 afterEach(() => {

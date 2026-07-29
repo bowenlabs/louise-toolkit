@@ -1,6 +1,6 @@
 ---
 // Bespoke contact section — uses louise-toolkit/forms (#46). The heading/blurb are
-// editable in place (data-louise-sfield markers); the form itself is generated
+// editable in place (data-louise-node markers); the form itself is generated
 // from the built-in `inquiries` form and POSTs to its `formRoute`
 // (/api/louise/forms/inquiries), which validates + rate-limits + inserts. A
 // submission then shows up in the Settings' Inquiries tab — no hand-rolled POST
@@ -20,7 +20,7 @@ const idx = _editIndex;
   <div class="mx-auto max-w-xl">
     <h2
       class="text-center text-3xl font-black tracking-tight"
-      data-louise-sfield={edit ? `${idx}.heading` : undefined}
+      data-louise-node={edit ? `${idx}.heading` : undefined}
     >
       {heading || (edit ? "" : "Get in touch")}
     </h2>
@@ -28,8 +28,7 @@ const idx = _editIndex;
       (edit || blurb) && (
         <p
           class="mt-2 text-center text-base-content/70"
-          data-louise-sfield={edit ? `${idx}.blurb` : undefined}
-          data-louise-multiline={edit || undefined}
+          data-louise-node={edit ? `${idx}.blurb` : undefined}
         >
           {blurb}
         </p>
