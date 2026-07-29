@@ -75,14 +75,11 @@ import type {
 } from "../core/content/sections.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
-/** Whether a field is edited in place — plain text and rich text are (default).
- *  `array` and `image` are edited in the ⚙ inspector, so they're non-inline. */
-function isInline(field: SectionField): boolean {
-  return (
-    field.inline ??
-    (field.type === "text" || field.type === "textarea" || field.type === "richText")
-  );
-}
+// Whether a field is edited in place is the field TYPE's business now (ADR 0010
+// A2) — one answer in `field-types.ts`, where the validator reads it too. This
+// module and `describe-node.ts` each carried their own copy of the same list, and
+// they agreed only because they were written on the same afternoon.
+import { isInlineField as isInline } from "../core/content/field-types.js";
 
 /** Rich-text editor options for a section's `richtext` fields — mirrors
  *  `mountRichText`'s opts. Omit for the default light-inline bubble
