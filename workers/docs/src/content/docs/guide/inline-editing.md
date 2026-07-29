@@ -97,7 +97,7 @@ mountLouise({ autoSave: false }); // opt out → a manual Save button returns
   saved_). A failed save keeps the field dirty and retries on your next edit.
 
 On a page with no inline fields (a sections-only page), the [sections
-dock](/guide/sections/) owns its own auto-save instead.
+editor](/guide/sections/) owns its own auto-save instead.
 
 ## Adding an inline-editable field
 

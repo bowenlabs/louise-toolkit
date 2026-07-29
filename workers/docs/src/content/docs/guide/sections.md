@@ -43,7 +43,7 @@ export const SECTIONS: SectionCatalog = {
       heading: { type: "text" },
       tagline: { type: "textarea" },
       ctaLabel: { type: "text" },
-      // No visible text on the page → edited in the dock, not in place.
+      // No visible text on the page → edited in the inspector, not in place.
       ctaHref: { type: "text", inline: false },
     },
   },
@@ -62,17 +62,67 @@ export const SECTIONS: SectionCatalog = {
 
 Field types are `text`, `textarea`, `array` (repeatable, with `itemFields`), and
 `image`. Plain text is edited in place; `array` and `image` are edited in the
-dock (an `image` gets **Upload** + **Choose from media** + clear controls, so it
-always resolves to a [media asset](/guide/media/#strict-media-every-image-from-the-library),
+inspector (an `image` gets **Upload** + **Choose from media** + clear controls, so
+it always resolves to a [media asset](/guide/media/#strict-media-every-image-from-the-library),
 never a pasted URL), as is any field you mark `inline: false` (e.g. a link URL
 with no visible text). Pass `mediaBase` to `assertValidSections` and a section
 image that isn't media-hosted is rejected on write (`422`).
 
 ## Rendering + edit markers
 
-Map each item's `_type` to its component. In edit mode, stamp a
-`data-louise-sfield` marker on every visible text node so the client can make it
-editable in place. The path is `"<index>.<field>"`, or
+Map each item's `_type` to its component. In edit mode a render stamps **two**
+kinds of marker, and they do different jobs — a site that stamps only one gets
+half an editor.
+
+### The boundary: `data-louise-node`
+
+One attribute marks every editable **node** — the thing the on-canvas chrome
+rings and hangs a toolbar on. Its value is that node's path into the `sections`
+array, and nothing else:
+
+```astro
+<!-- a section: item i of the page -->
+<div data-louise-node={`${i}`}>…</div>
+
+<!-- a block: item j of section i's `blocks` -->
+<article data-louise-node={`${i}.blocks.${j}`}>…</article>
+
+<!-- a value: one field of section i -->
+<a data-louise-node={`${i}.ctaHref`} href={ctaHref}>Book now</a>
+```
+
+Three shapes, one grammar:
+
+- `"0"` — a **section**. It has a position in the page's list, so its toolbar
+  gets move up / down, delete, and a `+` to add a sibling after it.
+- `"0.blocks.1"` — a **block**: block `1` of section `0`, ordered within its
+  section. `blocks` is the reserved structural key.
+- `"0.ctaHref"` — a **value**: a node with no position and no children, so its
+  toolbar is a wrench only. That wrench opens an inspector **scoped to that
+  field**, rather than its section's whole panel.
+
+The render never declares what a node _is_ — it says only where the node lives.
+The editor resolves the path against your catalog and the chrome draws whatever
+capabilities come back: an ordered node gets move/delete, a node that holds
+children gets an add, a node with configurable fields gets a wrench (and no
+wrench at all when there's nothing to configure). A section that declares
+`blocks` and currently has none draws its own **Add the first one** `+`.
+
+:::caution[A missing boundary marker fails quietly]
+Stamp only `data-louise-sfield` and text still edits in place — but there are no
+rings, no toolbars, and no way to add, reorder, or remove anything. The page
+looks editable while the entire structural layer is absent.
+:::
+
+Astroid's [`<Section>`](/reference/astroid/) dispatcher stamps the boundary for
+you, at every depth — a block is the same component recursing with a deeper
+`base`, so a type that renders as a section renders unchanged as a block. Value
+nodes are yours to stamp, since only your component knows which link is the CTA.
+
+### The fields: `data-louise-sfield`
+
+Stamp this on every visible text node so the client can make it editable in
+place. The path is `"<index>.<field>"`, or
 `"<index>.<key>.<itemIndex>.<subField>"` for array items:
 
 ```astro
@@ -93,13 +143,23 @@ mountSections(el, { catalog: SECTIONS, pageId, initial });
 mountSections(el, { catalog: SECTIONS, pageId, initial, autoSave: false });
 ```
 
-`el` is the wrapper around the server-rendered sections. The UX is **hybrid**:
+`el` is the wrapper around the server-rendered sections. The UX is **hybrid**,
+and entirely on the canvas — there is no floating panel:
 
 - **Text is edited in place** on the live design — each `data-louise-sfield`
   node becomes `contenteditable`, writing into a shared fine-grained store (a
   keystroke updates only that leaf, so rows never tear down).
-- A floating **control dock** handles what you can't point at: add / reorder /
-  remove sections, array-item add/remove, and any `inline: false` field.
+- **Structure is the on-canvas toolbar.** Hovering (or tabbing to) a
+  `data-louise-node` rings the tightest node under the pointer and floats its
+  toolbar at the top-right: move up / down, delete, and `+` to add. Exactly one
+  node is active at a time — a value beats the block it sits in, which beats the
+  section around that.
+- **Everything you can't point at is behind the wrench** — array items, images,
+  and any `inline: false` field, plus a section's layout and settings. On a
+  value node the wrench opens just that field.
+
+Save draft, Publish, and the save status live on the shared
+[edit bar](/guide/inline-editing/), not on the sections editor.
 
 ## The save contract
 
@@ -109,8 +169,9 @@ and **Publish** promotes it.
 
 - **Text edits** stage a **draft** — no reload (the DOM already shows the change);
   the live page is unchanged until you **Publish**. With auto-save on (the
-  default) this happens on an idle debounce, so the dock shows only a live status
-  and **Publish** — no Save draft button. Auto-save **never publishes**.
+  default) this happens on an idle debounce, so the edit bar shows only
+  **Publish** — no Save draft button, and no routine saved/unsaved status; a
+  _failed_ save still surfaces. Auto-save **never publishes**.
 - **Structural changes** save a draft and then reload, so the server re-renders
   the new shape (which comes back inline-editable). In edit mode the page resumes
   your latest draft; view mode always shows the published version.
@@ -148,8 +209,8 @@ validated in turn). A field can also carry a `validation` chain — the same
 `heading: { type: "text", validation: (r) => r.required().max(80) }`.
 
 `assertValidSections` throws `LouiseValidationError` on any error-severity
-violation, which `pagesRoute` turns into a `422 { error, violations }` — the
-on-page dock surfaces the first violation as the save-failure reason.
+violation, which `pagesRoute` turns into a `422 { error, violations }` — the edit
+bar surfaces the first violation as the save-failure reason.
 
 ## Search
 
