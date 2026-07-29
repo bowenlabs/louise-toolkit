@@ -15,6 +15,7 @@ import {
   fieldTypeNames,
   getFieldType,
   isInlineField,
+  unknownFieldTypes,
   validateFieldType,
 } from "../../src/core/content/field-types.js";
 import type { SectionCatalog, SectionField } from "../../src/core/content/sections.js";
@@ -23,19 +24,30 @@ import { isMediaUrl } from "../../src/core/media/storage.js";
 
 /** Build a field whose `type` is any string.
  *
- *  The cast is load-bearing, not laziness: `SectionFieldType` is a closed union,
- *  so a type registered at runtime — a site's own, or the `slug` below — cannot be
- *  written into it. That gap is real and is A2 slice 2's to close (#343); until
- *  then this helper is where the test acknowledges it. */
-const field = (f: { type: string } & Partial<Omit<SectionField, "type">>) =>
-  f as unknown as SectionField;
+ *  Slice 1 needed a cast here, because `SectionFieldType` was closed and a type
+ *  registered at runtime couldn't be written into it. Slice 2 widened it, so this
+ *  is now ordinary typed code — the `slug` case below compiles because a site's
+ *  own type is authorable, which is the whole point of a registry. */
+const field = (f: Partial<SectionField> & { type: string }): SectionField => f;
 const ctx = (f: SectionField, path = "x") => ({ field: f, path });
 
 describe("the registry", () => {
-  it("registers every built-in the authoring union names", () => {
-    // If these drift apart, a catalog can name a type that validates as nothing.
+  it("registers every built-in from BOTH former systems", () => {
+    // Sections had 8, the settings drawer had 6, overlapping on four. One list
+    // now — `color` and `links` came from the drawer, the rest from sections.
     expect(fieldTypeNames().sort()).toEqual(
-      ["array", "image", "link", "richText", "select", "text", "textarea", "toggle"].sort(),
+      [
+        "array",
+        "color",
+        "image",
+        "link",
+        "links",
+        "richText",
+        "select",
+        "text",
+        "textarea",
+        "toggle",
+      ].sort(),
     );
   });
 
@@ -113,9 +125,9 @@ describe("a new field type is one registration", () => {
           : [{ path, message: `${path} must be a slug`, severity: "error" }],
     });
 
-    const catalog = {
+    const catalog: SectionCatalog = {
       post: { label: "Post", fields: { handle: { type: "slug" } } },
-    } as unknown as SectionCatalog;
+    };
 
     expect(await validateSections(catalog, [{ _type: "post", handle: "hello-world" }])).toEqual([]);
 
@@ -125,6 +137,68 @@ describe("a new field type is one registration", () => {
 
     // And the editor knows where to put it without being told separately.
     expect(isInlineField(field({ type: "slug" }))).toBe(false);
+  });
+});
+
+// The two systems overlapped on four types and diverged on the rest, so a type
+// added to one was silently missing from the other. That had teeth: settings had
+// a `links` type and no `link` type, which is why there was nowhere for a scheme
+// check to live and stored nav destinations went unvalidated.
+describe("the settings types, now on the same registry", () => {
+  it("validates `links` rows — including the href that had no check", () => {
+    const f = field({ type: "links" });
+    expect(validateFieldType([{ label: "Shop", href: "/shop" }], ctx(f, "navLinks"))).toEqual([]);
+
+    const v = validateFieldType(
+      [
+        { label: "ok", href: "/a" },
+        { label: "bad", href: "javascript:alert(1)" },
+      ],
+      ctx(f, "navLinks"),
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].path).toBe("navLinks[1].href");
+  });
+
+  it("reports a malformed links row rather than throwing on it", () => {
+    const v = validateFieldType(["not-an-object"], ctx(field({ type: "links" }), "navLinks"));
+    expect(v[0]?.path).toBe("navLinks[0]");
+    expect(validateFieldType("nope", ctx(field({ type: "links" })))).toHaveLength(1);
+  });
+
+  it("accepts the colour notations a brand setting actually uses", () => {
+    const f = field({ type: "color" });
+    for (const v of ["#1481ef", "rgb(20, 129, 239)", "hsl(210 90% 51%)", "rebeccapurple", ""]) {
+      expect(validateFieldType(v, ctx(f)), v || "(empty)").toEqual([]);
+    }
+  });
+
+  it("rejects a colour carrying markup or a URL", () => {
+    // The check that matters — the value lands in a CSS custom property.
+    for (const v of ["<script>", "url(javascript:1)", "red;}body{display:none"]) {
+      expect(validateFieldType(v, ctx(field({ type: "color" }))), v).toHaveLength(1);
+    }
+  });
+
+  it("gives the section path a type the drawer used to own alone", () => {
+    // The unification, stated as a behaviour: `color` was settings-only, and a
+    // section catalog can now declare it and have it validated.
+    expect(isInlineField(field({ type: "color" }))).toBe(false);
+    expect(validateFieldType("#fff", ctx(field({ type: "color" })))).toEqual([]);
+  });
+});
+
+describe("unknownFieldTypes", () => {
+  it("names the types nothing registered, so a typo can still fail early", () => {
+    // The widened FieldTypeName trades the union's typo check for extensibility.
+    // This is that check, opt-in — and it covers site-registered types, which the
+    // closed union never could.
+    expect(unknownFieldTypes([{ type: "text" }, { type: "links" }])).toEqual([]);
+    expect(unknownFieldTypes([{ type: "txet" }, { type: "text" }])).toEqual(["txet"]);
+  });
+
+  it("reports each unknown once", () => {
+    expect(unknownFieldTypes([{ type: "nope" }, { type: "nope" }])).toEqual(["nope"]);
   });
 });
 

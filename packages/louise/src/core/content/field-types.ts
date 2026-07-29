@@ -93,6 +93,51 @@ export function fieldTypeNames(): string[] {
 }
 
 /**
+ * The names a field may declare: every built-in, plus any string.
+ *
+ * The `(string & {})` arm is what makes a site's own `defineFieldType` actually
+ * usable. A closed union is checkable but not extensible, and slice 1 hit the
+ * wall: a type registered at runtime widened the registry and not the type a
+ * catalog could write, so the test that proved "one registration is enough" had
+ * to reach for a cast.
+ *
+ * The intersection is the standard trick for keeping both — TypeScript won't
+ * collapse the union to `string`, so editors still complete the eight built-ins,
+ * while a registered name type-checks. What's lost is the typo check: `"txet"` is
+ * now legal to write. It fails loudly at validation instead of silently, since an
+ * unregistered type validates as nothing — which is why `assertKnownFieldTypes`
+ * exists for a catalog that wants the stricter guarantee back.
+ */
+export type FieldTypeName =
+  | "text"
+  | "textarea"
+  | "richText"
+  | "array"
+  | "image"
+  | "select"
+  | "link"
+  | "toggle"
+  | "color"
+  | "links"
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: the `string & {}` idiom
+  // preserves literal completion; `string` alone would swallow the union.
+  | (string & {});
+
+/**
+ * Every field type named in `defs` that nothing has registered.
+ *
+ * The escape hatch for what the widened {@link FieldTypeName} gives up. A site
+ * that registers its own types but still wants a typo to fail early calls this
+ * over its catalog at boot: it is the check the closed union used to perform, now
+ * opt-in and covering site-defined types too — which the union never could.
+ */
+export function unknownFieldTypes(defs: Iterable<{ type: string }>): string[] {
+  const missing = new Set<string>();
+  for (const def of defs) if (!registry.has(def.type)) missing.add(def.type);
+  return [...missing];
+}
+
+/**
  * Whether a field is edited in place. The field's own `inline` wins; otherwise
  * the type decides.
  *
@@ -135,6 +180,24 @@ const mustBeString = (value: unknown, { path }: FieldValidateContext) =>
  *  into rich text. Duplicated rather than imported to keep `core/content` free of
  *  a `core/security` dependency; the two are asserted identical in test. */
 const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
+
+/**
+ * Whether `value` is a destination Louise will store and a site may render into
+ * an `href`.
+ *
+ * Exported because a stored destination is not only a section field: site
+ * settings hold `navLinks` / `socialLinks`, rendered into the site chrome on
+ * every page. Nothing checked those until an editor could have planted
+ * `javascript:` in one — so the two paths now share a predicate rather than a
+ * convention.
+ *
+ * Empty is safe: "no link yet" is a value, and what an unset link renders is the
+ * site component's decision.
+ */
+export function isSafeLinkUrl(value: unknown): boolean {
+  if (typeof value !== "string" || value === "") return true;
+  return SAFE_LINK_URL.test(value.trim());
+}
 
 /** Whether `value` is served from the media library at `base`.
  *
@@ -254,4 +317,68 @@ defineFieldType({
   inline: false,
   validate: (value, { path }) =>
     typeof value === "boolean" ? undefined : bad(path, "must be true or false"),
+});
+
+// ── Types the settings drawer had and sections didn't ──────────────────────
+// The two systems overlapped on text/textarea/image/toggle and diverged on the
+// rest, so a type added to one was silently missing from the other. These two
+// were settings-only; `richText` / `array` / `select` / `link` were sections-only
+// and are above. One list now, so "which surface is this for" stops being a
+// property of the type.
+
+/** A CSS colour. Free-form, unlike `select` — a brand colour is picked, not
+ *  chosen from a closed set, which is exactly why a token `select` couldn't serve
+ *  and the drawer needed its own type.
+ *
+ *  Validated loosely on purpose: hex, `rgb()`, `hsl()`, and named colours are all
+ *  legitimate, and the value is only ever written into a CSS custom property. The
+ *  check that matters is that it can't carry markup or a URL. */
+defineFieldType({
+  name: "color",
+  inline: false,
+  validate: (value, { path }) => {
+    if (typeof value !== "string") return bad(path, "must be a string");
+    if (value === "" || /^[\w#(),.%\s/-]+$/.test(value)) return undefined;
+    return bad(path, `must be a CSS colour — got ${JSON.stringify(value)}`);
+  },
+});
+
+/**
+ * An ordered list of `{ label, href }` rows — nav links, social links, footer
+ * CTAs.
+ *
+ * Structurally this is an `array` whose items are a `text` and a `link`, and
+ * modelling it that way is the eventual end state. It stays its own type for now
+ * because the drawer's editor for it is a bespoke row list with add/remove/reorder,
+ * and because the shape is fixed rather than author-declared.
+ *
+ * The `href` check is the one that matters: these render into the site's chrome
+ * on every page, and until the XSS fix nothing validated them.
+ */
+defineFieldType({
+  name: "links",
+  inline: false,
+  validate: (value, { path }) => {
+    if (!Array.isArray(value)) return bad(path, "must be an array of links");
+    const out: ValidationViolation[] = [];
+    value.forEach((row, i) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) {
+        out.push(...bad(`${path}[${i}]`, "must be an object"));
+        return;
+      }
+      const { href, label } = row as Record<string, unknown>;
+      if (label !== undefined && typeof label !== "string") {
+        out.push(...bad(`${path}[${i}].label`, "must be a string"));
+      }
+      if (!isSafeLinkUrl(href)) {
+        out.push(
+          ...bad(
+            `${path}[${i}].href`,
+            `must be an http(s) URL, a mailto: address, or a site path — got ${JSON.stringify(href)}`,
+          ),
+        );
+      }
+    });
+    return out.length > 0 ? out : undefined;
+  },
 });

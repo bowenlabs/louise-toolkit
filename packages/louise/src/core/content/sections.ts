@@ -19,7 +19,7 @@ import { LouiseValidationError, type ValidationViolation } from "../errors.js";
 // whether it's edited in place (ADR 0010 A2). Importing it for the side effect of
 // registering the built-ins as well as for the checker: a catalog naming `"link"`
 // is only meaningful once something has defined it.
-import { validateFieldType } from "./field-types.js";
+import { type FieldTypeName, validateFieldType } from "./field-types.js";
 // The drizzle-free Rule engine, NOT the `./validation.js` barrel — that half
 // imports `drizzle-orm` (an *optional* peer) for its uniqueness queries, and
 // importing it here would drag drizzle into every consumer of these section
@@ -27,63 +27,28 @@ import { validateFieldType } from "./field-types.js";
 // header and `content/define.ts`.
 import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
-/** Schemes a `link` field may name. Deliberately the SAME allowlist the HTML
- *  sanitizer applies to markup `href`s (`core/security/sanitize.ts`) — a
- *  destination should be no more permissive because it was typed into the
- *  inspector instead of pasted into rich text. Duplicated rather than imported to
- *  keep `core/content` free of a `core/security` dependency; the two are asserted
- *  identical in test. */
-const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
+// Re-exported, not defined here. The predicate belongs with the `link` field
+// type in `field-types.ts`; this alias exists because `isSafeLinkUrl` shipped
+// from this module in the XSS fix and `core/editor/settings.ts` imports it from
+// here. Two definitions of the same allowlist briefly existed — the fix branched
+// before the registry landed, and both survived the merge — which is the exact
+// drift the "asserted identical in test" comments are there to prevent.
+export { isSafeLinkUrl } from "./field-types.js";
 
 /**
- * Whether `value` is a destination Louise will store and a site may render into
- * an `href`.
+ * The names a section field may declare.
  *
- * Exported because a stored destination is not only a section field: site
- * settings hold `navLinks` / `socialLinks`, and those are rendered into the site
- * chrome on every page. One predicate, so the two paths cannot disagree about
- * what `javascript:` means.
+ * Now an alias for {@link FieldTypeName} — one list for sections and settings
+ * both, where there used to be `SectionFieldType` (8) and `SettingsFieldType` (6),
+ * overlapping on four and disagreeing on the rest. A type added to one was
+ * silently missing from the other, and that asymmetry had teeth: settings had a
+ * `links` type and no `link` type, so there was nowhere for a scheme check to
+ * live, and stored nav destinations went unvalidated until it was found.
  *
- * Empty is safe — "no link yet" is a value, and what an unset link renders is the
- * site component's decision.
+ * Kept as its own name because it is the published one — a site's catalog is
+ * typed with it.
  */
-export function isSafeLinkUrl(value: unknown): boolean {
-  if (typeof value !== "string" || value === "") return true;
-  return SAFE_LINK_URL.test(value.trim());
-}
-
-// `image` is a media URL (string), edited in the dock via an upload/clear control
-// rather than in place; it validates as a string like text/textarea.
-//
-// `richText` is inline-editable prose stored as a sanitized HTML string (like the
-// page body) — edited in place with the light ProseKit editor (#182), so it
-// carries bold/italic/link/brand-colour marks. It validates as a string; the save
-// path sanitizes it (see `sanitizeSectionsRichText`).
-// `select` is a CLOSED CHOICE — a value that must be one of a declared set.
-// It exists because the token model needs it: `_settings` and `_layout` store
-// tokens the site maps to CSS (ADR 0005 §5), and a token set is closed by
-// definition. Without it a four-value setting like a colorway had to be declared
-// as `text`, which rendered a free-text box in the inspector and pushed the
-// consequence of a typo all the way to render time, where the site silently fell
-// back to a default instead of the write being rejected.
-// What each of these MEANS — how it validates, whether it's edited in place —
-// lives in `field-types.ts`, one registration apiece. This union is now only the
-// authoring surface: the names a catalog may write, kept as a literal union so a
-// typo is a compile error rather than a silent no-op at render time.
-//
-// A site registering its own type via `defineFieldType` widens the runtime but
-// not this union; it authors that field as a `string`-typed `type` today. Closing
-// that gap is A2 slice 2's business, when the settings drawer's parallel type set
-// merges in.
-export type SectionFieldType =
-  | "text"
-  | "textarea"
-  | "richText"
-  | "array"
-  | "image"
-  | "select"
-  | "link"
-  | "toggle";
+export type SectionFieldType = FieldTypeName;
 
 export interface SectionField {
   type: SectionFieldType;
