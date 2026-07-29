@@ -27,6 +27,45 @@ import { validateFieldType } from "./field-types.js";
 // header and `content/define.ts`.
 import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
+/** Schemes a `link` field may name. Deliberately the SAME allowlist the HTML
+ *  sanitizer applies to markup `href`s (`core/security/sanitize.ts`) — a
+ *  destination should be no more permissive because it was typed into the
+ *  inspector instead of pasted into rich text. Duplicated rather than imported to
+ *  keep `core/content` free of a `core/security` dependency; the two are asserted
+ *  identical in test. */
+const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
+
+/**
+ * Whether `value` is a destination Louise will store and a site may render into
+ * an `href`.
+ *
+ * Exported because a stored destination is not only a section field: site
+ * settings hold `navLinks` / `socialLinks`, and those are rendered into the site
+ * chrome on every page. One predicate, so the two paths cannot disagree about
+ * what `javascript:` means.
+ *
+ * Empty is safe — "no link yet" is a value, and what an unset link renders is the
+ * site component's decision.
+ */
+export function isSafeLinkUrl(value: unknown): boolean {
+  if (typeof value !== "string" || value === "") return true;
+  return SAFE_LINK_URL.test(value.trim());
+}
+
+// `image` is a media URL (string), edited in the dock via an upload/clear control
+// rather than in place; it validates as a string like text/textarea.
+//
+// `richText` is inline-editable prose stored as a sanitized HTML string (like the
+// page body) — edited in place with the light ProseKit editor (#182), so it
+// carries bold/italic/link/brand-colour marks. It validates as a string; the save
+// path sanitizes it (see `sanitizeSectionsRichText`).
+// `select` is a CLOSED CHOICE — a value that must be one of a declared set.
+// It exists because the token model needs it: `_settings` and `_layout` store
+// tokens the site maps to CSS (ADR 0005 §5), and a token set is closed by
+// definition. Without it a four-value setting like a colorway had to be declared
+// as `text`, which rendered a free-text box in the inspector and pushed the
+// consequence of a typo all the way to render time, where the site silently fell
+// back to a default instead of the write being rejected.
 // What each of these MEANS — how it validates, whether it's edited in place —
 // lives in `field-types.ts`, one registration apiece. This union is now only the
 // authoring surface: the names a catalog may write, kept as a literal union so a

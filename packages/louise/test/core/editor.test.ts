@@ -18,6 +18,7 @@ import {
   settingsRoute,
   submissionsRoute,
   validateSettingsImages,
+  validateSettingsLinks,
 } from "../../src/core/editor/index.js";
 
 // Fake D1 supporting prepare().bind().all(); records the compiled SQL + binds
@@ -292,6 +293,77 @@ describe("validateSettingsImages", () => {
       "/media",
     );
     expect(v.map((x) => x.path).sort()).toEqual(["faviconUrl", "logoUrl"]);
+  });
+});
+
+// A stored `href` is rendered into the site chrome on every page — nav and social
+// links — and nothing checked its scheme. Sections closed exactly this hole with
+// the `link` field type; settings never got the same treatment, so an editor could
+// store `javascript:` as a nav destination and it rendered as a working link for
+// every visitor.
+describe("validateSettingsLinks", () => {
+  it("rejects a javascript: nav destination — the vector this closes", () => {
+    const v = validateSettingsLinks({
+      navLinks: [
+        { label: "Home", href: "/" },
+        { label: "Free money", href: "javascript:alert(document.cookie)" },
+      ],
+    });
+    expect(v).toHaveLength(1);
+    expect(v[0].path).toBe("navLinks[1].href");
+    expect(v[0].severity).toBe("error");
+  });
+
+  it("rejects the obfuscations the allowlist exists for", () => {
+    for (const href of [
+      "JaVaScRiPt:alert(1)", // case
+      "  javascript:alert(1)", // leading whitespace
+      "data:text/html,<script>alert(1)</script>", // data URL
+      "vbscript:msgbox(1)",
+    ]) {
+      expect(validateSettingsLinks({ navLinks: [{ href }] }), href).toHaveLength(1);
+    }
+  });
+
+  it("passes every destination a site legitimately links to", () => {
+    expect(
+      validateSettingsLinks({
+        navLinks: [{ href: "/shop" }, { href: "#top" }, { href: "./relative" }],
+        socialLinks: [{ href: "https://example.com" }, { href: "mailto:hi@example.com" }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("treats an empty or absent href as unset, not as an attack", () => {
+    // "No link yet" is a value — what it renders is the site component's call.
+    expect(validateSettingsLinks({ navLinks: [{ label: "x", href: "" }, { label: "y" }] })).toEqual(
+      [],
+    );
+  });
+
+  it("covers a site's own link setting without it opting in", () => {
+    // Shape-driven, not key-driven: an `imageKeys`-style allowlist means the site
+    // that forgets to configure it is the one that gets hit.
+    const v = validateSettingsLinks({ footerCtas: [{ label: "x", href: "javascript:1" }] });
+    expect(v[0]?.path).toBe("footerCtas[0].href");
+  });
+
+  it("leaves non-link values alone", () => {
+    expect(
+      validateSettingsLinks({
+        siteName: "X",
+        tags: ["a", "b"],
+        counts: [1, 2],
+        nested: [null, "javascript:alert(1)"],
+      }),
+    ).toEqual([]);
+  });
+
+  it("reports every offending row, not just the first", () => {
+    const v = validateSettingsLinks({
+      navLinks: [{ href: "javascript:1" }, { href: "/ok" }, { href: "javascript:2" }],
+    });
+    expect(v.map((x) => x.path)).toEqual(["navLinks[0].href", "navLinks[2].href"]);
   });
 });
 

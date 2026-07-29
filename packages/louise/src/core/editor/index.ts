@@ -27,6 +27,7 @@ export {
   type SettingsRouteConfig,
   settingsRoute,
   validateSettingsImages,
+  validateSettingsLinks,
 } from "./settings.js";
 export {
   type BlobSanitize,
