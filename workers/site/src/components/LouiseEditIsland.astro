@@ -12,6 +12,15 @@
 // imports the heavy Solid/ProseKit client, so it is only ever fetched by editors.
 // Drop `<LouiseEditIsland server:defer versionedPageId={…} />` before </body> on
 // any page that should be editable.
+//
+// REQUIRES a stable `ASTRO_KEY` in the build environment. Astro encrypts an
+// island's props and component export into the URL the browser fetches back, and
+// without that env var it generates a fresh random key on EVERY build. HTML
+// rendered by one build then cannot have its island resolved by the next one —
+// the request 400s and the edit chrome silently never appears for anyone holding
+// a page from before the deploy. Every branch push here is a production deploy,
+// so the key rotates constantly; `pnpm exec astro create-key`, then set it in the
+// Workers Builds environment. See .env.example.
 const { editMode, editor } = Astro.locals;
 // A versioned page (its inline body edits stage drafts + publish). Pages that own
 // their own versioned surface (the sections dock) leave this undefined so the bar
