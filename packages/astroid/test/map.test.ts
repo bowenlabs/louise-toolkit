@@ -225,6 +225,41 @@ describe("map scaffold", () => {
     expect(component.split("\n").filter((l) => l.trim() === "---")).toHaveLength(2);
   });
 
+  it("catches a failed map boot rather than swallowing it", () => {
+    const component = generateMapEmbedComponent(config(["map"])) as string;
+    // `init` is async and the IntersectionObserver callback never awaits it, so
+    // an uncaught rejection is invisible: a failed maplibre-gl/pmtiles chunk
+    // fetch — a page load racing a deploy is enough — leaves an empty tinted
+    // box and a clean console, with nothing to explain it. Assert at the CALL
+    // SITE, because a `.catch` anywhere else in the file would not cover it.
+    expect(component).toContain("init(entry.target as HTMLElement).catch(");
+    expect(component).toContain('console.error("[astroid:map] map failed to load", err)');
+  });
+
+  it("degrades to the slot instead of rendering an empty box", () => {
+    const component = generateMapEmbedComponent(config(["map"])) as string;
+    // Section fields arrive as strings and a location is routinely blank, so
+    // absent/unparseable coordinates are the NORMAL case, not an error one. The
+    // guard has to hold on both sides: the server skips the container entirely
+    // and falls back to the slot, and the client refuses to boot a map over one
+    // that somehow made it through.
+    expect(component).toContain("const show = Number.isFinite(nlat) && Number.isFinite(nlng);");
+    expect(component).toContain("<slot />");
+    expect(component).toContain("if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;");
+  });
+
+  it("registers the pmtiles protocol before constructing the map", () => {
+    const component = generateMapEmbedComponent(config(["map"])) as string;
+    // Without the protocol handler MapLibre treats `pmtiles://…` as a tile URL
+    // template and every tile 404s — a blank canvas that looks like a styling
+    // bug. Registration must also precede `new Map`, or the first tile requests
+    // go out unhandled.
+    const registered = component.indexOf('addProtocol("pmtiles"');
+    const constructed = component.indexOf("new maplibregl.Map(");
+    expect(registered).toBeGreaterThan(-1);
+    expect(registered).toBeLessThan(constructed);
+  });
+
   it("allows blob: workers in the CSP only when the map is on", () => {
     // MapLibre builds its tile-decoding workers from blob: URLs; without this
     // the canvas is empty and the console fills with worker errors.

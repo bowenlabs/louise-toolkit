@@ -41,15 +41,23 @@
       import("louise-toolkit/client"),
       import("../sections/catalog"),
       import("../sections/blocks"),
-    ]).then(([client, cat, blk]) => {
-      teardown = client.mountSections(el, {
-        catalog: cat.SECTIONS,
-        blocks: blk.BLOCKS,
-        pageId,
-        initial,
-        realtime,
-      });
-    });
+    ])
+      .then(([client, cat, blk]) => {
+        teardown = client.mountSections(el, {
+          catalog: cat.SECTIONS,
+          blocks: blk.BLOCKS,
+          pageId,
+          initial,
+          realtime,
+        });
+      })
+      // Without this, a failed chunk fetch is a silent unhandled rejection and
+      // edit mode just looks inert — the bar and the markers are all there, but
+      // no rings, no toolbars, nothing in the console. That is exactly what a
+      // page load racing a deploy produces (the hashed chunk 404s), and the only
+      // way to spot it was digging through performance.getEntriesByType for a
+      // 4xx. Surface it instead.
+      .catch((err) => console.error("[louise] sections editor bootstrap failed", err));
   }
 
   // Bundled scripts run once; re-boot after every view-transition navigation so
