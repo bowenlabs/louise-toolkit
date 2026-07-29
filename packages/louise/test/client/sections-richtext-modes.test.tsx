@@ -37,7 +37,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 function pageHost(bodyMode?: string): HTMLElement {
   const host = document.createElement("div");
   const sec = document.createElement("section");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   for (const [field, mode] of [
     ["heading", undefined],
     ["body", bodyMode],

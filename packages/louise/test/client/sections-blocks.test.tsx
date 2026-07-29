@@ -1,8 +1,12 @@
 // happy-dom coverage for the editor's block-layer wiring (#182 Phase 2): the
-// on-canvas block toolbar (mounted by mountSections) drives moveBlock/removeBlock,
+// on-canvas toolbar (mounted by mountSections) drives moveBlock/removeBlock,
 // which reconcile the store AND mirror the change on the already-rendered page
-// (re-stamping block markers) — then stage a draft via autosave. Mirrors the
-// section-chrome path one level down.
+// (re-stamping block markers) — then stage a draft via autosave.
+//
+// Since ADR 0010 there is no separate block toolbar to assert against: one chrome
+// serves every depth, and "this is a block" is a fact about the node's PATH
+// (`0.blocks.<j>`), not about which bar appeared. That is the point — these cases
+// pass unchanged in substance while the layer they exercised stopped existing.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BlockCatalog } from "../../src/core/content/sections.js";
@@ -50,17 +54,17 @@ function stubFetch(): Call[] {
       const body = init?.body ? JSON.parse(init.body as string) : undefined;
       calls.push({ url, method, body });
       // Fragment route: re-render the posted section from its `blocks`, exactly as
-      // the Astro partial would (one `[data-louise-section]` with a card per block).
+      // the Astro partial would (one `[data-louise-node]` with a card per block).
       if (url === "/louise-fragment") {
         const item = (body as { item?: { blocks?: Array<{ name?: string }> } })?.item;
         const cards = (item?.blocks ?? [])
           .map(
             (b, j) =>
-              `<article data-louise-block="0.blocks.${j}"><div data-louise-sfield="0.blocks.${j}.name">${b.name ?? ""}</div></article>`,
+              `<article data-louise-node="0.blocks.${j}"><div data-louise-sfield="0.blocks.${j}.name">${b.name ?? ""}</div></article>`,
           )
           .join("");
         return Promise.resolve(
-          new Response(`<section data-louise-section="0">${cards}</section>`, {
+          new Response(`<section data-louise-node="0">${cards}</section>`, {
             status: 200,
             headers: { "content-type": "text/html" },
           }),
@@ -82,14 +86,14 @@ function stubFetch(): Call[] {
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 /** A stand-in for the server-rendered page: one marked section whose blocks each
- *  carry `data-louise-block` + an inner `data-louise-sfield` name node. */
+ *  carry `data-louise-node` + an inner `data-louise-sfield` name node. */
 function pageHost(names: string[]): HTMLElement {
   const host = document.createElement("div");
   const sec = document.createElement("section");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   names.forEach((name, j) => {
     const card = document.createElement("article");
-    card.setAttribute("data-louise-block", `0.blocks.${j}`);
+    card.setAttribute("data-louise-node", `0.blocks.${j}`);
     const node = document.createElement("div");
     node.setAttribute("data-louise-sfield", `0.blocks.${j}.name`);
     node.textContent = name;
@@ -121,14 +125,22 @@ function mount(
 }
 
 const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles: true }));
-const blockToolbarButtons = () =>
+// One toolbar for every node now; the buttons are [↑ ↓ ✕ +sibling +child ⚙], with
+// the ones a node's capabilities don't justify display:none'd rather than absent.
+const toolbarButtons = () =>
   [
-    ...(document.querySelector(".louise-block-toolbar")?.querySelectorAll("button") ?? []),
+    ...(document.querySelector(".louise-chrome-toolbar")?.querySelectorAll("button") ?? []),
   ] as HTMLButtonElement[];
+/** The rendered BLOCK elements — depth is read off the path, since the section
+ *  around them carries the same attribute. */
+const blockEls = (host: HTMLElement) =>
+  [...host.querySelectorAll<HTMLElement>("[data-louise-node]")].filter((el) =>
+    (el.getAttribute("data-louise-node") ?? "").includes(".blocks."),
+  );
 const domBlockNames = (host: HTMLElement) =>
-  [...host.querySelectorAll("[data-louise-block]")].map((b) => b.querySelector("div")?.textContent);
+  blockEls(host).map((b) => b.querySelector("div")?.textContent);
 const domBlockMarkers = (host: HTMLElement) =>
-  [...host.querySelectorAll("[data-louise-block]")].map((b) => b.getAttribute("data-louise-block"));
+  blockEls(host).map((b) => b.getAttribute("data-louise-node"));
 const lastDraftBlocks = (calls: Call[]): Array<{ name?: string; _type?: string }> => {
   const posts = calls.filter(
     (c) => c.method === "POST" && c.url === "/api/louise/pages/1/versions",
@@ -164,8 +176,8 @@ describe("mountSections — block chrome wiring (#182 Phase 2)", () => {
     dispose = mount(host, ["A", "B", "C"]);
     await flush();
 
-    over(host.querySelectorAll("[data-louise-block]")[1].querySelector("div") as Node); // hover B
-    blockToolbarButtons()[2].click(); // ✕ delete
+    over(blockEls(host)[1].querySelector("div") as Node); // hover B
+    toolbarButtons()[2].click(); // ✕ delete
     await flush();
 
     expect(domBlockNames(host)).toEqual(["A", "C"]);
@@ -179,8 +191,8 @@ describe("mountSections — block chrome wiring (#182 Phase 2)", () => {
     dispose = mount(host, ["A", "B", "C"]);
     await flush();
 
-    over(host.querySelectorAll("[data-louise-block]")[1].querySelector("div") as Node); // hover B (middle)
-    blockToolbarButtons()[0].click(); // ↑ move up
+    over(blockEls(host)[1].querySelector("div") as Node); // hover B (middle)
+    toolbarButtons()[0].click(); // ↑ move up
     await flush();
 
     expect(domBlockNames(host)).toEqual(["B", "A", "C"]);
@@ -194,8 +206,8 @@ describe("mountSections — block chrome wiring (#182 Phase 2)", () => {
     dispose = mount(host, ["A", "B"]);
     await flush();
 
-    over(host.querySelectorAll("[data-louise-block]")[0].querySelector("div") as Node); // hover A
-    blockToolbarButtons()[3].click(); // + add block after A
+    over(blockEls(host)[0].querySelector("div") as Node); // hover A
+    toolbarButtons()[3].click(); // + add block after A
     await flush();
     await flush();
 
@@ -221,8 +233,8 @@ describe("mountSections — multi-type block add-picker", () => {
     dispose = mount(host, ["A", "B"], { catalog: MULTI_CATALOG, blocks: MULTI_BLOCKS });
     await flush();
 
-    over(host.querySelectorAll("[data-louise-block]")[0].querySelector("div") as Node); // hover A
-    blockToolbarButtons()[3].click(); // + add block after A
+    over(blockEls(host)[0].querySelector("div") as Node); // hover A
+    toolbarButtons()[3].click(); // + add block after A
     await flush();
 
     // Nothing inserted yet — the picker asks which type first, bounded by `allow`
@@ -250,8 +262,8 @@ describe("mountSections — multi-type block add-picker", () => {
     });
     await flush();
 
-    over(host.querySelector("[data-louise-block]")?.querySelector("div") as Node);
-    blockToolbarButtons()[3].click();
+    over(blockEls(host)[0].querySelector("div") as Node);
+    toolbarButtons()[3].click();
     await flush();
 
     expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote", "Aside"]);
@@ -263,12 +275,59 @@ describe("mountSections — multi-type block add-picker", () => {
     dispose = mount(host, ["A"]); // CATALOG: allow: ["feature"]
     await flush();
 
-    over(host.querySelector("[data-louise-block]")?.querySelector("div") as Node);
-    blockToolbarButtons()[3].click();
+    over(blockEls(host)[0].querySelector("div") as Node);
+    toolbarButtons()[3].click();
     await flush();
     await flush();
 
     expect(document.querySelector('[aria-label="Add a block"]')).toBeNull();
     expect(lastDraftBlocks(calls)).toHaveLength(2);
+  });
+});
+
+// Defect 1 from ADR 0010's live QA: a freshly added block-capable section was a
+// dead end. Its `+` lived on a BLOCK's toolbar, and it had no blocks, so there was
+// no `+` anywhere on the page that could give it one. The fix isn't a special
+// case for empty sections — it's that a node with `children` and none of them
+// offers its own add, at any depth.
+describe("mountSections — adding the FIRST child of an empty container", () => {
+  it("inserts a block into a block-capable section that has none", async () => {
+    const calls = stubFetch();
+    const host = pageHost([]);
+    dispose = mount(host, []);
+    await flush();
+
+    over(host.querySelector('[data-louise-node="0"]') as Node);
+    toolbarButtons()[4].click(); // + add the first one
+    await flush();
+    await flush();
+
+    // It went in at index 0 — the only position an empty list has — and the
+    // section came back from the fragment route rendering it.
+    expect(lastDraftBlocks(calls)).toHaveLength(1);
+    expect(domBlockMarkers(host)).toEqual(["0.blocks.0"]);
+  });
+
+  it("offers the type-picker here too when several types are allowed", async () => {
+    stubFetch();
+    const host = pageHost([]);
+    dispose = mount(host, [], { catalog: MULTI_CATALOG, blocks: MULTI_BLOCKS });
+    await flush();
+
+    over(host.querySelector('[data-louise-node="0"]') as Node);
+    toolbarButtons()[4].click();
+    await flush();
+
+    expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote"]);
+  });
+
+  it("does not offer it once the section has a block — that would be two pluses", async () => {
+    stubFetch();
+    const host = pageHost(["A"]);
+    dispose = mount(host, ["A"]);
+    await flush();
+
+    over(host.querySelector('[data-louise-node="0"]') as Node);
+    expect(toolbarButtons()[4].style.display).toBe("none");
   });
 });

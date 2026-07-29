@@ -11,12 +11,14 @@
 //    carries a `data-louise-sfield="<idx>.<key>[.<j>.<subKey>]"` marker; we make
 //    it contenteditable and write keystrokes straight into the store. No panel,
 //    no reload — you type on the real design.
-//  • STRUCTURE (reorder / delete a section or block) is the on-canvas chrome —
-//    a ring + toolbar over the hovered element (see chrome.ts). NON-VISIBLE fields
-//    (a button's link URL, an image, array membership, layout, settings) live in
-//    the ⚙ inspector popover anchored to the section/block. Because the bespoke
-//    components are server-rendered, a structural change persists then reloads so
-//    the server re-renders the new shape (which then becomes inline-editable).
+//  • STRUCTURE (reorder / delete / add a node) is the on-canvas chrome — one ring
+//    + toolbar over the hovered `data-louise-node`, drawn from the capabilities
+//    `describeNode` resolves for its path (ADR 0010; see node-chrome.ts).
+//    NON-VISIBLE fields (a button's link URL, an image, array membership, layout,
+//    settings) live in the ⚙ inspector popover anchored to the node — the whole
+//    section/block for a container, or just that one field for a value. Because
+//    the bespoke components are server-rendered, a structural change persists then
+//    reloads so the server re-renders the new shape (then inline-editable again).
 //  • PAGE-LEVEL controls sit on the shared edit bar (status, History, Save,
 //    Publish); Add-section is an on-canvas floating control; version History opens
 //    a right-side drawer.
@@ -26,17 +28,16 @@
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { describeNode } from "./describe-node.js";
+import { mountNodeChrome } from "./node-chrome.js";
 import {
-  type BlockRef,
-  deleteBlockElement,
-  deleteSectionElement,
-  insertSectionElement,
-  type LinkRef,
-  moveBlockElement,
-  mountSectionChrome,
-  moveSectionElement,
-  replaceSectionElement,
-} from "./chrome.js";
+  deleteNodeElement,
+  insertNodeElement,
+  moveNodeElement,
+  replaceNodeElement,
+  siblingsAt,
+} from "./node-ops.js";
+import { formatNodePath, NODE_MARKER_ATTR, type NodePath } from "./node.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { stegaClean } from "../core/content/stega-clean.js";
@@ -436,10 +437,19 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
  * in-place text editing and mounts its own control dock. `mountSections` renders
  * this into a body-level container so the page's own layout is untouched.
  */
-/** What the inspector popover is editing — a whole section, or a block within one. */
+/**
+ * What the inspector popover is editing — a whole section, a block within one, or
+ * a SINGLE field on either (ADR 0010, "Resolved while building A1").
+ *
+ * The `field` variant is what a value node's wrench opens. Pre-0010 a CTA's wrench
+ * opened its owning section's entire inspector, so clicking one of four CTAs
+ * surfaced a panel listing all four destinations and left you to guess which was
+ * yours. A value node addresses one field, so its inspector shows one field.
+ */
 type InspectTarget =
   | { kind: "section"; index: number }
-  | { kind: "block"; section: number; block: number };
+  | { kind: "block"; section: number; block: number }
+  | { kind: "field"; section: number; block?: number; key: string };
 
 function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [state, setState] = createStore<{ items: SectionItem[] }>({
@@ -589,44 +599,28 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       onCleanup(() => rt?.close());
     }
 
-    // On-canvas section chrome (#182 Phase 1): rings + a per-section toolbar over
-    // the marked sections, wired to the same structural ops the dock uses (still
-    // save+reload for now — instant DOM ops come with the marker re-index slice).
+    // On-canvas chrome (ADR 0010): ONE ring + toolbar over every `data-louise-node`,
+    // drawing whatever the node's capabilities justify. The chrome asks a single
+    // question — `resolve(path)` — and `describeNode` is the only thing here that
+    // knows a section from a block from a field; every callback below takes a path
+    // and dispatches on its shape rather than on a layer the chrome named.
     // Markers are stamped by the render in edit mode; on an unmarked host the
-    // chrome simply finds nothing. Disposed with the dock.
+    // chrome simply finds nothing. Disposed with the editor.
     onCleanup(
-      mountSectionChrome({
-        onMoveUp: (i) => moveSection(i, -1),
-        onMoveDown: (i) => moveSection(i, 1),
-        onDelete: (i) => removeSection(i),
-        // ⚙ opens the inspector popover (layout + settings) for the section
-        // (#182 Phase 4 / ADR 0005 §5).
-        onInspect: (i) => openInspector({ kind: "section", index: i }),
-        // `+` opens the type-picker to insert a new section ABOVE this one.
-        onAdd: (i) => openAddPicker(i),
-        // Block layer (#182 Phase 2 / ADR 0005): reorder/delete a section's
-        // blocks in place — the block analogue of the section ops. Block add/swap
-        // still need the fragment-render route (Phase 3).
-        blocks: {
-          onMoveUp: (r) => moveBlock(r.section, r.block, -1),
-          onMoveDown: (r) => moveBlock(r.section, r.block, 1),
-          onDelete: (r) => removeBlock(r.section, r.block),
-          onInspect: (r) => openInspector({ kind: "block", section: r.section, block: r.block }),
-          // `+` add only when a block catalog is available (it needs the block's
-          // field shape to seed a blank); gates the toolbar's add button too.
-          ...(props.blocks ? { onAdd: (r: BlockRef) => addBlock(r.section, r.block) } : {}),
-        },
-        // Link layer (#38): a violet ring + wrench over any marked CTA. The wrench
-        // opens the inspector of whatever OWNS the link — the destination is a
-        // field on that section or block, so this is the same popover the ⚙ opens,
-        // reached from the link itself rather than from the container around it.
-        links: {
-          onInspect: (r: LinkRef) =>
-            openInspector(
-              r.block === undefined
-                ? { kind: "section", index: r.section }
-                : { kind: "block", section: r.section, block: r.block },
-            ),
+      mountNodeChrome({
+        resolve: (path) =>
+          describeNode(path, {
+            items: state.items,
+            catalog: props.catalog,
+            blocks: props.blocks,
+          }),
+        onMove: (path, delta) => moveNode(path, delta),
+        onDelete: (path) => deleteNode(path),
+        onAddSibling: (path) => addSibling(path),
+        onAddChild: (path) => addChild(path),
+        onInspect: (path) => {
+          const target = inspectTargetFor(path);
+          if (target) openInspector(target);
         },
       }),
     );
@@ -818,6 +812,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     void structural(() => set("items", structuredClone(sections)));
   };
 
+  // The rendered element carrying a given node path, when it's on the page.
+  const nodeEl = (path: NodePath): HTMLElement | null =>
+    props.host.querySelector<HTMLElement>(`[${NODE_MARKER_ATTR}="${formatNodePath(path)}"]`);
+
   // POST one section item to the fragment-render route and return its
   // server-rendered HTML (an Astro partial — the same `<Sections>` markup the
   // page uses), or null on any failure so the caller can fall back to reload.
@@ -843,11 +841,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // the change is never lost.
   const rerenderSection = async (i: number): Promise<void> => {
     const item = state.items[i];
-    const onPage = !!props.host.querySelector(`[data-louise-section="${i}"]`);
+    const onPage = !!nodeEl([i]);
     const html = item && onPage ? await renderSectionFragment(unwrap(item) as SectionItem) : null;
     const tmp = html ? document.createElement("div") : null;
     if (tmp) tmp.innerHTML = html as string;
-    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
+    // The fragment's OUTERMOST marked node is the section itself (its blocks and
+    // fields are marked too, and nest inside it), so first-in-document-order is
+    // the one to splice in.
+    const el = tmp?.querySelector<HTMLElement>(`[${NODE_MARKER_ATTR}]`) ?? null;
     if (!el) {
       auto?.cancel();
       setStatus("saving");
@@ -855,7 +856,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       else setStatus("error");
       return;
     }
-    replaceSectionElement(i, el);
+    replaceNodeElement([], i, el);
     wireInline(
       el,
       props.catalog,
@@ -899,7 +900,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const html = await renderSectionFragment(item);
     const tmp = html ? document.createElement("div") : null;
     if (tmp) tmp.innerHTML = html as string;
-    const el = tmp?.querySelector<HTMLElement>("[data-louise-section]") ?? null;
+    const el = tmp?.querySelector<HTMLElement>(`[${NODE_MARKER_ATTR}]`) ?? null;
     if (!el) {
       // Fragment unavailable → persist the (already-mutated) store and reload so
       // the server re-renders the new shape from the draft.
@@ -909,7 +910,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       else setStatus("error");
       return;
     }
-    insertSectionElement(el, index, props.host);
+    insertNodeElement(el, [], index, props.host);
     wireInline(
       el,
       props.catalog,
@@ -929,7 +930,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // markup that doesn't exist yet, i.e. the Phase 3 fragment-render route.)
   const removeSection = (i: number) => {
     set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i));
-    deleteSectionElement(i);
+    deleteNodeElement([], i);
     touched();
   };
   const moveSection = (i: number, delta: number) => {
@@ -940,7 +941,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
-    moveSectionElement(i, j);
+    moveNodeElement([], i, j);
     touched();
   };
   // Block reorder/delete (#182 Phase 2 / ADR 0005 §4): the block analogue of the
@@ -951,7 +952,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     set("items", section, "blocks", (b: unknown) =>
       (Array.isArray(b) ? b : []).filter((_, idx) => idx !== block),
     );
-    deleteBlockElement(section, block);
+    deleteNodeElement([section, "blocks"], block);
     touched();
   };
   const moveBlock = (section: number, block: number, delta: number) => {
@@ -963,7 +964,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       [next[block], next[to]] = [next[to], next[block]];
       return next;
     });
-    moveBlockElement(section, block, to);
+    moveNodeElement([section, "blocks"], block, to);
     touched();
   };
   // The block types a section accepts, in catalog order: bounded by the section's
@@ -994,21 +995,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     );
   };
 
-  // The block toolbar's `+` (insert AFTER the hovered block — blocks read as a
-  // list you extend downward, unlike the section `+`, which inserts above). One
-  // allowed type inserts straight away; several open the picker, mirroring the
-  // section add-picker one level down.
-  const addBlock = (section: number, block: number) => {
+  // Insert a block into `section` at `at`, anchoring the type-picker under
+  // `anchor`'s rendered element. One allowed type inserts straight away; several
+  // open the picker, mirroring the section add-picker one level down.
+  const openBlockPicker = (section: number, at: number, anchor: NodePath) => {
     const types = allowedBlockTypes(section);
-    const at = block + 1;
     if (types.length === 0) return; // nothing insertable → no-op
     if (types.length === 1) {
       insertBlock(section, at, types[0]);
       return;
     }
-    const box = props.host
-      .querySelector(`[data-louise-block="${section}.blocks.${block}"]`)
-      ?.getBoundingClientRect();
+    const box = nodeEl(anchor)?.getBoundingClientRect();
     const top = box
       ? Math.min(Math.max(box.bottom + 8, 8), window.innerHeight - 320)
       : Math.max(80, Math.round(window.innerHeight / 2 - 160));
@@ -1018,26 +1015,110 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     setBlockPicker({ section, at, types, top, left });
   };
 
+  // The block toolbar's `+` — insert AFTER the hovered block, since blocks read as
+  // a list you extend downward (unlike the section `+`, which inserts above).
+  const addBlock = (section: number, block: number) =>
+    openBlockPicker(section, block + 1, [section, "blocks", block]);
+
+  // ── Path dispatch (ADR 0010) ───────────────────────────────────────────────
+  // The chrome hands back a path and nothing else, so these are the only place
+  // that turns one into an operation. Each recognises the two shapes that can be
+  // `ordered` today — `[i]` and `[i, "blocks", j]` — and ignores anything else,
+  // so a value node's path can reach here harmlessly.
+  const asSection = (path: NodePath): number | null =>
+    path.length === 1 && typeof path[0] === "number" ? path[0] : null;
+  const asBlock = (path: NodePath): [number, number] | null =>
+    path.length === 3 &&
+    typeof path[0] === "number" &&
+    path[1] === "blocks" &&
+    typeof path[2] === "number"
+      ? [path[0], path[2]]
+      : null;
+
+  const moveNode = (path: NodePath, delta: -1 | 1) => {
+    const i = asSection(path);
+    if (i !== null) return moveSection(i, delta);
+    const b = asBlock(path);
+    if (b) moveBlock(b[0], b[1], delta);
+  };
+  const deleteNode = (path: NodePath) => {
+    const i = asSection(path);
+    if (i !== null) return removeSection(i);
+    const b = asBlock(path);
+    if (b) removeBlock(b[0], b[1]);
+  };
+  const addSibling = (path: NodePath) => {
+    const i = asSection(path);
+    // A section's `+` inserts ABOVE it (the new section takes its index).
+    if (i !== null) return openAddPicker(i);
+    const b = asBlock(path);
+    if (b && props.blocks) addBlock(b[0], b[1]);
+  };
+  // The "add the first child" affordance (ADR 0010): a container with `children`
+  // and none of them. Only sections hold blocks today, so this is the block-layer
+  // entry point that did NOT exist pre-0010 — a freshly added block-capable
+  // section had no child to hover and so no `+` anywhere on it.
+  const addChild = (path: NodePath) => {
+    const i = asSection(path);
+    if (i !== null && props.blocks) openBlockPicker(i, 0, path);
+  };
+  /** Which inspector a node's wrench opens. A leaf key scopes to that one field. */
+  const inspectTargetFor = (path: NodePath): InspectTarget | null => {
+    const i = asSection(path);
+    if (i !== null) return { kind: "section", index: i };
+    const b = asBlock(path);
+    if (b) return { kind: "block", section: b[0], block: b[1] };
+    const [head, ...rest] = path;
+    if (typeof head !== "number") return null;
+    // [i, key] — a field on the section.
+    if (rest.length === 1 && typeof rest[0] === "string") {
+      return { kind: "field", section: head, key: rest[0] };
+    }
+    // [i, "blocks", j, key] — a field on one of its blocks.
+    if (
+      rest.length === 3 &&
+      rest[0] === "blocks" &&
+      typeof rest[1] === "number" &&
+      typeof rest[2] === "string"
+    ) {
+      return { kind: "field", section: head, block: rest[1], key: rest[2] };
+    }
+    return null;
+  };
+
   // ── Inspector popover (#182 Phase 4 / ADR 0005 §5) ─────────────────────────
   // Edit a section's `_layout` + `_settings` (or a block's `_settings`) contextually.
   // A layout/settings change alters the render, so it re-renders the section via
   // the fragment route (the same seam as block add / swap-type).
   const inspectSection = (t: InspectTarget) => (t.kind === "section" ? t.index : t.section);
-  const inspectItem = (t: InspectTarget): (SectionItem & BlockItem) | undefined =>
-    (t.kind === "section" ? state.items[t.index] : state.items[t.section]?.blocks?.[t.block]) as
+  /** The block index within that section, or `undefined` for a section-level
+   *  target. A `field` target inherits its OWNER's position — a CTA's destination
+   *  is stored on the block that renders it, not on the link. */
+  const inspectBlock = (t: InspectTarget): number | undefined =>
+    t.kind === "section" ? undefined : t.block;
+  const inspectItem = (t: InspectTarget): (SectionItem & BlockItem) | undefined => {
+    const section = state.items[inspectSection(t)];
+    const block = inspectBlock(t);
+    return (block === undefined ? section : section?.blocks?.[block]) as
       | (SectionItem & BlockItem)
       | undefined;
+  };
   const inspectDef = (t: InspectTarget): SectionDef | BlockDef | undefined => {
     const type = inspectItem(t)?._type ?? "";
-    return t.kind === "section" ? props.catalog[type] : props.blocks?.[type];
+    return inspectBlock(t) === undefined ? props.catalog[type] : props.blocks?.[type];
+  };
+  /** The node path a target addresses — what the popover anchors to. A field
+   *  target anchors to the FIELD's own element, so a CTA's panel opens beside
+   *  that CTA rather than beside the section around it. */
+  const inspectPath = (t: InspectTarget): NodePath => {
+    const block = inspectBlock(t);
+    const owner: NodePath =
+      block === undefined ? [inspectSection(t)] : [inspectSection(t), "blocks", block];
+    return t.kind === "field" ? [...owner, t.key] : owner;
   };
 
   const openInspector = (t: InspectTarget) => {
-    const sel =
-      t.kind === "section"
-        ? `[data-louise-section="${t.index}"]`
-        : `[data-louise-block="${t.section}.blocks.${t.block}"]`;
-    const box = props.host.querySelector(sel)?.getBoundingClientRect();
+    const box = nodeEl(inspectPath(t))?.getBoundingClientRect();
     const top = box ? Math.min(Math.max(box.top + 8, 8), window.innerHeight - 340) : 80;
     const left = box ? Math.min(Math.max(box.right + 8, 8), window.innerWidth - 300) : 80;
     setInspecting({ ...t, top, left });
@@ -1048,13 +1129,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // section at that index (its `+`); for the trailing add (index === count) it
   // anchors below the last section, and centres on an empty page.
   const openAddPicker = (index: number) => {
-    const count = props.host.querySelectorAll("[data-louise-section]").length;
-    const anchorEl =
-      count === 0
-        ? null
-        : props.host.querySelector<HTMLElement>(
-            `[data-louise-section="${Math.min(index, count - 1)}"]`,
-          );
+    // The rendered sections are the depth-1 nodes — NOT every marked node, which
+    // now includes blocks and fields.
+    const sections = siblingsAt([], props.host);
+    const count = sections.length;
+    const anchorEl = count === 0 ? null : sections[Math.min(index, count - 1)];
     const box = anchorEl?.getBoundingClientRect();
     const atEnd = index >= count;
     const top = box
@@ -1075,8 +1154,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       ...(s && typeof s === "object" && !Array.isArray(s) ? (s as Record<string, unknown>) : {}),
       [key]: value,
     });
-    if (t.kind === "section") set("items", t.index, "_settings", merge);
-    else set("items", t.section, "blocks", t.block, "_settings", merge);
+    const block = inspectBlock(t);
+    if (block === undefined) set("items", inspectSection(t), "_settings", merge);
+    else set("items", inspectSection(t), "blocks", block, "_settings", merge);
     touched();
   };
   // Re-render the section (settings/layout affect the bespoke render) once the
@@ -1085,8 +1165,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Write a top-level field value — the non-inline "dock" fields (a link URL, an
   // image, a token), now edited in the inspector (#182) rather than the dock.
   const setField = (t: InspectTarget, key: string, value: unknown) => {
-    if (t.kind === "section") set("items", t.index, key, value);
-    else set("items", t.section, "blocks", t.block, key, value);
+    const block = inspectBlock(t);
+    if (block === undefined) set("items", inspectSection(t), key, value);
+    else set("items", inspectSection(t), "blocks", block, key, value);
     touched();
   };
   const commitField = (t: InspectTarget) => void rerenderSection(inspectSection(t));
@@ -1430,16 +1511,24 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         {(insp) => {
           const target = insp();
           const sectionDef = () => inspectDef(target) as SectionDef | undefined;
-          const settings = () => inspectDef(target)?.settings ?? {};
+          // A field target scopes to the ONE field it addresses (ADR 0010): no
+          // layouts, no settings, and none of its owner's other fields — those all
+          // belong to the owner's own wrench.
+          const settings = () =>
+            target.kind === "field" ? {} : (inspectDef(target)?.settings ?? {});
           const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
           const hasSettings = () => Object.keys(settings()).length > 0;
           // The non-inline "dock" fields (link URL, image, token) — edited here in
           // the inspector (#182) instead of the floating dock. Inline text/rich-text
           // fields are edited on the page; arrays stay their own membership UI.
-          const editFields = () =>
-            Object.entries(inspectDef(target)?.fields ?? {}).filter(
-              ([, f]) => f.type !== "array" && !isInline(f),
-            );
+          const editFields = (): [string, SectionField][] => {
+            const fields = inspectDef(target)?.fields ?? {};
+            if (target.kind === "field") {
+              const field = fields[target.key];
+              return field ? [[target.key, field]] : [];
+            }
+            return Object.entries(fields).filter(([, f]) => f.type !== "array" && !isInline(f));
+          };
           // Array membership (add/remove items, variant switch) — a section-level
           // field, edited here too so the dock isn't needed. `si` is the section
           // index the array handlers take.
@@ -1450,6 +1539,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                 )
               : [];
           const si = () => inspectSection(target);
+          // A scoped panel is titled by its field; everything else by its type.
+          const title = () =>
+            target.kind === "field"
+              ? (inspectDef(target)?.fields?.[target.key]?.label ?? humanize(target.key))
+              : (inspectDef(target)?.label ?? inspectItem(target)?._type);
           return (
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} aria-hidden="true" />
@@ -1463,7 +1557,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
               >
                 <div class="louise-inspector-head">
                   <span class="louise-inspector-title" id="louise-inspector-title">
-                    {inspectDef(target)?.label ?? inspectItem(target)?._type}
+                    {title()}
                   </span>
                   <button
                     type="button"

@@ -54,7 +54,7 @@ function stubFetch(): Call[] {
 function pageHost(): HTMLElement {
   const el = document.createElement("div");
   const sec = document.createElement("section");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   el.appendChild(sec);
   document.body.appendChild(el);
   return el;

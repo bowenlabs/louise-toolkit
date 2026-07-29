@@ -116,7 +116,7 @@ const cards: Item[] = useBlocks
     {
       cards.map((f, j) => (
         <article
-          data-louise-block={edit && useBlocks ? `${idx}.blocks.${j}` : undefined}
+          data-louise-node={edit && useBlocks ? `${idx}.blocks.${j}` : undefined}
           class:list={[
             "flex min-h-[170px] flex-col justify-between rounded-[18px] px-[22px] py-[26px] transition-transform duration-150 hover:-translate-y-1 hover:-rotate-1",
             cardClass(f.colorway, j),

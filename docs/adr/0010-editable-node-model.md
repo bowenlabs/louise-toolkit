@@ -124,13 +124,55 @@ symptom: editor options were mount-level when they always belonged to the field.
   rather than a container, unlike section and block markers.
 - **Sections are unchanged in spirit**: the top-level container instance.
 
+### Resolved while building A1
+
+Three questions surfaced once `resolve` had to be written against a real catalog.
+
+**What a value node's wrench opens: just that field.** Pre-0010 a CTA's wrench
+opened its whole owning section's inspector — live QA on 2026-07-28 showed
+clicking one of HomeHero's CTAs surfacing a panel listing all four of its
+link-ish fields. A value node's inspector scopes to the field it addresses. This
+is a behaviour change, not only a refactor, and is what #38 was reaching for.
+
+**How `tone` is chosen before Phase B: by depth, provisionally.** Depth 1 →
+`section`, block depth → `block`, a leaf key → `value`, reproducing today's
+orange/blue/violet exactly. Keying off capabilities was rejected: a section with
+no `blocks` policy has no `children` and would come out blue. Phase B replaces
+this wholesale with `source`, so it is deliberately a heuristic with a short life,
+confined to the editor's `resolve` — the chrome already has no opinion.
+
+**Which nodes carry a marker: the render decides, for now.** Two models exist:
+
+- _render decides_ — the site stamps a marker only on things that should ring,
+  and inline text stays on `data-louise-sfield`. Two marker families;
+  the author knows which is which.
+- _catalog decides_ — the render stamps ONE attribute on everything editable and
+  the field TYPE declares whether it wants chrome, inline editing, or both.
+  `data-louise-sfield` disappears.
+
+The second is the end state and is what the Migration section below describes. It
+is **deferred to Phase A2** for two reasons: "the type declares whether it wants
+chrome" cannot exist before the field registry does, and it requires a real change
+to hit-testing. Today `resolve → null` means _clear_, which is correct only while
+solely ring-worthy things are marked; once every text span is a node, hovering a
+CTA's label would resolve to "no chrome" and clear, instead of falling outward to
+the anchor that should ring. Under the catalog-decides model `nodeAt` must walk
+**outward** until something resolves. That is a change to the deepest-wins lookup,
+not a flag.
+
 ## Staging
 
 Deliberately two arcs, because the evidence is not evenly distributed.
 
-**Phase A — node model + field registry.** Everything above except `source`.
-Justified entirely by measured cost and the three live defects. Ships the single
-`data-louise-node` attribute, the registry, and the generic chrome.
+**Phase A1 — node model + generic chrome.** One marker, one grammar, one
+re-stamper, capability-derived toolbars, generic deepest-wins suppression, and the
+empty-container affordance. Markers stay render-decided (above), so
+`data-louise-sfield` is untouched.
+
+**Phase A2 — field registry.** `defineFieldType` shared by the section inspector
+and the settings drawer, async options, and with it the catalog-decides marker
+model: one attribute over every editable node, `data-louise-sfield` folded in, and
+`nodeAt` walking outward on an unresolved node.
 
 **Phase B — the source abstraction.** `page` / `shared` / `external`, and with it
 #37. Deferred because it is the one piece with **no** implementation evidence

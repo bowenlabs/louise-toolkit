@@ -48,7 +48,7 @@ function stubFetch(): Call[] {
         const item = (body as { item?: { _layout?: string } })?.item;
         return Promise.resolve(
           new Response(
-            `<div data-louise-section="0" data-layout="${item?._layout ?? ""}">panel</div>`,
+            `<div data-louise-node="0" data-layout="${item?._layout ?? ""}">panel</div>`,
             {
               status: 200,
               headers: { "content-type": "text/html" },
@@ -75,7 +75,7 @@ function pageHost(): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute("data-louise-sections", "1");
   const sec = document.createElement("div");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   const h = document.createElement("h2");
   h.setAttribute("data-louise-sfield", "0.heading");
   h.textContent = "Panel";
@@ -158,7 +158,7 @@ describe("mountSections — inspector popover (#182 Phase 4)", () => {
     // Re-rendered through the fragment route with the new token, swapped in place.
     const frag = calls.find((c) => c.url === "/louise-fragment" && c.method === "POST");
     expect((frag?.body as { item?: { _layout?: string } })?.item?._layout).toBe("boxed");
-    expect(host.querySelector("[data-louise-section]")?.getAttribute("data-layout")).toBe("boxed");
+    expect(host.querySelector("[data-louise-node]")?.getAttribute("data-layout")).toBe("boxed");
     // Staged in the draft.
     expect((lastDraft(calls) as { _layout?: string })?._layout).toBe("boxed");
   });
