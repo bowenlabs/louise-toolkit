@@ -50,10 +50,48 @@ export { isSafeLinkUrl } from "./field-types.js";
  */
 export type SectionFieldType = FieldTypeName;
 
+/**
+ * Editor options for a `richText` field.
+ *
+ * Schema, not UI — plain data describing which affordances the field wants, which
+ * is why it lives in core alongside the rest of the field's declaration rather
+ * than with the ProseKit editor that reads it.
+ */
+export interface RichTextFieldOptions {
+  /** The page-BUILDER palette (Hero/Columns/Gallery…). Meant for full page
+   *  bodies, not a one-line heading — leave it off for most section fields. */
+  blocks?: boolean;
+  /** Lazy-load Harper for grammar checking. */
+  grammar?: boolean;
+  /** Inline formatting only — the light bubble (bold/italic/underline/strike/
+   *  link/colour). `false` surfaces the prose block buttons and the AI-rewrite
+   *  sparkle. Defaults to `true` for a section field. */
+  minimal?: boolean;
+  /** Show the "Insert image" button. Default `true`; drop it from a heading or
+   *  tagline where an inline image doesn't belong. */
+  image?: boolean;
+  /** Single-line mode: the value serializes as inline HTML with no block wrapper,
+   *  so editing can't turn an `<h1>` into a `<p>` nested inside the site's own
+   *  element and lose its styling. */
+  inline?: boolean;
+}
+
 export interface SectionField {
   type: SectionFieldType;
   label?: string;
   placeholder?: string;
+  /**
+   * `richText` only — this field's editor options.
+   *
+   * Declared here because they were always a property of the FIELD. They shipped
+   * as a mount-level `richTextModes` map keyed by a `data-louise-rt` name the
+   * render stamped, which meant a rendezvous between two files to say something
+   * one of them already knew: the catalog declares a heading is a heading.
+   *
+   * Wins over the mount-level `richText` / `richTextModes`, both of which still
+   * work.
+   */
+  richText?: RichTextFieldOptions;
   /** Whether this field is edited in place on the bespoke render (a visible text
    *  node) vs. in the dock (a value you can't point at, e.g. a link URL).
    *  Defaults to `true` for text/textarea, `false` for `array`. */
