@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  calculateOrder,
   centsToMajor,
   createInvoice,
   createOrder,
@@ -780,6 +781,101 @@ describe("searchOrders", () => {
     const orders = await searchOrders(CONFIG, { locationIds: ["L1"] });
     expect(orders.map((o) => o.id)).toEqual(["o1", "o2"]);
     expect(call).toBe(2);
+  });
+
+  // Square caps `location_ids` at 10 per call. Passing 11 is a 400 — from the
+  // exact multi-location account this endpoint exists to report on.
+  it("chunks locationIds at 10, Square's hard ceiling", async () => {
+    const calls = stubFetch({ orders: [] });
+    const ids = Array.from({ length: 23 }, (_, i) => `L${i + 1}`);
+    await searchOrders(CONFIG, { locationIds: ids });
+
+    expect(calls).toHaveLength(3);
+    const sent = calls.map((c) => (c.body as { location_ids: string[] }).location_ids);
+    expect(sent.map((s) => s.length)).toEqual([10, 10, 3]);
+    // Every location searched exactly once, none dropped.
+    expect(sent.flat()).toEqual(ids);
+  });
+
+  it("re-sorts across chunks, so the merged result is still ordered", async () => {
+    // Each chunk comes back sorted within itself; concatenating them is not.
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call++;
+        const orders =
+          call === 1
+            ? [{ id: "old", closed_at: "2026-01-01T00:00:00Z" }]
+            : [{ id: "new", closed_at: "2026-06-01T00:00:00Z" }];
+        return new Response(JSON.stringify({ orders }), { status: 200 });
+      }),
+    );
+    const ids = Array.from({ length: 11 }, (_, i) => `L${i + 1}`);
+    const orders = await searchOrders(CONFIG, { locationIds: ids });
+    // DESC by closedAt, the default — newest first regardless of which chunk.
+    expect(orders.map((o) => o.id)).toEqual(["new", "old"]);
+  });
+
+  it("refuses an empty location list rather than asking Square to reject it", async () => {
+    const calls = stubFetch({ orders: [] });
+    await expect(searchOrders(CONFIG, { locationIds: [] })).rejects.toThrow(
+      /at least one location/i,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("maps closedAt and updatedAt, the axes it lets you sort on", async () => {
+    stubFetch({
+      orders: [
+        {
+          id: "o1",
+          closed_at: "2026-06-01T00:00:00Z",
+          updated_at: "2026-06-02T00:00:00Z",
+        },
+      ],
+    });
+    const [order] = await searchOrders(CONFIG, { locationIds: ["L1"] });
+    expect(order.closedAt).toBe("2026-06-01T00:00:00Z");
+    expect(order.updatedAt).toBe("2026-06-02T00:00:00Z");
+  });
+});
+
+describe("calculateOrder", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("prices a cart without creating an order", async () => {
+    const calls = stubFetch({ order: { id: "preview", total_money: { amount: 2400 } } });
+    const order = await calculateOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 2 }],
+    });
+
+    expect(calls[0].url).toContain("/v2/orders/calculate");
+    // No idempotency key: nothing is persisted, so there is nothing to dedupe.
+    expect(calls[0].body).toEqual({
+      order: {
+        location_id: "L1",
+        customer_id: undefined,
+        line_items: [{ catalog_object_id: "VAR1", quantity: "2" }],
+      },
+    });
+    expect(order.totalMoney).toEqual({ amount: 2400, currency: "USD" });
+  });
+
+  it("shares the line-item shape with createOrder, so the preview can't drift", async () => {
+    const calls = stubFetch({ order: { id: "preview" } });
+    await calculateOrder(CONFIG, {
+      locationId: "L1",
+      // An ad-hoc item must carry its own price; a catalog-backed one must not.
+      lineItems: [{ name: "Tip", priceCents: 500, quantity: 1 }],
+    });
+    const body = calls[0].body as { order: { line_items: Record<string, unknown>[] } };
+    expect(body.order.line_items[0]).toEqual({
+      name: "Tip",
+      quantity: "1",
+      base_price_money: { amount: 500, currency: "USD" },
+    });
   });
 });
 

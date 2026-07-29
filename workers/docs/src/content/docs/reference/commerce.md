@@ -150,7 +150,7 @@ import {
 | **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`     |
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects` — per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation` |
 | **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                      |
-| **Orders**                | `createOrder`, `retrieveOrder`, `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged) |
+| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
 | **Payments**              | `createPayment` — charge a Web Payments card token against an order.                       |
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`           |
 | **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                        |

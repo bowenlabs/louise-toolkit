@@ -1144,6 +1144,9 @@ export interface SquareOrder {
   referenceId: string | null;
   customerId: string | null;
   createdAt: string | null;
+  /** When money settled — the accounting axis, and null until an order closes. */
+  closedAt: string | null;
+  updatedAt: string | null;
   lineItems: {
     name: string;
     quantity: string;
@@ -1159,6 +1162,8 @@ interface RawOrder {
   reference_id?: string;
   customer_id?: string;
   created_at?: string;
+  closed_at?: string;
+  updated_at?: string;
   total_money?: { amount?: number; currency?: string };
   total_tax_money?: { amount?: number; currency?: string };
   line_items?: {
@@ -1183,6 +1188,8 @@ function mapOrder(o: RawOrder): SquareOrder {
     referenceId: o.reference_id ?? null,
     customerId: o.customer_id ?? null,
     createdAt: o.created_at ?? null,
+    closedAt: o.closed_at ?? null,
+    updatedAt: o.updated_at ?? null,
     lineItems: (o.line_items ?? []).map((li) => ({
       name: li.name ?? "",
       quantity: li.quantity ?? "0",
@@ -1244,6 +1251,40 @@ export async function retrieveOrder(config: SquareConfig, orderId: string): Prom
 }
 
 /**
+ * Square's hard ceiling on `location_ids` in one `/v2/orders/search` call.
+ * Documented, not discovered: an 11th id is a 400, not a truncation.
+ */
+const SEARCH_ORDERS_LOCATION_LIMIT = 10;
+
+function chunkLocationIds(ids: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += SEARCH_ORDERS_LOCATION_LIMIT) {
+    chunks.push(ids.slice(i, i + SEARCH_ORDERS_LOCATION_LIMIT));
+  }
+  return chunks;
+}
+
+/** Re-establish a global order over results Square only sorted per response. */
+function sortOrdersBy(
+  orders: SquareOrder[],
+  dateField: "closedAt" | "createdAt" | "updatedAt",
+  sortOrder: "ASC" | "DESC",
+): SquareOrder[] {
+  const direction = sortOrder === "ASC" ? 1 : -1;
+  return [...orders].sort((a, b) => {
+    const x = a[dateField];
+    const y = b[dateField];
+    // Nulls last in both directions — an order with no timestamp on the axis
+    // you asked about (an OPEN order has no `closed_at`) is not the newest
+    // thing that happened, which is where it would land unguarded.
+    if (x === y) return 0;
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return x < y ? -direction : direction;
+  });
+}
+
+/**
  * Search orders for a customer (account order history). Returns full orders,
  * newest first. POST /v2/orders/search.
  */
@@ -1251,16 +1292,29 @@ export async function searchOrdersByCustomer(
   config: SquareConfig,
   input: { locationIds: string[]; customerId: string; limit?: number },
 ): Promise<SquareOrder[]> {
-  const res = await sqPost<{ orders?: RawOrder[] }>(config, "/v2/orders/search", {
-    location_ids: input.locationIds,
-    return_entries: false,
-    limit: input.limit ?? 50,
-    query: {
-      filter: { customer_filter: { customer_ids: [input.customerId] } },
-      sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
-    },
-  });
-  return (res.orders ?? []).map(mapOrder);
+  const limit = input.limit ?? 50;
+  const orders: SquareOrder[] = [];
+  // Same endpoint, same 10-location ceiling. It bites later here than in
+  // `searchOrders` — an account history is usually asked for one location at a
+  // time — but a multi-location portal asking "everywhere she's shopped" is
+  // exactly the request that trips it.
+  for (const locationIds of chunkLocationIds(input.locationIds)) {
+    const res = await sqPost<{ orders?: RawOrder[] }>(config, "/v2/orders/search", {
+      location_ids: locationIds,
+      return_entries: false,
+      limit,
+      query: {
+        filter: { customer_filter: { customer_ids: [input.customerId] } },
+        sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
+      },
+    });
+    orders.push(...(res.orders ?? []).map(mapOrder));
+  }
+  // `limit` is per request, so N chunks can return N×limit. Re-sort and trim so
+  // the caller gets the newest `limit` orders overall, which is what they asked
+  // for — not the newest `limit` from each arbitrary group of ten.
+  if (input.locationIds.length <= SEARCH_ORDERS_LOCATION_LIMIT) return orders;
+  return sortOrdersBy(orders, "createdAt", "DESC").slice(0, limit);
 }
 
 /**
@@ -1291,10 +1345,17 @@ export async function searchOrders(
     sortOrder?: "ASC" | "DESC";
     /** Page size (Square caps at 1000). Defaults to 500. */
     limit?: number;
-    /** Safety bound on cursor pages. Defaults to 20. */
+    /** Safety bound on cursor pages, applied PER location chunk. Defaults to 20. */
     maxPages?: number;
   },
 ): Promise<SquareOrder[]> {
+  // An empty list would be a caller bug that Square answers with a 400 and a
+  // message about `location_ids`, several layers from where it was introduced.
+  // Refusing here names it. (Not returning [] — a reporting call that silently
+  // yields no rows reads as "no sales", which is worse than an error.)
+  if (input.locationIds.length === 0) {
+    throw new Error("Square searchOrders needs at least one location id");
+  }
   const states = input.states ?? ["COMPLETED"];
   const sortField = (
     { closedAt: "CLOSED_AT", createdAt: "CREATED_AT", updatedAt: "UPDATED_AT" } as const
@@ -1314,31 +1375,69 @@ export async function searchOrders(
       : undefined;
 
   const orders: SquareOrder[] = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < (input.maxPages ?? 20); page++) {
-    const res = await sqPost<{ orders?: RawOrder[]; cursor?: string }>(
-      config,
-      "/v2/orders/search",
-      {
-        location_ids: input.locationIds,
-        return_entries: false,
-        limit: input.limit ?? 500,
-        ...(cursor ? { cursor } : {}),
-        query: {
-          filter: {
-            ...(states.length ? { state_filter: { states } } : {}),
-            ...(range ? { date_time_filter: range } : {}),
+  // Sequentially, not in parallel: a 300-location account is 30 searches, and
+  // firing them at once is the surest way to meet the 429 this client only
+  // retries when asked to.
+  for (const locationIds of chunkLocationIds(input.locationIds)) {
+    let cursor: string | undefined;
+    for (let page = 0; page < (input.maxPages ?? 20); page++) {
+      const res = await sqPost<{ orders?: RawOrder[]; cursor?: string }>(
+        config,
+        "/v2/orders/search",
+        {
+          location_ids: locationIds,
+          return_entries: false,
+          limit: input.limit ?? 500,
+          ...(cursor ? { cursor } : {}),
+          query: {
+            filter: {
+              ...(states.length ? { state_filter: { states } } : {}),
+              ...(range ? { date_time_filter: range } : {}),
+            },
+            // Square requires the sort field to match the date filter's field.
+            sort: { sort_field: sortField, sort_order: input.sortOrder ?? "DESC" },
           },
-          // Square requires the sort field to match the date filter's field.
-          sort: { sort_field: sortField, sort_order: input.sortOrder ?? "DESC" },
         },
-      },
-    );
-    orders.push(...(res.orders ?? []).map(mapOrder));
-    cursor = res.cursor;
-    if (!cursor) break;
+      );
+      orders.push(...(res.orders ?? []).map(mapOrder));
+      cursor = res.cursor;
+      if (!cursor) break;
+    }
   }
-  return orders;
+  // Square sorts within a response, not across our chunks. Above 10 locations
+  // the concatenation is ordered per chunk and unordered overall, which looks
+  // fine in a spot check and puts the wrong rows in any "top N" or "most
+  // recent" that trusts the order.
+  return input.locationIds.length > SEARCH_ORDERS_LOCATION_LIMIT
+    ? sortOrdersBy(orders, input.dateField ?? "closedAt", input.sortOrder ?? "DESC")
+    : orders;
+}
+
+/**
+ * Preview an order's totals — including auto-applied taxes and discounts —
+ * without creating one. POST /v2/orders/calculate.
+ *
+ * The order is never persisted, so this is the honest way to show a cart total
+ * that matches what checkout will charge: the same pricing engine, no order to
+ * clean up if the customer walks away.
+ */
+export async function calculateOrder(
+  config: SquareConfig,
+  input: {
+    locationId: string;
+    lineItems: SquareOrderLineItem[];
+    customerId?: string;
+  },
+): Promise<SquareOrder> {
+  const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders/calculate", {
+    order: {
+      location_id: input.locationId,
+      customer_id: input.customerId,
+      line_items: input.lineItems.map(orderLineItemBody),
+    },
+  });
+  if (!res.order) throw new Error("Square order calculation returned no order");
+  return mapOrder(res.order);
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────
