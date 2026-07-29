@@ -8,6 +8,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
+import type { FieldTypeName } from "../../core/content/field-types.js";
 import { Icon } from "../icons.jsx";
 import { apiGet, louiseQueryKeys } from "./query.js";
 
@@ -17,8 +18,21 @@ export interface LinkRow {
   href: string;
 }
 
-/** Field types the declarative Settings renderer understands. */
-export type SettingsFieldType = "text" | "textarea" | "color" | "toggle" | "image" | "links";
+/**
+ * Field types the declarative Settings renderer understands.
+ *
+ * An alias for the shared {@link FieldTypeName} since ADR 0010 A2 — this was its
+ * own six-name union, overlapping the section catalog's eight on four and
+ * disagreeing on the rest, so a type added to one surface was silently absent
+ * from the other. That asymmetry is what left settings without a `link` type and
+ * therefore without a scheme check on stored nav destinations.
+ *
+ * The renderer below still only draws the six it always drew; a name it doesn't
+ * recognise falls through to the text input, exactly as an unknown value did
+ * before. What changed is that both surfaces now agree on what the names ARE, and
+ * a type registered once validates on both.
+ */
+export type SettingsFieldType = FieldTypeName;
 
 /**
  * One declarative settings field. `key` is the settings object key it reads and
