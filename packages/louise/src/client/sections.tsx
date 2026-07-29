@@ -72,6 +72,7 @@ import type {
   SectionDef,
   SectionField,
   SectionFieldType,
+  RichTextFieldOptions,
   SectionItem,
 } from "../core/content/sections.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
@@ -82,29 +83,23 @@ export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, Sectio
 // they agreed only because they were written on the same afternoon.
 import { isInlineField as isInline } from "../core/content/field-types.js";
 
-/** Rich-text editor options for a section's `richtext` fields — mirrors
- *  `mountRichText`'s opts. Omit for the default light-inline bubble
- *  (`{ minimal: true }`): inline formatting only (bold/italic/underline/strike/
- *  link/colour), the mode #182 designed for section fields.
+/**
+ * Rich-text editor options — an alias for the schema's {@link RichTextFieldOptions},
+ * which is where these now belong (ADR 0010 A2 / #345): a field declares its own,
+ * in the catalog, next to the rest of what it is.
  *
- *  For the full formatting bar, pass `{ minimal: false, grammar: true }`:
- *  `minimal: false` surfaces the prose block buttons (heading/subheading, lists,
- *  quote, image) — from the base ProseKit schema — plus the AI-rewrite sparkle,
- *  and `grammar` lazy-loads Harper. `blocks` is a SEPARATE opt-in: the page-
- *  BUILDER palette (Hero/Columns/Gallery… #16), meant for full page bodies, not
- *  a one-line heading field — leave it off for section fields. */
-export type SectionRichTextOptions = {
-  blocks?: boolean;
-  grammar?: boolean;
-  minimal?: boolean;
-  /** Show the "Insert image" button (default true). Pass `false` to drop it from
-   *  a section heading/tagline field where an inline image doesn't belong. */
-  image?: boolean;
-  /** Inline mode — a single-line heading/tagline field: inline formatting only,
-   *  and the value serializes as inline HTML (no block wrapper) so it can't turn
-   *  into a `<p>`/`<h2>` that nests in the site's element and loses its style. */
-  inline?: boolean;
-};
+ * Kept as a name because it is the published one, and because `mountSections`
+ * still accepts a site-wide default under it.
+ *
+ * Omit for the light-inline bubble (`{ minimal: true }`) — inline formatting only
+ * (bold/italic/underline/strike/link/colour), the mode #182 designed for section
+ * fields. For the full formatting bar pass `{ minimal: false, grammar: true }`:
+ * `minimal: false` surfaces the prose block buttons plus the AI-rewrite sparkle,
+ * and `grammar` lazy-loads Harper. `blocks` is a SEPARATE opt-in — the page
+ * BUILDER palette (#16), meant for full page bodies rather than a one-line
+ * heading.
+ */
+export type SectionRichTextOptions = RichTextFieldOptions;
 
 export interface SectionsEditorProps {
   catalog: SectionCatalog;
@@ -316,17 +311,54 @@ function pathToArgs(path: string): (string | number)[] {
   return path.split(".").map((p) => (/^\d+$/.test(p) ? Number(p) : p));
 }
 
-/** Resolve the placeholder/label text for a marker path, for empty-field hints. */
-function placeholderFor(catalog: SectionCatalog, path: string, items: SectionItem[]): string {
+/**
+ * The field definition a `data-louise-sfield` path addresses.
+ *
+ * Three shapes, which is one more than the placeholder lookup used to handle:
+ *
+ *   <i>.<key>                 a section's own field
+ *   <i>.<key>.<j>.<subKey>    an item of one of its arrays
+ *   <i>.blocks.<j>.<key>      a field on one of its blocks
+ *
+ * The block case was missing, so a block field's declared `placeholder` and
+ * `label` were silently ignored — `fields["blocks"]` is not a field, so the
+ * lookup found nothing and fell back to humanising the key. Nothing failed
+ * loudly; the hint was just always the key name.
+ */
+function fieldAtPath(
+  path: string,
+  catalog: SectionCatalog,
+  items: SectionItem[],
+  blocks?: BlockCatalog,
+): SectionField | undefined {
   const parts = path.split(".");
   const item = items[Number(parts[0])];
-  const def = item ? catalog[item._type] : undefined;
-  let field = def?.fields[parts[1]];
-  // Array subfield path: <idx>.<key>.<j>.<subKey>
-  if (field?.type === "array" && parts.length >= 4) field = field.itemFields?.[parts[3]];
-  return (
-    field?.placeholder ?? field?.label ?? (parts.at(-1) ? humanize(parts.at(-1) as string) : "")
-  );
+  if (!item) return undefined;
+
+  if (parts[1] === "blocks") {
+    const block = (Array.isArray(item.blocks) ? (item.blocks as SectionItem[]) : [])[
+      Number(parts[2])
+    ];
+    const blockDef = block ? blocks?.[String(block._type)] : undefined;
+    return parts[3] ? blockDef?.fields[parts[3]] : undefined;
+  }
+
+  const field = catalog[String(item._type)]?.fields[parts[1]];
+  // Array subfield: the item's shape is the array's `itemFields`.
+  if (field?.type === "array" && parts.length >= 4) return field.itemFields?.[parts[3]];
+  return field;
+}
+
+/** Resolve the placeholder/label text for a marker path, for empty-field hints. */
+function placeholderFor(
+  catalog: SectionCatalog,
+  path: string,
+  items: SectionItem[],
+  blocks?: BlockCatalog,
+): string {
+  const field = fieldAtPath(path, catalog, items, blocks);
+  const last = path.split(".").at(-1);
+  return field?.placeholder ?? field?.label ?? (last ? humanize(last) : "");
 }
 
 /**
@@ -343,7 +375,24 @@ function wireInline(
   onBlur?: () => void,
   richText?: SectionRichTextOptions,
   richTextModes?: Record<string, SectionRichTextOptions>,
+  blocks?: BlockCatalog,
 ): void {
+  /** This field's rich-text options, most specific first (ADR 0010 A2 / #345).
+   *
+   *  The field's own declaration wins. `richTextModes` keyed by a stamped
+   *  `data-louise-rt` name is the previous mechanism, kept working: it was a
+   *  rendezvous between the render and the mount to establish something the
+   *  catalog already knew. Then the site-wide default, then the light inline
+   *  bubble (#182).
+   *
+   *  An unknown mode name still falls back rather than throwing — a render
+   *  stamped for a mode the mount doesn't declare should degrade to the site
+   *  default, not lose its editor. */
+  const richTextFor = (path: string, node: HTMLElement): SectionRichTextOptions =>
+    fieldAtPath(path, catalog, items, blocks)?.richText ??
+    richTextModes?.[node.dataset.louiseRt ?? ""] ??
+    richText ?? { minimal: true };
+
   const nodes = host.querySelectorAll<HTMLElement>("[data-louise-sfield]");
   for (const node of Array.from(nodes)) {
     const path = node.dataset.louiseSfield;
@@ -363,15 +412,11 @@ function wireInline(
           onEdit();
         },
         undefined,
-        // Per-field mode first (`data-louise-rt`), then the site-wide default,
-        // then the light-inline bubble (#182). An unknown mode name falls back
-        // rather than throwing: a render stamped for a mode the mount doesn't
-        // declare should degrade to the site default, not lose its editor.
-        richTextModes?.[node.dataset.louiseRt ?? ""] ?? richText ?? { minimal: true },
+        richTextFor(path, node),
       );
       continue;
     }
-    const hint = placeholderFor(catalog, path, items);
+    const hint = placeholderFor(catalog, path, items, blocks);
     if (hint) node.dataset.louisePlaceholder = hint;
     node.classList.add("louise-editable", "louise-sfield");
     node.setAttribute("contenteditable", "plaintext-only");
@@ -611,6 +656,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
       props.richTextModes,
+      props.blocks,
     );
     void loadVersions();
 
@@ -900,6 +946,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
       props.richTextModes,
+      props.blocks,
     );
     touched();
   };
@@ -954,6 +1001,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       autoCfg.enabled ? () => auto?.flush() : undefined,
       props.richText,
       props.richTextModes,
+      props.blocks,
     );
     touched();
   };

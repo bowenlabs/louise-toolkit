@@ -128,3 +128,61 @@ describe("sections rich text — per-field modes", () => {
     expect(optsFor("heading")).toEqual({ minimal: true });
   });
 });
+
+// ADR 0010 A2 (#345): the options were always a property of the FIELD. The mode
+// map was a rendezvous between the render (`data-louise-rt`) and the mount
+// (`richTextModes`) to establish something the catalog already knew.
+describe("sections rich text — declared on the field", () => {
+  const FIELD_CATALOG: SectionCatalog = {
+    content: {
+      label: "Content",
+      fields: {
+        heading: { type: "richText", richText: { inline: true, image: false } },
+        body: { type: "richText", richText: { minimal: false, grammar: true } },
+      },
+    },
+  };
+
+  it("mounts each field with what its own definition asks for", async () => {
+    mount(pageHost(), { catalog: FIELD_CATALOG });
+    await flush();
+
+    // Two kinds of rich text on one page, and neither the render nor the mount
+    // had to say anything about it.
+    expect(optsFor("heading")).toEqual({ inline: true, image: false });
+    expect(optsFor("body")).toEqual({ minimal: false, grammar: true });
+  });
+
+  it("wins over a stamped mode and the site-wide default", async () => {
+    mount(pageHost("prose"), {
+      catalog: FIELD_CATALOG,
+      richText: { inline: true },
+      richTextModes: { prose: { blocks: true } },
+    });
+    await flush();
+
+    // `body` carries `data-louise-rt="prose"` and the mount declares that mode —
+    // the field still wins, because it is the more specific statement.
+    expect(optsFor("body")).toEqual({ minimal: false, grammar: true });
+  });
+
+  it("leaves the old path working for a field that declares nothing", async () => {
+    const MIXED: SectionCatalog = {
+      content: {
+        label: "Content",
+        fields: {
+          heading: { type: "richText", richText: { inline: true } },
+          body: { type: "richText" },
+        },
+      },
+    };
+    mount(pageHost("prose"), {
+      catalog: MIXED,
+      richTextModes: { prose: { minimal: false } },
+    });
+    await flush();
+
+    expect(optsFor("heading")).toEqual({ inline: true });
+    expect(optsFor("body")).toEqual({ minimal: false });
+  });
+});
