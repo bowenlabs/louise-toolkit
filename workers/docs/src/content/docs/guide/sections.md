@@ -171,7 +171,7 @@ and **Publish** promotes it.
   the live page is unchanged until you **Publish**. With auto-save on (the
   default) this happens on an idle debounce, so the edit bar shows only
   **Publish** — no Save draft button, and no routine saved/unsaved status; a
-  *failed* save still surfaces. Auto-save **never publishes**.
+  _failed_ save still surfaces. Auto-save **never publishes**.
 - **Structural changes** save a draft and then reload, so the server re-renders
   the new shape (which comes back inline-editable). In edit mode the page resumes
   your latest draft; view mode always shows the published version.
