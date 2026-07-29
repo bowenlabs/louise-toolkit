@@ -1,5 +1,158 @@
 # louise-toolkit
 
+## 0.22.0
+
+### Minor Changes
+
+- 8725ab4: **A field's choices can now be fetched.** `SectionField.options` accepts an async
+  resolver — `() => Promise<FieldOption[]>` — as well as a literal array, so a
+  picker whose values come from an API can be declared in a section catalog:
+
+  ```ts
+  colorway: { type: "select", options: [{ value: "blue" }] },        // as before
+  location: { type: "select", options: () => listSquareLocations() }, // new
+  ```
+
+  This is what the settings drawer's `render` escape hatch was doing by hand, and
+  the section inspector had no equivalent of. It is the piece coracle.coffee#37's
+  Square pickers were blocked on.
+
+  The picker draws three states, not one: the choices, the wait, and the failure. A
+  picker that renders empty when its fetch failed is indistinguishable from one
+  whose source genuinely has nothing, so a failure now says so and the select is
+  disabled rather than appearing to have lost the stored value while loading.
+
+  One fetch per resolver is shared by every field using it — the promise is cached,
+  not just the result, so an inspector opening ten fields at once makes one request
+  rather than ten. A failed fetch is not cached, so the next attempt is fresh.
+
+  **The trade, stated plainly:** a RESOLVED option set is not checked on write. A
+  literal set still is. Validating a fetched set would put a network call on the
+  save path, and a page failing to save because an external API is down is a worse
+  failure than an unrecognised token — it also hands that service the ability to
+  block publishing. A field wanting the closed-set guarantee back declares it with
+  its own `validation` chain. ADR 0010's Phase B is where this gets a real answer:
+  an `external` source is mirrored by definition, and a local mirror is something
+  the write path can check without leaving the Worker.
+
+  **Type-level breaking change:** code that reads `field.options` as an array must
+  narrow first (`Array.isArray(field.options)`). Catalogs that only _declare_
+  options are unaffected.
+
+- a684acc: **Breaking (marker contract).** One attribute now marks everything editable.
+  `data-louise-sfield` folds into `data-louise-node`, and `data-louise-type="richtext"`
+  and `data-louise-multiline` are gone — the catalog already says what a field is.
+
+  ```diff
+  - <h1 data-louise-sfield={`${i}.heading`}>{heading}</h1>
+  + <h1 data-louise-node={`${i}.heading`}>{heading}</h1>
+
+  - <p data-louise-sfield={`${i}.tagline`} data-louise-multiline>{tagline}</p>
+  + <p data-louise-node={`${i}.tagline`}>{tagline}</p>
+
+  - <div data-louise-sfield={`${i}.body`} data-louise-type="richtext" />
+  + <div data-louise-node={`${i}.body`} />
+  ```
+
+  The path values are unchanged, so this is a rename plus two deletions. Astroid's
+  `<Editable>` emits it for you; its `type` and `multiline` props are accepted and
+  ignored for section fields.
+
+  **What the catalog decides.** A `text`, `textarea` or `richText` field is edited
+  in place — contenteditable, the right editor, spellcheck on multiline — and gets
+  no chrome of its own. Anything else rings and gets a wrench. The render says only
+  _where_ a node is; it no longer describes what it is in three attributes the
+  schema already carried.
+
+  **Hit-testing changed.** An unresolved node used to mean "clear", which was right
+  while only ring-worthy things were marked. Now the tightest marker under the
+  pointer is usually an inline field with no chrome by design, so the hit-test walks
+  **outward** to the nearest node that has some. Hovering a CTA's label rings the
+  anchor around it rather than clearing — without this the page would feel dead
+  wherever text sits.
+
+  Also: a value node's wrench is now named after its field. It was "Layout &
+  settings", which describes a container's panel — but a value node's wrench is its
+  entire toolbar and opens one field.
+
+- 2e6ebe3: **Rich-text options are declared on the field.** A `richText` field carries its own
+  editor options in the catalog:
+
+  ```ts
+  fields: {
+    heading: { type: "richText", richText: { inline: true, image: false } },
+    body:    { type: "richText", richText: { minimal: false, grammar: true } },
+  }
+  ```
+
+  `richTextModes` shipped as a mount-level map keyed by a `data-louise-rt` name the
+  render stamped — a rendezvous between two files to establish something the catalog
+  already knew. ADR 0010 called it out as a symptom: editor options were mount-level
+  when they always belonged to the field.
+
+  Resolution order is most-specific-first: the field's own `richText`, then a
+  stamped `data-louise-rt` mode, then the site-wide `richText`, then the light
+  inline bubble. **Nothing is removed** — `richText` and `richTextModes` keep
+  working, and a render that stamps `data-louise-rt` is unaffected.
+
+  **Also fixed: a block field's placeholder was ignored.** Resolving a
+  `data-louise-sfield` path back to its field handled `<i>.<key>` and
+  `<i>.<key>.<j>.<sub>` but not `<i>.blocks.<j>.<key>` — the path starts with
+  `blocks`, which is not a field, so the lookup found nothing and every block field
+  fell back to a humanised key. A block field declaring `placeholder: "Feature name"`
+  showed "Name". Both lookups now share one resolver.
+
+- f02c87a: **One field-type system.** `SectionFieldType` (8 types) and `SettingsFieldType`
+  (6) were parallel, overlapping on four and disagreeing on the rest, so a type
+  added to one surface was silently missing from the other. Both are now aliases of
+  one `FieldTypeName`, backed by the `defineFieldType` registry.
+
+  That asymmetry was not only duplication. Settings had a `links` type and no `link`
+  type, so there was nowhere for a scheme check to live — which is why stored nav
+  destinations went unvalidated until the XSS fix. `links` now validates each row's
+  `href` against the same allowlist as a section's `link`.
+
+  `color` and `links` were settings-only and are now registered types a section
+  catalog can declare. `richText`, `array`, `select` and `link` were sections-only
+  and are now available to settings.
+
+  **Field types are extensible.** `SectionFieldType` was a closed union, so a type
+  registered via `defineFieldType` widened the runtime but not the type a catalog
+  could write. It now admits any string alongside the built-ins, keeping editor
+  completion for the ten known names while letting a site's own registered type be
+  authored.
+
+  The trade is that a typo — `"txet"` — is no longer a compile error; it validates
+  as nothing rather than failing. `unknownFieldTypes(fields)` is the check that gets
+  back, opt-in and covering site-registered types, which the closed union never
+  could.
+
+### Patch Changes
+
+- 153c5ba: **Security.** Settings link rows are now scheme-validated on write.
+
+  `navLinks` and `socialLinks` are stored as `{ label, href }` arrays and rendered
+  straight into `<a href={…}>` in a site's chrome — on every page. Nothing checked
+  the scheme, so an authenticated editor could store `javascript:alert(1)` as a nav
+  destination and it would persist and render as a working link for every visitor.
+
+  Sections closed exactly this hole with the `link` field type, whose comment spells
+  out the vector: a destination is rendered by the site's own component and never
+  passes through the HTML sanitizer, which only ever sees rich-text markup. Settings
+  never got the same treatment.
+
+  `PATCH /api/louise/settings` now rejects an unsafe `href` with `422`, against the
+  same allowlist sections use — http(s), `mailto:`, or a site-relative path.
+
+  The check is shape-driven rather than key-driven: any patched value that is an
+  array of objects carrying an `href` is treated as a link list. An `imageKeys`-style
+  opt-in would mean every site has to remember to configure it, and the site that
+  forgets is the one that gets hit.
+
+  No action needed on upgrade unless a site has already stored a non-conforming
+  destination, in which case the next settings save of that field returns `422` with
+  the offending row's path.
+
 ## 0.21.0
 
 ### Minor Changes

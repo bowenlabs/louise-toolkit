@@ -1,5 +1,89 @@
 # astroidjs
 
+## 0.6.0
+
+### Minor Changes
+
+- a684acc: **Breaking (marker contract).** One attribute now marks everything editable.
+  `data-louise-sfield` folds into `data-louise-node`, and `data-louise-type="richtext"`
+  and `data-louise-multiline` are gone — the catalog already says what a field is.
+
+  ```diff
+  - <h1 data-louise-sfield={`${i}.heading`}>{heading}</h1>
+  + <h1 data-louise-node={`${i}.heading`}>{heading}</h1>
+
+  - <p data-louise-sfield={`${i}.tagline`} data-louise-multiline>{tagline}</p>
+  + <p data-louise-node={`${i}.tagline`}>{tagline}</p>
+
+  - <div data-louise-sfield={`${i}.body`} data-louise-type="richtext" />
+  + <div data-louise-node={`${i}.body`} />
+  ```
+
+  The path values are unchanged, so this is a rename plus two deletions. Astroid's
+  `<Editable>` emits it for you; its `type` and `multiline` props are accepted and
+  ignored for section fields.
+
+  **What the catalog decides.** A `text`, `textarea` or `richText` field is edited
+  in place — contenteditable, the right editor, spellcheck on multiline — and gets
+  no chrome of its own. Anything else rings and gets a wrench. The render says only
+  _where_ a node is; it no longer describes what it is in three attributes the
+  schema already carried.
+
+  **Hit-testing changed.** An unresolved node used to mean "clear", which was right
+  while only ring-worthy things were marked. Now the tightest marker under the
+  pointer is usually an inline field with no chrome by design, so the hit-test walks
+  **outward** to the nearest node that has some. Hovering a CTA's label rings the
+  anchor around it rather than clearing — without this the page would feel dead
+  wherever text sits.
+
+  Also: a value node's wrench is now named after its field. It was "Layout &
+  settings", which describes a container's panel — but a value node's wrench is its
+  entire toolbar and opens one field.
+
+### Patch Changes
+
+- 8725ab4: **A field's choices can now be fetched.** `SectionField.options` accepts an async
+  resolver — `() => Promise<FieldOption[]>` — as well as a literal array, so a
+  picker whose values come from an API can be declared in a section catalog:
+
+  ```ts
+  colorway: { type: "select", options: [{ value: "blue" }] },        // as before
+  location: { type: "select", options: () => listSquareLocations() }, // new
+  ```
+
+  This is what the settings drawer's `render` escape hatch was doing by hand, and
+  the section inspector had no equivalent of. It is the piece coracle.coffee#37's
+  Square pickers were blocked on.
+
+  The picker draws three states, not one: the choices, the wait, and the failure. A
+  picker that renders empty when its fetch failed is indistinguishable from one
+  whose source genuinely has nothing, so a failure now says so and the select is
+  disabled rather than appearing to have lost the stored value while loading.
+
+  One fetch per resolver is shared by every field using it — the promise is cached,
+  not just the result, so an inspector opening ten fields at once makes one request
+  rather than ten. A failed fetch is not cached, so the next attempt is fresh.
+
+  **The trade, stated plainly:** a RESOLVED option set is not checked on write. A
+  literal set still is. Validating a fetched set would put a network call on the
+  save path, and a page failing to save because an external API is down is a worse
+  failure than an unrecognised token — it also hands that service the ability to
+  block publishing. A field wanting the closed-set guarantee back declares it with
+  its own `validation` chain. ADR 0010's Phase B is where this gets a real answer:
+  an `external` source is mirrored by definition, and a local mirror is something
+  the write path can check without leaving the Worker.
+
+  **Type-level breaking change:** code that reads `field.options` as an array must
+  narrow first (`Array.isArray(field.options)`). Catalogs that only _declare_
+  options are unaffected.
+
+- Updated dependencies [8725ab4]
+- Updated dependencies [a684acc]
+- Updated dependencies [2e6ebe3]
+- Updated dependencies [153c5ba]
+- Updated dependencies [f02c87a]
+  - louise-toolkit@0.22.0
+
 ## 0.5.0
 
 ### Minor Changes

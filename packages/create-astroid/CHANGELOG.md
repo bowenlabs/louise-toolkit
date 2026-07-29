@@ -1,5 +1,36 @@
 # create-astroid
 
+## 0.3.6
+
+### Patch Changes
+
+- 812b5a1: **Fixed: the editor mounted twice on every page load.**
+
+  The scaffolded `LouiseEdit.astro` calls `boot()` at parse and again on
+  `astro:page-load` — which Astro's ClientRouter fires on the _initial_ load, not
+  only on navigations. The second call landed while the first one's dynamic import
+  was still in flight, so both resolved and both mounted.
+
+  On a sections page that meant two on-canvas chromes, two toolbars, and **two
+  Publish buttons** over one store. Found on a live editor: two of everything
+  `mountSections` owns.
+
+  Each boot now claims a generation and only the newest one mounts. The template
+  also captures `mountSections`' disposer, which it was discarding entirely — so a
+  view-transition navigation left the previous page's flush and unsaved-changes
+  listeners attached.
+
+  `mountLouise` and `mountSettings` were unaffected: they are idempotent per page.
+  `mountSections` is not, which is why it was the one that showed.
+
+- Updated dependencies [8725ab4]
+- Updated dependencies [a684acc]
+- Updated dependencies [2e6ebe3]
+- Updated dependencies [153c5ba]
+- Updated dependencies [f02c87a]
+  - louise-toolkit@0.22.0
+  - astroidjs@0.6.0
+
 ## 0.3.5
 
 ### Patch Changes
