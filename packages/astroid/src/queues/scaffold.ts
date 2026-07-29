@@ -106,6 +106,10 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
   // invoicing-only provider has nothing for this hook to do.
   const provider = astroidCommerceRoles(config.commerce).storefront;
   const table = astroidCatalogMirror(config).table;
+  // Two providers means the catalog belongs to exactly one of them, and the
+  // other one's webhooks must not drag it through a re-sync. Scaffold the scope
+  // in rather than leaving it to be discovered on a busy day (#294).
+  const multiProvider = astroidCommerceProviders(config.commerce).length > 1;
   return [
     "// The queue consumer — what each message actually does.",
     "//",
@@ -124,6 +128,15 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
     "  message: AstroidQueueMessage,",
     "): Promise<void> {",
     "  await astroidQueueHandler({",
+    ...(multiProvider && provider
+      ? [
+          `    // This project runs more than one commerce provider, and the catalog is`,
+          `    // ${provider}'s. Scoping the refresh keeps the OTHER provider's webhooks from`,
+          `    // triggering it — Square alone emits an inventory event on every sale, which`,
+          `    // unscoped would re-sync ${provider} once per transaction.`,
+          `    catalogProvider: ${JSON.stringify(provider)},`,
+        ]
+      : []),
     "    refreshCatalog: async () => {",
     provider
       ? `      // TODO: fetch the ${provider} catalog, normalize each item with`

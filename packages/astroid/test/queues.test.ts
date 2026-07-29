@@ -120,6 +120,62 @@ describe("astroidQueueHandler", () => {
   it("acks harmlessly with no options at all", async () => {
     await expect(astroidQueueHandler()({ kind: "catalog_refresh" })).resolves.toBeUndefined();
   });
+
+  // The two-provider case (#294). A site can run Fourthwall as its storefront
+  // and Square as its POS; `refreshCatalog` then means "re-sync Fourthwall", but
+  // Square emits `inventory.count.updated` on every single sale. Without the
+  // triggering message the seam cannot tell the two apart, so a busy Saturday
+  // becomes a sync storm against an unrelated provider's rate limit.
+  it("tells the seam what triggered it, so a two-provider site can branch", async () => {
+    const refreshed: (AstroidQueueMessage | undefined)[] = [];
+    const handle = astroidQueueHandler({
+      refreshCatalog: (message) => {
+        refreshed.push(message);
+      },
+    });
+
+    await handle({ kind: "catalog_refresh" });
+    await handle(msg({ provider: "square", type: "inventory.count.updated" } as never));
+
+    expect(refreshed).toEqual([
+      { kind: "catalog_refresh" },
+      { kind: "webhook", provider: "square", type: "inventory.count.updated", payload: {} },
+    ]);
+  });
+
+  it("still accepts a zero-arg seam, since branching is opt-in", async () => {
+    const refreshCatalog = vi.fn(() => {});
+    const handle = astroidQueueHandler({ refreshCatalog });
+    await handle(msg());
+    expect(refreshCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it("scopes the refresh to the catalog's own provider when told which it is", async () => {
+    const refreshCatalog = vi.fn();
+    const handle = astroidQueueHandler({ refreshCatalog, catalogProvider: "fourthwall" });
+
+    // Square's events are catalog-affecting FOR SQUARE, and entirely irrelevant
+    // to a catalog that lives in Fourthwall. `inventory.count.updated` is the
+    // dangerous one: Square emits it on every sale.
+    await handle(msg({ provider: "square", type: "inventory.count.updated" } as never));
+    await handle(msg({ provider: "square", type: "catalog.version.updated" } as never));
+    expect(refreshCatalog).not.toHaveBeenCalled();
+
+    await handle(msg({ provider: "fourthwall", type: "product.updated" } as never));
+    expect(refreshCatalog).toHaveBeenCalledTimes(1);
+
+    // The periodic re-sync is never provider-scoped — it IS the safety net.
+    await handle({ kind: "catalog_refresh" });
+    expect(refreshCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes for every provider when unscoped, as it always has", async () => {
+    const refreshCatalog = vi.fn();
+    const handle = astroidQueueHandler({ refreshCatalog });
+    await handle(msg({ provider: "square", type: "inventory.count.updated" } as never));
+    await handle(msg({ provider: "fourthwall", type: "product.updated" } as never));
+    expect(refreshCatalog).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("handleWebhook", () => {
@@ -336,6 +392,18 @@ describe("scaffold-once files", () => {
     );
     expect(out).toContain("export async function handleQueueMessage(");
     expect(out).toContain("refreshCatalog:");
+    // One provider owns everything, so scoping would be noise.
+    expect(out).not.toContain("catalogProvider:");
+  });
+
+  it("scopes the refresh when a project runs two commerce providers (#294)", () => {
+    const out = generateAstroidQueueSeam({
+      ...shop,
+      commerce: { storefront: "fourthwall", pos: "square" },
+    });
+    // The catalog is the STOREFRONT's; the POS provider must not trigger its
+    // re-sync, or every in-person sale re-pulls an unrelated provider.
+    expect(out).toContain('catalogProvider: "fourthwall",');
   });
 
   it("emits a provider-specific webhook route", () => {
