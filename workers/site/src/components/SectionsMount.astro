@@ -10,12 +10,25 @@
 <script>
   import type { SectionItem } from "louise-toolkit/client";
 
-  // Teardown of the sections dock currently mounted on this <body>. A
-  // view-transition nav (#74) replaces the body, so tear the old dock down —
-  // removing its flush/guard listeners — before mounting the next page's dock.
+  // Teardown of the sections editor currently mounted on this <body>. A
+  // view-transition nav (#74) replaces the body, so tear the old one down —
+  // removing its flush/guard listeners — before mounting the next page's.
   let teardown: (() => void) | null = null;
 
+  // Which boot is allowed to mount. `teardown?.()` alone does not prevent a
+  // double mount, because it only knows about a mount that has already HAPPENED:
+  // `boot()` runs at parse and again on `astro:page-load` — which Astro's
+  // ClientRouter fires on the initial load too, not just on navigations — and the
+  // second call lands while the first one's dynamic import is still in flight, so
+  // `teardown` is still null and nothing is torn down. Both imports resolve, both
+  // mount, and the page ends up with two chromes, two toolbars and two Publish
+  // buttons wired to two stores.
+  //
+  // Found on the live editor: two of everything mountSections owns.
+  let generation = 0;
+
   function boot() {
+    const gen = ++generation;
     teardown?.();
     teardown = null;
     // Gate on the server-rendered sections marker, NOT `body.dataset.louiseEdit`.
@@ -43,6 +56,9 @@
       import("../sections/blocks"),
     ])
       .then(([client, cat, blk]) => {
+        // A later boot superseded this one while the import was in flight; it
+        // owns the mount now, and mounting here would be the second chrome.
+        if (gen !== generation) return;
         teardown = client.mountSections(el, {
           catalog: cat.SECTIONS,
           blocks: blk.BLOCKS,

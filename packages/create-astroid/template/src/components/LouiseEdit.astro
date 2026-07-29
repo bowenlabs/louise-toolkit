@@ -54,7 +54,26 @@ const realtimeOn = (astroidConfig.modules ?? []).includes("realtime");
         // Users, backed by editorsRoute). When the page passes `versionedPageId`,
         // the bar gains Save draft + Publish, and this page's `<Editable>` fields
         // are edited in place — their changes stage a draft, promoted on Publish.
+        // The sections editor currently mounted on this <body>, and which boot
+        // owns it. `boot()` runs at parse AND on `astro:page-load` — which Astro's
+        // ClientRouter fires on the initial load, not only on navigations — so two
+        // boots race, and the second lands while the first one's dynamic import is
+        // still in flight. Without a guard both mount, and the page gets two
+        // on-canvas chromes, two toolbars and two Publish buttons over one store.
+        //
+        // mountLouise and mountSettings are idempotent per page; mountSections is
+        // not, and it is also the one that needs disposing on a view-transition
+        // nav so its flush and unsaved-changes listeners don't outlive the page.
+        // Annotated, not inferred: `= null` alone infers `null`, and `astro check`
+        // runs strict — the scaffold smoke fails on ts(7034)/ts(7005) before a
+        // scaffolded site ever builds.
+        let teardown: (() => void) | null = null;
+        let generation = 0;
+
         function boot() {
+          const gen = ++generation;
+          teardown?.();
+          teardown = null;
           const el = document.getElementById("louise-boot");
           if (!el) return;
           Promise.all([
@@ -63,6 +82,8 @@ const realtimeOn = (astroidConfig.modules ?? []).includes("realtime");
             import("astroidjs/components/sections"),
           ])
             .then(([client, settings, lib]) => {
+              // Superseded while importing — a later boot owns the page now.
+              if (gen !== generation) return;
               settings.mountSettings({
                 userName: el.dataset.louiseUser || "Editor",
                 users: true,
@@ -90,7 +111,7 @@ const realtimeOn = (astroidConfig.modules ?? []).includes("realtime");
               const host = document.querySelector<HTMLElement>("[data-louise-sections-host]");
               const raw = el.dataset.louiseSections;
               if (host && raw && pageId != null) {
-                client.mountSections(host, {
+                teardown = client.mountSections(host, {
                   catalog: lib.astroidSectionCatalog,
                   pageId,
                   initial: JSON.parse(raw),
