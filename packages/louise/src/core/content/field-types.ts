@@ -35,6 +35,37 @@ import type { ValidationViolation } from "../errors.js";
 // the authoring shape, this one owns what each `type` in it MEANS.
 import type { SectionField } from "./sections.js";
 
+/** One choice in a closed set. `label` is what the editor reads; `value` is what
+ *  is stored — a token differs from its presentation for the usual reason. */
+export interface FieldOption {
+  value: string;
+  label?: string;
+}
+
+/**
+ * Choices fetched at edit time rather than declared in the catalog.
+ *
+ * The reason this exists is ADR 0010's: a picker whose choices come from an API —
+ * Square locations, a product catalog — could not be expressed at all. `options`
+ * took a literal array, so the only way to build one was the settings drawer's
+ * `render` escape hatch, which the section inspector doesn't have.
+ *
+ * Called with no arguments: a resolver is declared in the site's catalog module
+ * and closes over whatever config it needs, so nothing has to be threaded through
+ * the schema layer to reach it.
+ */
+export type FieldOptionsResolver = () => Promise<FieldOption[]>;
+
+/** Either a literal set of choices or something that fetches them. */
+export type FieldOptions = FieldOption[] | FieldOptionsResolver;
+
+/** Whether `options` fetches its choices rather than declaring them. */
+export function isOptionsResolver(
+  options: FieldOptions | undefined,
+): options is FieldOptionsResolver {
+  return typeof options === "function";
+}
+
 /** What a validator is told about the value it's checking. */
 export interface FieldValidateContext {
   /** The field's own definition — `select` reads `options`, and a custom type can
@@ -102,11 +133,11 @@ export function fieldTypeNames(): string[] {
  * to reach for a cast.
  *
  * The intersection is the standard trick for keeping both — TypeScript won't
- * collapse the union to `string`, so editors still complete the eight built-ins,
+ * collapse the union to `string`, so editors still complete the ten built-ins,
  * while a registered name type-checks. What's lost is the typo check: `"txet"` is
- * now legal to write. It fails loudly at validation instead of silently, since an
- * unregistered type validates as nothing — which is why `assertKnownFieldTypes`
- * exists for a catalog that wants the stricter guarantee back.
+ * now legal to write, and an unregistered type validates as nothing rather than
+ * failing — which is why {@link unknownFieldTypes} exists for a catalog that
+ * wants the stricter guarantee back.
  */
 export type FieldTypeName =
   | "text"
@@ -274,6 +305,19 @@ defineFieldType({
   inline: false,
   validate: (value, { field, path }) => {
     if (value === "") return undefined;
+    // A RESOLVED option set is deliberately not checked here. Doing so would mean
+    // a network call on the write path — a page save failing because Square is
+    // down is a worse failure than an unrecognised token, and it hands an
+    // external service the ability to block publishing. The value is still checked
+    // as a string, and a field that wants the closed-set guarantee back declares
+    // it with its own `validation` chain.
+    //
+    // Phase B is where this gets a real answer: an `external` source is MIRRORED
+    // by definition (ADR 0010), and a local mirror is something the write path can
+    // check without leaving the Worker.
+    if (isOptionsResolver(field.options)) {
+      return typeof value === "string" ? undefined : bad(path, "must be a string");
+    }
     const allowed = (field.options ?? []).map((o) => o.value);
     if (typeof value === "string" && allowed.includes(value)) return undefined;
     return bad(
