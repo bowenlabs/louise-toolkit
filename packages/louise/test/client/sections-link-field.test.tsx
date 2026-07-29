@@ -38,7 +38,7 @@ function stubFetch(pages: Array<{ slug: string; title: string }> = []): Call[] {
       calls.push({ url, method, body: init?.body ? JSON.parse(init.body as string) : undefined });
       if (url === "/louise-fragment") {
         return Promise.resolve(
-          new Response(`<div data-louise-section="0">cta</div>`, {
+          new Response(`<div data-louise-node="0">cta</div>`, {
             status: 200,
             headers: { "content-type": "text/html" },
           }),
@@ -67,12 +67,15 @@ function stubFetch(pages: Array<{ slug: string; title: string }> = []): Call[] {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+/** The section, with its CTA marked as a VALUE node in its own right — a field
+ *  path rather than a container path (ADR 0010). */
 function pageHost(): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute("data-louise-sections", "1");
   const sec = document.createElement("div");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   const a = document.createElement("span");
+  a.setAttribute("data-louise-node", "0.href");
   a.setAttribute("data-louise-sfield", "0.label");
   a.textContent = "Shop";
   sec.appendChild(a);
@@ -118,13 +121,14 @@ const lastDraft = (calls: Call[]) => {
   return (post?.body as { sections?: SectionItem[] } | undefined)?.sections?.[0];
 };
 
-/** Open the section wrench. */
-async function openInspector(host: HTMLElement) {
-  over(host.querySelector("[data-louise-section]") as Node);
+/** Open the wrench on a node — the section by default, or any deeper path. */
+async function openInspector(host: HTMLElement, path = "0") {
+  over(host.querySelector(`[data-louise-node="${path}"]`) as Node);
   click(cog());
   await flush();
   await flush();
 }
+const title = () => inspector()?.querySelector(".louise-inspector-title")?.textContent;
 
 let dispose: (() => void) | undefined;
 afterEach(() => {
@@ -215,6 +219,53 @@ describe("inspector — link field", () => {
     await flush();
     await flush();
     expect(lastDraft(calls)?.href).toBe("https://example.com");
+  });
+});
+
+// ADR 0010, "Resolved while building A1". A CTA's wrench used to open its owning
+// section's whole panel: live QA on 2026-07-28 showed clicking one of HomeHero's
+// four CTAs surfacing every link-ish field the section had, with nothing to say
+// which one belonged to the button just clicked.
+describe("inspector — a value node scopes to its own field", () => {
+  it("shows the field the node addresses, and none of its owner's others", async () => {
+    stubFetch();
+    const host = pageHost();
+    dispose = mount(host);
+    await openInspector(host, "0.href");
+
+    expect(linkInput()?.value).toBe("/shop");
+    expect(title()).toBe("Button link");
+    // `newTab` is on the same section and would be in the section's own panel.
+    expect(toggle()).toBeNull();
+  });
+
+  it("still opens the whole section from the section's own wrench", async () => {
+    stubFetch();
+    const host = pageHost();
+    dispose = mount(host);
+    await openInspector(host);
+
+    expect(title()).toBe("CTA");
+    expect(linkInput()).not.toBeNull();
+    expect(toggle()).not.toBeNull();
+  });
+
+  it("writes through to the same store path the container's panel would", async () => {
+    const calls = stubFetch();
+    const host = pageHost();
+    dispose = mount(host);
+    await openInspector(host, "0.href");
+
+    const input = linkInput() as HTMLInputElement;
+    input.value = "/pricing";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    // The value lives on the OWNING item — a value node addresses a field, it
+    // doesn't own one.
+    expect(lastDraft(calls)?.href).toBe("/pricing");
   });
 });
 

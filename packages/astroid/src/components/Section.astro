@@ -8,12 +8,13 @@
 // the page's `sections` column, not props a template hand-wrote, so what renders
 // is exactly what the on-canvas editor edits in place.
 //
-// Two marker responsibilities, split the way ADR 0005 §2 splits them:
-//   • the BOUNDARY (`data-louise-section` / `data-louise-block`) is stamped here,
+// Two marker responsibilities:
+//   • the BOUNDARY (`data-louise-node="<path>"`, ADR 0010) is stamped here,
 //     because only the dispatcher knows an item's position;
 //   • the FIELDS (`data-louise-sfield`) are stamped by `<Editable base={base}
 //     field="…">` inside each component, because only the component knows which
-//     of its text nodes are editable.
+//     of its text nodes are editable. (ADR 0010 Phase A2 folds these into the node
+//     marker once the field registry can say which fields want chrome.)
 //
 // Blocks recurse through this same component with a deeper `base`. That's the
 // whole trick: a component never learns its own depth, so a type that renders as
@@ -79,15 +80,16 @@ const type = String(item._type);
 // (`<i>.blocks.<j>`), which is what the client's depth-agnostic path parser walks.
 const blocks = Array.isArray(item.blocks) ? item.blocks : [];
 
-// The boundary marker the on-canvas chrome draws its ring on. `class="contents"`
-// keeps this wrapper out of layout entirely — the ring is drawn as a box-shadow
-// on the element itself (ADR 0005 §3), so an extra block box here would offset
+// The boundary marker the on-canvas chrome draws its ring on. It is the item's
+// path, verbatim — pre-0010 this line string-sniffed `base` for ".blocks." to pick
+// between two attribute names, which was the three-attribute editing model leaking
+// into an otherwise uniform recursive render (ADR 0010, Context). The editor
+// resolves what a path CAN do from the catalog; the render just says where it is.
+//
+// `class="contents"` keeps this wrapper out of layout entirely — the ring is drawn
+// as a box-shadow on the element itself, so an extra block box here would offset
 // every section's spacing for the sake of an attribute.
-const boundary = editing
-  ? base.includes(".blocks.")
-    ? { "data-louise-block": base }
-    : { "data-louise-section": base }
-  : {};
+const boundary = editing ? { "data-louise-node": base } : {};
 
 const shared = { item, base, edit: editing, mediaMeta };
 

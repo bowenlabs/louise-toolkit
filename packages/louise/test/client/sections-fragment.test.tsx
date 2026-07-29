@@ -30,7 +30,7 @@ function stubFetch(): Call[] {
       if (url === "/louise-fragment") {
         return Promise.resolve(
           new Response(
-            '<div data-louise-section="0"><h2 data-louise-sfield="0.heading">New</h2></div>',
+            '<div data-louise-node="0"><h2 data-louise-sfield="0.heading">New</h2></div>',
             { status: 200, headers: { "content-type": "text/html" } },
           ),
         );
@@ -56,7 +56,7 @@ function pageHost(n: number): HTMLElement {
   host.setAttribute("data-louise-sections", "1");
   for (let i = 0; i < n; i++) {
     const sec = document.createElement("div");
-    sec.setAttribute("data-louise-section", String(i));
+    sec.setAttribute("data-louise-node", String(i));
     const h = document.createElement("h2");
     h.setAttribute("data-louise-sfield", `${i}.heading`);
     h.textContent = `Sec ${i}`;
@@ -73,9 +73,7 @@ function mount(host: HTMLElement, initial: SectionItem[]): () => void {
 }
 
 const sectionMarkers = (host: HTMLElement) =>
-  [...host.querySelectorAll("[data-louise-section]")].map((s) =>
-    s.getAttribute("data-louise-section"),
-  );
+  [...host.querySelectorAll("[data-louise-node]")].map((s) => s.getAttribute("data-louise-node"));
 const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
 let dispose: (() => void) | undefined;
@@ -108,7 +106,7 @@ describe("mountSections — fragment-render add (#182 Phase 3)", () => {
 
     // ...and its HTML was spliced in (2 sections now, re-stamped 0..1), no reload.
     expect(sectionMarkers(host)).toEqual(["0", "1"]);
-    expect(host.querySelectorAll("[data-louise-section]")[1].textContent).toContain("New");
+    expect(host.querySelectorAll("[data-louise-node]")[1].textContent).toContain("New");
     expect(window.location.reload).not.toHaveBeenCalled();
 
     // A draft was staged for the new shape.

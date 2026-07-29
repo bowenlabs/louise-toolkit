@@ -62,13 +62,13 @@ function stubFetch(): Call[] {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-// A host carrying one on-canvas section element (`data-louise-section`), so the
+// A host carrying one on-canvas section element (`data-louise-node`), so the
 // chrome can attach its toolbar and the ⚙ can open the inspector for it.
 function mount(initial: SectionItem[]): () => void {
   const el = document.createElement("div");
   el.setAttribute("data-louise-sections", "1");
   const sec = document.createElement("div");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   sec.textContent = "Gallery";
   el.appendChild(sec);
   document.body.appendChild(el);
@@ -87,7 +87,7 @@ const cog = () =>
 /** Hover the section and click its ⚙ to open the inspector (where the array UI —
  *  per-variant add buttons + per-item switcher — now lives). */
 const openInspector = () => {
-  over(document.querySelector("[data-louise-section]") as Node);
+  over(document.querySelector("[data-louise-node]") as Node);
   click(cog());
 };
 

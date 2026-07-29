@@ -65,10 +65,12 @@ const withAssetAlt = (s: Item): Item => {
     const Comp = r._type ? COMPONENTS[r._type as keyof typeof COMPONENTS] : undefined;
     if (!Comp) return null;
     const rendered = <Comp {...r} _editIndex={i} _editMode={editMode} />;
-    // Phase 1 marker contract (#182 / ADR 0005): in edit mode, wrap each section
-    // in a per-section marker element so the on-canvas chrome can attach rings /
-    // toolbars to the real element (via louise-toolkit/client's readSectionMarkers).
+    // The editable-node marker contract (ADR 0010): in edit mode, wrap each section
+    // in an element carrying its PATH within the page's `sections` array, so the
+    // on-canvas chrome can attach a ring / toolbar to the real element. A section's
+    // path is just its index; a block's is `<i>.blocks.<j>`, stamped by the section
+    // component that renders it — one attribute, one grammar, at every depth.
     // Public renders skip the wrapper entirely, so nothing changes off the editor.
-    return editMode ? <div data-louise-section={i}>{rendered}</div> : rendered;
+    return editMode ? <div data-louise-node={i}>{rendered}</div> : rendered;
   })
 }

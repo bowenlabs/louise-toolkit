@@ -51,7 +51,7 @@ function stubFetch(): Call[] {
         const kind = (body as { item?: { items?: Array<{ kind?: string }> } })?.item?.items?.[0]
           ?.kind;
         return Promise.resolve(
-          new Response(`<div data-louise-section="0" data-kind="${kind}">re-rendered</div>`, {
+          new Response(`<div data-louise-node="0" data-kind="${kind}">re-rendered</div>`, {
             status: 200,
             headers: { "content-type": "text/html" },
           }),
@@ -76,7 +76,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 function pageHost(): HTMLElement {
   const host = document.createElement("div");
   const sec = document.createElement("div");
-  sec.setAttribute("data-louise-section", "0");
+  sec.setAttribute("data-louise-node", "0");
   sec.setAttribute("data-kind", "image");
   host.appendChild(sec);
   document.body.appendChild(host);
@@ -93,7 +93,7 @@ const cog = () =>
   ].find((b) => b.getAttribute("aria-label") === "Layout & settings") ?? null;
 /** Hover the section and click its ⚙ to open the inspector (host of the array UI). */
 const openInspector = () => {
-  over(document.querySelector("[data-louise-section]") as Node);
+  over(document.querySelector("[data-louise-node]") as Node);
   click(cog());
 };
 
@@ -138,8 +138,8 @@ describe("mountSections — swap-type via the fragment route (#182 Phase 3)", ()
     ).toBe("quote");
 
     // ...and swapped in place (no reload).
-    expect(host.querySelector("[data-louise-section]")?.getAttribute("data-kind")).toBe("quote");
-    expect(host.querySelector("[data-louise-section]")?.textContent).toBe("re-rendered");
+    expect(host.querySelector("[data-louise-node]")?.getAttribute("data-kind")).toBe("quote");
+    expect(host.querySelector("[data-louise-node]")?.textContent).toBe("re-rendered");
     expect(reload).not.toHaveBeenCalled();
 
     // A draft was staged for the new shape.

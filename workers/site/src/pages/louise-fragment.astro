@@ -8,9 +8,10 @@
 // every pixel, ADR 0001).
 //
 // Editor-gated: only a signed-in editor (`locals.editor`) may render draft markup.
-// We force edit-mode render so `<Sections>` stamps the `data-louise-section` /
+// We force edit-mode render so `<Sections>` stamps the `data-louise-node` /
 // `data-louise-sfield` markers the chrome + inline wiring need; the client owns
-// the real array index and re-stamps on splice, so this always renders at 0.
+// the real array index and re-stamps every marker in the fragment on splice
+// (`insertNodeElement`), so this always renders at path 0.
 import Sections from "../components/Sections.astro";
 
 export const prerender = false;

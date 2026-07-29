@@ -69,7 +69,10 @@ const actions: ActionBlock[] = useBlocks
 // A CTA label is edited in place; its path is the block path (blocks) or the
 // equivalent legacy field (a legacy hero has exactly one CTA).
 const ctaLabelPath = (j: number) => (useBlocks ? `${idx}.blocks.${j}.label` : `${idx}.ctaLabel`);
-const blockAttr = (j: number) => (edit && useBlocks ? `${idx}.blocks.${j}` : undefined);
+// The block's editable-node path (ADR 0010) — the same attribute the section
+// wrapper carries, one level deeper. Legacy (non-block) heroes stamp nothing:
+// their actions aren't items of an ordered list, so there is nothing to ring.
+const blockNode = (j: number) => (edit && useBlocks ? `${idx}.blocks.${j}` : undefined);
 
 // Marquee tokens — the eight primitives, colored on a 4-step brand cycle
 // (blue → orange → green → gold). Rendered twice so the -50% loop is seamless.
@@ -128,7 +131,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
           a._type === "install" ? (
             <button
               type="button"
-              data-louise-block={blockAttr(j)}
+              data-louise-node={blockNode(j)}
               data-lt-copy
               data-lt-copy-text={a.command || DEFAULT_INSTALL}
               aria-label={`Copy install command: ${a.command || DEFAULT_INSTALL}`}
@@ -142,7 +145,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
             </button>
           ) : (
             <a
-              data-louise-block={blockAttr(j)}
+              data-louise-node={blockNode(j)}
               class="inline-block rounded-full bg-primary px-[34px] py-4 text-[17px] font-extrabold text-primary-content transition hover:-translate-y-0.5 hover:bg-[#2f92f5]"
               href={a.href || "https://docs.louisetoolkit.com/guide/getting-started"}
               data-louise-sfield={edit ? ctaLabelPath(j) : undefined}
