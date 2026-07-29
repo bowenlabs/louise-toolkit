@@ -933,6 +933,10 @@ const CSS = `
 }
 .louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .louise-sections-img-error { font-size: 11px; color: #dc2626; }
+/* A picker whose choices come from an API and didn't arrive (#344). Same red as
+   the image error above — it is the same kind of message: the thing you asked
+   for isn't here, and here is why. */
+.louise-field-error { font-size: 11px; color: #dc2626; }
 /* Version history drawer (#182) — a dedicated right-side drawer opened from the
    bar's History button, reusing the Louise drawer visual family (.louise-drawer).
    The versions list is the same rows the old dock showed, in the drawer body. */

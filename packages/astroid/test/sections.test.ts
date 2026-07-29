@@ -149,7 +149,12 @@ describe("astroidSectionCatalog", () => {
     // The regression this guards: adding a colorway to COLORWAY_CLASS but
     // forgetting to add it to the options list, so the inspector offers a set
     // that differs from what the site can actually render.
-    const options = astroidSectionCatalog.hero.settings?.colorway?.options ?? [];
+    // `options` may be a resolver since louise-toolkit 0.22 (async pickers), so
+    // narrow before reading it as a list. These are literal token sets and always
+    // will be — the whole point is that they're derived from the class map.
+    const declared = astroidSectionCatalog.hero.settings?.colorway?.options;
+    const options = Array.isArray(declared) ? declared : [];
+    expect(options.length).toBeGreaterThan(0);
     expect(options.map((o) => o.value).sort()).toEqual(Object.keys(COLORWAY_CLASS).sort());
     for (const option of options) {
       expect(colorwayClass(option.value)).toBe(COLORWAY_CLASS[option.value as Colorway]);

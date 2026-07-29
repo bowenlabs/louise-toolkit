@@ -19,7 +19,7 @@ import { LouiseValidationError, type ValidationViolation } from "../errors.js";
 // whether it's edited in place (ADR 0010 A2). Importing it for the side effect of
 // registering the built-ins as well as for the checker: a catalog naming `"link"`
 // is only meaningful once something has defined it.
-import { type FieldTypeName, validateFieldType } from "./field-types.js";
+import { type FieldOptions, type FieldTypeName, validateFieldType } from "./field-types.js";
 // The drizzle-free Rule engine, NOT the `./validation.js` barrel — that half
 // imports `drizzle-orm` (an *optional* peer) for its uniqueness queries, and
 // importing it here would drag drizzle into every consumer of these section
@@ -66,8 +66,14 @@ export interface SectionField {
    * `label` is what the editor reads; `value` is what's stored. They differ for
    * the usual reason a token differs from its presentation — "Brand" is a label,
    * `brand` is the thing the site's class map is keyed on.
+   *
+   * May instead be a {@link FieldOptionsResolver} — an async function returning
+   * the choices — for a picker whose values come from an API rather than the
+   * catalog. Note the trade: a resolved set is NOT checked on write, because that
+   * would put a network call on the save path. See the `select` type's own
+   * comment in `field-types.ts`.
    */
-  options?: { value: string; label?: string }[];
+  options?: FieldOptions;
   /**
    * `select` only — an opaque hint for how the picker should render (e.g.
    * `"swatch"` for colour tokens). Passed through untouched, like

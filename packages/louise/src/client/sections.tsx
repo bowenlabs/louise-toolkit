@@ -29,6 +29,7 @@
 
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { describeNode } from "./describe-node.js";
+import { createFieldOptions } from "./field-options.js";
 import { mountNodeChrome } from "./node-chrome.js";
 import {
   deleteNodeElement,
@@ -234,9 +235,40 @@ function ScalarField(props: {
         </Show>
       }
     >
+      <SelectField
+        field={props.field}
+        value={props.value}
+        onInput={props.onInput}
+        onCommit={props.onCommit}
+      />
+    </Show>
+  );
+}
+
+/**
+ * The `select` picker, split out because its choices may be **fetched** rather
+ * than declared (ADR 0010 A2 / #344) — which gives it a loading and a failure
+ * state a plain `<For>` over a literal array never had.
+ *
+ * The failure state is the one that earns its keep: a picker that renders empty
+ * when its fetch failed looks identical to one whose source is genuinely empty,
+ * and the editor has no way to tell which happened to them.
+ */
+function SelectField(props: {
+  field: SectionField;
+  value: string;
+  onInput: (value: string) => void;
+  onCommit: () => void;
+}) {
+  const choices = createFieldOptions(() => props.field.options);
+  return (
+    <>
       <select
         class="louise-input"
         data-display={props.field.display}
+        // Disabled while fetching: the stored value isn't in the list yet, so
+        // opening it now would show a picker that appears to have lost it.
+        disabled={choices.loading()}
         value={props.value}
         onChange={(e) => {
           props.onInput(e.currentTarget.value);
@@ -247,12 +279,17 @@ function ScalarField(props: {
             selected the moment the picker renders even though nothing was
             stored, and there'd be no way to clear a setting back to the
             component's own default. The validator treats "" as cleared. */}
-        <option value="">—</option>
-        <For each={props.field.options ?? []}>
+        <option value="">{choices.loading() ? "Loading…" : "—"}</option>
+        <For each={choices.options()}>
           {(option) => <option value={option.value}>{option.label ?? option.value}</option>}
         </For>
       </select>
-    </Show>
+      <Show when={choices.error()}>
+        <span class="louise-field-error" role="alert">
+          {choices.error()}
+        </span>
+      </Show>
+    </>
   );
 }
 function blankRecord(fields: Record<string, SectionField>): Record<string, unknown> {
