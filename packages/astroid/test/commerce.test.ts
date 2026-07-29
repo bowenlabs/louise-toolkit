@@ -5,6 +5,7 @@ import {
   astroidCheckoutVars,
   generateAstroidCheckoutEnv,
   generateAstroidCheckoutRoute,
+  generateAstroidSquareCard,
 } from "../src/commerce/checkout-scaffold.js";
 import { generateCatalogMigrationSql, generateCatalogTable } from "../src/commerce/mirror.js";
 import {
@@ -518,6 +519,50 @@ describe("generated checkout route", () => {
     expect(gate).toBeLessThan(route.indexOf("request.json()"));
     expect(gate).toBeLessThan(route.indexOf("verifyCheckout(body.lines"));
     expect(gate).toBeLessThan(route.indexOf("createPayment("));
+  });
+});
+
+describe("generated Square card component", () => {
+  const square = defineAstroid({ ...base, commerce: { provider: "square" } });
+
+  it("is null unless the project takes card payments", () => {
+    // Square-for-invoicing never renders an in-page card field, so there is no
+    // component to emit — same gate as the checkout route.
+    expect(generateAstroidSquareCard({ ...base, archetype: "marketing" })).toBeNull();
+    expect(generateAstroidSquareCard(square)).not.toBeNull();
+  });
+
+  it("surfaces a failed card mount instead of swallowing it", () => {
+    // `mountCard` loads Square's SDK from their CDN and builds an iframe; a
+    // blocked CDN, a bad app id, or a page load racing a deploy all reject. With
+    // nothing chained, that is a silent unhandled rejection and checkout just
+    // shows an empty box where the card field should be.
+    const card = generateAstroidSquareCard(square) as string;
+    expect(card).toContain(".catch((err) => {");
+    expect(card).toContain('console.error("[astroid:commerce] card input failed to mount", err)');
+  });
+
+  it("says so instead of rendering a dead form when the store is unprovisioned", () => {
+    // The ids are read from env at request time, so a store that has commerce
+    // configured but no Square credentials yet still renders this component. It
+    // must degrade to an explanation naming the two vars — a card field that
+    // silently never mounts is indistinguishable from a broken checkout.
+    const card = generateAstroidSquareCard(square) as string;
+    expect(card).toContain("const ready = Boolean(appId && locationId);");
+    expect(card).toContain("Card payments are not configured yet");
+  });
+
+  it("never puts the Square ACCESS TOKEN in a client component", () => {
+    // The app id and location id are public and belong in the browser; the
+    // access token moves money and must stay server-side. This component is
+    // shipped to every checkout visitor, so a stray reference here is a
+    // credential leak, not a type error — nothing else would catch it.
+    const card = generateAstroidSquareCard(square) as string;
+    expect(card).toContain("env.SQUARE_APP_ID");
+    expect(card).not.toContain("SQUARE_ACCESS_TOKEN");
+    // And the raw number stays in Square's iframe: no card <input> of our own,
+    // which is the whole reason this is a component instead of a form field.
+    expect(card).not.toMatch(/<input/);
   });
 });
 
