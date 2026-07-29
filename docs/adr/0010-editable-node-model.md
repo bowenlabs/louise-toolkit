@@ -205,10 +205,31 @@ consuming sites once A1 was real, that is more machinery than the job needs:
 — one `{String(i)}`, three `blockAttr(j)`, seven `{edit ? … }`, the remainder test
 fixtures and prose.
 
-The rename is a `perl -pi -e` with a `(?!s)` guard so `data-louise-sections`
-survives. Writing and verifying a codemod would cost more than the rename it
-performs, and the ADR's own reason for wanting one — that the stamps are
-"mechanical and regular" — is exactly why a one-liner suffices.
+The rename is a `perl -pi -e`. Writing and verifying a codemod would cost more
+than the rename it performs, and the ADR's own reason for wanting one — that the
+stamps are "mechanical and regular" — is exactly why a one-liner suffices.
+
+```sh
+perl -pi -e 's/data-louise-(section(?!s)|block(?!s)|link|sfield)/data-louise-node/g' \
+  $(git grep -lP 'data-louise-(section(?!s)|block(?!s)|link|sfield)' -- '*.astro' '*.ts' '*.tsx')
+```
+
+**Both negative lookaheads are load-bearing, and the second one was missed the
+first time this was written down.** Three unrelated attributes share these
+prefixes and must survive untouched:
+
+- `data-louise-sections` / `-sections-host` / `-sections-realtime` / `-sections-initial`
+  — the sections container and its wiring.
+- **`data-louise-blocks`** — opts a rich-text field into the full builder block
+  set (`client/index.ts:696`, stamped in `workers/site/src/pages/[...slug].astro`).
+  Nothing to do with the block *marker*. Without `block(?!s)` the rename turns it
+  into `data-louise-nodes` and the builder silently loses its block set — a
+  failure that would survive review, because the diff looks exactly like every
+  other line of the rename.
+
+Read the diff before committing it. The guard is the whole reason this is a
+one-liner and not a codemod; a one-liner with the wrong guard is worse than
+either.
 
 The lockstep claim also needs correcting. `0.21.0` shipped A1 before any site
 migrated, so "sites land in lockstep with the release" did not happen as written.
@@ -239,7 +260,7 @@ Corollary: **#37 is not built on the current chrome.** It is the forcing functio
 that exposed this ADR, and building it as spec'd would roughly double the layer
 plumbing and add two grammars immediately before deleting all of it.
 
-## Migration — a clean cut with a codemod
+## Migration — a clean cut, renamed in one line
 
 The marker attributes are the site-facing contract: every `.astro` render stamps
 them by hand across four consuming sites. We take **one breaking change** rather
@@ -249,14 +270,16 @@ than carrying aliases.
   `data-louise-link="<path>"` all become `data-louise-node="<path>"`, with `role`
   and `source` supplied by the catalog rather than inferred from the attribute
   name. `data-louise-sfield` is folded in as a `value` node.
-- A **one-line rename** rewrites the stamps — see the A2 amendment below; the
-  codemod this originally called for is not worth writing.
+- A **one-line rename** rewrites the stamps — the command and its two guards are
+  in the amendment above. The codemod this originally called for is not worth
+  writing.
 - Sites land in lockstep with the release. Coracle is the proving ground; it is
-  the only site currently exercising blocks and links.
+  the only site currently exercising blocks and links. (Amended: `0.21.0` shipped
+  A1 ahead of every site, so lockstep now happens at the A2 release — see above.)
 - Rejected: an aliasing compat shim. It keeps two contracts alive indefinitely,
   and the aliasing is subtle precisely where the model is subtlest (a link nested
-  in a block nested in a section). A single cut with a codemod is smaller total
-  work and leaves no ambiguity about which contract is real.
+  in a block nested in a section). A single cut is smaller total work and leaves
+  no ambiguity about which contract is real.
 
 ## Consequences
 
@@ -268,7 +291,8 @@ The render and editing layers finally describe containment the same way, so
 **Costs.** A breaking release with a coordinated four-site migration. A rewrite of
 `client/chrome.ts` and the inspector's field rendering — both well covered by
 tests (chrome-link-layer, sections-inspector, sections-blocks), which is what makes
-this tractable. The codemod is new code that must itself be verified.
+this tractable. The rename itself is a one-liner, but its guards have to be right
+and its diff has to be read.
 
 **Risks.** The `source` model is designed in Phase B against real Phase 3
 requirements, not now — if that proves wrong, ring colour keying is where it
