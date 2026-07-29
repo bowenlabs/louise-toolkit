@@ -97,6 +97,22 @@ consumer so a retry can't double-apply.
 Square exposes a single versioned REST surface (`/v2/*`). The whole client is
 injected through a `SquareConfig` and pins `Square-Version`.
 
+**Retry is off by default, and that is a decision about who is waiting.** Square
+publishes no per-endpoint rate limits — only "`RATE_LIMITED`, HTTP 429, back off
+exponentially" — so `SquareConfig.retry` (`attempts`, `baseDelayMs`,
+`maxDelayMs`) handles 429 and 5xx with jitter inside every fetch verb. Leaving it
+off keeps an attended path honest: on a checkout route a caller is watching a
+spinner, and three silent retries turn a fast failure into a slow one. Turn it on
+for **unattended** work — the queue consumer's catalog refresh, a cron sync, any
+multi-location push — where the failure mode without it is a half-applied catalog
+and a second of backoff costs nobody anything.
+
+```ts
+const square = { accessToken, environment, retry: { attempts: 3 } };
+```
+
+A 4xx other than 429 is never retried: that is our bug, not Square's weather.
+
 ```ts
 import {
   SQUARE_VERSION,
@@ -129,10 +145,12 @@ import {
 
 | Area                      | Exports                                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
-| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`), `SQUARE_VERSION`, `centsToMajor` |
+| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor` |
+| **Locations**             | `listLocations`, `retrieveLocation`, `SquareLocation`                                      |
 | **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`     |
-| **Inventory**             | `retrieveInventoryCounts`                                                                  |
-| **Orders**                | `createOrder`, `retrieveOrder`, `searchOrdersByCustomer`                                   |
+| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects` — per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation` |
+| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                      |
+| **Orders**                | `createOrder`, `retrieveOrder`, `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged) |
 | **Payments**              | `createPayment` — charge a Web Payments card token against an order.                       |
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`           |
 | **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                        |
