@@ -93,8 +93,15 @@ export interface NodeDescriptor {
    *  delete, and supplies the bounds so the chrome can disable the ends. */
   ordered?: { index: number; count: number };
   /** The node holds an ordered list — enables add. `count: 0` is what drives the
-   *  "add the first one" affordance, at every depth. */
-  children?: { count: number };
+   *  "add the first one" affordance, at every depth.
+   *
+   *  `label` names what goes IN, which the chrome cannot infer: the container's
+   *  own label describes the container. Live QA read "Add the first Hero" on a
+   *  hero whose children are CTAs — the same `label` that correctly reads "Add
+   *  Hero after" one button along. Omitted when the answer isn't singular (a
+   *  container accepting several child types), which the chrome renders as the
+   *  neutral "Add the first one". */
+  children?: { count: number; label?: string };
   /** The node has an inspector — enables the wrench. */
   fields?: boolean;
   /**

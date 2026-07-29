@@ -53,6 +53,28 @@ function blocksOf(item: SectionItem | undefined): SectionItem[] | undefined {
 }
 
 /**
+ * What to CALL the thing that goes inside a container, when there's one answer.
+ *
+ * Only meaningful for a container accepting exactly one block type; a section
+ * that takes several has no singular name for its children, and guessing one
+ * would misname whichever the editor picks. The chrome falls back to a neutral
+ * "one" in that case.
+ *
+ * Mirrors the editor's own `allowedBlockTypes`: bounded by the section's
+ * `blocks.allow` when declared, otherwise the whole catalog (ADR 0005 §4 —
+ * `allow` omitted means "any block type"), with types the catalog doesn't know
+ * dropped, since those can't be inserted at all.
+ */
+function childLabel(
+  policy: { allow?: string[] } | undefined,
+  blocks: BlockCatalog | undefined,
+): string | undefined {
+  if (!policy || !blocks) return undefined;
+  const allowed = Object.keys(blocks).filter((t) => !policy.allow || policy.allow.includes(t));
+  return allowed.length === 1 ? blocks[allowed[0]]?.label : undefined;
+}
+
+/**
  * Resolve a node path against the catalog and the current items.
  *
  * Returns `null` for any path that doesn't address something the editor knows —
@@ -79,9 +101,17 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
   // into the block layer AND the editor was given a block catalog to seed from.
   if (rest.length === 0) {
     const canHoldBlocks = !!sectionDef.blocks && !!ctx.blocks;
+    const childName = childLabel(sectionDef.blocks, ctx.blocks);
     return {
       ordered: { index: i, count: ctx.items.length },
-      ...(canHoldBlocks ? { children: { count: blocksOf(item)?.length ?? 0 } } : {}),
+      ...(canHoldBlocks
+        ? {
+            children: {
+              count: blocksOf(item)?.length ?? 0,
+              ...(childName ? { label: childName } : {}),
+            },
+          }
+        : {}),
       fields: hasInspectableContent(sectionDef),
       tone: "section",
       label: sectionDef.label,

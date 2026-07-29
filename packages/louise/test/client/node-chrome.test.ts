@@ -180,7 +180,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
       ...noopActions,
       resolve: () => ({
         ordered: { index: 1, count: 2 },
-        children: { count: 0 },
+        children: { count: 0, label: "block" },
         tone: "section",
         label: "block",
       }),
@@ -198,7 +198,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
       ...noopActions,
       resolve: () => ({
         ordered: { index: 1, count: 2 },
-        children: { count: 2 },
+        children: { count: 2, label: "block" },
         tone: "section",
         label: "block",
       }),
@@ -216,7 +216,11 @@ describe("mountNodeChrome — the empty-container affordance", () => {
       ...noopActions,
       onAddChild: (p) => calls.push(`child:${formatNodePath(p)}`),
       onAddSibling: (p) => calls.push(`sibling:${formatNodePath(p)}`),
-      resolve: () => ({ ordered: { index: 1, count: 2 }, children: { count: 0 }, label: "block" }),
+      resolve: () => ({
+        ordered: { index: 1, count: 2 },
+        children: { count: 0, label: "block" },
+        label: "block",
+      }),
     });
 
     over(el);
@@ -225,6 +229,68 @@ describe("mountNodeChrome — the empty-container affordance", () => {
     btns.find((b) => b.getAttribute("aria-label") === "Add block after")?.click();
 
     expect(calls).toEqual(["child:1", "sibling:1"]);
+  });
+
+  // Live QA on the deployed site, 2026-07-28. An empty ORDERED container shows
+  // both adds at once — its own list gets a sibling `+`, its children's list gets
+  // a child `+` — and they rendered as two identical glyphs, side by side,
+  // separable only by tooltip. Callbacks being distinct (above) says nothing about
+  // what an editor can see.
+  it("draws the two adds with different glyphs, not two identical pluses", () => {
+    const el = emptyContainer();
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: () => ({
+        ordered: { index: 1, count: 2 },
+        children: { count: 0, label: "block" },
+        label: "block",
+      }),
+    });
+
+    over(el);
+    const btns = [...(toolbar()?.querySelectorAll("button") ?? [])] as HTMLButtonElement[];
+    const byName = (n: string) => btns.find((b) => b.getAttribute("aria-label") === n);
+    const sibling = byName("Add block after");
+    const child = byName("Add the first block");
+
+    // Both on screen at once...
+    expect(sibling?.style.display).not.toBe("none");
+    expect(child?.style.display).not.toBe("none");
+    // ...so they must not look the same.
+    expect(child?.innerHTML).not.toBe(sibling?.innerHTML);
+  });
+
+  // The child button names what goes IN. `desc.label` names the container, which
+  // is right for "Add <container> after" one button along and wrong here: live QA
+  // read "Add the first Hero" on a hero whose children are CTAs.
+  it("names the child add after the CHILD, not the container", () => {
+    const el = emptyContainer();
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: () => ({
+        ordered: { index: 1, count: 2 },
+        children: { count: 0, label: "CTA" },
+        label: "Hero",
+      }),
+    });
+
+    over(el);
+    expect(shownButtons()).toContain("Add the first CTA");
+    expect(shownButtons()).toContain("Add Hero after");
+    expect(shownButtons()).not.toContain("Add the first Hero");
+  });
+
+  it("stays neutral when the container has no single kind of child", () => {
+    const el = emptyContainer();
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: () => ({ ordered: { index: 1, count: 2 }, children: { count: 0 }, label: "Hero" }),
+    });
+
+    over(el);
+    // Better a vague name than a wrong one — the editor is about to be asked
+    // which type anyway.
+    expect(shownButtons()).toContain("Add the first one");
   });
 });
 

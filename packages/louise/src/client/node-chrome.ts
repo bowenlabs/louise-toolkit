@@ -33,6 +33,12 @@ import {
 import arrowUp from "@phosphor-icons/core/assets/regular/arrow-up.svg?raw";
 import arrowDown from "@phosphor-icons/core/assets/regular/arrow-down.svg?raw";
 import plusIcon from "@phosphor-icons/core/assets/regular/plus.svg?raw";
+// Deliberately NOT a second bare plus. An empty ordered container shows both add
+// buttons at once — one for a sibling, one for its first child — and live QA on
+// 2026-07-28 found them rendering as two identical `+` glyphs side by side,
+// distinguishable only by tooltip. `list-plus` reads as "put an item in this
+// list", which is exactly what the child add does.
+import listPlus from "@phosphor-icons/core/assets/regular/list-plus.svg?raw";
 import xIcon from "@phosphor-icons/core/assets/regular/x.svg?raw";
 import wrench from "@phosphor-icons/core/assets/regular/wrench.svg?raw";
 
@@ -199,7 +205,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   const down = button(arrowDown, "Move down");
   const del = button(xIcon, "Delete");
   const addSibling = button(plusIcon, "Add after");
-  const addChild = button(plusIcon, "Add the first one");
+  const addChild = button(listPlus, "Add the first one");
   const cog = button(wrench, "Layout & settings");
   for (const b of [up, down, del, addSibling, addChild, cog]) toolbar.appendChild(b);
   doc.body.appendChild(toolbar);
@@ -222,7 +228,9 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
       [del, !!ordered],
       [addSibling, !!ordered],
       // Only when EMPTY: a container with children is added to via a child's own
-      // sibling `+`, so showing both would mean two plus buttons at once.
+      // sibling `+`, so showing it too would put two adds on the same bar for the
+      // same list. (An empty ORDERED container still shows two — one for its own
+      // list, one for its children's — which is why they carry different glyphs.)
       [addChild, !!desc.children && desc.children.count === 0],
       [cog, !!desc.fields],
     ] as const) {
@@ -239,7 +247,12 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     };
     name(del, `Delete ${what}`);
     name(addSibling, `Add ${what} after`);
-    name(addChild, `Add the first ${what === "item" ? "one" : what}`);
+    // The CHILD's name, never the container's. `desc.label` describes this node,
+    // so reusing it here produced "Add the first Hero" on a hero whose children
+    // are CTAs — right next to "Add Hero after", which means something else
+    // entirely. The editor supplies the child's name, or none when the container
+    // takes several types and there is no singular answer to give.
+    name(addChild, `Add the first ${desc.children?.label ?? "one"}`);
   };
 
   const activate = (path: NodePath, el: HTMLElement, desc: NodeDescriptor): void => {
