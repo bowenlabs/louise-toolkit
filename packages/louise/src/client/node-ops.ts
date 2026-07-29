@@ -25,11 +25,11 @@ import {
   samePath,
 } from "./node.js";
 
-/** Inline-editable text still carries its own marker in A1 — the field registry
- *  folds it into the node marker in A2 (ADR 0010, "Resolved while building A1").
- *  Until then a re-stamp has to move both families together. */
-const SFIELD_ATTR = "data-louise-sfield";
-const RESTAMPED_ATTRS = [NODE_MARKER_ATTR, SFIELD_ATTR] as const;
+/** One marker family since A2 (ADR 0010): `data-louise-sfield` folded into the
+ *  node marker, so a re-stamp moves one attribute instead of keeping two in step.
+ *  A1 had to move both together — a re-stamp that moved only the node marker
+ *  would have left inline edits writing into the item next door. */
+const RESTAMPED_ATTRS = [NODE_MARKER_ATTR] as const;
 
 const CHROME_KEYSHORTCUTS = "Enter Alt+ArrowUp Alt+ArrowDown Delete";
 

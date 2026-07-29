@@ -77,7 +77,7 @@ function pageHost(): HTMLElement {
   const sec = document.createElement("div");
   sec.setAttribute("data-louise-node", "0");
   const h = document.createElement("h2");
-  h.setAttribute("data-louise-sfield", "0.heading");
+  h.setAttribute("data-louise-node", "0.heading");
   h.textContent = "Panel";
   sec.appendChild(h);
   host.appendChild(sec);

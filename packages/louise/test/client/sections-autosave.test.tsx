@@ -7,7 +7,9 @@ import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx"
 import { mountSections } from "../../src/client/sections.jsx";
 
 const CATALOG: SectionCatalog = {
-  hero: { label: "Hero", fields: { title: { type: "text" } } },
+  // `textarea` is the declaration that a field holds more than one line — the
+  // render used to say so with a `data-louise-multiline` stamp (ADR 0010 A2).
+  hero: { label: "Hero", fields: { title: { type: "text" }, tagline: { type: "textarea" } } },
 };
 
 interface Call {
@@ -46,7 +48,7 @@ function stubFetch(): { calls: Call[]; mock: ReturnType<typeof vi.fn> } {
 function host(): HTMLElement {
   const el = document.createElement("div");
   const h1 = document.createElement("h1");
-  h1.dataset.louiseSfield = "0.title";
+  h1.setAttribute("data-louise-node", "0.title");
   h1.textContent = "Hi";
   el.appendChild(h1);
   document.body.appendChild(el);
@@ -89,7 +91,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
     expect(document.querySelector(".louise-savedraft")).toBeNull();
     expect(document.querySelector(".louise-publish")).not.toBeNull();
 
-    const node = el.querySelector<HTMLElement>("[data-louise-sfield]");
+    const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "Typed heading");
     await vi.advanceTimersByTimeAsync(30);
@@ -117,7 +119,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
       autoSave: { debounceMs: 5000 },
     });
 
-    const node = el.querySelector<HTMLElement>("[data-louise-sfield]");
+    const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "Swept heading");
     // A soft nav fires astro:before-swap (not pagehide) — the dock must flush the
@@ -144,7 +146,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
       initial: initial(),
       autoSave: { debounceMs: 5000 },
     });
-    const node = el.querySelector<HTMLElement>("[data-louise-sfield]");
+    const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "torn down");
     // The astro:page-load bootstrap tears the old dock down before re-mounting the
@@ -170,7 +172,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
 
     expect(document.querySelector(".louise-savedraft")).not.toBeNull();
 
-    const node = el.querySelector<HTMLElement>("[data-louise-sfield]");
+    const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "Typed heading");
     await vi.advanceTimersByTimeAsync(1000);
@@ -184,11 +186,10 @@ describe("mountSections — native spellcheck (#142)", () => {
     stubFetch();
     const el = document.createElement("div");
     const single = document.createElement("h1");
-    single.dataset.louiseSfield = "0.title";
+    single.setAttribute("data-louise-node", "0.title");
     single.textContent = "Hi";
     const multi = document.createElement("p");
-    multi.dataset.louiseSfield = "0.tagline";
-    multi.setAttribute("data-louise-multiline", "");
+    multi.setAttribute("data-louise-node", "0.tagline");
     multi.textContent = "A longer, prose-y tagline";
     el.appendChild(single);
     el.appendChild(multi);

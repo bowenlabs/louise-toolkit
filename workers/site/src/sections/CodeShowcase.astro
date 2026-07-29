@@ -49,10 +49,10 @@ const CODE_HTML = `<span style="color:#6cb2ff">import</span> { defineCollection 
 
   <div>
     <h2 class="lt-display lt-stretch-135 mb-5 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
-      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+      <span data-louise-node={edit ? `${idx}.heading` : undefined}>
         {heading || (edit ? "" : "Bring your")}
       </span><br />
-      own <span class="text-error" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+      own <span class="text-error" data-louise-node={edit ? `${idx}.headingAccent` : undefined}>
         {headingAccent || (edit ? "" : "everything.")}
       </span>
     </h2>
@@ -60,8 +60,7 @@ const CODE_HTML = `<span style="color:#6cb2ff">import</span> { defineCollection 
         value is sanitized HTML rendered via set:html. */}
     <div
       class="louise-rt-field mb-7 text-[17px] leading-[1.65] text-[#aab3c2]"
-      data-louise-sfield={edit ? `${idx}.body` : undefined}
-      data-louise-type={edit ? "richtext" : undefined}
+      data-louise-node={edit ? `${idx}.body` : undefined}
       set:html={body ||
         (edit
           ? ""
@@ -70,7 +69,7 @@ const CODE_HTML = `<span style="color:#6cb2ff">import</span> { defineCollection 
     <a
       class="text-[16px] font-extrabold tracking-[0.04em] text-accent uppercase"
       href={linkHref || "https://docs.louisetoolkit.com"}
-      data-louise-sfield={edit ? `${idx}.linkLabel` : undefined}
+      data-louise-node={edit ? `${idx}.linkLabel` : undefined}
     >
       {linkLabel || (edit ? "" : "Read the docs →")}
     </a>

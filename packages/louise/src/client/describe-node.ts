@@ -46,6 +46,30 @@ function hasInspectableContent(def: {
   );
 }
 
+/**
+ * What chrome a FIELD node gets — and, crucially, when it gets none.
+ *
+ * Under the catalog-decides marker model (ADR 0010 A2) the render marks
+ * everything editable, so this is now reached by a heading as well as by a CTA.
+ * A heading is edited by clicking its text; a wrench over it would open a panel
+ * with one control that does what clicking already does. So an INLINE field
+ * resolves to `null` — no chrome — and the hit-test walks outward to ring
+ * whatever contains it.
+ *
+ * That `null` is the reason `nodeAt` had to learn to walk outward. Under A1 it
+ * meant "clear", which was correct only while solely ring-worthy things were
+ * marked; now it means "not this one, keep looking".
+ *
+ * A missing field also resolves to `null` — a stale marker left by a fragment
+ * swap, or a field the catalog dropped — so it reads as unmarked rather than as a
+ * wrench over something that no longer exists.
+ */
+function describeField(field: SectionField | undefined, key: string): NodeDescriptor | null {
+  if (!field) return null;
+  if (isInlineField(field)) return null;
+  return { fields: true, tone: "value", label: field.label ?? key };
+}
+
 /** The `blocks` array of a section item, when it is one. */
 function blocksOf(item: SectionItem | undefined): SectionItem[] | undefined {
   const b = item?.blocks;
@@ -118,14 +142,9 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
     };
   }
 
-  // [i, key] — one of the section's own fields. Only fields the render chose to
-  // mark reach here (ADR 0010 "Resolved while building A1"), but the path is
-  // still checked so a stale marker resolves to nothing rather than to a wrench
-  // over a field that no longer exists.
+  // [i, key] — one of the section's own fields.
   if (rest.length === 1 && typeof rest[0] === "string") {
-    const field = sectionDef.fields[rest[0]];
-    if (!field) return null;
-    return { fields: true, tone: "value", label: field.label ?? rest[0] };
+    return describeField(sectionDef.fields[rest[0]], rest[0]);
   }
 
   if (rest[0] !== "blocks" || typeof rest[1] !== "number") return null;
@@ -149,9 +168,7 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
 
   // [i, "blocks", j, key] — one of the block's fields.
   if (rest.length === 3 && typeof rest[2] === "string") {
-    const field = blockDef.fields[rest[2]];
-    if (!field) return null;
-    return { fields: true, tone: "value", label: field.label ?? rest[2] };
+    return describeField(blockDef.fields[rest[2]], rest[2]);
   }
 
   return null;

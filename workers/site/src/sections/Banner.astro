@@ -2,7 +2,7 @@
 // Bespoke banner section — a full-width call-to-action strip (site-owned design,
 // Tailwind + daisyUI). Renders from structured props; editors edit the copy in
 // place and the button link in the dock. Mirrors Hero's edit-mode conventions:
-// visible text nodes carry `data-louise-sfield` markers and always render (even
+// visible text nodes carry `data-louise-node` markers and always render (even
 // when empty) so there's something to click into. `ctaHref` has no visible text,
 // so it's edited in the dock, not here.
 interface Props {
@@ -31,7 +31,7 @@ const idx = _editIndex;
     <div class="max-w-2xl">
       <h2
         class="text-3xl font-black tracking-tight md:text-4xl"
-        data-louise-sfield={edit ? `${idx}.heading` : undefined}
+        data-louise-node={edit ? `${idx}.heading` : undefined}
       >
         {heading || (edit ? "" : "Ready to get started?")}
       </h2>
@@ -39,8 +39,7 @@ const idx = _editIndex;
         (edit || body) && (
           <p
             class="mt-2 text-lg text-primary-content/80"
-            data-louise-sfield={edit ? `${idx}.body` : undefined}
-            data-louise-multiline={edit || undefined}
+            data-louise-node={edit ? `${idx}.body` : undefined}
           >
             {body}
           </p>
@@ -52,7 +51,7 @@ const idx = _editIndex;
         <a
           class="btn btn-lg shrink-0"
           href={ctaHref || "#"}
-          data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
+          data-louise-node={edit ? `${idx}.ctaLabel` : undefined}
         >
           {ctaLabel}
         </a>

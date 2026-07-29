@@ -123,8 +123,8 @@ function mountSections(
 The editor for [Louise Sections](/guide/sections/) — component-rendered pages
 whose content is stored as typed JSON, not HTML. Takes over `el` (the wrapper
 around the server-rendered sections): visible text nodes marked with
-`data-louise-sfield` become editable in place, and every element marked with
-`data-louise-node="<path>"` gets on-canvas chrome — a ring plus a toolbar that
+`data-louise-node="<path>"` become editable in place when the catalog says the
+field is inline, and the rest get on-canvas chrome — a ring plus a toolbar that
 moves, deletes, and adds, with a wrench for the fields you can't click (arrays,
 images, `inline: false`). Text saves `PATCH` the whole `sections` array to the
 pages route; structural changes persist and reload. Returns a disposer.

@@ -116,7 +116,7 @@ export const SECTION_SETTINGS: Record<string, SectionField> = {
  * array — `"2"` for a top-level section, `"2.blocks.0"` for a block inside it —
  * and every marker the component stamps is built from it. Passing it down (rather
  * than having each component work out its own depth) is what lets the exact same
- * component render as a section or as a block, and what keeps `data-louise-sfield`
+ * component render as a section or as a block, and what keeps `data-louise-node`
  * paths correct at any nesting depth.
  */
 export interface SectionRenderProps {

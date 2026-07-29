@@ -10,11 +10,11 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const mounts: Array<{ path: string | undefined; opts: unknown }> = [];
+const mounts: Array<{ path: string | null; opts: unknown }> = [];
 
 vi.mock("../../src/client/RichText.jsx", () => ({
   mountRichText: (el: HTMLElement, _onChange: () => void, _doc: unknown, opts: unknown) => {
-    mounts.push({ path: el.dataset.louiseSfield, opts });
+    mounts.push({ path: el.getAttribute("data-louise-node"), opts });
     return { getJSON: () => ({}), getHTML: () => "", destroy: () => {} };
   },
 }));
@@ -43,8 +43,7 @@ function pageHost(bodyMode?: string): HTMLElement {
     ["body", bodyMode],
   ] as const) {
     const node = document.createElement("div");
-    node.setAttribute("data-louise-sfield", `0.${field}`);
-    node.setAttribute("data-louise-type", "richtext");
+    node.setAttribute("data-louise-node", `0.${field}`);
     if (mode) node.setAttribute("data-louise-rt", mode);
     sec.appendChild(node);
   }

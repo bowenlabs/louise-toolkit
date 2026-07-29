@@ -20,7 +20,7 @@
 
 import {
   NODE_MARKER_ATTR,
-  nodeAt,
+  parseNodePath,
   type NodeDescriptor,
   type NodePath,
   readNodeMarkers,
@@ -62,6 +62,10 @@ export interface NodeChromeActions {
   /** Open this node's inspector. Only reachable when `fields` is set. */
   onInspect: (path: NodePath) => void;
 }
+
+/** Every marked node. One selector, built once — the outward walk uses it per
+ *  step, and per-hover string concatenation is not free on a big page. */
+const SELECTOR = `[${NODE_MARKER_ATTR}]`;
 
 const CHROME_STYLE_ID = "louise-chrome-style";
 const CHROME_KEYSHORTCUTS = "Enter Alt+ArrowUp Alt+ArrowDown Delete";
@@ -247,6 +251,13 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     };
     name(del, `Delete ${what}`);
     name(addSibling, `Add ${what} after`);
+    // "Layout & settings" describes a CONTAINER's panel. A value node has no
+    // position and no children, so its wrench is the whole toolbar and opens a
+    // single field — naming it "Layout & settings" describes neither what it
+    // opens nor what it opens it on. Under A2 this is the common case, since
+    // every non-inline field is now a node.
+    const valueOnly = !ordered && !desc.children;
+    name(cog, valueOnly && desc.label ? desc.label : "Layout & settings");
     // The CHILD's name, never the container's. `desc.label` describes this node,
     // so reusing it here produced "Add the first Hero" on a hero whose children
     // are CTAs — right next to "Add Hero after", which means something else
@@ -270,13 +281,30 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     placeToolbar(toolbar, el);
   };
 
-  /** Resolve an element to a node the editor knows, then light it. */
+  /**
+   * Light the nearest node the editor has chrome for, walking OUTWARD past the
+   * ones it doesn't (ADR 0010 A2).
+   *
+   * Under A1 an unresolved node meant "clear", which was correct while only
+   * ring-worthy things carried a marker. Now the render marks everything editable,
+   * so the tightest marker under the pointer is usually an inline field — a
+   * heading, a CTA's label — which resolves to no chrome by design. Stopping
+   * there would mean hovering a button's text clears the ring instead of ringing
+   * the button, and the whole page would feel dead wherever text sits.
+   *
+   * Bounded by the DOM: each step is a `closest` from the parent, so it visits
+   * each marked ancestor once and ends at the root.
+   */
   const activateFrom = (target: Node | null): void => {
-    const hit = nodeAt(target);
-    if (!hit) return clear();
-    const desc = opts.resolve(hit.path);
-    if (!desc) return clear();
-    activate(hit.path, hit.el, desc);
+    let el = target instanceof Element ? target.closest<HTMLElement>(SELECTOR) : null;
+    if (!el && target?.parentElement) el = target.parentElement.closest<HTMLElement>(SELECTOR);
+    while (el) {
+      const path = parseNodePath(el.getAttribute(NODE_MARKER_ATTR));
+      const desc = path ? opts.resolve(path) : null;
+      if (path && desc) return activate(path, el, desc);
+      el = el.parentElement?.closest<HTMLElement>(SELECTOR) ?? null;
+    }
+    clear();
   };
 
   const onOver = (e: Event): void => {

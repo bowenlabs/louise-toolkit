@@ -28,17 +28,17 @@ const idx = _editIndex;
   <h2
     class="lt-display lt-stretch-140 mb-[34px] text-[clamp(40px,7vw,72px)] tracking-[-0.01em]"
   >
-    <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+    <span data-louise-node={edit ? `${idx}.heading` : undefined}>
       {heading || (edit ? "" : "Ship it")}
     </span>{" "}
-    <span class="text-accent" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+    <span class="text-accent" data-louise-node={edit ? `${idx}.headingAccent` : undefined}>
       {headingAccent || (edit ? "" : "today.")}
     </span>
   </h2>
   <a
     class="inline-block rounded-full bg-accent px-11 py-[18px] text-[18px] font-black text-accent-content transition hover:-translate-y-0.5 hover:bg-[#ffc44d]"
     href={ctaHref || "https://docs.louisetoolkit.com/guide/getting-started"}
-    data-louise-sfield={edit ? `${idx}.ctaLabel` : undefined}
+    data-louise-node={edit ? `${idx}.ctaLabel` : undefined}
   >
     {ctaLabel || (edit ? "" : "Get started →")}
   </a>
@@ -46,7 +46,7 @@ const idx = _editIndex;
     (edit || subtext) && (
       <div
         class="mt-[22px] text-[14px] text-[#8a95a8]"
-        data-louise-sfield={edit ? `${idx}.subtext` : undefined}
+        data-louise-node={edit ? `${idx}.subtext` : undefined}
       >
         {subtext || (edit ? "" : "MIT licensed · deploys to the edge")}
       </div>

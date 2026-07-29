@@ -113,7 +113,7 @@ if (editMode && page) {
       <main>
         {/* The page-builder sections, edited on-canvas. <Sections> resolves every
             image's alt/caption from the media registry in ONE query for the whole
-            page, then hands each section its own path so `data-louise-sfield`
+            page, then hands each section its own path so `data-louise-node`
             markers land at the right depth. */}
         <Sections items={sections} db={env.DB} mediaBase={env.MEDIA_URL} />
 

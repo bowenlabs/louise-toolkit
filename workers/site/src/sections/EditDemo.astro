@@ -1,6 +1,6 @@
 ---
 // Bespoke "edit in place" demo — site-owned. Only the section heading is
-// Louise-editable (data-louise-sfield); the framed browser mock and its EDIT
+// Louise-editable (data-louise-node); the framed browser mock and its EDIT
 // MODE toggle are a self-contained illustration of what Louise does, driven by a
 // local `data-demo-edit` flag (see the toggle script + landing.css). The mock's
 // own contentEditable fields are throwaway toys, deliberately NOT Louise fields.
@@ -24,10 +24,10 @@ const markerTag =
 <section class="mx-auto max-w-[1180px] px-[clamp(20px,4vw,48px)] py-[clamp(48px,6vw,70px)]">
   <div class="mb-8 flex flex-wrap items-end justify-between gap-6">
     <h2 class="lt-display lt-stretch-135 text-[clamp(34px,5.5vw,56px)] tracking-[-0.01em]">
-      <span data-louise-sfield={edit ? `${idx}.heading` : undefined}>
+      <span data-louise-node={edit ? `${idx}.heading` : undefined}>
         {heading || (edit ? "" : "Click it.")}
       </span><br />
-      <span class="text-success" data-louise-sfield={edit ? `${idx}.headingAccent` : undefined}>
+      <span class="text-success" data-louise-node={edit ? `${idx}.headingAccent` : undefined}>
         {headingAccent || (edit ? "" : "Type it.")}
       </span>
     </h2>

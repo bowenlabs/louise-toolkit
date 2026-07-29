@@ -67,17 +67,27 @@ function stubFetch(pages: Array<{ slug: string; title: string }> = []): Call[] {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-/** The section, with its CTA marked as a VALUE node in its own right — a field
- *  path rather than a container path (ADR 0010). */
+/**
+ * The section, with the shape catalog-decides markers actually produce: the
+ * anchor is its `href` (a non-inline field, so it rings and gets a wrench) and
+ * its text is `label` (inline, so it's contenteditable and has no chrome of its
+ * own).
+ *
+ * That nesting is the outward walk's whole job. Hovering the CTA's text resolves
+ * to no chrome, and the hit-test has to keep going to reach the anchor rather
+ * than clearing.
+ */
 function pageHost(): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute("data-louise-sections", "1");
   const sec = document.createElement("div");
   sec.setAttribute("data-louise-node", "0");
-  const a = document.createElement("span");
+  const a = document.createElement("a");
   a.setAttribute("data-louise-node", "0.href");
-  a.setAttribute("data-louise-sfield", "0.label");
-  a.textContent = "Shop";
+  const label = document.createElement("span");
+  label.setAttribute("data-louise-node", "0.label");
+  label.textContent = "Shop";
+  a.appendChild(label);
   sec.appendChild(a);
   host.appendChild(sec);
   document.body.appendChild(host);
@@ -97,12 +107,13 @@ function mount(host: HTMLElement, builtInRoutes?: { path: string; title: string 
 
 const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles: true }));
 const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+/** The wrench — always the last button on the bar, and matched by position
+ *  rather than by name because its name is now the field's (ADR 0010 A2), so
+ *  there is no fixed label to look for. */
 const cog = () =>
-  [
-    ...(document
-      .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
-      ?.querySelectorAll("button") ?? []),
-  ].find((b) => b.getAttribute("aria-label") === "Layout & settings") ?? null;
+  [...(document.querySelector(".louise-chrome-toolbar")?.querySelectorAll("button") ?? [])]
+    .filter((b) => b.style.display !== "none")
+    .at(-1) ?? null;
 const inspector = () => document.querySelector(".louise-inspector");
 const linkSelect = () =>
   (inspector()?.querySelector('select[aria-label="Link to a page"]') ??

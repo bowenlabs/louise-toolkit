@@ -108,30 +108,48 @@ children gets an add, a node with configurable fields gets a wrench (and no
 wrench at all when there's nothing to configure). A section that declares
 `blocks` and currently has none draws its own **Add the first one** `+`.
 
-:::caution[A missing boundary marker fails quietly]
-Stamp only `data-louise-sfield` and text still edits in place — but there are no
-rings, no toolbars, and no way to add, reorder, or remove anything. The page
-looks editable while the entire structural layer is absent.
+:::caution[A missing marker fails quietly]
+Miss a boundary and text still edits in place — but there are no rings, no
+toolbars, and no way to add, reorder, or remove anything. The page looks editable
+while the entire structural layer is absent.
 :::
 
 Astroid's [`<Section>`](/reference/astroid/) dispatcher stamps the boundary for
 you, at every depth — a block is the same component recursing with a deeper
-`base`, so a type that renders as a section renders unchanged as a block. Value
-nodes are yours to stamp, since only your component knows which link is the CTA.
+`base`, so a type that renders as a section renders unchanged as a block.
 
-### The fields: `data-louise-sfield`
+### Fields carry the same marker
 
-Stamp this on every visible text node so the client can make it editable in
-place. The path is `"<index>.<field>"`, or
-`"<index>.<key>.<itemIndex>.<subField>"` for array items:
+There is only one attribute. A field is marked exactly like a section or a
+block — its own path, one level deeper:
 
 ```astro
-<h1 data-louise-sfield={`${i}.heading`}>{heading}</h1>
-<p data-louise-sfield={`${i}.tagline`} data-louise-multiline>{tagline}</p>
+<h1 data-louise-node={`${i}.heading`}>{heading}</h1>
+<p data-louise-node={`${i}.tagline`}>{tagline}</p>
+<a data-louise-node={`${i}.ctaHref`} href={ctaHref}>
+  <span data-louise-node={`${i}.ctaLabel`}>{ctaLabel}</span>
+</a>
 ```
 
-Render empty fields too (in edit mode) so there's something to click into;
-`data-louise-multiline` keeps newlines for `textarea`-backed fields.
+**The catalog decides what happens to each one.** A `text`, `textarea` or
+`richText` field is edited in place, so its node becomes contenteditable and gets
+no chrome of its own — hovering it rings whatever contains it. Anything else is
+edited in the wrench, so its node rings and gets a toolbar. You don't say which;
+the field's type already did.
+
+That's why the CTA above nests: the anchor is the destination (wrench), the span
+inside it is the label (typed on the page). Hovering the words walks outward to
+ring the button.
+
+Render empty fields too (in edit mode) so there's something to click into. A
+`textarea` field keeps newlines and gets browser spellcheck; a `text` one doesn't
+— again from the type, not from a stamped attribute.
+
+:::note[Upgrading from `data-louise-sfield`]
+Rename it to `data-louise-node` — the path value is unchanged. Then delete
+`data-louise-type="richtext"` and `data-louise-multiline`: both are now read from
+the field's type in the catalog.
+:::
 
 ## Editing: `mountSections`
 
@@ -146,9 +164,10 @@ mountSections(el, { catalog: SECTIONS, pageId, initial, autoSave: false });
 `el` is the wrapper around the server-rendered sections. The UX is **hybrid**,
 and entirely on the canvas — there is no floating panel:
 
-- **Text is edited in place** on the live design — each `data-louise-sfield`
-  node becomes `contenteditable`, writing into a shared fine-grained store (a
-  keystroke updates only that leaf, so rows never tear down).
+- **Text is edited in place** on the live design — a marked node whose field the
+  catalog says is inline becomes `contenteditable`, writing into a shared
+  fine-grained store (a keystroke updates only that leaf, so rows never tear
+  down).
 - **Structure is the on-canvas toolbar.** Hovering (or tabbing to) a
   `data-louise-node` rings the tightest node under the pointer and floats its
   toolbar at the top-right: move up / down, delete, and `+` to add. Exactly one
