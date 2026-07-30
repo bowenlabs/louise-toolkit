@@ -239,8 +239,8 @@ ranges do not admit `0.21.0`, so nothing upgraded by accident. They now move fro
 
 ### Amended after migrating the first site: what the rename actually is
 
-Coracle went first, as the proving ground this ADR names. Two things it needed
-are not "rename the stamps", and neither would be guessed from the text above.
+Coracle went first, as the proving ground this ADR names. Three things it needed
+are not "rename the stamps", and none would be guessed from the text above.
 
 **`louise-toolkit` and `astroidjs` must be bumped TOGETHER.** `astroidjs` depends
 on an exact `louise-toolkit` version, not a range. Bump only the toolkit and pnpm
@@ -263,6 +263,27 @@ contract — `data-louise-field` + `data-louise-type="richtext"` — is untouche
 page's rich-text body to a plain contenteditable: nothing errors, the editor just
 loses its formatting. Coracle had exactly one, in `[...slug].astro`, against
 fourteen section-field ones.
+
+**The render and the catalog may already disagree, and this is what forces it
+into the open.** Coracle's components stamped `data-louise-type="richtext"` on
+NINE fields the catalog typed as `text` or `textarea`. While the render decided,
+the render won and nobody noticed: editors got the rich editor, the schema said
+plain, and `sanitizeSectionsRichText` — which keys off the CATALOG — skipped those
+values on write. (Harmless there in practice, because every component rendered
+through `sanitizeRichHtml`; a site without that habit would have had a real hole.)
+
+A2 makes the catalog authoritative, so the contradiction stops being invisible and
+starts being a behaviour change. One of coracle's was destructive: five stored
+`heading` values contain `<em>`, and a plain contenteditable reads `textContent`
+of rendered HTML — which has no tags — so the first keystroke in that field would
+have saved the stripped string.
+
+**Audit before migrating, not after.** For every field the render stamps as
+richtext, check what the catalog says. Where they disagree, the catalog is what
+now decides, and any field holding markup must become `richText` or lose it. The
+query that settles it is "which stored values contain tags" — coracle's answer was
+`heading`, which was exactly the field this ADR's author would have guessed was
+plain.
 
 So the migration is four renames, one conditional deletion, and a paired version
 bump. The renames are still a one-liner — `data-louise-sfield` /
