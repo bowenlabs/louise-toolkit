@@ -83,6 +83,28 @@ export interface LouiseOrganizationsConfig {
 export interface LouiseAuthConfig {
   /** Passkey relying-party display name, e.g. "Meg Bowen Studio". */
   rpName: string;
+  /**
+   * Passkey relying-party ID. Defaults to the request origin's hostname, which
+   * is right for a single-origin site and wrong the moment an admin app lives on
+   * its own subdomain: origin-derived means `example.com` and
+   * `studio.example.com` mint **two separate passkeys** for the same person.
+   *
+   * Pin it to the apex (`"example.com"`) and one passkey authenticates on both,
+   * because a credential registered for a domain is usable on its subdomains.
+   *
+   * **The sessions stay separate, and that is the point.** Sharing a credential
+   * is not sharing a login. Pair this with **host-only cookies** — no `Domain`
+   * attribute, `crossSubDomainCookies` off (the default) — and a distinct
+   * {@link LouiseAuthConfig.cookiePrefix} per instance. Widening the cookie to
+   * the parent domain would broadcast the admin session to every sibling
+   * subdomain, including untrusted tenant storefronts, which is the failure this
+   * option exists to avoid rather than cause.
+   *
+   * Must be the origin's own domain or a parent of it; a browser rejects a
+   * registration whose rpID is neither, so a typo fails at enrolment rather than
+   * silently. Note rpID is a bare **domain**, never a scheme or a port.
+   */
+  rpID?: string;
   /** `from` address for the magic-link email. */
   mailFrom: { email: string; name?: string };
   /** Render the magic-link email body (site branding). */
@@ -308,9 +330,11 @@ export async function getLouiseAuth(
         },
       }),
       admin(),
-      // rpID is origin-bound: a localhost-enrolled passkey won't work on prod.
+      // rpID is domain-bound: a localhost-enrolled passkey won't work on prod.
+      // Defaults to this origin's hostname; an explicit value (typically the
+      // apex) lets one passkey cover an admin subdomain too — see the option.
       passkey({
-        rpID: host,
+        rpID: config.rpID ?? host,
         rpName: config.rpName,
         origin: baseURL,
         ...(prefix ? { schema: { passkey: { modelName: `${prefix}passkey` } } } : {}),

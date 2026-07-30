@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AstroidConfig } from "../src/config.js";
+import { defineAstroid } from "../src/config.js";
 import { generateAstroidWrangler } from "../src/project/generate.js";
 import { astroidQueueHandler } from "../src/queues/consumer.js";
 import {
   affectsCatalog,
   type AstroidQueueMessage,
   astroidCron,
+  astroidCrons,
   astroidQueueNames,
   astroidUsesQueues,
 } from "../src/queues/messages.js";
@@ -427,5 +429,76 @@ describe("scaffold-once files", () => {
 
   it("emits no webhook route without a commerce provider", () => {
     expect(generateAstroidWebhookRoute(base)).toBeNull();
+  });
+});
+
+describe("AstroidConfig.crons (#306)", () => {
+  const withCrons: AstroidConfig = {
+    ...shop,
+    crons: [
+      { expression: "*/15 * * * *", message: { kind: "inventory_pull" } },
+      { expression: "30 3 * * *", message: { kind: "nightly_reconcile" } },
+    ],
+  };
+
+  it("emits every cron into triggers.crons, derived ones first", () => {
+    const out = generateAstroidWrangler(withCrons);
+    expect(out).toContain(
+      '"triggers": { "crons": ["17 4 * * *","0 * * * *","*/15 * * * *","30 3 * * *"] }',
+    );
+  });
+
+  it("dispatches every declared cron — the invariant the whole feature is for", () => {
+    // Same check `scripts/ci/checks/crons-dispatched.mjs` runs against a real
+    // scaffold: a trigger with no matching branch is a job Cloudflare fires and
+    // nothing handles, with no error anywhere.
+    const worker = generateAstroidWorker(withCrons);
+    for (const cron of astroidCrons(withCrons)) {
+      expect(worker, `cron ${cron} is declared but never dispatched`).toContain(
+        `controller.cron === ${JSON.stringify(cron)}`,
+      );
+    }
+  });
+
+  it("enqueues the message rather than running it inline", () => {
+    const worker = generateAstroidWorker(withCrons);
+    expect(worker).toContain('env.COMMERCE_QUEUE.send({"kind":"inventory_pull"})');
+    expect(worker).toContain('env.COMMERCE_QUEUE.send({"kind":"nightly_reconcile"})');
+  });
+
+  it("refuses a cron that collides with a derived one", () => {
+    // The dispatch matches in order, so a duplicate never reaches its own
+    // branch: Cloudflare fires it, the health scan handles it, and the config
+    // reads as though both are live.
+    expect(() =>
+      defineAstroid({ ...shop, crons: [{ expression: "17 4 * * *", message: {} }] }),
+    ).toThrow(/already belongs to the daily health scan/);
+
+    expect(() =>
+      defineAstroid({ ...shop, crons: [{ expression: "0 * * * *", message: {} }] }),
+    ).toThrow(/already belongs to the catalog re-sync/);
+  });
+
+  it("refuses two crons that collide with each other", () => {
+    expect(() =>
+      defineAstroid({
+        ...shop,
+        crons: [
+          { expression: "*/15 * * * *", message: { a: 1 } },
+          { expression: "*/15 * * * *", message: { b: 2 } },
+        ],
+      }),
+    ).toThrow(/already belongs to another entry/);
+  });
+
+  it("refuses crons with no queue to send to", () => {
+    expect(() =>
+      defineAstroid({ ...base, crons: [{ expression: "*/15 * * * *", message: {} }] }),
+    ).toThrow(/needs the queue consumer/);
+  });
+
+  it("is inert when unset — no extra triggers, no extra branches", () => {
+    expect(astroidCrons(shop)).toEqual(["17 4 * * *", "0 * * * *"]);
+    expect(() => defineAstroid(shop)).not.toThrow();
   });
 });

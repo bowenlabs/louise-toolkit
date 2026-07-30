@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeCaptchaSecret,
   defaultResolveAdmins,
+  getLouiseAuth,
   handleAuthRequest,
   hasRole,
   isAllowedSignInEmail,
@@ -236,5 +237,76 @@ describe("requireRole", () => {
 describe("pick", () => {
   it("copies only allowlisted keys", () => {
     expect(pick({ a: 1, b: 2, c: 3 }, new Set(["a", "c"]))).toEqual({ a: 1, c: 3 });
+  });
+});
+
+describe("passkey rpID (#312)", () => {
+  // Better Auth initializes its adapter asynchronously on construction, so the
+  // stub has to be D1-shaped enough to satisfy that — otherwise the assertions
+  // still pass but the run fills with unhandled rejections.
+  const noopD1 = {
+    prepare: () => ({
+      bind: () => ({
+        all: async () => ({ results: [] }),
+        first: async () => null,
+        run: async () => ({}),
+      }),
+      all: async () => ({ results: [] }),
+      first: async () => null,
+      run: async () => ({}),
+    }),
+    batch: async () => [],
+    exec: async () => ({ count: 0, duration: 0 }),
+  };
+  const authEnv = {
+    DB: noopD1 as unknown as D1Database,
+    SESSION_SECRET: "s".repeat(40),
+  } as unknown as LouiseAuthEnv;
+  const base = {
+    rpName: "Test Studio",
+    mailFrom: { email: "hello@example.com" },
+    renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
+  };
+
+  /** The passkey plugin's resolved options, as Better Auth holds them. */
+  const passkeyOptions = async (baseURL: string, over: Record<string, unknown> = {}) => {
+    const auth = await getLouiseAuth(authEnv, baseURL, { ...base, ...over } as never);
+    const plugins = (
+      auth as unknown as { options: { plugins: { id?: string; options?: unknown }[] } }
+    ).options.plugins;
+    return plugins.find((p) => p.id === "passkey")?.options as { rpID?: string } | undefined;
+  };
+
+  it("derives rpID from the origin by default", async () => {
+    expect((await passkeyOptions("https://example.com"))?.rpID).toBe("example.com");
+    expect((await passkeyOptions("https://studio.example.com"))?.rpID).toBe("studio.example.com");
+  });
+
+  it("pins an explicit rpID, so one passkey covers apex + admin subdomain", async () => {
+    // Without this, the two origins mint two separate credentials for the same
+    // person. Pinning both to the apex makes them one.
+    const apex = await passkeyOptions("https://example.com", { rpID: "example.com" });
+    const studio = await passkeyOptions("https://studio.example.com", { rpID: "example.com" });
+    expect(apex?.rpID).toBe("example.com");
+    expect(studio?.rpID).toBe("example.com");
+  });
+
+  it("leaves the sessions separate — a shared credential is not a shared login", async () => {
+    // The pairing that makes rpID safe: host-only cookies (no Domain attribute,
+    // crossSubDomainCookies off) plus a distinct cookiePrefix per instance.
+    // Widening the cookie would broadcast the admin session to every sibling
+    // subdomain, which is the failure this option exists to avoid.
+    const auth = await getLouiseAuth(authEnv, "https://studio.example.com", {
+      ...base,
+      rpID: "example.com",
+      cookiePrefix: "louise-studio",
+    } as never);
+    const options = (
+      auth as unknown as {
+        options: { advanced?: { cookiePrefix?: string; crossSubDomainCookies?: unknown } };
+      }
+    ).options;
+    expect(options.advanced?.cookiePrefix).toBe("louise-studio");
+    expect(options.advanced?.crossSubDomainCookies).toBeUndefined();
   });
 });
