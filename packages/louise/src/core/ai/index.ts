@@ -75,9 +75,17 @@ export function aiGenerationDisabled(env: unknown): boolean {
  * silently breaks search — a consequence nobody predicts from the flag's name,
  * surfacing as "search returns nothing" long after the flag was flipped. A site
  * that genuinely wants everything off can still unprovision the binding.
+ *
+ * Takes `unknown` for the same reason {@link aiGenerationDisabled} does, and it
+ * matters more here: this is passed *as* a route's `ai` accessor, whose parameter
+ * is that route's own `Env`. An `AiEnv` parameter shares no properties with an
+ * `EditorRouteEnv`, so TypeScript rejects the assignment outright — the helper
+ * would be typed to describe the env it reads and unusable in the one position it
+ * exists for.
  */
-export function aiRunner(env: AiEnv): AiRunner | undefined {
-  return aiGenerationDisabled(env) ? undefined : env.AI;
+export function aiRunner(env: unknown): AiRunner | undefined {
+  if (aiGenerationDisabled(env)) return undefined;
+  return (env as AiEnv | null | undefined)?.AI;
 }
 
 /**

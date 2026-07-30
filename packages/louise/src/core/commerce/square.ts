@@ -969,9 +969,7 @@ function presentationBody(input: CatalogPresentationInput) {
   return {
     ...(input.imageIds ? { image_ids: input.imageIds } : {}),
     ...(input.categoryIds ? { categories: input.categoryIds.map((id) => ({ id })) } : {}),
-    ...(input.reportingCategoryId
-      ? { reporting_category: { id: input.reportingCategoryId } }
-      : {}),
+    ...(input.reportingCategoryId ? { reporting_category: { id: input.reportingCategoryId } } : {}),
   };
 }
 
@@ -1297,9 +1295,9 @@ export type SquareCatalogObject = {
 export async function readModifyWriteCatalog(
   config: SquareConfig,
   objectId: string,
-  mutate: (object: SquareCatalogObject) => SquareCatalogObject | void | Promise<
-    SquareCatalogObject | void
-  >,
+  mutate: (
+    object: SquareCatalogObject,
+  ) => SquareCatalogObject | void | Promise<SquareCatalogObject | void>,
   options?: { idempotencyKey?: string },
 ): Promise<SquareCatalogObject> {
   const read = await sqGet<{ object?: SquareCatalogObject }>(

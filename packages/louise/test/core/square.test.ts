@@ -392,7 +392,9 @@ describe("catalog images and categories", () => {
         captured.headers = new Headers(init.headers);
         captured.body = init.body;
         return new Response(
-          JSON.stringify({ image: { id: "IMG1", type: "IMAGE", image_data: { url: "https://cdn/1.jpg" } } }),
+          JSON.stringify({
+            image: { id: "IMG1", type: "IMAGE", image_data: { url: "https://cdn/1.jpg" } },
+          }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
       }),
@@ -404,7 +406,11 @@ describe("catalog images and categories", () => {
       caption: "A bag of Harbor Blend",
     });
 
-    expect(image).toEqual({ id: "IMG1", url: "https://cdn/1.jpg", caption: "A bag of Harbor Blend" });
+    expect(image).toEqual({
+      id: "IMG1",
+      url: "https://cdn/1.jpg",
+      caption: "A bag of Harbor Blend",
+    });
     expect(captured.body).toBeInstanceOf(FormData);
     // Critical: we must NOT set content-type. fetch derives it from the
     // FormData along with the boundary, and a hand-set one breaks the upload in
@@ -456,7 +462,11 @@ describe("readModifyWriteCatalog", () => {
       pricing_type: "FIXED_PRICING",
       price_money: { amount: 2000, currency: "USD" },
       location_overrides: [
-        { location_id: "L2", price_money: { amount: 1800, currency: "USD" }, track_inventory: true },
+        {
+          location_id: "L2",
+          price_money: { amount: 1800, currency: "USD" },
+          track_inventory: true,
+        },
       ],
       // A field introduced after this client's pinned Square-Version would look
       // exactly like this: unknown to us, meaningful to the seller.
@@ -533,7 +543,10 @@ describe("readModifyWriteCatalog", () => {
   });
 
   it("throws when the object is gone, rather than writing a fresh one", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
     await expect(readModifyWriteCatalog(CONFIG, "GONE", () => {})).rejects.toThrow(/not found/);
   });
 });
@@ -967,7 +980,13 @@ describe("createLocation / updateLocation", () => {
       name: "Studio",
       businessName: "Midwest Artist",
       timezone: "America/Chicago",
-      address: { line1: "9 Elm", locality: "Ames", region: "IA", postalCode: "50010", country: "US" },
+      address: {
+        line1: "9 Elm",
+        locality: "Ames",
+        region: "IA",
+        postalCode: "50010",
+        country: "US",
+      },
     });
 
     expect(calls[0]?.url).toBe("https://connect.squareupsandbox.com/v2/locations");
