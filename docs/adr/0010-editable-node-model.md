@@ -222,7 +222,7 @@ prefixes and must survive untouched:
   — the sections container and its wiring.
 - **`data-louise-blocks`** — opts a rich-text field into the full builder block
   set (`client/index.ts:696`, stamped in `workers/site/src/pages/[...slug].astro`).
-  Nothing to do with the block *marker*. Without `block(?!s)` the rename turns it
+  Nothing to do with the block _marker_. Without `block(?!s)` the rename turns it
   into `data-louise-nodes` and the builder silently loses its block set — a
   failure that would survive review, because the diff looks exactly like every
   other line of the rename.

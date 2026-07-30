@@ -115,7 +115,7 @@ island boundary — but not worth adopting on faith.
 **Not TanStack Start**, in any case: Start owns its own Vite build graph on
 Cloudflare and therefore wants its own Worker, which is incompatible with the
 single-Worker composition this toolkit is built on (`composeWorker` composes
-*handlers*, not *builds*). A standalone router in an island keeps one Worker, one
+_handlers_, not _builds_). A standalone router in an island keeps one Worker, one
 build, one auth surface.
 
 ## Consequences
@@ -132,7 +132,7 @@ build, one auth surface.
 ## Revisit when
 
 - **Pacer** — the Solid adapter gains function-form options the way Query and
-  Hotkeys have, *and* `async-retryer` lands in `packages/solid-pacer`.
+  Hotkeys have, _and_ `async-retryer` lands in `packages/solid-pacer`.
 - **Table** — either upstream issue closes with real cell-level reactivity
   against a Solid store.
 - **Router** — the #317 spike returns a working island mount, at which point this

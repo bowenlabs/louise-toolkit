@@ -19,14 +19,14 @@ See the [AI assists guide](/guide/ai-assists/).
 ## `aiRunner(env)` — turning generation off
 
 ```ts
-function aiRunner(env: AiEnv): AiRunner | undefined;
+function aiRunner(env: unknown): AiRunner | undefined;
 function aiGenerationDisabled(env: unknown): boolean;
 function aiUnavailableReason(env: unknown): "disabled" | "unconfigured";
 ```
 
 Binding presence is a real switch, and for "this site never uses AI" it is
 arguably the right one — nothing to configure, nothing to drift. It stops working
-the moment you want to keep the binding and still disable *generation*: an
+the moment you want to keep the binding and still disable _generation_: an
 embeddings-backed search that must keep running while alt-text and SEO
 suggestions go quiet, a client whose contract forbids generated copy, or a
 temporary kill after a bad model swap.
@@ -41,12 +41,18 @@ Then wire the accessor through `aiRunner` rather than reading the binding
 directly:
 
 ```ts
-aiRoute({ resolveEditor, ai: aiRunner })
-seoFixRoute({ table: pages, resolveEditor, ai: aiRunner })
-mediaRoute({ /* … */ altText: aiRunner })
+aiRoute({ resolveEditor, ai: aiRunner });
+seoFixRoute({ table: pages, resolveEditor, ai: aiRunner });
+mediaRoute({ /* … */ altText: aiRunner });
 ```
 
 Astroid-generated workers do this for you.
+
+All three take `unknown` rather than a typed env. They are passed _as_ a route's
+accessor, whose parameter is that route's own `Env` — and a parameter typed
+`{ AI?, LOUISE_AI? }` shares no properties with an `EditorRouteEnv`, so
+TypeScript rejects the assignment outright. Describing the env precisely would
+make the helper unusable in the only position it exists for.
 
 **Three things worth knowing.**
 
@@ -68,7 +74,7 @@ A site that genuinely wants everything off can still unprovision the binding.
 
 **`off`, `false`, `0`, `no`, and `disabled` all mean off**, case- and
 space-insensitively. There is no matching leniency in the other direction: every
-other value (including unset) means on, so no typo can accidentally *disable* AI
+other value (including unset) means on, so no typo can accidentally _disable_ AI
 — only spell "off" correctly in more than one way. The failure this avoids is a
 kill switch that silently doesn't engage.
 

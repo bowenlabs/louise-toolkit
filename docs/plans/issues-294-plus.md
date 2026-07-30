@@ -22,41 +22,41 @@ Legend: **✅** shipped, close it · **◐** partly shipped, a named residue rem
 
 ### Square / commerce (`packages/louise/src/core/commerce/square.ts`)
 
-| # | Issue | | State in `main` |
-|---|---|---|---|
-| 294 | cross-provider `refreshCatalog` storm | ○ | `refreshCatalog?: () => void \| Promise<void>` still takes no message (`astroid/src/queues/consumer.ts:26`), and the Square receiver still enqueues the generic `webhook` kind. The bug is live. |
-| 295 | Locations API | ◐ | `listLocations` (`:232`) and `retrieveLocation` (`:238`) shipped. `createLocation` / `updateLocation` absent. |
-| 296 | `location_overrides` + presence | ✅◐ | Read *and* write shipped — `SquarePresence` (`:347`), `SquareLocationOverride` (`:356`), `presentAt`, `priceAtLocation`, `overridesBody`, `presenceBody`. All three presence lists are there. **Residue:** the guard rail the issue asks for — assert a variation's location set ⊆ its parent item's — is not implemented, and the "can a `#temp` variation carry `location_overrides` in the same batch" question is unanswered. |
-| 297 | `batchUpsertCatalogObjects` | ✅◐ | Shipped at `:928` with chunking and `idMappings`. **Residue:** no assert on the 250-variations-per-item cap. |
-| 298 | inventory writes | ✅◐ | `batchChangeInventory` (`:1060`), `setPhysicalCount` (`:1111`), `PHYSICAL_COUNT` preferred in the ergonomics exactly as asked. **Residue:** no `TRANSFER` helper — but the issue itself accepts two `PHYSICAL_COUNT` writes as a correct fallback, so this is a close, not a task. |
-| 299 | reporting `searchOrders` | ◐ | `searchOrders` shipped (`:1279`) with date/state filters, cursor paging and a page bound. **Two real gaps:** `locationIds` is passed straight through with no chunking at 10 — Square's documented hard ceiling, so any account with 11 locations gets a 400. And `calculateOrder` is absent. |
-| 300 | catalog image + category writes | ○ | The read path maps `image_ids` (`:453`) and `categories` / `reporting_category` (`:676`), but `upsertCatalogItem`'s body emits neither, and there is no `/v2/catalog/images` upload. Exactly as filed. |
-| 301 | `readModifyWriteCatalog` | ○ | Untouched. Still the silent-data-loss hazard the issue quotes Square on. |
-| 302 | retry with backoff | ✅ | `SquareRetryConfig` (`:35`), handled inside the fetch verbs, 429 + 5xx with jitter. **One deviation:** default is OFF ("existing callers byte-for-byte unchanged"); the issue asked for conservative-on. See the decision in Wave 0. |
-| 311 | QR + payment links | ◐ | The changeset released. `createPaymentLink` shipped. The QR encoder still has **zero consumers** outside `core/qr` and its test — the dead-surface half of the issue is untouched. #335 closes its docs half. |
+| #   | Issue                                 |     | State in `main`                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 294 | cross-provider `refreshCatalog` storm | ○   | `refreshCatalog?: () => void \| Promise<void>` still takes no message (`astroid/src/queues/consumer.ts:26`), and the Square receiver still enqueues the generic `webhook` kind. The bug is live.                                                                                                                                                                                                                                  |
+| 295 | Locations API                         | ◐   | `listLocations` (`:232`) and `retrieveLocation` (`:238`) shipped. `createLocation` / `updateLocation` absent.                                                                                                                                                                                                                                                                                                                     |
+| 296 | `location_overrides` + presence       | ✅◐ | Read _and_ write shipped — `SquarePresence` (`:347`), `SquareLocationOverride` (`:356`), `presentAt`, `priceAtLocation`, `overridesBody`, `presenceBody`. All three presence lists are there. **Residue:** the guard rail the issue asks for — assert a variation's location set ⊆ its parent item's — is not implemented, and the "can a `#temp` variation carry `location_overrides` in the same batch" question is unanswered. |
+| 297 | `batchUpsertCatalogObjects`           | ✅◐ | Shipped at `:928` with chunking and `idMappings`. **Residue:** no assert on the 250-variations-per-item cap.                                                                                                                                                                                                                                                                                                                      |
+| 298 | inventory writes                      | ✅◐ | `batchChangeInventory` (`:1060`), `setPhysicalCount` (`:1111`), `PHYSICAL_COUNT` preferred in the ergonomics exactly as asked. **Residue:** no `TRANSFER` helper — but the issue itself accepts two `PHYSICAL_COUNT` writes as a correct fallback, so this is a close, not a task.                                                                                                                                                |
+| 299 | reporting `searchOrders`              | ◐   | `searchOrders` shipped (`:1279`) with date/state filters, cursor paging and a page bound. **Two real gaps:** `locationIds` is passed straight through with no chunking at 10 — Square's documented hard ceiling, so any account with 11 locations gets a 400. And `calculateOrder` is absent.                                                                                                                                     |
+| 300 | catalog image + category writes       | ○   | The read path maps `image_ids` (`:453`) and `categories` / `reporting_category` (`:676`), but `upsertCatalogItem`'s body emits neither, and there is no `/v2/catalog/images` upload. Exactly as filed.                                                                                                                                                                                                                            |
+| 301 | `readModifyWriteCatalog`              | ○   | Untouched. Still the silent-data-loss hazard the issue quotes Square on.                                                                                                                                                                                                                                                                                                                                                          |
+| 302 | retry with backoff                    | ✅  | `SquareRetryConfig` (`:35`), handled inside the fetch verbs, 429 + 5xx with jitter. **One deviation:** default is OFF ("existing callers byte-for-byte unchanged"); the issue asked for conservative-on. See the decision in Wave 0.                                                                                                                                                                                              |
+| 311 | QR + payment links                    | ◐   | The changeset released. `createPaymentLink` shipped. The QR encoder still has **zero consumers** outside `core/qr` and its test — the dead-surface half of the issue is untouched. #335 closes its docs half.                                                                                                                                                                                                                     |
 
 ### Astroid
 
-| # | Issue | | State in `main` |
-|---|---|---|---|
-| 303 | `pos` commerce role | ✅ | In `commerce/roles.ts`, threaded through secrets and status. Close it. |
-| 304 | unhardcode `SQUARE_LOCATION_ID` | ✅ | `commerce.square.locations: "single" \| "multi"` + `hasMultiLocation` (`roles.ts:100`), credentials resolved per configuration, and `SQUARE_APP_ID` / `SQUARE_ENVIRONMENT` declared through `astroidCheckoutVars` with the separate-gating pattern the issue asked for. Close it. |
-| 305 | location-scoped pricing | ○ | `PriceLookup` is still `(variantIds) => Promise<Map<string, number>>` (`commerce/checkout.ts:45`); the adapters still collapse to `Math.min` (`adapters.ts:66,92`). |
-| 306 | `AstroidConfig.crons` | ○ | `astroidCrons` still returns a fixed pair (`queues/messages.ts:47`). |
-| 307 | tenancy seam + rewrite hook | ○ | Untouched. |
-| 309 | `PwaConfig.offlineFallback` + `emitDir` | ○ | Untouched. |
-| 310 | Fourthwall Platform API | ○ | Untouched. |
+| #   | Issue                                   |     | State in `main`                                                                                                                                                                                                                                                                   |
+| --- | --------------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 303 | `pos` commerce role                     | ✅  | In `commerce/roles.ts`, threaded through secrets and status. Close it.                                                                                                                                                                                                            |
+| 304 | unhardcode `SQUARE_LOCATION_ID`         | ✅  | `commerce.square.locations: "single" \| "multi"` + `hasMultiLocation` (`roles.ts:100`), credentials resolved per configuration, and `SQUARE_APP_ID` / `SQUARE_ENVIRONMENT` declared through `astroidCheckoutVars` with the separate-gating pattern the issue asked for. Close it. |
+| 305 | location-scoped pricing                 | ○   | `PriceLookup` is still `(variantIds) => Promise<Map<string, number>>` (`commerce/checkout.ts:45`); the adapters still collapse to `Math.min` (`adapters.ts:66,92`).                                                                                                               |
+| 306 | `AstroidConfig.crons`                   | ○   | `astroidCrons` still returns a fixed pair (`queues/messages.ts:47`).                                                                                                                                                                                                              |
+| 307 | tenancy seam + rewrite hook             | ○   | Untouched.                                                                                                                                                                                                                                                                        |
+| 309 | `PwaConfig.offlineFallback` + `emitDir` | ○   | Untouched.                                                                                                                                                                                                                                                                        |
+| 310 | Fourthwall Platform API                 | ○   | Untouched.                                                                                                                                                                                                                                                                        |
 
 ### Toolkit
 
-| # | Issue | | State in `main` |
-|---|---|---|---|
-| 308 | `mountStudio` | ○ | Untouched. |
-| 312 | explicit `rpID` | ○ | Still origin-derived (`core/auth/auth.ts:313`). |
-| 332 | image-optimization docs lag | ○ | `reference/media.md` documents neither `cfImageSrcset` nor `transformImage`; `<MediaSlot>` and `<JustifiedGallery>` appear only as names at `reference/astroid.md:66`. |
-| 333 | chrome loads full-size originals | ○ | All six call sites confirmed still raw. |
-| 334 | one flag to disable AI generation | ○ | Four accessors still `ai: (env) => env.AI`. |
-| 335 | five modules with no reference page | ○ | `reference/` has 18 pages; `browser`, `analytics`, `health`, `realtime`, `qr` have none. |
+| #   | Issue                               |     | State in `main`                                                                                                                                                        |
+| --- | ----------------------------------- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 308 | `mountStudio`                       | ○   | Untouched.                                                                                                                                                             |
+| 312 | explicit `rpID`                     | ○   | Still origin-derived (`core/auth/auth.ts:313`).                                                                                                                        |
+| 332 | image-optimization docs lag         | ○   | `reference/media.md` documents neither `cfImageSrcset` nor `transformImage`; `<MediaSlot>` and `<JustifiedGallery>` appear only as names at `reference/astroid.md:66`. |
+| 333 | chrome loads full-size originals    | ○   | All six call sites confirmed still raw.                                                                                                                                |
+| 334 | one flag to disable AI generation   | ○   | Four accessors still `ai: (env) => env.AI`.                                                                                                                            |
+| 335 | five modules with no reference page | ○   | `reference/` has 18 pages; `browser`, `analytics`, `health`, `realtime`, `qr` have none.                                                                               |
 
 ### TanStack (#313–#317)
 
@@ -65,13 +65,13 @@ closing, not building.
 
 ### Epics
 
-| # | | State |
-|---|---|---|
-| 341 | ADR 0010 | **A1 ✅ released** (0.21.0). **A2 ✅ complete in `main`, unreleased** — all five slices merged (#350, #353, #354, #355, #356), five changesets sitting in `.changeset/`. A3/A4 pending. B blocked. |
-| 348 | A3 marker migration | Pending, and **cross-repo** — four site repos, none of them this one. |
-| 349 | A4 the release | **Cuttable today.** The changesets are staged. |
-| 347 | Phase B | Blocked on five questions in an external spec. Leave blocked. |
-| 327 | split astroid out | ◐ Its own "blocking" bullet — astroid importing `louise-toolkit/src/core/content/rule` — **is already fixed**; astroid now imports only public subpaths (`schema/collections.ts` uses `content/define` + `content/sections`, and the internal path survives only in a comment). The audit needs amending before anyone plans from it. |
+| #   |                     | State                                                                                                                                                                                                                                                                                                                                 |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 341 | ADR 0010            | **A1 ✅ released** (0.21.0). **A2 ✅ complete in `main`, unreleased** — all five slices merged (#350, #353, #354, #355, #356), five changesets sitting in `.changeset/`. A3/A4 pending. B blocked.                                                                                                                                    |
+| 348 | A3 marker migration | Pending, and **cross-repo** — four site repos, none of them this one.                                                                                                                                                                                                                                                                 |
+| 349 | A4 the release      | **Cuttable today.** The changesets are staged.                                                                                                                                                                                                                                                                                        |
+| 347 | Phase B             | Blocked on five questions in an external spec. Leave blocked.                                                                                                                                                                                                                                                                         |
+| 327 | split astroid out   | ◐ Its own "blocking" bullet — astroid importing `louise-toolkit/src/core/content/rule` — **is already fixed**; astroid now imports only public subpaths (`schema/collections.ts` uses `content/define` + `content/sections`, and the internal path survives only in a comment). The audit needs amending before anyone plans from it. |
 
 ---
 
@@ -109,9 +109,9 @@ Half a day, almost no code. Everything downstream reads cleaner afterwards.
 - **Close with a note:** #298 (the `TRANSFER` helper is explicitly optional in
   the issue's own text), #296 and #297 (see the residue below — file it, don't
   keep the issue open for a one-line assert).
-- **Retype with the residue in the title/body:** #295 → *create/update location*,
-  #299 → *chunk `locationIds` at 10 + `calculateOrder`*, #311 → *give the QR
-  encoder a consumer* (its docs half moves to #335).
+- **Retype with the residue in the title/body:** #295 → _create/update location_,
+  #299 → _chunk `locationIds` at 10 + `calculateOrder`_, #311 → _give the QR
+  encoder a consumer_ (its docs half moves to #335).
 - **#302 — one decision.** The implementation defaults retry OFF; the issue asked
   for on-by-default because "the failure mode without it is a half-applied
   catalog push". **Recommendation: keep OFF as the library default and turn it ON
@@ -138,7 +138,7 @@ The highest-value thing available today, and it is mostly a release chore.
 
 1. Amend ADR 0010's Migration section — the promised codemod becomes the measured
    `perl -pi -e` one-liner with the `(?!s)` guard, per #348. Do it here so the
-   ADR is right *before* four sites follow it.
+   ADR is right _before_ four sites follow it.
 2. `pnpm changeset version` over the five staged changesets → `louise-toolkit`
    0.22.0 / `astroidjs` 0.6.0. Check the `catalog-decides-markers` prose reads as
    breaking, since pre-1.0 semver won't say so for you.
@@ -287,7 +287,7 @@ Last, and deliberately so. Recommendations on its four open questions:
 3. **The non-Astro consumer fixture is worth it, and it is nearly free**: the
    export-map check that has to replace the lost `pack` gate already imports all
    33 subpaths from a packed tarball in a clean room with no Astro installed.
-   That *is* the agnosticism proof. No separate fixture.
+   That _is_ the agnosticism proof. No separate fixture.
 4. **Repo name `astroid`**, package name `astroidjs` — the `js` suffix exists
    only to clear the npm namespace.
 

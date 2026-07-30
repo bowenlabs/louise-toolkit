@@ -168,21 +168,21 @@ import {
 } from "louise-toolkit/commerce/square";
 ```
 
-| Area                      | Exports                                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor` |
-| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput` |
-| **Catalog images**        | `createCatalogImage` — multipart upload returning the id that `imageIds` takes             |
-| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`     |
+| Area                      | Exports                                                                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                       |
+| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                      |
+| **Catalog images**        | `createCatalogImage` — multipart upload returning the id that `imageIds` takes                                                                                                                                                                 |
+| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                         |
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects` — per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap. |
-| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)` — edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below. |
-| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                      |
-| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
-| **Payments**              | `createPayment` — charge a Web Payments card token against an order.                       |
-| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`           |
-| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                        |
-| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                         |
-| **Webhooks**              | `verifySquareSignature(url, body, header, key)` — note the URL is signed too.              |
+| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)` — edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                 |
+| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                          |
+| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling)                           |
+| **Payments**              | `createPayment` — charge a Web Payments card token against an order.                                                                                                                                                                           |
+| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                               |
+| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                            |
+| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                             |
+| **Webhooks**              | `verifySquareSignature(url, body, header, key)` — note the URL is signed too.                                                                                                                                                                  |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
