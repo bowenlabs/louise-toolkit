@@ -26,6 +26,12 @@ import { assertAuthIsolation } from "./auth/index.js";
 import type { CatalogMirrorConfig } from "./commerce/mirror.js";
 import { assertCommerceRoles } from "./commerce/roles.js";
 import { AstroidConfigError } from "./errors.js";
+// The cron facts come from the module that derives them, so the duplicate check
+// can't drift from what `astroidCrons` actually emits. A real import rather than
+// a type-only one, which is safe here: `queues/messages.ts` imports this file
+// type-only, so the cycle erases at build and nothing circular exists at runtime.
+// It is also dependency-free, so `create-astroid`'s graph is unchanged.
+import { ASTROID_HEALTH_CRON, astroidCron, astroidUsesQueues } from "./queues/messages.js";
 import type { astroidSectionCatalog } from "./components/sections.js";
 import type { PortalRoute } from "./portal/guard.js";
 import type { PwaConfig } from "./pwa/generate.js";
@@ -249,6 +255,31 @@ export interface QueuesConfig {
   maxBatchTimeout?: number;
 }
 
+/**
+ * One project-declared scheduled trigger, beyond the two Astroid derives (the
+ * daily health scan and the hourly catalog re-sync).
+ *
+ * Declaring it here rather than by hand is what keeps `wrangler.jsonc` and the
+ * generated `scheduled` dispatch in agreement. Adding a cron to `triggers.crons`
+ * alone produces a trigger Cloudflare fires and the dispatch never matches —
+ * unreachable code that costs an invocation and does nothing, with no error
+ * anywhere. Adding it in the dashboard instead drifts from the config that is
+ * supposed to describe the deploy.
+ */
+export interface AstroidCron {
+  /** Standard 5-field cron, UTC — e.g. `"*&#47;15 * * * *"`. */
+  expression: string;
+  /**
+   * The queue message this trigger sends. **Enqueued, never run inline**, so the
+   * work takes the same retry and DLQ path as every other message and a slow job
+   * can't hold the scheduled handler open.
+   *
+   * Typed `unknown` because the consumer owns the message vocabulary: whatever
+   * you put here arrives at your `handleQueueMessage`'s `onMessage`.
+   */
+  message: unknown;
+}
+
 export interface SeoConfig {
   /**
    * `<title>` template, `%s` standing in for the page title. Applied only when
@@ -374,6 +405,16 @@ export interface AstroidConfig {
   commerce?: CommerceConfig;
   /** Queue consumer + cron safety net. Defaults on when `commerce` is set. */
   queues?: QueuesConfig;
+  /**
+   * Extra scheduled triggers beyond Astroid's two. Each is emitted into **both**
+   * `triggers.crons` and the generated `scheduled` dispatch, so the pair cannot
+   * drift. See {@link AstroidCron}.
+   *
+   * Requires the queue consumer, since a cron's work is enqueued rather than run
+   * inline; `defineAstroid` refuses the combination rather than generating a
+   * `send` against a binding that doesn't exist.
+   */
+  crons?: AstroidCron[];
   /** Title template, structured-data type, and social-card attribution. */
   seo?: SeoConfig;
   /** Additions to the rate-limit rules + CSP origins Astroid derives. */
@@ -411,6 +452,48 @@ export interface AstroidConfig {
  * });
  * ```
  */
+/**
+ * Both ways a project-declared cron silently does nothing.
+ *
+ * A duplicate expression is the sharper one: the generated dispatch matches on
+ * `controller.cron` in order, so a custom trigger colliding with a derived one
+ * (or another custom one) never reaches its own branch. Cloudflare fires it, the
+ * first branch handles it, and the config reads as though both are live —
+ * exactly the unreachable-trigger failure `config.crons` exists to prevent.
+ */
+function assertCrons(config: AstroidConfig): void {
+  const crons = config.crons ?? [];
+  if (crons.length === 0) return;
+
+  if (!astroidUsesQueues(config)) {
+    throw new AstroidConfigError(
+      "`crons` needs the queue consumer: a cron's work is enqueued, not run inline, and " +
+        "without it the generated handler would `send` to a binding this project never creates. " +
+        "Set `queues: { enabled: true }`, or drop the crons.",
+    );
+  }
+
+  const seen = new Map<string, string>([[ASTROID_HEALTH_CRON, "the daily health scan"]]);
+  const catalog = astroidCron(config);
+  if (catalog) seen.set(catalog, "the catalog re-sync (`queues.cron`)");
+
+  for (const cron of crons) {
+    const expression = cron.expression?.trim();
+    if (!expression) {
+      throw new AstroidConfigError("Every entry in `crons` needs a non-empty `expression`");
+    }
+    const owner = seen.get(expression);
+    if (owner) {
+      throw new AstroidConfigError(
+        `Duplicate cron \`${expression}\` — it already belongs to ${owner}. One \`scheduled\` ` +
+          "handler dispatches on the expression, so the first branch wins and this one would " +
+          "never run. Use a different minute.",
+      );
+    }
+    seen.set(expression, "another entry in `crons`");
+  }
+}
+
 export function defineAstroid(config: AstroidConfig): AstroidConfig {
   if (!config.key || config.key.trim().length === 0) {
     throw new AstroidConfigError(
@@ -446,6 +529,8 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
   // control that silently does nothing is strictly worse than one that isn't
   // offered: the first gives false confidence, the second sends you looking for
   // an answer. Fail loudly, at config load, naming the workaround.
+  assertCrons(config);
+
   if (config.portal?.gated) {
     throw new AstroidConfigError(
       "`portal.gated` is not implemented — it is accepted but wires no guard, so the site " +

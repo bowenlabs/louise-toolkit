@@ -430,6 +430,17 @@ export function generateAstroidWorker(config: AstroidConfig): string {
     p("      // serves stale data until a human notices. Enqueued rather than run");
     p("      // inline so it takes the same retry + DLQ path as everything else.");
     p('      ctx.waitUntil(env.COMMERCE_QUEUE.send({ kind: "catalog_refresh" }));');
+    p("      return;");
+    p("    }");
+  }
+  // Project-declared crons (`config.crons`). Emitted from the same list that
+  // feeds `triggers.crons`, so a trigger can't exist with no branch to match it.
+  for (const custom of config.crons ?? []) {
+    p(`    if (controller.cron === ${JSON.stringify(custom.expression)}) {`);
+    p("      // Enqueued, not run inline: same retry + DLQ path as everything");
+    p("      // else, and a slow job can't hold the scheduled handler open.");
+    p(`      ctx.waitUntil(env.COMMERCE_QUEUE.send(${JSON.stringify(custom.message)}));`);
+    p("      return;");
     p("    }");
   }
   p("  },");

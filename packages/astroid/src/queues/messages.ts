@@ -48,6 +48,9 @@ export function astroidCrons(config: AstroidConfig): string[] {
   const crons = [ASTROID_HEALTH_CRON];
   const catalog = astroidCron(config);
   if (catalog) crons.push(catalog);
+  // Project-declared triggers last, so the two derived ones keep their existing
+  // positions and an added cron can't renumber anything.
+  for (const cron of config.crons ?? []) crons.push(cron.expression);
   return crons;
 }
 
