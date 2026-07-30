@@ -216,6 +216,41 @@ It is recoverable rather than broken: the sites pin `^0.20.0`, and pre-1.0 caret
 ranges do not admit `0.21.0`, so nothing upgraded by accident. They now move from
 `0.20.0` to the A2 release, taking both marker changes in one pass.
 
+### Amended after migrating the first site: what the rename actually is
+
+Coracle went first, as the proving ground this ADR names. Two things it needed
+are not "rename the stamps", and neither would be guessed from the text above.
+
+**`louise-toolkit` and `astroidjs` must be bumped TOGETHER.** `astroidjs` depends
+on an exact `louise-toolkit` version, not a range. Bump only the toolkit and pnpm
+installs BOTH — the site's direct dependency and astroid's pinned one — side by
+side. The two copies export structurally identical but nominally distinct types,
+so a catalog built against one is not assignable to a function expecting the
+other. Coracle got five errors of the form:
+
+> Type `…louise-toolkit@0.22.0…` is not assignable to type `…louise-toolkit@0.20.0…`
+
+in `astroid.config.ts`, `worker.ts` and `actions/index.ts` — files that have
+nothing to do with markers, with nothing in the message pointing at the real
+cause. Bumping both cleared all five. A site on astroid cannot take this release
+by bumping one package.
+
+**`data-louise-type` is deleted for SECTION fields and kept for PAGE fields.**
+A2 folded the section field's type hint into the catalog, but the page-field
+contract — `data-louise-field` + `data-louise-type="richtext"` — is untouched, and
+`<Editable>` still emits it. A blanket delete silently downgrades a versioned
+page's rich-text body to a plain contenteditable: nothing errors, the editor just
+loses its formatting. Coracle had exactly one, in `[...slug].astro`, against
+fourteen section-field ones.
+
+So the migration is four renames, one conditional deletion, and a paired version
+bump. The renames are still a one-liner — `data-louise-sfield` /
+`data-louise-section` / `data-louise-block` / `data-louise-link` →
+`data-louise-node`, guarded with `(?!s)` so `data-louise-sections` survives, which
+in coracle protected eight host attributes against one real stamp. Test files
+need the same pass: coracle's own assertions named the old attributes, and 12
+tests failed until they were renamed too.
+
 ## Staging
 
 Deliberately two arcs, because the evidence is not evenly distributed.
