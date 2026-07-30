@@ -250,3 +250,39 @@ import {
   throws on a non-2xx status.
 - `louiseQueryKey(collection, …rest)` — namespaced query key; `louiseQueryKeys`
   holds the framework-generic ones (`pages`, `media`, `settings`, `inquiries`).
+
+### Building your own panel: which TanStack packages to use
+
+`@tanstack/solid-query` is an optional peer and the panels above run on it. The
+rest of TanStack's Solid adapters vary enormously in maturity, so the short
+version — the reasoning is in
+[ADR 0011](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0011-tanstack-on-solid.md):
+
+|           |                                                                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Query** | Adopted, already load-bearing. Its Solid adapter takes accessor functions, so options stay reactive.                                                  |
+| **Form**  | Fine, with a caveat — build your most nested, array-heavy form **first**, not last. Several open upstream issues land on exactly that shape on Solid. |
+| **Table** | **Read-only tables only.** See below.                                                                                                                 |
+| **Pacer** | Not adopted. Use `createSignal` + `setTimeout` + `onCleanup`, or `@solid-primitives/debounce`.                                                        |
+
+**`@tanstack/solid-table` is wrong for editable grids**, and this is a standing
+constraint rather than a bug awaiting a fix — both upstream issues have been open
+over two years:
+
+- [table#4702](https://github.com/TanStack/table/issues/4702) — with a Solid
+  store, cell values don't propagate; only replacing the whole `data[]` works.
+- [table#5019](https://github.com/TanStack/table/issues/5019) — following the
+  official Solid examples, **every row and cell** re-renders on any data change.
+
+So an inline-edit inventory or pricing grid re-renders wholesale on every
+keystroke, which is the opposite of why you'd pick Solid. The known workaround —
+replacing `flexRender` with manual rendering — breaks row selection and column
+ordering.
+
+`flexRender` is genuinely fine for **read-only** tables: reports, sortable or
+groupable lists, column visibility. That's Table's real strength.
+
+**For server-paginated CRUD lists, prefer neither.** When filter, sort and
+pagination happen in SQL, a plain `<For>` plus a sort signal is less code, less
+bundle, and keeps granular reactivity. Table's value is _client-side_ row
+modelling — if D1 is already doing that work, Table is paying for nothing.

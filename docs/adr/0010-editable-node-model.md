@@ -286,12 +286,15 @@ query that settles it is "which stored values contain tags" — coracle's answer
 plain.
 
 So the migration is four renames, one conditional deletion, and a paired version
-bump. The renames are still a one-liner — `data-louise-sfield` /
+bump. The renames are still the one-liner given above — `data-louise-sfield` /
 `data-louise-section` / `data-louise-block` / `data-louise-link` →
-`data-louise-node`, guarded with `(?!s)` so `data-louise-sections` survives, which
-in coracle protected eight host attributes against one real stamp. Test files
-need the same pass: coracle's own assertions named the old attributes, and 12
-tests failed until they were renamed too.
+`data-louise-node`. Run **that** command rather than a hand-typed approximation:
+it carries **two** negative lookaheads, and coracle only exercised one. `(?!s)`
+protected eight `data-louise-sections` host attributes there against a single real
+stamp; `block(?!s)` protects `data-louise-blocks`, the rich-text builder flag,
+which coracle happens not to use and a site copying the toolkit's own page
+template does. Test files need the same pass: coracle's own assertions named the
+old attributes, and 12 tests failed until they were renamed too.
 
 ## Staging
 
