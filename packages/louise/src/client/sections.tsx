@@ -60,6 +60,7 @@ import { LinkField, type PageChoice, setBuiltInRoutes } from "./link-field.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
+import { thumb } from "./thumb.js";
 
 // The section schema types live in core (server-safe) so the same catalog object
 // drives both this on-page editor and the write-time validator (louise-toolkit/content's
@@ -507,7 +508,14 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
     <div class="louise-field">
       <span class="louise-field-label">{props.label}</span>
       <Show when={props.value}>
-        <img class="louise-sections-img" src={props.value} alt="" />
+        {/* max-height 84px (.louise-sections-img). */}
+        <img
+          class="louise-sections-img"
+          src={thumb(props.value, 84)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
       </Show>
       <div class="louise-sections-img-actions">
         <label class="louise-btn louise-btn-xs">
