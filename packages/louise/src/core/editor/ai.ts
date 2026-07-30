@@ -14,6 +14,7 @@
 import {
   type AiGatewayOptions,
   type AiRunner,
+  aiUnavailableReason,
   type RewriteMode,
   rewriteText,
   suggestSeo,
@@ -67,7 +68,10 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if ("response" in g) return g.response;
 
     const runner = cfg.ai(env);
-    if (!runner) return json({ error: "AI not available" }, 503);
+    // `reason` tells "turned off for this site" apart from "never configured".
+    // Both 503 and both hide the control today; only the former deserves to say
+    // so out loud, and a client can't distinguish them without this.
+    if (!runner) return json({ error: "AI not available", reason: aiUnavailableReason(env) }, 503);
     const gateway = cfg.gateway?.(env);
 
     const body = await request.json().catch(() => null);

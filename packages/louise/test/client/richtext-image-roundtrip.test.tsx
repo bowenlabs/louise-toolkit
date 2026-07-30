@@ -18,9 +18,12 @@ const MASTER = "https://media.example.com/originals/master.jpg";
 const hosts: HTMLElement[] = [];
 function mount(html: string) {
   const el = document.createElement("div");
+  // `mountRichText` seeds from the host's existing markup when no doc is passed
+  // — the same path a site's `set:html` value takes into the editor.
+  el.innerHTML = html;
   document.body.appendChild(el);
   hosts.push(el);
-  return mountRichText(el, () => {}, html, {});
+  return mountRichText(el, () => {});
 }
 
 afterEach(() => {

@@ -10,6 +10,7 @@
 //   queue()               → drain deferred side-effects off the write path (FTS reindex)
 //   scheduled()           → daily link-checker across both hosts
 import { handle } from "@astrojs/cloudflare/handler";
+import { aiRunner } from "louise-toolkit/ai";
 import { vitalsRoute } from "louise-toolkit/analytics";
 import { checkLinks, ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/browser";
 import {
@@ -204,19 +205,24 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     resolveEditor,
     vector: {
       index: (env) => env.VECTORIZE,
+      // NOT `aiRunner` — deliberately. Embeddings power site search and
+      // generate no content, so they keep binding-presence as their switch.
+      // Folding them into LOUISE_AI would mean turning off "AI content"
+      // silently breaks search, surfacing as "search returns nothing" long
+      // after the flag was flipped (#334).
       ai: (env) => env.AI,
     },
   }),
   // One-click AI SEO backfill (#106 Phase 2c): /pages/generate-seo fills the SEO
   // title/description of published pages missing them via Workers AI. Before
   // pagesRoute (its `/:id` matcher would else claim the non-integer segment).
-  // Absent env.AI it answers 503, so the Health panel hides the assist.
-  seoFixRoute({ table: pages, resolveEditor, ai: (env) => env.AI }),
+  // Absent a runner it answers 503, so the Health panel hides the assist.
+  seoFixRoute({ table: pages, resolveEditor, ai: aiRunner }),
   // Interactive editorial assists (#75/#166): the client posts here for the
   // toolbar "rewrite" action (/ai/rewrite) and the pages-panel SEO "suggest"
   // button (/ai/seo). The AI binding is server-only, so these must round-trip.
-  // Absent env.AI it answers 503, so both client controls hide themselves.
-  aiRoute({ resolveEditor, ai: (env) => env.AI }),
+  // Absent a runner it answers 503, so both client controls hide themselves.
+  aiRoute({ resolveEditor, ai: aiRunner }),
   // `sections` (structured builder blocks JSON) is editable alongside the
   // framework page fields, and validated against the catalog before write — a
   // malformed sections payload (unknown block type, wrong field shape) is
@@ -263,9 +269,9 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     ],
     // Workers AI alt text on upload (#75): fill each new image's `alt` from the
     // image. Best-effort — a model error/timeout never fails the upload (the alt
-    // just stays empty, editable in the media panel). Off wherever `env.AI` is
-    // unbound.
-    altText: (env) => env.AI,
+    // just stays empty, editable in the media panel). Off wherever the binding
+    // is unbound OR LOUISE_AI turns generation off.
+    altText: aiRunner,
   }),
   // Public capture (contact form) + editor-gated review, both from the one
   // built-in `inquiries` form (louise-toolkit/forms) — #46. The site adds the

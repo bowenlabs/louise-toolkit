@@ -149,14 +149,19 @@ describe("media delete-safety", () => {
 });
 
 describe("AI assists", () => {
-  it("mounts the AI routes and hands them the binding", () => {
+  it("mounts the AI routes and hands them the runner", () => {
     // The rewrite and SEO-suggest buttons ship in the editor drawer already.
-    // Without these routes they 404; without `ai` they 503 — either way the
+    // Without these routes they 404; without a runner they 503 — either way the
     // client hides them, so they were permanently invisible.
+    //
+    // `aiRunner`, not `(env) => env.AI`: it reads the binding AND the LOUISE_AI
+    // kill switch, so all three assists share one definition of "is generation
+    // on?" rather than each re-deriving it in generated code (#334).
     const worker = generateAstroidWorker(base);
-    expect(routeLine(worker, "aiRoute")).toContain("ai: (env) => env.AI");
-    expect(routeLine(worker, "seoFixRoute")).toContain("ai: (env) => env.AI");
-    expect(routeLine(worker, "mediaRoute")).toContain("altText: (env) => env.AI");
+    expect(routeLine(worker, "aiRoute")).toContain("ai: aiRunner");
+    expect(routeLine(worker, "seoFixRoute")).toContain("ai: aiRunner");
+    expect(routeLine(worker, "mediaRoute")).toContain("altText: aiRunner");
+    expect(worker).toContain('import { aiRunner } from "louise-toolkit/ai";');
   });
 
   it("mounts seoFixRoute BEFORE pagesRoute", () => {

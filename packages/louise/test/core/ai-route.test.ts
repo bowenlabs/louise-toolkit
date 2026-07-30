@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AiRunner } from "../../src/core/ai/index.js";
+import { type AiRunner, aiRunner } from "../../src/core/ai/index.js";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { aiRoute } from "../../src/core/editor/index.js";
 
@@ -135,5 +135,48 @@ describe("aiRoute — AI Gateway (#87)", () => {
     )) as Response;
     expect(res.status).toBe(200);
     expect(seen).toEqual({ gateway: { id: "louise-gw", cacheTtl: 60 } });
+  });
+});
+
+describe("aiRoute — the LOUISE_AI kill switch (#334)", () => {
+  /** The real wiring: the accessor is `aiRunner`, so the flag is read from env. */
+  const flagged = (env: { DB: D1Database; AI?: AiRunner; LOUISE_AI?: string }) => ({
+    route: aiRoute<{ DB: D1Database; AI?: AiRunner; LOUISE_AI?: string }>({
+      resolveEditor: () => editor,
+      ai: aiRunner,
+    }),
+    env,
+  });
+
+  it("503s with reason 'disabled' and never calls the model when off", async () => {
+    let called = false;
+    const AI: AiRunner = {
+      run: async () => {
+        called = true;
+        return { response: "should not happen" };
+      },
+    };
+    const { route: r, env: e } = flagged({ DB: noopD1, AI, LOUISE_AI: "off" });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+
+    expect(res?.status).toBe(503);
+    expect(await res?.json()).toMatchObject({ reason: "disabled" });
+    // The assertion that matters: no model was reached, so nothing was billed
+    // and no content was generated while the switch was off.
+    expect(called).toBe(false);
+  });
+
+  it("503s with reason 'unconfigured' when there is simply no binding", async () => {
+    const { route: r, env: e } = flagged({ DB: noopD1 });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+    expect(res?.status).toBe(503);
+    expect(await res?.json()).toMatchObject({ reason: "unconfigured" });
+  });
+
+  it("serves normally when the binding is present and the flag is unset", async () => {
+    const { route: r, env: e } = flagged({ DB: noopD1, AI: fakeRunner({ response: "tightened" }) });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+    expect(res?.status).toBe(200);
+    expect(await res?.json()).toMatchObject({ text: "tightened" });
   });
 });
