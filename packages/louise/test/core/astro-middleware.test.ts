@@ -129,3 +129,114 @@ describe("createLouiseMiddleware — rate limiting", () => {
     expect((await hit()).status).toBe(429);
   });
 });
+
+describe("createLouiseMiddleware — rewrite (#307)", () => {
+  /** A `next` that records what payload it was handed. */
+  const spyNext = () => {
+    const seen: (string | URL | Request | undefined)[] = [];
+    const next: MiddlewareNext = async (payload) => {
+      seen.push(payload);
+      return new Response("ok", { headers: { "content-type": "text/html" } });
+    };
+    return { next, seen };
+  };
+
+  it("passes the rewritten path to next()", async () => {
+    const { next, seen } = spyNext();
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rewrite: (context) => `/t/acme${context.url.pathname}`,
+    });
+    await mw(makeContext("GET", "/prints"), next);
+    expect(seen).toEqual(["/t/acme/prints"]);
+  });
+
+  it("calls next() bare when the hook returns undefined", async () => {
+    // Not `next(undefined)` by accident — an unrewritten request must take the
+    // exact path it always did.
+    const { next, seen } = spyNext();
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rewrite: () => undefined,
+    });
+    await mw(makeContext("GET", "/prints"), next);
+    expect(seen).toEqual([undefined]);
+  });
+
+  it("leaves context.url alone — it's a rewrite, not a redirect", async () => {
+    // The visitor's URL is the public address, and links rendered from it have
+    // to stay correct.
+    const { next } = spyNext();
+    const ctx = makeContext("GET", "/prints");
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rewrite: () => "/t/acme/prints",
+    });
+    await mw(ctx, next);
+    expect(ctx.url.pathname).toBe("/prints");
+  });
+
+  it("runs AFTER the guard, so policy is written against the public path", async () => {
+    const order: string[] = [];
+    const { next, seen } = spyNext();
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      guard: (context) => {
+        order.push(`guard:${context.url.pathname}`);
+        return undefined;
+      },
+      rewrite: () => {
+        order.push("rewrite");
+        return "/t/acme/prints";
+      },
+    });
+    await mw(makeContext("GET", "/prints"), next);
+    expect(order).toEqual(["guard:/prints", "rewrite"]);
+    expect(seen).toEqual(["/t/acme/prints"]);
+  });
+
+  it("does not rewrite a request the guard refused", async () => {
+    const { next, seen } = spyNext();
+    const rewrite = () => "/t/acme/prints";
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      guard: () => new Response("nope", { status: 403 }),
+      rewrite,
+    });
+    const res = await mw(makeContext("GET", "/prints"), next);
+    expect((res as Response).status).toBe(403);
+    // next() never ran, so nothing was rendered under either path.
+    expect(seen).toEqual([]);
+  });
+
+  it("sees locals written by extend", async () => {
+    // The ordering tenancy depends on: resolve the tenant in `extend`, then map
+    // it to a path in `rewrite`.
+    const { next, seen } = spyNext();
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      extend: (context) => {
+        (context.locals as { tenant?: string }).tenant = "acme";
+      },
+      rewrite: (context) => {
+        const tenant = (context.locals as { tenant?: string }).tenant;
+        return tenant ? `/t/${tenant}${context.url.pathname}` : undefined;
+      },
+    });
+    await mw(makeContext("GET", "/prints"), next);
+    expect(seen).toEqual(["/t/acme/prints"]);
+  });
+
+  it("lets a throwing rewrite fail loudly rather than serve the unrewritten path", async () => {
+    // Degrading to the unrewritten path would, under host dispatch, mean
+    // rendering another tenant's page — so this must not be swallowed.
+    const { next } = spyNext();
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rewrite: () => {
+        throw new Error("tenant lookup failed");
+      },
+    });
+    await expect(mw(makeContext("GET", "/prints"), next)).rejects.toThrow("tenant lookup failed");
+  });
+});

@@ -22,5 +22,6 @@ export * from "./schema/index.js";
 export * from "./security/index.js";
 export * from "./seo/index.js";
 export * from "./status.js";
+export * from "./tenancy/index.js";
 export * from "./worker/index.js";
 export * from "./workflow/index.js";
