@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   calculateOrder,
   centsToMajor,
+  createCatalogImage,
   createInvoice,
+  createLocation,
   createOrder,
   createTeamMember,
   createTimecard,
@@ -15,6 +17,7 @@ import {
   publishInvoice,
   retrieveLocation,
   retrieveVariationPricesAt,
+  updateLocation,
   searchOrders,
   setPhysicalCount,
   updateTimecard,
@@ -331,6 +334,108 @@ describe("upsertCatalogItem", () => {
       }),
     ).rejects.toThrow(/251 variations, over Square's cap of 250/);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("catalog images and categories", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("writes image ids and categories onto the item", async () => {
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      variations: [{ name: "12 oz", priceCents: 2000 }],
+      imageIds: ["IMG1", "IMG2"],
+      categoryIds: ["CAT_COFFEE", "CAT_GIFTS"],
+      reportingCategoryId: "CAT_COFFEE",
+    });
+    const body = calls[0]?.body as { object: { item_data: Record<string, unknown> } };
+    expect(body.object.item_data.image_ids).toEqual(["IMG1", "IMG2"]);
+    expect(body.object.item_data.categories).toEqual([{ id: "CAT_COFFEE" }, { id: "CAT_GIFTS" }]);
+    expect(body.object.item_data.reporting_category).toEqual({ id: "CAT_COFFEE" });
+  });
+
+  it("omits the keys entirely when unset, so a price update can't strip imagery", async () => {
+    // An absent key means "leave it alone"; sending [] would clear it.
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      variations: [{ name: "12 oz", priceCents: 2000 }],
+    });
+    const data = (calls[0]?.body as { object: { item_data: Record<string, unknown> } }).object
+      .item_data;
+    expect(data).not.toHaveProperty("image_ids");
+    expect(data).not.toHaveProperty("categories");
+    expect(data).not.toHaveProperty("reporting_category");
+  });
+
+  it("refuses a reporting category the item is not in", async () => {
+    // Square reports against it regardless, so the item silently vanishes from
+    // the sales breakdown while looking right in the dashboard.
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        variations: [{ name: "12 oz", priceCents: 2000 }],
+        categoryIds: ["CAT_GIFTS"],
+        reportingCategoryId: "CAT_COFFEE",
+      }),
+    ).rejects.toThrow(/not in categoryIds/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("uploads an image as multipart and returns its id", async () => {
+    const captured: { headers?: Headers; body?: unknown } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured.headers = new Headers(init.headers);
+        captured.body = init.body;
+        return new Response(
+          JSON.stringify({ image: { id: "IMG1", type: "IMAGE", image_data: { url: "https://cdn/1.jpg" } } }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+
+    const image = await createCatalogImage(CONFIG, {
+      file: new Blob(["bytes"], { type: "image/jpeg" }),
+      filename: "harbor.jpg",
+      caption: "A bag of Harbor Blend",
+    });
+
+    expect(image).toEqual({ id: "IMG1", url: "https://cdn/1.jpg", caption: "A bag of Harbor Blend" });
+    expect(captured.body).toBeInstanceOf(FormData);
+    // Critical: we must NOT set content-type. fetch derives it from the
+    // FormData along with the boundary, and a hand-set one breaks the upload in
+    // a way that surfaces as a Square-side rejection.
+    expect(captured.headers?.get("content-type")).toBeNull();
+    expect(captured.headers?.get("square-version")).toBeTruthy();
+
+    const form = captured.body as FormData;
+    expect(JSON.parse(String(form.get("request")))).toMatchObject({
+      image: { type: "IMAGE", id: "#image", image_data: { caption: "A bag of Harbor Blend" } },
+    });
+    expect(form.get("image_file")).toBeInstanceOf(Blob);
+  });
+
+  it("attaches to an existing object when given one", async () => {
+    const captured: { form?: FormData } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured.form = init.body as FormData;
+        return new Response(JSON.stringify({ image: { id: "IMG1", type: "IMAGE" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    await createCatalogImage(CONFIG, {
+      file: new Blob(["b"], { type: "image/png" }),
+      objectId: "ITEM1",
+    });
+    expect(JSON.parse(String(captured.form?.get("request")))).toMatchObject({ object_id: "ITEM1" });
   });
 });
 
@@ -850,6 +955,54 @@ describe("listLocations / retrieveLocation", () => {
       ),
     );
     expect(await retrieveLocation(CONFIG, "nope")).toBeNull();
+  });
+});
+
+describe("createLocation / updateLocation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs a structured address, not the joined line it reads back", async () => {
+    const calls = stubFetch({ location: { id: "L9", name: "Studio", currency: "USD" } });
+    const loc = await createLocation(CONFIG, {
+      name: "Studio",
+      businessName: "Midwest Artist",
+      timezone: "America/Chicago",
+      address: { line1: "9 Elm", locality: "Ames", region: "IA", postalCode: "50010", country: "US" },
+    });
+
+    expect(calls[0]?.url).toBe("https://connect.squareupsandbox.com/v2/locations");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toEqual({
+      location: {
+        name: "Studio",
+        business_name: "Midwest Artist",
+        timezone: "America/Chicago",
+        address: {
+          address_line_1: "9 Elm",
+          locality: "Ames",
+          administrative_district_level_1: "IA",
+          postal_code: "50010",
+          country: "US",
+        },
+      },
+    });
+    expect(loc.id).toBe("L9");
+  });
+
+  it("sends no currency — it belongs to the account, not the location", async () => {
+    const calls = stubFetch({ location: { id: "L9", name: "Studio" } });
+    await createLocation(CONFIG, { name: "Studio" });
+    expect(JSON.stringify(calls[0]?.body)).not.toContain("currency");
+  });
+
+  it("PUTs sparsely, so an omitted field is never cleared", async () => {
+    const calls = stubFetch({ location: { id: "L1", name: "Renamed" } });
+    await updateLocation(CONFIG, "L1", { name: "Renamed" });
+    expect(calls[0]?.method).toBe("PUT");
+    expect(calls[0]?.url).toContain("/v2/locations/L1");
+    // Only the name — no address key at all, which is what keeps the existing
+    // address intact rather than replaced with an empty object.
+    expect(calls[0]?.body).toEqual({ location: { name: "Renamed" } });
   });
 });
 

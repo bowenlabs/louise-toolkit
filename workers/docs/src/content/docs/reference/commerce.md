@@ -171,7 +171,8 @@ import {
 | Area                      | Exports                                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
 | **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor` |
-| **Locations**             | `listLocations`, `retrieveLocation`, `SquareLocation`                                      |
+| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput` |
+| **Catalog images**        | `createCatalogImage` — multipart upload returning the id that `imageIds` takes             |
 | **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`     |
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects` — per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap. |
 | **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)` — edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below. |

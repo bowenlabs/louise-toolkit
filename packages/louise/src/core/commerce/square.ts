@@ -65,6 +65,16 @@ function headers(config: SquareConfig): HeadersInit {
   };
 }
 
+/** Same headers minus `content-type`: `fetch` derives it from the FormData,
+ *  including the multipart boundary, which we cannot compute ourselves. */
+function multipartHeaders(config: SquareConfig): HeadersInit {
+  return {
+    authorization: `Bearer ${config.accessToken}`,
+    accept: "application/json",
+    "square-version": config.version ?? SQUARE_VERSION,
+  };
+}
+
 interface SquareErrorBody {
   errors?: { code?: string; detail?: string; category?: string }[];
 }
@@ -104,7 +114,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function sqFetch<T>(
   config: SquareConfig,
   path: string,
-  init: { method: string; body?: unknown },
+  init: { method: string; body?: unknown; formData?: FormData },
 ): Promise<T> {
   const retry = config.retry;
   const attempts = Math.max(0, retry?.attempts ?? (retry ? 2 : 0));
@@ -117,8 +127,12 @@ async function sqFetch<T>(
     try {
       res = await fetch(`${host(config)}${path}`, {
         method: init.method,
-        headers: headers(config),
-        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        headers: init.formData ? multipartHeaders(config) : headers(config),
+        ...(init.formData
+          ? { body: init.formData }
+          : init.body === undefined
+            ? {}
+            : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
       // Network-level failure (DNS, connection reset) — retryable in the same
@@ -251,6 +265,94 @@ export async function retrieveLocation(
     if (err instanceof Error && / 404: /.test(err.message)) return null;
     throw err;
   }
+}
+
+/** A location's editable fields. Structured, not the formatted single line
+ *  {@link SquareLocation} reads back — Square needs the parts. */
+export interface SquareLocationInput {
+  name: string;
+  businessName?: string;
+  timezone?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    /** City. */
+    locality?: string;
+    /** State / province. */
+    region?: string;
+    postalCode?: string;
+    /** ISO 3166-1 alpha-2, e.g. "US". */
+    country?: string;
+  };
+}
+
+function locationBody(input: Partial<SquareLocationInput>) {
+  const a = input.address;
+  return {
+    ...(input.name != null ? { name: input.name } : {}),
+    ...(input.businessName != null ? { business_name: input.businessName } : {}),
+    ...(input.timezone != null ? { timezone: input.timezone } : {}),
+    ...(a
+      ? {
+          address: {
+            ...(a.line1 != null ? { address_line_1: a.line1 } : {}),
+            ...(a.line2 != null ? { address_line_2: a.line2 } : {}),
+            ...(a.locality != null ? { locality: a.locality } : {}),
+            ...(a.region != null ? { administrative_district_level_1: a.region } : {}),
+            ...(a.postalCode != null ? { postal_code: a.postalCode } : {}),
+            ...(a.country != null ? { country: a.country } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * Create a location. POST /v2/locations. The onboarding call — a new merchant
+ * joining a multi-location deploy needs one before anything can be sold there.
+ *
+ * **Currency is not settable and is not per-request.** Square derives it from
+ * the seller account, so every location under one account shares it: an account
+ * cannot mix USD and CAD. If a merchant needs a different currency they need a
+ * different Square account, which is an onboarding constraint rather than a code
+ * one — worth knowing before designing around it.
+ *
+ * The cap is 300 locations per account, including deactivated ones.
+ */
+export async function createLocation(
+  config: SquareConfig,
+  input: SquareLocationInput,
+): Promise<SquareLocation> {
+  const res = await sqPost<{ location?: RawLocation }>(config, "/v2/locations", {
+    location: locationBody(input),
+  });
+  if (!res.location) throw new Error("Square location creation returned no location");
+  return mapLocation(res.location);
+}
+
+/**
+ * Update a location. PUT /v2/locations/{id}.
+ *
+ * Sparse: only the fields you pass are sent, so this never clears a field by
+ * omission — which matters because `address` is a nested object Square replaces
+ * wholesale. Passing a partial address replaces the whole address with that
+ * partial, so read first if you mean to change one line of it.
+ *
+ * A location cannot be deleted, only deactivated — set `status` through the
+ * Square dashboard; the API does not expose it here.
+ */
+export async function updateLocation(
+  config: SquareConfig,
+  locationId: string,
+  input: Partial<SquareLocationInput>,
+): Promise<SquareLocation> {
+  const res = await sqPut<{ location?: RawLocation }>(
+    config,
+    `/v2/locations/${encodeURIComponent(locationId)}`,
+    { location: locationBody(input) },
+  );
+  if (!res.location) throw new Error(`Square location ${locationId} update returned none`);
+  return mapLocation(res.location);
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -851,6 +953,28 @@ function assertWritableItem(input: {
   assertVariationPresence(input.presence, input.variations);
 }
 
+/**
+ * Serialize images and taxonomy for a write, omitting what the caller didn't
+ * set. Same reasoning as {@link presenceBody}: an absent key means "leave it
+ * alone", while an empty array means "clear it" — and sending `[]` by default
+ * would strip every item's imagery on the first price update.
+ */
+function presentationBody(input: CatalogPresentationInput) {
+  if (input.reportingCategoryId && !input.categoryIds?.includes(input.reportingCategoryId)) {
+    throw new Error(
+      `Square catalog write: reportingCategoryId ${input.reportingCategoryId} is not in categoryIds. ` +
+        "Square reports against a category the item belongs to; add it, or the item goes missing from sales breakdowns.",
+    );
+  }
+  return {
+    ...(input.imageIds ? { image_ids: input.imageIds } : {}),
+    ...(input.categoryIds ? { categories: input.categoryIds.map((id) => ({ id })) } : {}),
+    ...(input.reportingCategoryId
+      ? { reporting_category: { id: input.reportingCategoryId } }
+      : {}),
+  };
+}
+
 /** Serialize presence for a write, omitting the keys the caller didn't set so we
  *  never overwrite Square-side presence with an accidental default. */
 function presenceBody(presence: Partial<SquarePresence> | undefined) {
@@ -901,7 +1025,7 @@ function overridesBody(overrides: CatalogVariationInput["locationOverrides"]) {
  */
 export async function upsertCatalogItem(
   config: SquareConfig,
-  input: {
+  input: CatalogPresentationInput & {
     id?: string;
     name: string;
     description?: string;
@@ -928,6 +1052,7 @@ export async function upsertCatalogItem(
       item_data: {
         name: input.name,
         description: input.description,
+        ...presentationBody(input),
         variations: input.variations.map((v, i) => ({
           type: "ITEM_VARIATION",
           id: v.id ?? v.clientId ?? `#var-${i}`,
@@ -953,8 +1078,29 @@ export async function upsertCatalogItem(
   return { item: mapCatalogItem(res.catalog_object, new Map()), idMappings };
 }
 
+/** Taxonomy and imagery on a catalog write — the "same picture and category
+ *  everywhere" half of a multi-merchant push. */
+export interface CatalogPresentationInput {
+  /**
+   * Existing IMAGE object ids, in display order — the first is the primary.
+   * Upload with {@link createCatalogImage} to get one; there is no way to attach
+   * raw bytes through this call.
+   */
+  imageIds?: string[];
+  /** CATEGORY object ids this item belongs to. */
+  categoryIds?: string[];
+  /**
+   * The single category Square attributes this item to in its own sales
+   * reports. Must also appear in `categoryIds` — Square derives one from the
+   * other inconsistently otherwise, and a reporting category the item isn't in
+   * is how a product goes missing from a sales breakdown while looking correct
+   * in the dashboard.
+   */
+  reportingCategoryId?: string;
+}
+
 /** One ITEM in a {@link batchUpsertCatalogObjects} call. */
-export interface CatalogItemInput {
+export interface CatalogItemInput extends CatalogPresentationInput {
   id?: string;
   /** Stable client key echoed back in `idMappings` for a NEW item. */
   clientId?: string;
@@ -993,6 +1139,7 @@ export async function batchUpsertCatalogObjects(
       item_data: {
         name: item.name,
         description: item.description,
+        ...presentationBody(item),
         variations: item.variations.map((v, j) => ({
           type: "ITEM_VARIATION",
           id: v.id ?? v.clientId ?? `#var-${i}-${j}`,
@@ -1036,6 +1183,70 @@ export async function batchUpsertCatalogObjects(
     objects: (res.objects ?? [])
       .filter((o) => o.type === "ITEM")
       .map((o) => mapCatalogItem(o, images)),
+  };
+}
+
+/** An uploaded catalog IMAGE. `url` is Square's CDN copy, not the source. */
+export interface SquareCatalogImage {
+  id: string;
+  url: string | null;
+  caption: string | null;
+}
+
+/**
+ * Upload an image and get back a catalog IMAGE object. POST /v2/catalog/images.
+ *
+ * The only way to get an id for {@link CatalogPresentationInput.imageIds} — the
+ * catalog write takes ids, never bytes, so this runs first and its `id` feeds
+ * the upsert.
+ *
+ * Multipart, and deliberately not built on the JSON verbs: `content-type` must
+ * carry the boundary `fetch` generates, so setting it by hand breaks the upload
+ * in a way that reads as a Square-side rejection.
+ *
+ * Pass `objectId` to attach the image to an existing ITEM in one call. Omit it
+ * to create a free-standing image and attach it via a later write — which is
+ * what you want when pushing many items that share one picture, since uploading
+ * the same bytes per item bills and stores per item.
+ *
+ * `caption` is the accessibility text Square renders; worth setting.
+ */
+export async function createCatalogImage(
+  config: SquareConfig,
+  input: {
+    /** The bytes. A `File` carries its own name and type; a `Blob` needs `filename`. */
+    file: Blob;
+    filename?: string;
+    caption?: string;
+    /** Attach to this catalog object as part of the upload. */
+    objectId?: string;
+    idempotencyKey?: string;
+  },
+): Promise<SquareCatalogImage> {
+  const form = new FormData();
+  form.append(
+    "request",
+    JSON.stringify({
+      idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      ...(input.objectId ? { object_id: input.objectId } : {}),
+      image: {
+        type: "IMAGE",
+        id: "#image",
+        image_data: { caption: input.caption },
+      },
+    }),
+  );
+  form.append("image_file", input.file, input.filename ?? "image");
+
+  const res = await sqFetch<{ image?: RawCatalogObject }>(config, "/v2/catalog/images", {
+    method: "POST",
+    formData: form,
+  });
+  if (!res.image) throw new Error("Square catalog image upload returned no image");
+  return {
+    id: res.image.id,
+    url: res.image.image_data?.url ?? null,
+    caption: input.caption ?? null,
   };
 }
 
