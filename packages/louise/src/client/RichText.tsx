@@ -39,6 +39,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
 import { render } from "solid-js/web";
 import { Icon, type IconName } from "./icons.jsx";
+import { thumb } from "./thumb.js";
 
 /**
  * Uploads a dropped/pasted/picked image to R2 through the same
@@ -109,7 +110,17 @@ function ResizableImage(props: SolidNodeViewProps) {
       height={attrs().height ?? undefined}
       onResizeEnd={(e) => props.setAttrs({ width: e.detail.width, height: e.detail.height })}
     >
-      <img src={attrs().src ?? ""} alt={alt()} />
+      {/* Transformed for DISPLAY only. `attrs().src` is what serializes into the
+          stored markup and what the site renders via set:html — rewriting it
+          would persist a CDN URL into content and defeat re-cropping later. The
+          resizable node knows its own width, so ask for that; an unresized image
+          falls back to a typical editor column. */}
+      <img
+        src={thumb(attrs().src ?? "", attrs().width ?? 640)}
+        alt={alt()}
+        loading="lazy"
+        decoding="async"
+      />
       <ResizableHandle class="louise-rt-resize" position="bottom-right" />
       {/* Alt-text authoring (WCAG 1.1.1): without this an inline image ships to
           the published page with no description. `contentEditable={false}` keeps

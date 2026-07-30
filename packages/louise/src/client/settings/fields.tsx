@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
 import type { FieldTypeName } from "../../core/content/field-types.js";
 import { Icon } from "../icons.jsx";
+import { thumb } from "../thumb.js";
 import { apiGet, louiseQueryKeys } from "./query.js";
 
 /** A label/href row — the shape stored in the `navLinks`/`socialLinks` JSON. */
@@ -203,7 +204,8 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
                       setOpen(false);
                     }}
                   >
-                    <img src={item.url} alt="" loading="lazy" />
+                    {/* 72px grid tile (.louise-media-pick-grid). */}
+                    <img src={thumb(item.url, 72)} alt="" loading="lazy" decoding="async" />
                   </button>
                 )}
               </For>
@@ -236,14 +238,18 @@ export function ImageField(props: {
    *  URL. Off by default — images should come from the media library so they
    *  can't break or hotlink. An escape hatch for sites that knowingly want it. */
   allowUrl?: boolean;
-  /** Transform the preview thumbnail URL — e.g. a CDN resizer like `cfImage`.
-   *  Defaults to the raw URL. Does not affect the stored value. */
+  /** Override the preview thumbnail URL. Defaults to a CDN derivative sized for
+   *  the 160 px preview box — pass this only to do something else. Never affects
+   *  the stored value. */
   transform?: (url: string) => string;
 }) {
   const qc = useQueryClient();
   const [uploading, setUploading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const preview = () => (props.transform ? props.transform(props.value) : props.value);
+  // The preview box is max-height 160px, so that is what gets requested — not
+  // the master. Defaulting rather than requiring the prop: this seam existed and
+  // named `cfImage` in its own doc comment, and no caller ever passed one.
+  const preview = () => (props.transform ?? ((url: string) => thumb(url, 160)))(props.value);
 
   const onUpload = async (e: Event & { currentTarget: HTMLInputElement }) => {
     const input = e.currentTarget;

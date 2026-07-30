@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  calculateOrder,
   centsToMajor,
+  createCatalogImage,
   createInvoice,
+  createLocation,
   createOrder,
   createTeamMember,
   createTimecard,
@@ -10,9 +13,11 @@ import {
   mapCatalogItem,
   presentAt,
   priceAtLocation,
+  readModifyWriteCatalog,
   publishInvoice,
   retrieveLocation,
   retrieveVariationPricesAt,
+  updateLocation,
   searchOrders,
   setPhysicalCount,
   updateTimecard,
@@ -288,6 +293,261 @@ describe("upsertCatalogItem", () => {
     expect(calls[0]?.body).toMatchObject({
       object: { id: "ITEM1", version: 7, item_data: { variations: [{ id: "VAR1", version: 3 }] } },
     });
+  });
+
+  it("refuses a variation sold where its parent item is not", async () => {
+    // Square accepts this and produces a silent partial state: the item renders
+    // at L2 with no purchasable variation under it.
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        presence: { presentAtLocationIds: ["L1"] },
+        variations: [
+          { name: "12 oz", priceCents: 2000, presence: { presentAtLocationIds: ["L1", "L2"] } },
+        ],
+      }),
+    ).rejects.toThrow(/present at L2, where its parent item is not/);
+    // Thrown before the write, not after a 400.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("allows any variation locations when the item is present everywhere", async () => {
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      presence: { presentAtAllLocations: true },
+      variations: [{ name: "12 oz", priceCents: 2000, presence: { presentAtLocationIds: ["L9"] } }],
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses more than 250 variations, the cap a per-merchant design hits first", async () => {
+    const calls = stubFetch({ catalog_object: { id: "x", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        variations: Array.from({ length: 251 }, (_, i) => ({
+          name: `v${i}`,
+          priceCents: 100,
+        })),
+      }),
+    ).rejects.toThrow(/251 variations, over Square's cap of 250/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("catalog images and categories", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("writes image ids and categories onto the item", async () => {
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      variations: [{ name: "12 oz", priceCents: 2000 }],
+      imageIds: ["IMG1", "IMG2"],
+      categoryIds: ["CAT_COFFEE", "CAT_GIFTS"],
+      reportingCategoryId: "CAT_COFFEE",
+    });
+    const body = calls[0]?.body as { object: { item_data: Record<string, unknown> } };
+    expect(body.object.item_data.image_ids).toEqual(["IMG1", "IMG2"]);
+    expect(body.object.item_data.categories).toEqual([{ id: "CAT_COFFEE" }, { id: "CAT_GIFTS" }]);
+    expect(body.object.item_data.reporting_category).toEqual({ id: "CAT_COFFEE" });
+  });
+
+  it("omits the keys entirely when unset, so a price update can't strip imagery", async () => {
+    // An absent key means "leave it alone"; sending [] would clear it.
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await upsertCatalogItem(CONFIG, {
+      name: "Harbor Blend",
+      variations: [{ name: "12 oz", priceCents: 2000 }],
+    });
+    const data = (calls[0]?.body as { object: { item_data: Record<string, unknown> } }).object
+      .item_data;
+    expect(data).not.toHaveProperty("image_ids");
+    expect(data).not.toHaveProperty("categories");
+    expect(data).not.toHaveProperty("reporting_category");
+  });
+
+  it("refuses a reporting category the item is not in", async () => {
+    // Square reports against it regardless, so the item silently vanishes from
+    // the sales breakdown while looking right in the dashboard.
+    const calls = stubFetch({ catalog_object: { id: "ITEM1", type: "ITEM" } });
+    await expect(
+      upsertCatalogItem(CONFIG, {
+        name: "Harbor Blend",
+        variations: [{ name: "12 oz", priceCents: 2000 }],
+        categoryIds: ["CAT_GIFTS"],
+        reportingCategoryId: "CAT_COFFEE",
+      }),
+    ).rejects.toThrow(/not in categoryIds/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("uploads an image as multipart and returns its id", async () => {
+    const captured: { headers?: Headers; body?: unknown } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured.headers = new Headers(init.headers);
+        captured.body = init.body;
+        return new Response(
+          JSON.stringify({
+            image: { id: "IMG1", type: "IMAGE", image_data: { url: "https://cdn/1.jpg" } },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+
+    const image = await createCatalogImage(CONFIG, {
+      file: new Blob(["bytes"], { type: "image/jpeg" }),
+      filename: "harbor.jpg",
+      caption: "A bag of Harbor Blend",
+    });
+
+    expect(image).toEqual({
+      id: "IMG1",
+      url: "https://cdn/1.jpg",
+      caption: "A bag of Harbor Blend",
+    });
+    expect(captured.body).toBeInstanceOf(FormData);
+    // Critical: we must NOT set content-type. fetch derives it from the
+    // FormData along with the boundary, and a hand-set one breaks the upload in
+    // a way that surfaces as a Square-side rejection.
+    expect(captured.headers?.get("content-type")).toBeNull();
+    expect(captured.headers?.get("square-version")).toBeTruthy();
+
+    const form = captured.body as FormData;
+    expect(JSON.parse(String(form.get("request")))).toMatchObject({
+      image: { type: "IMAGE", id: "#image", image_data: { caption: "A bag of Harbor Blend" } },
+    });
+    expect(form.get("image_file")).toBeInstanceOf(Blob);
+  });
+
+  it("attaches to an existing object when given one", async () => {
+    const captured: { form?: FormData } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured.form = init.body as FormData;
+        return new Response(JSON.stringify({ image: { id: "IMG1", type: "IMAGE" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    await createCatalogImage(CONFIG, {
+      file: new Blob(["b"], { type: "image/png" }),
+      objectId: "ITEM1",
+    });
+    expect(JSON.parse(String(captured.form?.get("request")))).toMatchObject({ object_id: "ITEM1" });
+  });
+});
+
+describe("readModifyWriteCatalog", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A variation carrying fields this client does not model, which is the point. */
+  const stored = {
+    id: "VAR1",
+    type: "ITEM_VARIATION",
+    version: 42,
+    present_at_all_locations: false,
+    present_at_location_ids: ["L1", "L2"],
+    item_variation_data: {
+      item_id: "ITEM1",
+      name: "12 oz",
+      sku: "HB-12",
+      pricing_type: "FIXED_PRICING",
+      price_money: { amount: 2000, currency: "USD" },
+      location_overrides: [
+        {
+          location_id: "L2",
+          price_money: { amount: 1800, currency: "USD" },
+          track_inventory: true,
+        },
+      ],
+      // A field introduced after this client's pinned Square-Version would look
+      // exactly like this: unknown to us, meaningful to the seller.
+      measurement_unit_id: "MU_GRAMS",
+    },
+  };
+
+  function stubReadWrite() {
+    const calls: { url: string; method: string; body: unknown }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({
+          url,
+          method: String(init.method ?? "GET"),
+          body: init.body ? JSON.parse(String(init.body)) : null,
+        });
+        const json = calls.length === 1 ? { object: stored } : { catalog_object: stored };
+        return new Response(JSON.stringify(json), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    return calls;
+  }
+
+  it("round-trips every field, including ones it does not model", async () => {
+    // The failure this guards is silent by definition — a dropped field reads as
+    // an intentional clear — so it needs an explicit diff, not a spot check.
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => {
+      const data = object.item_variation_data as Record<string, unknown>;
+      data.price_money = { amount: 2200, currency: "USD" };
+    });
+
+    const written = (calls[1]?.body as { object: typeof stored }).object;
+    expect(written).toEqual({
+      ...stored,
+      item_variation_data: {
+        ...stored.item_variation_data,
+        price_money: { amount: 2200, currency: "USD" },
+      },
+    });
+    // Named explicitly: these are what a rebuild-from-parts helper would drop.
+    const data = written.item_variation_data as Record<string, unknown>;
+    expect(data.location_overrides).toEqual(stored.item_variation_data.location_overrides);
+    expect(data.measurement_unit_id).toBe("MU_GRAMS");
+    expect(written.present_at_location_ids).toEqual(["L1", "L2"]);
+  });
+
+  it("writes back the version it read, so a concurrent write loses rather than clobbers", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => {
+      // A caller trying to force a version cannot: the read's wins.
+      object.version = 1;
+    });
+    expect((calls[1]?.body as { object: { version: number } }).object.version).toBe(42);
+  });
+
+  it("reads then writes, pinning the same Square-Version on both", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", () => {});
+    expect(calls[0]?.method).toBe("GET");
+    expect(calls[0]?.url).toContain("/v2/catalog/object/VAR1");
+    expect(calls[1]?.method).toBe("POST");
+    expect(calls[1]?.url).toContain("/v2/catalog/object");
+  });
+
+  it("accepts a replacement object returned from the mutator", async () => {
+    const calls = stubReadWrite();
+    await readModifyWriteCatalog(CONFIG, "VAR1", (object) => ({ ...object, custom_attribute: 1 }));
+    expect((calls[1]?.body as { object: Record<string, unknown> }).object.custom_attribute).toBe(1);
+  });
+
+  it("throws when the object is gone, rather than writing a fresh one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
+    await expect(readModifyWriteCatalog(CONFIG, "GONE", () => {})).rejects.toThrow(/not found/);
   });
 });
 
@@ -711,6 +971,60 @@ describe("listLocations / retrieveLocation", () => {
   });
 });
 
+describe("createLocation / updateLocation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs a structured address, not the joined line it reads back", async () => {
+    const calls = stubFetch({ location: { id: "L9", name: "Studio", currency: "USD" } });
+    const loc = await createLocation(CONFIG, {
+      name: "Studio",
+      businessName: "Midwest Artist",
+      timezone: "America/Chicago",
+      address: {
+        line1: "9 Elm",
+        locality: "Ames",
+        region: "IA",
+        postalCode: "50010",
+        country: "US",
+      },
+    });
+
+    expect(calls[0]?.url).toBe("https://connect.squareupsandbox.com/v2/locations");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toEqual({
+      location: {
+        name: "Studio",
+        business_name: "Midwest Artist",
+        timezone: "America/Chicago",
+        address: {
+          address_line_1: "9 Elm",
+          locality: "Ames",
+          administrative_district_level_1: "IA",
+          postal_code: "50010",
+          country: "US",
+        },
+      },
+    });
+    expect(loc.id).toBe("L9");
+  });
+
+  it("sends no currency — it belongs to the account, not the location", async () => {
+    const calls = stubFetch({ location: { id: "L9", name: "Studio" } });
+    await createLocation(CONFIG, { name: "Studio" });
+    expect(JSON.stringify(calls[0]?.body)).not.toContain("currency");
+  });
+
+  it("PUTs sparsely, so an omitted field is never cleared", async () => {
+    const calls = stubFetch({ location: { id: "L1", name: "Renamed" } });
+    await updateLocation(CONFIG, "L1", { name: "Renamed" });
+    expect(calls[0]?.method).toBe("PUT");
+    expect(calls[0]?.url).toContain("/v2/locations/L1");
+    // Only the name — no address key at all, which is what keeps the existing
+    // address intact rather than replaced with an empty object.
+    expect(calls[0]?.body).toEqual({ location: { name: "Renamed" } });
+  });
+});
+
 describe("setPhysicalCount", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -780,6 +1094,101 @@ describe("searchOrders", () => {
     const orders = await searchOrders(CONFIG, { locationIds: ["L1"] });
     expect(orders.map((o) => o.id)).toEqual(["o1", "o2"]);
     expect(call).toBe(2);
+  });
+
+  // Square caps `location_ids` at 10 per call. Passing 11 is a 400 — from the
+  // exact multi-location account this endpoint exists to report on.
+  it("chunks locationIds at 10, Square's hard ceiling", async () => {
+    const calls = stubFetch({ orders: [] });
+    const ids = Array.from({ length: 23 }, (_, i) => `L${i + 1}`);
+    await searchOrders(CONFIG, { locationIds: ids });
+
+    expect(calls).toHaveLength(3);
+    const sent = calls.map((c) => (c.body as { location_ids: string[] }).location_ids);
+    expect(sent.map((s) => s.length)).toEqual([10, 10, 3]);
+    // Every location searched exactly once, none dropped.
+    expect(sent.flat()).toEqual(ids);
+  });
+
+  it("re-sorts across chunks, so the merged result is still ordered", async () => {
+    // Each chunk comes back sorted within itself; concatenating them is not.
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call++;
+        const orders =
+          call === 1
+            ? [{ id: "old", closed_at: "2026-01-01T00:00:00Z" }]
+            : [{ id: "new", closed_at: "2026-06-01T00:00:00Z" }];
+        return new Response(JSON.stringify({ orders }), { status: 200 });
+      }),
+    );
+    const ids = Array.from({ length: 11 }, (_, i) => `L${i + 1}`);
+    const orders = await searchOrders(CONFIG, { locationIds: ids });
+    // DESC by closedAt, the default — newest first regardless of which chunk.
+    expect(orders.map((o) => o.id)).toEqual(["new", "old"]);
+  });
+
+  it("refuses an empty location list rather than asking Square to reject it", async () => {
+    const calls = stubFetch({ orders: [] });
+    await expect(searchOrders(CONFIG, { locationIds: [] })).rejects.toThrow(
+      /at least one location/i,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("maps closedAt and updatedAt, the axes it lets you sort on", async () => {
+    stubFetch({
+      orders: [
+        {
+          id: "o1",
+          closed_at: "2026-06-01T00:00:00Z",
+          updated_at: "2026-06-02T00:00:00Z",
+        },
+      ],
+    });
+    const [order] = await searchOrders(CONFIG, { locationIds: ["L1"] });
+    expect(order.closedAt).toBe("2026-06-01T00:00:00Z");
+    expect(order.updatedAt).toBe("2026-06-02T00:00:00Z");
+  });
+});
+
+describe("calculateOrder", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("prices a cart without creating an order", async () => {
+    const calls = stubFetch({ order: { id: "preview", total_money: { amount: 2400 } } });
+    const order = await calculateOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 2 }],
+    });
+
+    expect(calls[0].url).toContain("/v2/orders/calculate");
+    // No idempotency key: nothing is persisted, so there is nothing to dedupe.
+    expect(calls[0].body).toEqual({
+      order: {
+        location_id: "L1",
+        customer_id: undefined,
+        line_items: [{ catalog_object_id: "VAR1", quantity: "2" }],
+      },
+    });
+    expect(order.totalMoney).toEqual({ amount: 2400, currency: "USD" });
+  });
+
+  it("shares the line-item shape with createOrder, so the preview can't drift", async () => {
+    const calls = stubFetch({ order: { id: "preview" } });
+    await calculateOrder(CONFIG, {
+      locationId: "L1",
+      // An ad-hoc item must carry its own price; a catalog-backed one must not.
+      lineItems: [{ name: "Tip", priceCents: 500, quantity: 1 }],
+    });
+    const body = calls[0].body as { order: { line_items: Record<string, unknown>[] } };
+    expect(body.order.line_items[0]).toEqual({
+      name: "Tip",
+      quantity: "1",
+      base_price_money: { amount: 500, currency: "USD" },
+    });
   });
 });
 

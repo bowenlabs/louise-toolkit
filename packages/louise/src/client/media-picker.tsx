@@ -10,6 +10,7 @@
 
 import { createSignal, For, Show } from "solid-js";
 import { Icon } from "./icons.jsx";
+import { thumb } from "./thumb.js";
 
 interface MediaListItem {
   key: string;
@@ -68,7 +69,8 @@ export function MediaPicker(props: { onPick: (url: string) => void; label?: stri
                       setOpen(false);
                     }}
                   >
-                    <img src={item.url} alt="" loading="lazy" />
+                    {/* 72px grid tile (.louise-media-pick-grid). */}
+                    <img src={thumb(item.url, 72)} alt="" loading="lazy" decoding="async" />
                   </button>
                 )}
               </For>

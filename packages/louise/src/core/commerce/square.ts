@@ -65,6 +65,16 @@ function headers(config: SquareConfig): HeadersInit {
   };
 }
 
+/** Same headers minus `content-type`: `fetch` derives it from the FormData,
+ *  including the multipart boundary, which we cannot compute ourselves. */
+function multipartHeaders(config: SquareConfig): HeadersInit {
+  return {
+    authorization: `Bearer ${config.accessToken}`,
+    accept: "application/json",
+    "square-version": config.version ?? SQUARE_VERSION,
+  };
+}
+
 interface SquareErrorBody {
   errors?: { code?: string; detail?: string; category?: string }[];
 }
@@ -104,7 +114,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function sqFetch<T>(
   config: SquareConfig,
   path: string,
-  init: { method: string; body?: unknown },
+  init: { method: string; body?: unknown; formData?: FormData },
 ): Promise<T> {
   const retry = config.retry;
   const attempts = Math.max(0, retry?.attempts ?? (retry ? 2 : 0));
@@ -117,8 +127,12 @@ async function sqFetch<T>(
     try {
       res = await fetch(`${host(config)}${path}`, {
         method: init.method,
-        headers: headers(config),
-        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        headers: init.formData ? multipartHeaders(config) : headers(config),
+        ...(init.formData
+          ? { body: init.formData }
+          : init.body === undefined
+            ? {}
+            : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
       // Network-level failure (DNS, connection reset) — retryable in the same
@@ -251,6 +265,94 @@ export async function retrieveLocation(
     if (err instanceof Error && / 404: /.test(err.message)) return null;
     throw err;
   }
+}
+
+/** A location's editable fields. Structured, not the formatted single line
+ *  {@link SquareLocation} reads back — Square needs the parts. */
+export interface SquareLocationInput {
+  name: string;
+  businessName?: string;
+  timezone?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    /** City. */
+    locality?: string;
+    /** State / province. */
+    region?: string;
+    postalCode?: string;
+    /** ISO 3166-1 alpha-2, e.g. "US". */
+    country?: string;
+  };
+}
+
+function locationBody(input: Partial<SquareLocationInput>) {
+  const a = input.address;
+  return {
+    ...(input.name != null ? { name: input.name } : {}),
+    ...(input.businessName != null ? { business_name: input.businessName } : {}),
+    ...(input.timezone != null ? { timezone: input.timezone } : {}),
+    ...(a
+      ? {
+          address: {
+            ...(a.line1 != null ? { address_line_1: a.line1 } : {}),
+            ...(a.line2 != null ? { address_line_2: a.line2 } : {}),
+            ...(a.locality != null ? { locality: a.locality } : {}),
+            ...(a.region != null ? { administrative_district_level_1: a.region } : {}),
+            ...(a.postalCode != null ? { postal_code: a.postalCode } : {}),
+            ...(a.country != null ? { country: a.country } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * Create a location. POST /v2/locations. The onboarding call — a new merchant
+ * joining a multi-location deploy needs one before anything can be sold there.
+ *
+ * **Currency is not settable and is not per-request.** Square derives it from
+ * the seller account, so every location under one account shares it: an account
+ * cannot mix USD and CAD. If a merchant needs a different currency they need a
+ * different Square account, which is an onboarding constraint rather than a code
+ * one — worth knowing before designing around it.
+ *
+ * The cap is 300 locations per account, including deactivated ones.
+ */
+export async function createLocation(
+  config: SquareConfig,
+  input: SquareLocationInput,
+): Promise<SquareLocation> {
+  const res = await sqPost<{ location?: RawLocation }>(config, "/v2/locations", {
+    location: locationBody(input),
+  });
+  if (!res.location) throw new Error("Square location creation returned no location");
+  return mapLocation(res.location);
+}
+
+/**
+ * Update a location. PUT /v2/locations/{id}.
+ *
+ * Sparse: only the fields you pass are sent, so this never clears a field by
+ * omission — which matters because `address` is a nested object Square replaces
+ * wholesale. Passing a partial address replaces the whole address with that
+ * partial, so read first if you mean to change one line of it.
+ *
+ * A location cannot be deleted, only deactivated — set `status` through the
+ * Square dashboard; the API does not expose it here.
+ */
+export async function updateLocation(
+  config: SquareConfig,
+  locationId: string,
+  input: Partial<SquareLocationInput>,
+): Promise<SquareLocation> {
+  const res = await sqPut<{ location?: RawLocation }>(
+    config,
+    `/v2/locations/${encodeURIComponent(locationId)}`,
+    { location: locationBody(input) },
+  );
+  if (!res.location) throw new Error(`Square location ${locationId} update returned none`);
+  return mapLocation(res.location);
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -800,6 +902,77 @@ export interface CatalogVariationInput {
   presence?: Partial<SquarePresence>;
 }
 
+/**
+ * Square's cap on ITEM_VARIATIONs under one ITEM. Asserted rather than
+ * discovered: it is the ceiling a per-merchant-variation design hits first, and
+ * the alternative is a 400 partway through a catalog push.
+ */
+const MAX_VARIATIONS_PER_ITEM = 250;
+
+/**
+ * Square's rule: a variation may only be present where its parent item is.
+ *
+ * Violating it does not error — it produces a silent partial state where the
+ * item renders at a location with no purchasable variation under it. That is
+ * miserable to debug in the wild and trivial to catch here, so this throws
+ * before the write rather than after.
+ *
+ * Only checked when the item declares an explicit location set. `presentAtAllLocations`
+ * (the default) makes any variation set a subset by definition.
+ */
+function assertVariationPresence(
+  itemPresence: Partial<SquarePresence> | undefined,
+  variations: { name: string; presence?: Partial<SquarePresence> }[],
+): void {
+  const itemLocations = itemPresence?.presentAtLocationIds;
+  if (!itemLocations || itemPresence?.presentAtAllLocations) return;
+  const allowed = new Set(itemLocations);
+  for (const variation of variations) {
+    const stray = (variation.presence?.presentAtLocationIds ?? []).filter((id) => !allowed.has(id));
+    if (stray.length > 0) {
+      throw new Error(
+        `Square catalog write: variation "${variation.name}" is present at ${stray.join(", ")}, ` +
+          `where its parent item is not. A variation's locations must be a subset of its item's.`,
+      );
+    }
+  }
+}
+
+/** Both write-path guards, in the order a caller hits them. */
+function assertWritableItem(input: {
+  name: string;
+  presence?: Partial<SquarePresence>;
+  variations: { name: string; presence?: Partial<SquarePresence> }[];
+}): void {
+  if (input.variations.length > MAX_VARIATIONS_PER_ITEM) {
+    throw new Error(
+      `Square catalog write: item "${input.name}" has ${input.variations.length} variations, ` +
+        `over Square's cap of ${MAX_VARIATIONS_PER_ITEM}.`,
+    );
+  }
+  assertVariationPresence(input.presence, input.variations);
+}
+
+/**
+ * Serialize images and taxonomy for a write, omitting what the caller didn't
+ * set. Same reasoning as {@link presenceBody}: an absent key means "leave it
+ * alone", while an empty array means "clear it" — and sending `[]` by default
+ * would strip every item's imagery on the first price update.
+ */
+function presentationBody(input: CatalogPresentationInput) {
+  if (input.reportingCategoryId && !input.categoryIds?.includes(input.reportingCategoryId)) {
+    throw new Error(
+      `Square catalog write: reportingCategoryId ${input.reportingCategoryId} is not in categoryIds. ` +
+        "Square reports against a category the item belongs to; add it, or the item goes missing from sales breakdowns.",
+    );
+  }
+  return {
+    ...(input.imageIds ? { image_ids: input.imageIds } : {}),
+    ...(input.categoryIds ? { categories: input.categoryIds.map((id) => ({ id })) } : {}),
+    ...(input.reportingCategoryId ? { reporting_category: { id: input.reportingCategoryId } } : {}),
+  };
+}
+
 /** Serialize presence for a write, omitting the keys the caller didn't set so we
  *  never overwrite Square-side presence with an accidental default. */
 function presenceBody(presence: Partial<SquarePresence> | undefined) {
@@ -850,7 +1023,7 @@ function overridesBody(overrides: CatalogVariationInput["locationOverrides"]) {
  */
 export async function upsertCatalogItem(
   config: SquareConfig,
-  input: {
+  input: CatalogPresentationInput & {
     id?: string;
     name: string;
     description?: string;
@@ -862,6 +1035,7 @@ export async function upsertCatalogItem(
     idempotencyKey?: string;
   },
 ): Promise<{ item: SquareCatalogItem; idMappings: Record<string, string> }> {
+  assertWritableItem(input);
   const itemId = input.id ?? "#item";
   const res = await sqPost<{
     catalog_object?: RawCatalogObject;
@@ -876,6 +1050,7 @@ export async function upsertCatalogItem(
       item_data: {
         name: input.name,
         description: input.description,
+        ...presentationBody(input),
         variations: input.variations.map((v, i) => ({
           type: "ITEM_VARIATION",
           id: v.id ?? v.clientId ?? `#var-${i}`,
@@ -901,8 +1076,29 @@ export async function upsertCatalogItem(
   return { item: mapCatalogItem(res.catalog_object, new Map()), idMappings };
 }
 
+/** Taxonomy and imagery on a catalog write — the "same picture and category
+ *  everywhere" half of a multi-merchant push. */
+export interface CatalogPresentationInput {
+  /**
+   * Existing IMAGE object ids, in display order — the first is the primary.
+   * Upload with {@link createCatalogImage} to get one; there is no way to attach
+   * raw bytes through this call.
+   */
+  imageIds?: string[];
+  /** CATEGORY object ids this item belongs to. */
+  categoryIds?: string[];
+  /**
+   * The single category Square attributes this item to in its own sales
+   * reports. Must also appear in `categoryIds` — Square derives one from the
+   * other inconsistently otherwise, and a reporting category the item isn't in
+   * is how a product goes missing from a sales breakdown while looking correct
+   * in the dashboard.
+   */
+  reportingCategoryId?: string;
+}
+
 /** One ITEM in a {@link batchUpsertCatalogObjects} call. */
-export interface CatalogItemInput {
+export interface CatalogItemInput extends CatalogPresentationInput {
   id?: string;
   /** Stable client key echoed back in `idMappings` for a NEW item. */
   clientId?: string;
@@ -931,6 +1127,7 @@ export async function batchUpsertCatalogObjects(
   options?: { idempotencyKey?: string },
 ): Promise<{ idMappings: Record<string, string>; objects: SquareCatalogItem[] }> {
   const objects = items.map((item, i) => {
+    assertWritableItem(item);
     const itemId = item.id ?? item.clientId ?? `#item-${i}`;
     return {
       type: "ITEM",
@@ -940,6 +1137,7 @@ export async function batchUpsertCatalogObjects(
       item_data: {
         name: item.name,
         description: item.description,
+        ...presentationBody(item),
         variations: item.variations.map((v, j) => ({
           type: "ITEM_VARIATION",
           id: v.id ?? v.clientId ?? `#var-${i}-${j}`,
@@ -984,6 +1182,146 @@ export async function batchUpsertCatalogObjects(
       .filter((o) => o.type === "ITEM")
       .map((o) => mapCatalogItem(o, images)),
   };
+}
+
+/** An uploaded catalog IMAGE. `url` is Square's CDN copy, not the source. */
+export interface SquareCatalogImage {
+  id: string;
+  url: string | null;
+  caption: string | null;
+}
+
+/**
+ * Upload an image and get back a catalog IMAGE object. POST /v2/catalog/images.
+ *
+ * The only way to get an id for {@link CatalogPresentationInput.imageIds} — the
+ * catalog write takes ids, never bytes, so this runs first and its `id` feeds
+ * the upsert.
+ *
+ * Multipart, and deliberately not built on the JSON verbs: `content-type` must
+ * carry the boundary `fetch` generates, so setting it by hand breaks the upload
+ * in a way that reads as a Square-side rejection.
+ *
+ * Pass `objectId` to attach the image to an existing ITEM in one call. Omit it
+ * to create a free-standing image and attach it via a later write — which is
+ * what you want when pushing many items that share one picture, since uploading
+ * the same bytes per item bills and stores per item.
+ *
+ * `caption` is the accessibility text Square renders; worth setting.
+ */
+export async function createCatalogImage(
+  config: SquareConfig,
+  input: {
+    /** The bytes. A `File` carries its own name and type; a `Blob` needs `filename`. */
+    file: Blob;
+    filename?: string;
+    caption?: string;
+    /** Attach to this catalog object as part of the upload. */
+    objectId?: string;
+    idempotencyKey?: string;
+  },
+): Promise<SquareCatalogImage> {
+  const form = new FormData();
+  form.append(
+    "request",
+    JSON.stringify({
+      idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
+      ...(input.objectId ? { object_id: input.objectId } : {}),
+      image: {
+        type: "IMAGE",
+        id: "#image",
+        image_data: { caption: input.caption },
+      },
+    }),
+  );
+  form.append("image_file", input.file, input.filename ?? "image");
+
+  const res = await sqFetch<{ image?: RawCatalogObject }>(config, "/v2/catalog/images", {
+    method: "POST",
+    formData: form,
+  });
+  if (!res.image) throw new Error("Square catalog image upload returned no image");
+  return {
+    id: res.image.id,
+    url: res.image.image_data?.url ?? null,
+    caption: input.caption ?? null,
+  };
+}
+
+/**
+ * A catalog object exactly as Square returned it.
+ *
+ * Deliberately open — an index signature, not a modelled interface. The whole
+ * point of {@link readModifyWriteCatalog} is that fields this client does not
+ * know about survive the round trip, and a closed type would invite callers to
+ * rebuild the object from the parts it names, which is the bug being prevented.
+ */
+export type SquareCatalogObject = {
+  id: string;
+  type: string;
+  version?: number;
+  [key: string]: unknown;
+};
+
+/**
+ * Read a catalog object, mutate it, and write it back without losing anything.
+ *
+ * Square documents this failure verbatim: *"If a client reads an object at an
+ * older API version and writes it back at a newer version, fields that were
+ * introduced between those two versions will be absent from the request, and the
+ * server will interpret that absence"* — as an intentional clear. The same hazard
+ * applies to any read-modify-write that reconstructs the object from the fields
+ * it happens to model: whatever it didn't model is silently erased.
+ *
+ * So this never rebuilds. It reads the raw object, hands that object to
+ * `mutate`, and writes back what it got — with the version Square returned (for
+ * optimistic concurrency) and the same pinned `Square-Version` on both calls,
+ * which is what makes the round trip symmetrical.
+ *
+ * ```ts
+ * await readModifyWriteCatalog(config, "VAR123", (object) => {
+ *   const data = object.item_variation_data as Record<string, unknown>;
+ *   data.price_money = { amount: 1800, currency: "USD" };
+ * });
+ * ```
+ *
+ * `mutate` may edit in place or return a replacement. Returning `null` or
+ * `undefined` from an in-place edit is normal — only a returned object replaces.
+ *
+ * Prefer {@link upsertCatalogItem} when creating or wholesale-replacing an item;
+ * this is for touching one field of something that already exists, which is
+ * exactly when accidental erasure is most likely and least visible.
+ */
+export async function readModifyWriteCatalog(
+  config: SquareConfig,
+  objectId: string,
+  mutate: (
+    object: SquareCatalogObject,
+  ) => SquareCatalogObject | void | Promise<SquareCatalogObject | void>,
+  options?: { idempotencyKey?: string },
+): Promise<SquareCatalogObject> {
+  const read = await sqGet<{ object?: SquareCatalogObject }>(
+    config,
+    `/v2/catalog/object/${encodeURIComponent(objectId)}`,
+  );
+  if (!read.object) throw new Error(`Square catalog object ${objectId} not found`);
+
+  // Captured BEFORE the mutator runs: it edits in place, so reading this
+  // afterwards would read whatever the mutator left there. The version must be
+  // the one THIS read returned — that is the whole optimistic-concurrency
+  // contract. A concurrent write bumps it and Square rejects ours rather than
+  // silently overwriting someone else's change.
+  const version = read.object.version;
+  const mutated = (await mutate(read.object)) ?? read.object;
+  const object = { ...mutated, version };
+
+  const write = await sqPost<{ catalog_object?: SquareCatalogObject }>(
+    config,
+    "/v2/catalog/object",
+    { idempotency_key: options?.idempotencyKey ?? crypto.randomUUID(), object },
+  );
+  if (!write.catalog_object) throw new Error(`Square catalog write for ${objectId} returned none`);
+  return write.catalog_object;
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────
@@ -1144,6 +1482,9 @@ export interface SquareOrder {
   referenceId: string | null;
   customerId: string | null;
   createdAt: string | null;
+  /** When money settled — the accounting axis, and null until an order closes. */
+  closedAt: string | null;
+  updatedAt: string | null;
   lineItems: {
     name: string;
     quantity: string;
@@ -1159,6 +1500,8 @@ interface RawOrder {
   reference_id?: string;
   customer_id?: string;
   created_at?: string;
+  closed_at?: string;
+  updated_at?: string;
   total_money?: { amount?: number; currency?: string };
   total_tax_money?: { amount?: number; currency?: string };
   line_items?: {
@@ -1183,6 +1526,8 @@ function mapOrder(o: RawOrder): SquareOrder {
     referenceId: o.reference_id ?? null,
     customerId: o.customer_id ?? null,
     createdAt: o.created_at ?? null,
+    closedAt: o.closed_at ?? null,
+    updatedAt: o.updated_at ?? null,
     lineItems: (o.line_items ?? []).map((li) => ({
       name: li.name ?? "",
       quantity: li.quantity ?? "0",
@@ -1244,6 +1589,40 @@ export async function retrieveOrder(config: SquareConfig, orderId: string): Prom
 }
 
 /**
+ * Square's hard ceiling on `location_ids` in one `/v2/orders/search` call.
+ * Documented, not discovered: an 11th id is a 400, not a truncation.
+ */
+const SEARCH_ORDERS_LOCATION_LIMIT = 10;
+
+function chunkLocationIds(ids: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += SEARCH_ORDERS_LOCATION_LIMIT) {
+    chunks.push(ids.slice(i, i + SEARCH_ORDERS_LOCATION_LIMIT));
+  }
+  return chunks;
+}
+
+/** Re-establish a global order over results Square only sorted per response. */
+function sortOrdersBy(
+  orders: SquareOrder[],
+  dateField: "closedAt" | "createdAt" | "updatedAt",
+  sortOrder: "ASC" | "DESC",
+): SquareOrder[] {
+  const direction = sortOrder === "ASC" ? 1 : -1;
+  return [...orders].sort((a, b) => {
+    const x = a[dateField];
+    const y = b[dateField];
+    // Nulls last in both directions — an order with no timestamp on the axis
+    // you asked about (an OPEN order has no `closed_at`) is not the newest
+    // thing that happened, which is where it would land unguarded.
+    if (x === y) return 0;
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return x < y ? -direction : direction;
+  });
+}
+
+/**
  * Search orders for a customer (account order history). Returns full orders,
  * newest first. POST /v2/orders/search.
  */
@@ -1251,16 +1630,29 @@ export async function searchOrdersByCustomer(
   config: SquareConfig,
   input: { locationIds: string[]; customerId: string; limit?: number },
 ): Promise<SquareOrder[]> {
-  const res = await sqPost<{ orders?: RawOrder[] }>(config, "/v2/orders/search", {
-    location_ids: input.locationIds,
-    return_entries: false,
-    limit: input.limit ?? 50,
-    query: {
-      filter: { customer_filter: { customer_ids: [input.customerId] } },
-      sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
-    },
-  });
-  return (res.orders ?? []).map(mapOrder);
+  const limit = input.limit ?? 50;
+  const orders: SquareOrder[] = [];
+  // Same endpoint, same 10-location ceiling. It bites later here than in
+  // `searchOrders` — an account history is usually asked for one location at a
+  // time — but a multi-location portal asking "everywhere she's shopped" is
+  // exactly the request that trips it.
+  for (const locationIds of chunkLocationIds(input.locationIds)) {
+    const res = await sqPost<{ orders?: RawOrder[] }>(config, "/v2/orders/search", {
+      location_ids: locationIds,
+      return_entries: false,
+      limit,
+      query: {
+        filter: { customer_filter: { customer_ids: [input.customerId] } },
+        sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
+      },
+    });
+    orders.push(...(res.orders ?? []).map(mapOrder));
+  }
+  // `limit` is per request, so N chunks can return N×limit. Re-sort and trim so
+  // the caller gets the newest `limit` orders overall, which is what they asked
+  // for — not the newest `limit` from each arbitrary group of ten.
+  if (input.locationIds.length <= SEARCH_ORDERS_LOCATION_LIMIT) return orders;
+  return sortOrdersBy(orders, "createdAt", "DESC").slice(0, limit);
 }
 
 /**
@@ -1291,10 +1683,17 @@ export async function searchOrders(
     sortOrder?: "ASC" | "DESC";
     /** Page size (Square caps at 1000). Defaults to 500. */
     limit?: number;
-    /** Safety bound on cursor pages. Defaults to 20. */
+    /** Safety bound on cursor pages, applied PER location chunk. Defaults to 20. */
     maxPages?: number;
   },
 ): Promise<SquareOrder[]> {
+  // An empty list would be a caller bug that Square answers with a 400 and a
+  // message about `location_ids`, several layers from where it was introduced.
+  // Refusing here names it. (Not returning [] — a reporting call that silently
+  // yields no rows reads as "no sales", which is worse than an error.)
+  if (input.locationIds.length === 0) {
+    throw new Error("Square searchOrders needs at least one location id");
+  }
   const states = input.states ?? ["COMPLETED"];
   const sortField = (
     { closedAt: "CLOSED_AT", createdAt: "CREATED_AT", updatedAt: "UPDATED_AT" } as const
@@ -1314,31 +1713,69 @@ export async function searchOrders(
       : undefined;
 
   const orders: SquareOrder[] = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < (input.maxPages ?? 20); page++) {
-    const res = await sqPost<{ orders?: RawOrder[]; cursor?: string }>(
-      config,
-      "/v2/orders/search",
-      {
-        location_ids: input.locationIds,
-        return_entries: false,
-        limit: input.limit ?? 500,
-        ...(cursor ? { cursor } : {}),
-        query: {
-          filter: {
-            ...(states.length ? { state_filter: { states } } : {}),
-            ...(range ? { date_time_filter: range } : {}),
+  // Sequentially, not in parallel: a 300-location account is 30 searches, and
+  // firing them at once is the surest way to meet the 429 this client only
+  // retries when asked to.
+  for (const locationIds of chunkLocationIds(input.locationIds)) {
+    let cursor: string | undefined;
+    for (let page = 0; page < (input.maxPages ?? 20); page++) {
+      const res = await sqPost<{ orders?: RawOrder[]; cursor?: string }>(
+        config,
+        "/v2/orders/search",
+        {
+          location_ids: locationIds,
+          return_entries: false,
+          limit: input.limit ?? 500,
+          ...(cursor ? { cursor } : {}),
+          query: {
+            filter: {
+              ...(states.length ? { state_filter: { states } } : {}),
+              ...(range ? { date_time_filter: range } : {}),
+            },
+            // Square requires the sort field to match the date filter's field.
+            sort: { sort_field: sortField, sort_order: input.sortOrder ?? "DESC" },
           },
-          // Square requires the sort field to match the date filter's field.
-          sort: { sort_field: sortField, sort_order: input.sortOrder ?? "DESC" },
         },
-      },
-    );
-    orders.push(...(res.orders ?? []).map(mapOrder));
-    cursor = res.cursor;
-    if (!cursor) break;
+      );
+      orders.push(...(res.orders ?? []).map(mapOrder));
+      cursor = res.cursor;
+      if (!cursor) break;
+    }
   }
-  return orders;
+  // Square sorts within a response, not across our chunks. Above 10 locations
+  // the concatenation is ordered per chunk and unordered overall, which looks
+  // fine in a spot check and puts the wrong rows in any "top N" or "most
+  // recent" that trusts the order.
+  return input.locationIds.length > SEARCH_ORDERS_LOCATION_LIMIT
+    ? sortOrdersBy(orders, input.dateField ?? "closedAt", input.sortOrder ?? "DESC")
+    : orders;
+}
+
+/**
+ * Preview an order's totals — including auto-applied taxes and discounts —
+ * without creating one. POST /v2/orders/calculate.
+ *
+ * The order is never persisted, so this is the honest way to show a cart total
+ * that matches what checkout will charge: the same pricing engine, no order to
+ * clean up if the customer walks away.
+ */
+export async function calculateOrder(
+  config: SquareConfig,
+  input: {
+    locationId: string;
+    lineItems: SquareOrderLineItem[];
+    customerId?: string;
+  },
+): Promise<SquareOrder> {
+  const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders/calculate", {
+    order: {
+      location_id: input.locationId,
+      customer_id: input.customerId,
+      line_items: input.lineItems.map(orderLineItemBody),
+    },
+  });
+  if (!res.order) throw new Error("Square order calculation returned no order");
+  return mapOrder(res.order);
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────

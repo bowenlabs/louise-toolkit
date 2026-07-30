@@ -22,6 +22,85 @@ export interface AiRunner {
   ): Promise<unknown>;
 }
 
+/** The env members the generation kill switch reads. Structural, so a caller's
+ *  own `CloudflareEnv` satisfies it without importing anything. */
+export interface AiEnv {
+  AI?: AiRunner;
+  /** Deploy-time kill switch for AI **generation**. See {@link aiRunner}. */
+  LOUISE_AI?: string;
+}
+
+/**
+ * Values that mean "off", matched case-insensitively.
+ *
+ * Deliberately more than just `"off"`. The failure mode of strictness is a kill
+ * switch that silently doesn't engage — someone writes `LOUISE_AI="false"`,
+ * redeploys, believes generation is off, and it isn't. Every other value
+ * (including unset) means on, so there is no way to accidentally *disable* AI
+ * by typo, only to accidentally spell "off" correctly in more than one way.
+ */
+const OFF_VALUES = new Set(["off", "false", "0", "no", "disabled"]);
+
+/**
+ * Whether this deploy has turned AI generation off by choice.
+ *
+ * Takes `unknown` rather than `AiEnv`: the routes are generic over their own
+ * `Env`, and constraining every one of them to know about a var only this module
+ * reads would push a Workers AI detail through signatures that have nothing to do
+ * with it. Reading one string defensively is the smaller cost.
+ */
+export function aiGenerationDisabled(env: unknown): boolean {
+  const flag = (env as AiEnv | null | undefined)?.LOUISE_AI;
+  return typeof flag === "string" && OFF_VALUES.has(flag.trim().toLowerCase());
+}
+
+/**
+ * The runner to hand a generation route — the binding, unless this deploy has
+ * turned generation off.
+ *
+ * ```ts
+ * aiRoute({ resolveEditor, ai: aiRunner })
+ * ```
+ *
+ * **One definition, not four.** Every consumer reached the runner through its
+ * own `ai: (env) => env.AI`, so a flag expressed at each call site would be four
+ * chances to get it wrong — and a kill switch you don't trust is worse than none.
+ *
+ * **`LOUISE_AI` cannot turn AI on.** It only ever subtracts: with no binding
+ * there is nothing to enable, which keeps the env var a ceiling rather than a
+ * second source of truth.
+ *
+ * **Embeddings are deliberately NOT gated by this.** They power site search and
+ * generate no content, so folding them in would mean "disable AI writing"
+ * silently breaks search — a consequence nobody predicts from the flag's name,
+ * surfacing as "search returns nothing" long after the flag was flipped. A site
+ * that genuinely wants everything off can still unprovision the binding.
+ *
+ * Takes `unknown` for the same reason {@link aiGenerationDisabled} does, and it
+ * matters more here: this is passed *as* a route's `ai` accessor, whose parameter
+ * is that route's own `Env`. An `AiEnv` parameter shares no properties with an
+ * `EditorRouteEnv`, so TypeScript rejects the assignment outright — the helper
+ * would be typed to describe the env it reads and unusable in the one position it
+ * exists for.
+ */
+export function aiRunner(env: unknown): AiRunner | undefined {
+  if (aiGenerationDisabled(env)) return undefined;
+  return (env as AiEnv | null | undefined)?.AI;
+}
+
+/**
+ * Why a generation route has no runner — so "off by choice" and "never
+ * configured" can read differently.
+ *
+ * Both produce a 503 and both hide the button, which is right for an
+ * unprovisioned binding: there is nothing to tell the editor about. It is wrong
+ * for a deliberate opt-out, where the honest answer is "AI assists are turned off
+ * for this site" rather than a control that quietly isn't there.
+ */
+export function aiUnavailableReason(env: unknown): "disabled" | "unconfigured" {
+  return aiGenerationDisabled(env) ? "disabled" : "unconfigured";
+}
+
 /**
  * Run a model best-effort: returns its raw output, or `null` when `runner` is
  * absent (binding not provisioned) or the call throws. **Never throws** — AI is

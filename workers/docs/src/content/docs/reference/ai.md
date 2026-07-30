@@ -16,6 +16,74 @@ AI. The binding is passed in and the model id is a plain string, so the module i
 catalog-agnostic. Binding: `AI` (+ `VECTORIZE` for search). No required peers.
 See the [AI assists guide](/guide/ai-assists/).
 
+## `aiRunner(env)` — turning generation off
+
+```ts
+function aiRunner(env: unknown): AiRunner | undefined;
+function aiGenerationDisabled(env: unknown): boolean;
+function aiUnavailableReason(env: unknown): "disabled" | "unconfigured";
+```
+
+Binding presence is a real switch, and for "this site never uses AI" it is
+arguably the right one — nothing to configure, nothing to drift. It stops working
+the moment you want to keep the binding and still disable _generation_: an
+embeddings-backed search that must keep running while alt-text and SEO
+suggestions go quiet, a client whose contract forbids generated copy, or a
+temporary kill after a bad model swap.
+
+Set `LOUISE_AI` in your `vars` and redeploy:
+
+```jsonc
+{ "vars": { "LOUISE_AI": "off" } }
+```
+
+Then wire the accessor through `aiRunner` rather than reading the binding
+directly:
+
+```ts
+aiRoute({ resolveEditor, ai: aiRunner });
+seoFixRoute({ table: pages, resolveEditor, ai: aiRunner });
+mediaRoute({ /* … */ altText: aiRunner });
+```
+
+Astroid-generated workers do this for you.
+
+All three take `unknown` rather than a typed env. They are passed _as_ a route's
+accessor, whose parameter is that route's own `Env` — and a parameter typed
+`{ AI?, LOUISE_AI? }` shares no properties with an `EditorRouteEnv`, so
+TypeScript rejects the assignment outright. Describing the env precisely would
+make the helper unusable in the only position it exists for.
+
+**Three things worth knowing.**
+
+**It cannot turn AI on.** `LOUISE_AI` only ever subtracts — with no binding there
+is nothing to enable. That keeps the env var a ceiling rather than a second
+source of truth about whether AI works.
+
+**Embeddings are deliberately not gated by it.** Semantic search generates no
+content, and folding it in would mean disabling "AI content" silently breaks
+search — a consequence nobody predicts from the flag's name, and one that
+surfaces as "search returns nothing" long after the flag was flipped. Keep
+`vector.ai` on the binding:
+
+```ts
+vector: { index: (env) => env.VECTORIZE, ai: (env) => env.AI }
+```
+
+A site that genuinely wants everything off can still unprovision the binding.
+
+**`off`, `false`, `0`, `no`, and `disabled` all mean off**, case- and
+space-insensitively. There is no matching leniency in the other direction: every
+other value (including unset) means on, so no typo can accidentally _disable_ AI
+— only spell "off" correctly in more than one way. The failure this avoids is a
+kill switch that silently doesn't engage.
+
+Both "off by choice" and "never configured" answer `503`, which the client reads
+as "hide the control". The response carries `reason` so the two can be told
+apart — right for an unprovisioned binding, where there is nothing to tell the
+editor about, and honest for a deliberate opt-out, where the answer is "AI
+assists are turned off for this site".
+
 ## `runAi(runner, model, inputs, options?)`
 
 ```ts

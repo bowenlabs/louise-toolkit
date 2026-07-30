@@ -9,6 +9,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../icons.jsx";
+import { thumb } from "../thumb.js";
 import { usePanelActions } from "./panel-actions.jsx";
 import { apiGet, louiseQueryKeys } from "./query.js";
 
@@ -196,7 +197,13 @@ function MediaCard(props: {
   return (
     <div class="louise-media-card">
       <div class="louise-media-thumb">
-        <img src={props.item.url} alt={props.item.alt || props.item.key} loading="lazy" />
+        {/* 140px library tile (.louise-media-grid). */}
+        <img
+          src={thumb(props.item.url, 140)}
+          alt={props.item.alt || props.item.key}
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <div class="louise-media-meta">
         <div class="louise-item-title">{props.item.key.split("/").pop()}</div>

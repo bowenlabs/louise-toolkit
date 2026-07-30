@@ -20,10 +20,30 @@ export interface QueueHandlerOptions {
    * Re-sync whatever the provider owns — the catalog mirror, a cache. Called
    * for a periodic refresh and for webhooks that touched the catalog.
    *
+   * Receives the message that triggered it, so a site running more than one
+   * commerce provider can branch on `message.provider` rather than refreshing
+   * everything for everything. A zero-argument seam stays valid — the parameter
+   * is there to be ignored until it's needed.
+   *
    * Throwing marks the message for retry, which is usually right: a failed
    * refresh means the site is serving stale data.
    */
-  refreshCatalog?: () => void | Promise<void>;
+  refreshCatalog?: (message: AstroidQueueMessage) => void | Promise<void>;
+  /**
+   * Which provider owns the catalog `refreshCatalog` re-syncs. Set it and only
+   * that provider's webhooks trigger a refresh; leave it unset and any
+   * catalog-affecting webhook does, which is correct for the single-provider
+   * case and is what every existing consumer gets.
+   *
+   * This exists because two providers is now a supported configuration, and the
+   * seam is provider-blind by construction: a site can run Fourthwall as its
+   * storefront and Square as its POS, at which point `refreshCatalog` means
+   * "re-pull Fourthwall" while Square emits `inventory.count.updated` on every
+   * single sale. Unscoped, a good Saturday becomes a sync storm against an
+   * unrelated provider's rate limit — and the periodic refresh is unaffected, so
+   * the site looks fine until the day it's busy.
+   */
+  catalogProvider?: string;
   /**
    * Anything else this project queues. Runs for every message, after the
    * catalog dispatch above, so a project can add its own kinds without
@@ -44,11 +64,17 @@ export interface QueueHandlerOptions {
  * ```
  */
 export function astroidQueueHandler(options: QueueHandlerOptions = {}) {
+  const owns = (provider: string) =>
+    options.catalogProvider === undefined || provider === options.catalogProvider;
   return async (message: AstroidQueueMessage): Promise<void> => {
     if (message.kind === "catalog_refresh") {
-      await options.refreshCatalog?.();
-    } else if (message.kind === "webhook" && affectsCatalog(message.provider, message.type)) {
-      await options.refreshCatalog?.();
+      await options.refreshCatalog?.(message);
+    } else if (
+      message.kind === "webhook" &&
+      owns(message.provider) &&
+      affectsCatalog(message.provider, message.type)
+    ) {
+      await options.refreshCatalog?.(message);
     }
     await options.onMessage?.(message);
   };

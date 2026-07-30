@@ -97,6 +97,47 @@ consumer so a retry can't double-apply.
 Square exposes a single versioned REST surface (`/v2/*`). The whole client is
 injected through a `SquareConfig` and pins `Square-Version`.
 
+**Retry is off by default, and that is a decision about who is waiting.** Square
+publishes no per-endpoint rate limits — only "`RATE_LIMITED`, HTTP 429, back off
+exponentially" — so `SquareConfig.retry` (`attempts`, `baseDelayMs`,
+`maxDelayMs`) handles 429 and 5xx with jitter inside every fetch verb. Leaving it
+off keeps an attended path honest: on a checkout route a caller is watching a
+spinner, and three silent retries turn a fast failure into a slow one. Turn it on
+for **unattended** work — the queue consumer's catalog refresh, a cron sync, any
+multi-location push — where the failure mode without it is a half-applied catalog
+and a second of backoff costs nobody anything.
+
+```ts
+const square = { accessToken, environment, retry: { attempts: 3 } };
+```
+
+A 4xx other than 429 is never retried: that is our bug, not Square's weather.
+
+### Editing an existing object
+
+Square documents a silent data-loss hazard, verbatim: _"If a client reads an
+object at an older API version and writes it back at a newer version, fields that
+were introduced between those two versions will be absent from the request, and
+the server will interpret that absence"_ — as an intentional clear.
+
+The same hazard applies to any read-modify-write that rebuilds the object from
+the fields it happens to model. `readModifyWriteCatalog` never rebuilds: it reads
+the raw object, hands it to your mutator, and writes back what it got, carrying
+the version Square returned and the same pinned `Square-Version` on both calls.
+
+```ts
+await readModifyWriteCatalog(config, "VAR123", (object) => {
+  const data = object.item_variation_data as Record<string, unknown>;
+  data.price_money = { amount: 1800, currency: "USD" };
+});
+```
+
+The version always comes from that read, so a concurrent write makes yours fail
+rather than silently overwrite. Reach for `upsertCatalogItem` when creating or
+wholesale-replacing an item, and this when touching one field of something that
+already exists — which is exactly when accidental erasure is likeliest and least
+visible.
+
 ```ts
 import {
   SQUARE_VERSION,
@@ -127,17 +168,21 @@ import {
 } from "louise-toolkit/commerce/square";
 ```
 
-| Area                      | Exports                                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`), `SQUARE_VERSION`, `centsToMajor` |
-| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`     |
-| **Inventory**             | `retrieveInventoryCounts`                                                                  |
-| **Orders**                | `createOrder`, `retrieveOrder`, `searchOrdersByCustomer`                                   |
-| **Payments**              | `createPayment` — charge a Web Payments card token against an order.                       |
-| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`           |
-| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                        |
-| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                         |
-| **Webhooks**              | `verifySquareSignature(url, body, header, key)` — note the URL is signed too.              |
+| Area                      | Exports                                                                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                       |
+| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                      |
+| **Catalog images**        | `createCatalogImage` — multipart upload returning the id that `imageIds` takes                                                                                                                                                                 |
+| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                         |
+| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects` — per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap. |
+| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)` — edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                 |
+| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                          |
+| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling)                           |
+| **Payments**              | `createPayment` — charge a Web Payments card token against an order.                                                                                                                                                                           |
+| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                               |
+| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                            |
+| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                             |
+| **Webhooks**              | `verifySquareSignature(url, body, header, key)` — note the URL is signed too.                                                                                                                                                                  |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,

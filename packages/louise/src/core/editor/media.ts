@@ -10,7 +10,12 @@
 // site's. The table is all-scalar, so the registry rows use raw D1.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import { type AiRunner, type AltTextOptions, generateAltText } from "../ai/index.js";
+import {
+  type AiRunner,
+  aiUnavailableReason,
+  type AltTextOptions,
+  generateAltText,
+} from "../ai/index.js";
 import {
   deleteMedia,
   findMediaReferences,
@@ -244,7 +249,7 @@ async function generateAltFix<Env extends MediaRouteEnv>(
   const g = await guardEditor(request, env, config.resolveEditor, true);
   if ("response" in g) return g.response;
   const runner = config.altText?.(env);
-  if (!runner) return json({ error: "unavailable" }, 503);
+  if (!runner) return json({ error: "unavailable", reason: aiUnavailableReason(env) }, 503);
 
   const body = (await request.json().catch(() => ({}))) as { key?: unknown };
   const onlyKey = typeof body.key === "string" ? body.key : undefined;

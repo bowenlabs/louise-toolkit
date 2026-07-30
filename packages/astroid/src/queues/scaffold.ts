@@ -106,6 +106,10 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
   // invoicing-only provider has nothing for this hook to do.
   const provider = astroidCommerceRoles(config.commerce).storefront;
   const table = astroidCatalogMirror(config).table;
+  // Two providers means the catalog belongs to exactly one of them, and the
+  // other one's webhooks must not drag it through a re-sync. Scaffold the scope
+  // in rather than leaving it to be discovered on a busy day (#294).
+  const multiProvider = astroidCommerceProviders(config.commerce).length > 1;
   return [
     "// The queue consumer — what each message actually does.",
     "//",
@@ -124,6 +128,15 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
     "  message: AstroidQueueMessage,",
     "): Promise<void> {",
     "  await astroidQueueHandler({",
+    ...(multiProvider && provider
+      ? [
+          `    // This project runs more than one commerce provider, and the catalog is`,
+          `    // ${provider}'s. Scoping the refresh keeps the OTHER provider's webhooks from`,
+          `    // triggering it — Square alone emits an inventory event on every sale, which`,
+          `    // unscoped would re-sync ${provider} once per transaction.`,
+          `    catalogProvider: ${JSON.stringify(provider)},`,
+        ]
+      : []),
     "    refreshCatalog: async () => {",
     provider
       ? `      // TODO: fetch the ${provider} catalog, normalize each item with`
@@ -135,6 +148,22 @@ export function generateAstroidQueueSeam(config: AstroidConfig): string {
     `      //   const items = (await listCatalog(token)).map(${provider ?? "provider"}ToCatalogItem);`,
     `      //   const r = await astroidCatalogSync(items, { db: env.DB, table: ${JSON.stringify(table)} });`,
     '      //   if (r.failed > 0) console.warn("[catalog] skipped", r.failed, r.errors);',
+    "      //",
+    // Nobody is watching a queue message, which flips the retry trade-off that
+    // an attended checkout route settles the other way.
+    ...(provider === "square"
+      ? [
+          "      // Nobody is watching this run, so let the client retry: SquareConfig",
+          "      // takes `retry: { attempts: 3 }`, backing off on 429/5xx inside every",
+          "      // verb. It is off by default because a checkout route has a customer",
+          "      // watching a spinner, and there a fast failure beats a slow one. Here",
+          "      // the opposite holds — a catalog push that gives up halfway is worse.",
+        ]
+      : [
+          "      // Nobody is watching this run, so ask for backoff on 429/5xx wherever",
+          "      // the client offers it. Attended paths are better off failing fast; a",
+          "      // catalog push that gives up halfway is not.",
+        ]),
     "      //",
     "      // The sync is idempotent (keyed on the provider's id) and never",
     "      // writes an owner-edited column, so it's safe to run on every event.",

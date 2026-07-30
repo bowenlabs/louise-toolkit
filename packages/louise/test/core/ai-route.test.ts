@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AiRunner } from "../../src/core/ai/index.js";
+import { type AiRunner, aiRunner } from "../../src/core/ai/index.js";
 import type { EditorSession } from "../../src/core/auth/index.js";
-import { aiRoute } from "../../src/core/editor/index.js";
+import { pages } from "../../src/core/db/index.js";
+import { aiRoute, seoFixRoute } from "../../src/core/editor/index.js";
 
 // aiRoute never touches D1, but EditorRouteEnv requires the binding — a no-op is
 // enough. The real model calls are covered by the core/ai helper tests; here we
@@ -135,5 +136,70 @@ describe("aiRoute — AI Gateway (#87)", () => {
     )) as Response;
     expect(res.status).toBe(200);
     expect(seen).toEqual({ gateway: { id: "louise-gw", cacheTtl: 60 } });
+  });
+});
+
+describe("aiRoute — the LOUISE_AI kill switch (#334)", () => {
+  /** The real wiring: the accessor is `aiRunner`, so the flag is read from env. */
+  const flagged = (env: { DB: D1Database; AI?: AiRunner; LOUISE_AI?: string }) => ({
+    route: aiRoute<{ DB: D1Database; AI?: AiRunner; LOUISE_AI?: string }>({
+      resolveEditor: () => editor,
+      ai: aiRunner,
+    }),
+    env,
+  });
+
+  it("503s with reason 'disabled' and never calls the model when off", async () => {
+    let called = false;
+    const AI: AiRunner = {
+      run: async () => {
+        called = true;
+        return { response: "should not happen" };
+      },
+    };
+    const { route: r, env: e } = flagged({ DB: noopD1, AI, LOUISE_AI: "off" });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+
+    expect(res?.status).toBe(503);
+    expect(await res?.json()).toMatchObject({ reason: "disabled" });
+    // The assertion that matters: no model was reached, so nothing was billed
+    // and no content was generated while the switch was off.
+    expect(called).toBe(false);
+  });
+
+  it("503s with reason 'unconfigured' when there is simply no binding", async () => {
+    const { route: r, env: e } = flagged({ DB: noopD1 });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+    expect(res?.status).toBe(503);
+    expect(await res?.json()).toMatchObject({ reason: "unconfigured" });
+  });
+
+  it("serves normally when the binding is present and the flag is unset", async () => {
+    const { route: r, env: e } = flagged({ DB: noopD1, AI: fakeRunner({ response: "tightened" }) });
+    const res = await r(req("POST", "/api/louise/ai/rewrite", { text: "hello" }), e, ctx);
+    expect(res?.status).toBe(200);
+    expect(await res?.json()).toMatchObject({ text: "tightened" });
+  });
+});
+
+// A COMPILE-TIME assertion, not a runtime one. `aiRunner` is passed as a route's
+// `ai` accessor, whose parameter is that route's own `Env` — so typing it to
+// describe the env it reads (`{ AI?, LOUISE_AI? }`) makes it unassignable there:
+// TypeScript sees no properties in common with `EditorRouteEnv` and rejects it.
+//
+// The first version of this shipped exactly that signature. Every unit test
+// passed, because they all declared envs that happened to include `AI` — the
+// break only appeared in the scaffold smoke job, which type-checks a generated
+// worker against the built library. These lines fail `tsgo` locally instead.
+describe("aiRunner is usable as a route accessor", () => {
+  it("type-checks against envs that declare no AI members", () => {
+    // Bare env, exactly like a generated worker's CloudflareEnv at this call.
+    type BareEnv = { DB: D1Database };
+
+    const routes = [
+      aiRoute<BareEnv>({ resolveEditor: () => editor, ai: aiRunner }),
+      seoFixRoute<BareEnv>({ table: pages, resolveEditor: () => editor, ai: aiRunner }),
+    ];
+    expect(routes).toHaveLength(2);
   });
 });

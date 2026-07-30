@@ -71,6 +71,8 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   // scaffold, which is exactly how it got caught.
   // Same trap as realtimeRoute: these live outside `louise-toolkit/editor`.
   const realtimeRouteFactories = new Set(["realtimeRoute", "vitalsRoute"]);
+  // The routes that take an AI runner, and so need `aiRunner` imported.
+  const AI_ROUTES = new Set<AstroidEditorRouteName>(["ai", "seoFix", "media"]);
   const editorImports = [
     "DEFAULT_PAGE_FIELDS",
     ...new Set(plan.map((route) => route.factory).filter((f) => !realtimeRouteFactories.has(f))),
@@ -122,15 +124,19 @@ export function generateAstroidWorker(config: AstroidConfig): string {
           : "";
         return `settingsRoute({ table: siteSettings, resolveEditor, columns: SETTINGS_COLUMNS, imageKeys: SETTINGS_IMAGE_KEYS, mediaBase: MEDIA_BASE${customArg} })`;
       }
+      // `aiRunner` rather than `(env) => env.AI`: it reads the binding AND the
+      // LOUISE_AI kill switch, so all three assists share one definition of
+      // "is generation on?" instead of each re-deriving it. Embeddings keep
+      // binding-presence as their switch — see the helper's comment.
       case "ai":
-        return "aiRoute({ resolveEditor, ai: (env) => env.AI })";
+        return "aiRoute({ resolveEditor, ai: aiRunner })";
       case "seoFix":
-        return "seoFixRoute({ table: pages, resolveEditor, ai: (env) => env.AI })";
+        return "seoFixRoute({ table: pages, resolveEditor, ai: aiRunner })";
       case "media":
         // `altText` fills a new upload's alt from the image itself. Best-effort
         // by contract — a model error or a missing binding never fails the
         // upload — so it costs nothing on a project that doesn't want it.
-        return "mediaRoute({ table: media, resolveEditor, referenceSources: MEDIA_REFERENCE_SOURCES, altText: (env) => env.AI })";
+        return "mediaRoute({ table: media, resolveEditor, referenceSources: MEDIA_REFERENCE_SOURCES, altText: aiRunner })";
       case "editors":
         // The editor instance's user table is `louise_`-prefixed (the editor
         // convention — the unprefixed `user` table is left for a second/portal
@@ -169,6 +175,11 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   );
   if (inquiries) p('import { defineForm } from "louise-toolkit/forms";');
   if (queues) p('import { processBatch } from "louise-toolkit/queues";');
+  // Only when a route actually takes a runner — a project with no AI assists
+  // should not import one, and knip would flag it if it did.
+  if (plan.some((route) => AI_ROUTES.has(route.name))) {
+    p('import { aiRunner } from "louise-toolkit/ai";');
+  }
   p('import { checkLinks } from "louise-toolkit/browser";');
   p(
     'import { readHealthSummary, summarizeHealth, writeHealthSummary } from "louise-toolkit/health";',

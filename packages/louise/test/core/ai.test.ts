@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   type AiRunner,
+  aiGenerationDisabled,
+  aiRunner,
+  aiUnavailableReason,
   DEFAULT_ALT_TEXT_MODEL,
   DEFAULT_TEXT_MODEL,
   generateAltText,
@@ -236,5 +239,56 @@ describe("AI Gateway routing (#87)", () => {
     const alt = runner({ description: "a cat" });
     await generateAltText(alt.runner, new Uint8Array([1]));
     expect(alt.calls[0].options).toBeUndefined();
+  });
+});
+
+describe("aiRunner — the generation kill switch (#334)", () => {
+  const AI = { run: async () => null } as AiRunner;
+
+  it("returns the binding when the flag is unset", () => {
+    expect(aiRunner({ AI })).toBe(AI);
+    expect(aiGenerationDisabled({ AI })).toBe(false);
+  });
+
+  it("returns undefined when the flag is off, even with a binding present", () => {
+    // The whole point: keep the binding (embeddings still need it) and stop
+    // generation.
+    expect(aiRunner({ AI, LOUISE_AI: "off" })).toBeUndefined();
+  });
+
+  it("cannot turn AI on — it only ever subtracts", () => {
+    // No binding means nothing to enable; the var is a ceiling, not a second
+    // source of truth.
+    expect(aiRunner({ LOUISE_AI: "on" })).toBeUndefined();
+    expect(aiRunner({})).toBeUndefined();
+  });
+
+  it("accepts the obvious spellings of off, case- and space-insensitively", () => {
+    // A kill switch that silently doesn't engage because someone wrote "false"
+    // is worse than no kill switch. There is no matching leniency for "on" —
+    // every other value means on, so no typo can accidentally DISABLE AI.
+    for (const value of ["off", "OFF", " Off ", "false", "0", "no", "disabled"]) {
+      expect(aiRunner({ AI, LOUISE_AI: value }), value).toBeUndefined();
+    }
+    for (const value of ["on", "true", "1", "", "yes", "enabled"]) {
+      expect(aiRunner({ AI, LOUISE_AI: value }), value).toBe(AI);
+    }
+  });
+
+  it("tells 'off by choice' apart from 'never configured'", () => {
+    // Both 503 and both hide the control, which is right for an unprovisioned
+    // binding — there is nothing to tell the editor. It is wrong for a
+    // deliberate opt-out, where the honest answer is "turned off for this site".
+    expect(aiUnavailableReason({ AI, LOUISE_AI: "off" })).toBe("disabled");
+    expect(aiUnavailableReason({})).toBe("unconfigured");
+    // Off-by-choice reads as disabled whether or not a binding exists.
+    expect(aiUnavailableReason({ LOUISE_AI: "off" })).toBe("disabled");
+  });
+
+  it("survives an env that isn't an object", () => {
+    // Reads `unknown` so generic route Envs don't need constraining.
+    expect(aiGenerationDisabled(undefined)).toBe(false);
+    expect(aiGenerationDisabled(null)).toBe(false);
+    expect(aiGenerationDisabled({ LOUISE_AI: 0 as unknown as string })).toBe(false);
   });
 });

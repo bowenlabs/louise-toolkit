@@ -12,7 +12,13 @@
 // Mount BEFORE pagesRoute — its `/:id` matcher would else claim `/generate-seo`.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import { type AiGatewayOptions, type AiRunner, type SeoOptions, suggestSeo } from "../ai/index.js";
+import {
+  type AiGatewayOptions,
+  type AiRunner,
+  aiUnavailableReason,
+  type SeoOptions,
+  suggestSeo,
+} from "../ai/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
   type EditorRouteEnv,
@@ -74,7 +80,7 @@ export function seoFixRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const g = await guardEditor(request, env, config.resolveEditor, true);
     if ("response" in g) return g.response;
     const runner = config.ai(env);
-    if (!runner) return json({ error: "unavailable" }, 503);
+    if (!runner) return json({ error: "unavailable", reason: aiUnavailableReason(env) }, 503);
 
     const body = (await request.json().catch(() => ({}))) as { id?: unknown };
     const onlyId = typeof body.id === "number" ? body.id : undefined;
