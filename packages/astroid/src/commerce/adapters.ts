@@ -16,18 +16,72 @@
 
 import type { CatalogItem } from "./sync.js";
 
+/** Where a Square object is sold, as `louise-toolkit/commerce/square` reports it.
+ *  Optional throughout, so an item assembled by hand or by an older client still
+ *  satisfies the type and reads as "sold everywhere". */
+export interface SquarePresenceLike {
+  presentAtAllLocations?: boolean;
+  presentAtLocationIds?: string[];
+  absentAtLocationIds?: string[];
+}
+
+/** A per-location price override. A null/absent `priceCents` means the override
+ *  adjusts something other than price, and the base price still applies. */
+export interface SquareLocationOverrideLike {
+  locationId: string;
+  priceCents?: number | null;
+  currency?: string | null;
+  soldOut?: boolean | null;
+}
+
 /** The subset of `SquareCatalogItem` the mirror reads. */
-export interface SquareItemLike {
+export interface SquareItemLike extends SquarePresenceLike {
   id: string;
   name: string;
   imageUrl?: string | null;
-  variations?: {
+  variations?: ({
     id: string;
     name: string;
     sku?: string | null;
+    /** The BASE price. A location override wins over it where one exists. */
     priceCents: number;
     currency?: string;
-  }[];
+    locationOverrides?: SquareLocationOverrideLike[];
+  } & SquarePresenceLike)[];
+}
+
+/**
+ * Is this object sold at `locationId`?
+ *
+ * Mirrors `presentAt` in `louise-toolkit/commerce/square`, but tolerant of the
+ * fields being absent. The two lists are NOT symmetric — `presentAtLocationIds`
+ * is a whitelist consulted when `presentAtAllLocations` is false,
+ * `absentAtLocationIds` a blacklist consulted when it is true. Reading them the
+ * other way round shows a merchant products they do not carry.
+ */
+function presentAtLocation(o: SquarePresenceLike, locationId: string): boolean {
+  return o.presentAtAllLocations === false
+    ? (o.presentAtLocationIds ?? []).includes(locationId)
+    : !(o.absentAtLocationIds ?? []).includes(locationId);
+}
+
+/** The effective price of a variation at one location: the override's price if
+ *  it sets one, otherwise the base price. */
+function variationPriceAt(
+  v: NonNullable<SquareItemLike["variations"]>[number],
+  locationId: string,
+): number {
+  const override = (v.locationOverrides ?? []).find((o) => o.locationId === locationId);
+  return override?.priceCents != null ? override.priceCents : v.priceCents;
+}
+
+/** Options for {@link squareToCatalogItem}. */
+export interface SquareAdapterOptions {
+  /**
+   * Resolve prices and presence for one merchant location. Omit for a
+   * single-location account, where base prices are the only prices.
+   */
+  locationId?: string;
 }
 
 /** The subset of `FwProduct` the mirror reads. */
@@ -51,26 +105,88 @@ export interface FourthwallProductLike {
 const toMajor = (cents: number) => Math.round(cents) / 100;
 
 /**
+ * Is this item sold at `locationId` at all?
+ *
+ * Exported because a location-scoped sync needs to SKIP items the merchant
+ * doesn't carry, and `squareToCatalogItem` can't do that for you — it returns
+ * one item, and "don't store this row" isn't a `CatalogItem`. Without the guard
+ * an unstocked item mirrors as a $0 card with no variants, which looks like a
+ * pricing bug rather than a catalog decision.
+ *
+ * ```ts
+ * const rows = items
+ *   .filter((i) => squareItemSoldAt(i, locationId))
+ *   .map((i) => squareToCatalogItem(i, { locationId }));
+ * ```
+ */
+export function squareItemSoldAt(item: SquareItemLike, locationId: string): boolean {
+  if (!presentAtLocation(item, locationId)) return false;
+  return (item.variations ?? []).some((v) => presentAtLocation(v, locationId));
+}
+
+/**
  * Square item → `CatalogItem`.
  *
  * `price` is the LOWEST variation price. A Square item is a family ("Bag of
  * beans" with 12oz and 2lb variations), so a single headline number has to mean
  * "from" — taking the first variation's price instead would change with Square's
  * ordering and quietly misprice the card.
+ *
+ * ## Scoping to one merchant
+ *
+ * Pass `locationId` and both halves resolve at that location: variations the
+ * merchant doesn't carry are dropped, and the rest price through
+ * `location_overrides` rather than the base price.
+ *
+ * The headline number has to be scoped for the same reason the variants are.
+ * "From $8" computed over the whole catalog, on a page where the $8 size isn't
+ * stocked, advertises a price this merchant will never honour — and because the
+ * dropped variation is usually the cheap one, the error runs in the direction a
+ * customer notices at the till.
+ *
+ * Unscoped behaviour is unchanged: no `locationId` means base prices and every
+ * variation, which is correct for a single-location account.
+ *
+ * An item sold nowhere at `locationId` yields no variants and a price of 0 —
+ * filter with {@link squareItemSoldAt} before calling rather than storing that.
  */
-export function squareToCatalogItem(item: SquareItemLike): CatalogItem {
-  const prices = (item.variations ?? []).map((v) => v.priceCents).filter((c) => Number.isFinite(c));
+export function squareToCatalogItem(
+  item: SquareItemLike,
+  options: SquareAdapterOptions = {},
+): CatalogItem {
+  const locationId = options.locationId;
+  const variations = (item.variations ?? []).filter(
+    (v) => locationId === undefined || presentAtLocation(v, locationId),
+  );
+  const priceOf = (v: (typeof variations)[number]) =>
+    locationId === undefined ? v.priceCents : variationPriceAt(v, locationId);
+
+  const prices = variations.map(priceOf).filter((c) => Number.isFinite(c));
   return {
     externalId: item.id,
     name: item.name,
     price: prices.length ? toMajor(Math.min(...prices)) : 0,
     images: item.imageUrl ? [item.imageUrl] : [],
-    variants: (item.variations ?? []).map((v) => ({
+    variants: variations.map((v) => ({
       id: v.id,
       name: v.name,
       sku: v.sku ?? null,
-      price: toMajor(v.priceCents),
-      currency: v.currency ?? "USD",
+      price: toMajor(priceOf(v)),
+      currency:
+        (locationId === undefined
+          ? undefined
+          : (v.locationOverrides ?? []).find((o) => o.locationId === locationId)?.currency) ??
+        v.currency ??
+        "USD",
+      // Only meaningful when scoped: `sold_out` is a per-location flag, so an
+      // unscoped read has no single answer and omits it rather than guessing.
+      ...(locationId === undefined
+        ? {}
+        : {
+            soldOut:
+              (v.locationOverrides ?? []).find((o) => o.locationId === locationId)?.soldOut ??
+              false,
+          }),
     })),
   };
 }

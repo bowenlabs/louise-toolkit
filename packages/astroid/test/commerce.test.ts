@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { fourthwallToCatalogItem, squareToCatalogItem } from "../src/commerce/adapters.js";
-import { checkoutIdempotencyKey, verifyCheckout } from "../src/commerce/checkout.js";
+import {
+  fourthwallToCatalogItem,
+  squareItemSoldAt,
+  squareToCatalogItem,
+} from "../src/commerce/adapters.js";
+import {
+  checkoutIdempotencyKey,
+  type PriceLookup,
+  type ScopedPriceLookup,
+  verifyCheckout,
+} from "../src/commerce/checkout.js";
 import {
   astroidCheckoutVars,
   generateAstroidCheckoutEnv,
@@ -227,6 +236,156 @@ describe("catalog adapters", () => {
   });
 });
 
+describe("catalog adapters — location scoping", () => {
+  /** One item, two merchants. Downtown carries both sizes and marks the 2lb up;
+   *  Airport carries only the 2lb, at the base price. */
+  const shared = {
+    id: "SQ1",
+    name: "House Blend",
+    presentAtAllLocations: true,
+    variations: [
+      {
+        id: "V1",
+        name: "12oz",
+        priceCents: 1800,
+        presentAtAllLocations: false,
+        presentAtLocationIds: ["L-DOWNTOWN"],
+      },
+      {
+        id: "V2",
+        name: "2lb",
+        priceCents: 3800,
+        locationOverrides: [{ locationId: "L-DOWNTOWN", priceCents: 4200 }],
+      },
+    ],
+  };
+
+  it("prices through the location override, not the base price", () => {
+    const downtown = squareToCatalogItem(shared, { locationId: "L-DOWNTOWN" });
+    expect(downtown.variants).toContainEqual(expect.objectContaining({ id: "V2", price: 42 }));
+    // Same variation, no override at this location: the base price stands.
+    const airport = squareToCatalogItem(shared, { locationId: "L-AIRPORT" });
+    expect(airport.variants).toContainEqual(expect.objectContaining({ id: "V2", price: 38 }));
+  });
+
+  it("drops variations the merchant does not carry", () => {
+    const airport = squareToCatalogItem(shared, { locationId: "L-AIRPORT" });
+    expect((airport.variants as { id: string }[]).map((v) => v.id)).toEqual(["V2"]);
+  });
+
+  it("scopes the headline 'from' price to what the merchant actually stocks", () => {
+    // The bug this closes. Unscoped, `Math.min` sees the 12oz at $18 and the
+    // card reads "from $18" — on a storefront that only sells the 2lb. The
+    // dropped variation is the cheap one, so the error runs in the direction a
+    // customer notices at the till.
+    expect(squareToCatalogItem(shared).price).toBe(18);
+    expect(squareToCatalogItem(shared, { locationId: "L-AIRPORT" }).price).toBe(38);
+    // Downtown carries both, so the 12oz still sets the floor.
+    expect(squareToCatalogItem(shared, { locationId: "L-DOWNTOWN" }).price).toBe(18);
+  });
+
+  it("reads the two presence lists as the asymmetric pair Square defines", () => {
+    // `absentAtLocationIds` is a BLACKLIST, consulted only when
+    // `presentAtAllLocations` is true; `presentAtLocationIds` is a WHITELIST,
+    // consulted only when it is false. Swapping them shows a merchant products
+    // they don't carry — which is why this is asserted rather than assumed.
+    const blacklisted = {
+      id: "SQ2",
+      name: "Seasonal",
+      variations: [
+        { id: "A", name: "One", priceCents: 500, absentAtLocationIds: ["L-AIRPORT"] },
+        { id: "B", name: "Two", priceCents: 900 },
+      ],
+    };
+    expect(
+      (
+        squareToCatalogItem(blacklisted, { locationId: "L-AIRPORT" }).variants as { id: string }[]
+      ).map((v) => v.id),
+    ).toEqual(["B"]);
+    expect(
+      (
+        squareToCatalogItem(blacklisted, { locationId: "L-DOWNTOWN" }).variants as { id: string }[]
+      ).map((v) => v.id),
+    ).toEqual(["A", "B"]);
+  });
+
+  it("falls back to the base price when an override adjusts something else", () => {
+    // A `location_overrides` entry with no `price_money` is Square's way of
+    // saying "same price, different inventory settings" — reading it as a price
+    // of 0 would give the item away.
+    const item = {
+      id: "SQ3",
+      name: "Mug",
+      variations: [
+        {
+          id: "M1",
+          name: "One size",
+          priceCents: 1500,
+          locationOverrides: [{ locationId: "L1", priceCents: null, soldOut: true }],
+        },
+      ],
+    };
+    const scoped = squareToCatalogItem(item, { locationId: "L1" });
+    expect(scoped.price).toBe(15);
+    expect(scoped.variants).toContainEqual(
+      expect.objectContaining({ id: "M1", price: 15, soldOut: true }),
+    );
+  });
+
+  it("omits soldOut entirely when unscoped, since it has no single answer", () => {
+    const unscoped = squareToCatalogItem(shared);
+    for (const v of unscoped.variants as Record<string, unknown>[]) {
+      expect(v).not.toHaveProperty("soldOut");
+    }
+  });
+
+  it("leaves unscoped output byte-identical to before", () => {
+    // The whole change is additive; a single-location account must see no
+    // difference at all.
+    expect(squareToCatalogItem(shared)).toEqual({
+      externalId: "SQ1",
+      name: "House Blend",
+      images: [],
+      price: 18,
+      variants: [
+        { id: "V1", name: "12oz", sku: null, price: 18, currency: "USD" },
+        { id: "V2", name: "2lb", sku: null, price: 38, currency: "USD" },
+      ],
+    });
+  });
+
+  it("squareItemSoldAt tells a sync which rows to skip", () => {
+    expect(squareItemSoldAt(shared, "L-DOWNTOWN")).toBe(true);
+    expect(squareItemSoldAt(shared, "L-AIRPORT")).toBe(true);
+
+    // Item present, but not one variation is: nothing to sell.
+    const noneHere = {
+      id: "SQ4",
+      name: "Downtown exclusive",
+      variations: [
+        {
+          id: "X",
+          name: "One",
+          priceCents: 100,
+          presentAtAllLocations: false,
+          presentAtLocationIds: ["L-DOWNTOWN"],
+        },
+      ],
+    };
+    expect(squareItemSoldAt(noneHere, "L-AIRPORT")).toBe(false);
+    // And the reason it must be filtered rather than stored: it mirrors as $0.
+    expect(squareToCatalogItem(noneHere, { locationId: "L-AIRPORT" }).price).toBe(0);
+
+    // Item itself withheld from the location — its variations don't matter.
+    expect(
+      squareItemSoldAt(
+        { ...shared, presentAtAllLocations: true, absentAtLocationIds: ["L-AIRPORT"] },
+        "L-AIRPORT",
+      ),
+    ).toBe(false);
+  });
+});
+
 /** In-memory stand-in for the D1 surface the sync uses. */
 function fakeDb(rows: Record<string, unknown>[] = []) {
   const statements: { sql: string; values: unknown[] }[] = [];
@@ -365,7 +524,10 @@ describe("verifyCheckout", () => {
   });
 
   it("looks each variant up once even when repeated across lines", async () => {
-    const lookup = vi.fn(prices({ V1: 100 }));
+    // Typed as the scoped signature so the call tuple is visible to the
+    // assertion; the value passed in is still the zero-arity legacy shape,
+    // which is the point — it stays assignable.
+    const lookup = vi.fn<ScopedPriceLookup>(prices({ V1: 100 }));
     await verifyCheckout(
       [
         { variantId: "V1", quantity: 1, unitPriceCents: 100 },
@@ -373,7 +535,95 @@ describe("verifyCheckout", () => {
       ],
       lookup,
     );
-    expect(lookup).toHaveBeenCalledWith(["V1"]);
+    expect(lookup.mock.calls[0]?.[0]).toEqual(["V1"]);
+  });
+});
+
+describe("verifyCheckout — scope and stock", () => {
+  /** Two merchants, one catalog, one variation priced differently at each. */
+  const pricesAt: ScopedPriceLookup = async (ids, scope) => {
+    const table: Record<string, Record<string, number>> = {
+      "L-DOWNTOWN": { V1: 4200 },
+      "L-AIRPORT": { V1: 3800 },
+    };
+    const at = table[scope?.locationId ?? ""] ?? {};
+    return new Map(ids.filter((id) => id in at).map((id) => [id, at[id] as number]));
+  };
+
+  it("re-prices against the location the order is placed at", async () => {
+    const line = { variantId: "V1", quantity: 1, unitPriceCents: 4200 };
+
+    // Downtown's own price: fine.
+    expect(
+      await verifyCheckout([line], pricesAt, { scope: { locationId: "L-DOWNTOWN" } }),
+    ).toMatchObject({ ok: true, subtotalCents: 4200 });
+
+    // The same cart at the airport, where the price is $38. Without scoping,
+    // both storefronts verify against one number and a customer can pay the
+    // cheaper merchant's price at the dearer merchant's shop — the same class
+    // of bug as trusting `unitPriceCents`, one level further back.
+    expect(
+      await verifyCheckout([line], pricesAt, { scope: { locationId: "L-AIRPORT" } }),
+    ).toMatchObject({ ok: false, reason: "price-changed" });
+  });
+
+  it("forwards the scope to the lookup verbatim", async () => {
+    const lookup = vi.fn(pricesAt);
+    await verifyCheckout([{ variantId: "V1", quantity: 1, unitPriceCents: 4200 }], lookup, {
+      scope: { locationId: "L-DOWNTOWN" },
+    });
+    expect(lookup).toHaveBeenCalledWith(["V1"], { locationId: "L-DOWNTOWN" });
+  });
+
+  it("refuses a cart at a location that carries none of it", async () => {
+    const res = await verifyCheckout(
+      [{ variantId: "V1", quantity: 1, unitPriceCents: 4200 }],
+      pricesAt,
+      { scope: { locationId: "L-NOWHERE" } },
+    );
+    // Fails closed: a lookup that can't price it here doesn't fall back to a
+    // base price it could sell for.
+    expect(res).toMatchObject({ ok: false, reason: "unavailable" });
+  });
+
+  it("tells sold-out apart from delisted", async () => {
+    const lookup: ScopedPriceLookup = async () => ({
+      prices: new Map([
+        ["V1", 4200],
+        ["V2", 900],
+      ]),
+      outOfStock: ["V1"],
+    });
+
+    // V1 is still PRICED — reading the map first would call it available and
+    // let the charge through. Stock is checked before price for that reason.
+    expect(
+      await verifyCheckout([{ variantId: "V1", quantity: 1, unitPriceCents: 4200 }], lookup),
+    ).toMatchObject({ ok: false, reason: "out-of-stock" });
+
+    // A delisted item stays "unavailable": different fact, different sentence.
+    // Sold out is coming back and is worth a notify-me; delisted is gone.
+    expect(
+      await verifyCheckout([{ variantId: "GONE", quantity: 1, unitPriceCents: 100 }], lookup),
+    ).toMatchObject({ ok: false, reason: "unavailable" });
+
+    expect(
+      await verifyCheckout([{ variantId: "V2", quantity: 2, unitPriceCents: 900 }], lookup),
+    ).toMatchObject({ ok: true, subtotalCents: 1800 });
+  });
+
+  it("still accepts a plain PriceLookup, unchanged", async () => {
+    // The compile-time half of "additive, no break": an existing single-arg,
+    // Map-returning lookup must remain assignable without a cast.
+    const legacy: PriceLookup = async (ids) => new Map(ids.map((id) => [id, 500]));
+    const asScoped: ScopedPriceLookup = legacy;
+    expect(
+      await verifyCheckout([{ variantId: "V1", quantity: 1, unitPriceCents: 500 }], asScoped),
+    ).toMatchObject({ ok: true, subtotalCents: 500 });
+    // And through the parameter itself, with no `scope` passed.
+    expect(
+      await verifyCheckout([{ variantId: "V1", quantity: 1, unitPriceCents: 500 }], legacy),
+    ).toMatchObject({ ok: true, subtotalCents: 500 });
   });
 });
 
@@ -519,6 +769,113 @@ describe("generated checkout route", () => {
     expect(gate).toBeLessThan(route.indexOf("request.json()"));
     expect(gate).toBeLessThan(route.indexOf("verifyCheckout(body.lines"));
     expect(gate).toBeLessThan(route.indexOf("createPayment("));
+  });
+});
+
+describe("generated checkout route — square.locations: multi", () => {
+  const single = defineAstroid({ ...base, commerce: { provider: "square" } });
+  const multi = defineAstroid({
+    ...base,
+    commerce: { provider: "square", square: { locations: "multi" } },
+  });
+
+  it("never reaches for an ambient SQUARE_LOCATION_ID", () => {
+    // The bug. `commerceProviderCredentials` deliberately DROPS
+    // SQUARE_LOCATION_ID under multi-location, on the grounds that any path
+    // defaulting to an ambient id rings one merchant's sale against another
+    // merchant's books. The generated route was exactly such a path: it charged
+    // with `env.SQUARE_LOCATION_ID ?? ""` — a var the project is told not to
+    // set — so the charge either failed outright or, if someone set the var to
+    // quiet it, credited a single location for every merchant's sales.
+    const route = generateAstroidCheckoutRoute(multi) as string;
+    // Asserted on the READ, not the name — the generated comment explains why
+    // the var is absent, so it mentions it by name on purpose.
+    expect(route).not.toContain("env.SQUARE_LOCATION_ID");
+    // Single-location still uses it, because there the ambient id is correct.
+    expect(generateAstroidCheckoutRoute(single)).toContain("env.SQUARE_LOCATION_ID");
+  });
+
+  it("resolves the merchant from the host, never from the request body", () => {
+    const route = generateAstroidCheckoutRoute(multi) as string;
+    expect(route).toContain("function resolveLocationId(request: Request): string | null");
+    expect(route).toContain("new URL(request.url).hostname");
+    // A body-supplied location is the same exploit as a body-supplied price:
+    // name the cheapest merchant's id, pay that price at the dearest shop.
+    expect(route).not.toContain("body.locationId");
+  });
+
+  it("refuses rather than defaulting when the host is unrecognised", () => {
+    const route = generateAstroidCheckoutRoute(multi) as string;
+    expect(route).toContain("if (!locationId) {");
+    expect(route).toContain(
+      'return json({ error: "This storefront is not open for orders." }, 409)',
+    );
+  });
+
+  it("prices at the resolved location and charges at the same one", () => {
+    const route = generateAstroidCheckoutRoute(multi) as string;
+    expect(route).toContain("scope: { locationId }");
+    // Live from Square, not the mirror: the mirror holds one price per item and
+    // structurally cannot answer "what does this cost here".
+    expect(route).toContain("retrieveVariationPricesAt(");
+    expect(route).not.toContain("readCatalog");
+    // Resolved before it is priced against, priced before it is charged.
+    const resolved = route.indexOf("const locationId = resolveLocationId(request)");
+    expect(resolved).toBeGreaterThan(-1);
+    expect(resolved).toBeLessThan(route.indexOf("scope: { locationId }"));
+    expect(route.indexOf("scope: { locationId }")).toBeLessThan(route.indexOf("createPayment("));
+  });
+
+  it("checks provisioning BEFORE re-pricing, because re-pricing calls Square", () => {
+    // The rule the route states for itself: "it must never call Square with a
+    // dummy credential." Under multi-location, re-pricing IS a Square call, so
+    // leaving the dormancy gate in its usual place — after verification — would
+    // have the enforcing step break the rule it enforces. An unprovisioned
+    // store must reach neither.
+    const route = generateAstroidCheckoutRoute(multi) as string;
+    const gate = route.indexOf("if (!status.configured)");
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(route.indexOf("await verifyCheckout("));
+    expect(gate).toBeLessThan(route.indexOf("createPayment("));
+    // And it says it couldn't price, rather than echoing the client's total
+    // back as though the server had agreed to it.
+    expect(route).toContain("return json({ simulated: true, priced: false });");
+
+    // Single-location prices from D1 with no credential, so its gate stays put
+    // and an unconfigured store still gets the staleness check.
+    const one = generateAstroidCheckoutRoute(single) as string;
+    expect(one.indexOf("if (!status.configured)")).toBeGreaterThan(
+      one.indexOf("await verifyCheckout("),
+    );
+    expect(one).toContain("subtotalCents: check.subtotalCents,");
+  });
+
+  it("leaves the single-location route exactly as it was", () => {
+    const route = generateAstroidCheckoutRoute(single) as string;
+    expect(route).toContain("readCatalog");
+    expect(route).toContain("await verifyCheckout(body.lines, serverPrices);");
+    expect(route).not.toContain("resolveLocationId");
+  });
+
+  it("emits no blank-line scars from the mode branches", () => {
+    // Both modes are assembled from one array with the other mode's lines
+    // dropped; dropping them as `null` rather than "" is what keeps the output
+    // clean, and this is the assertion that notices if that regresses.
+    for (const route of [
+      generateAstroidCheckoutRoute(single),
+      generateAstroidCheckoutRoute(multi),
+    ]) {
+      expect(route).not.toMatch(/\n\n\n/);
+    }
+  });
+
+  it("takes the card's locationId as a prop when multi-location", () => {
+    const card = generateAstroidSquareCard(multi) as string;
+    expect(card).not.toContain("env.SQUARE_LOCATION_ID");
+    expect(card).toContain("const { locationId } = Astro.props;");
+    expect(generateAstroidSquareCard(single)).toContain(
+      "const locationId = env.SQUARE_LOCATION_ID;",
+    );
   });
 });
 

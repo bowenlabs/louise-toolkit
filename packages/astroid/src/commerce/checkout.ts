@@ -36,15 +36,102 @@ export interface VerifiedLine {
   subtotalCents: number;
 }
 
+/**
+ * Why a cart was refused.
+ *
+ * `"unavailable"` and `"out-of-stock"` are deliberately distinct even though
+ * both come back as "the lookup didn't price it". They are different facts about
+ * the world and want different words in front of a customer: a delisted item is
+ * gone and should leave the cart, while a sold-out one is coming back and is
+ * worth a notify-me. Collapsing them tells someone to remove an item the shop
+ * will restock on Tuesday.
+ *
+ * A lookup can only produce `"out-of-stock"` by saying so — see
+ * {@link ScopedPriceLookup} — because a bare `Map` has no way to distinguish
+ * them and guessing would put the wrong sentence on the screen.
+ */
+export type CheckoutRefusal =
+  | "empty"
+  | "unavailable"
+  | "out-of-stock"
+  | "price-changed"
+  | "invalid";
+
 export type CheckoutVerification =
   | { ok: true; lines: VerifiedLine[]; subtotalCents: number }
-  | { ok: false; reason: "empty" | "unavailable" | "price-changed" | "invalid"; message: string };
+  | { ok: false; reason: CheckoutRefusal; message: string };
 
 /** Look up current prices, in minor units, keyed by variant id. Anything the
  *  map omits is treated as no longer purchasable. */
 export type PriceLookup = (variantIds: string[]) => Promise<Map<string, number>>;
 
+/** Where the sale is happening. Optional, and providers without a location
+ *  dimension ignore it — a single-merchant Square account or Fourthwall store
+ *  passes nothing and behaves exactly as before. */
+export interface CheckoutScope {
+  /** Provider location id (Square) or equivalent merchant key. */
+  locationId?: string;
+}
+
+/**
+ * A richer lookup result, for providers that can tell "delisted" from
+ * "sold out".
+ *
+ * A lookup may return either a plain `Map<string, number>` (prices only, an
+ * omission means unavailable) or this. Both are accepted, so the plain form
+ * stays valid and nothing existing has to change.
+ */
+export interface ScopedPrices {
+  /** variantId → unit price in minor units, at the requested scope. */
+  prices: Map<string, number>;
+  /** Variant ids that exist and are priced but cannot be sold right now. */
+  outOfStock?: Iterable<string>;
+}
+
+/**
+ * A price lookup that knows WHERE the sale is happening.
+ *
+ * This is the multi-merchant checkout guard. One shared catalog sold through
+ * several merchants carries a different price per location — each shop's
+ * commission is absorbed in its own override — so re-pricing a cart against
+ * base prices lets a customer pay the cheapest merchant's price at the dearest
+ * merchant's storefront. That is not a rounding error; it is the same class of
+ * bug as trusting the client's `unitPriceCents`, just one level further back.
+ *
+ * `scope` is optional so a {@link PriceLookup} is still assignable here — an
+ * existing single-location lookup simply ignores the extra argument, which is
+ * exactly what a function of lower arity does in JavaScript.
+ *
+ * Return the map alone, or a {@link ScopedPrices} when the provider can
+ * distinguish sold-out from delisted:
+ *
+ * ```ts
+ * const lookup: ScopedPriceLookup = async (ids, scope) => {
+ *   const money = await retrieveVariationPricesAt(sq, ids, scope?.locationId ?? DEFAULT);
+ *   return new Map([...money].map(([id, m]) => [id, m.amount]));
+ * };
+ * ```
+ */
+export type ScopedPriceLookup = (
+  variantIds: string[],
+  scope?: CheckoutScope,
+) => Promise<Map<string, number> | ScopedPrices>;
+
+export interface VerifyCheckoutOptions {
+  /** Passed through to the lookup. Omit for a single-location store. */
+  scope?: CheckoutScope;
+}
+
 const MAX_QUANTITY = 999;
+
+/** Accept either lookup shape without making every caller branch. */
+function normalizeLookup(result: Map<string, number> | ScopedPrices): {
+  prices: Map<string, number>;
+  outOfStock: Set<string>;
+} {
+  if (result instanceof Map) return { prices: result, outOfStock: new Set() };
+  return { prices: result.prices, outOfStock: new Set(result.outOfStock ?? []) };
+}
 
 /**
  * Re-price a cart against the provider and decide whether it may proceed.
@@ -54,10 +141,21 @@ const MAX_QUANTITY = 999;
  * if (!check.ok) return json({ error: check.message }, 409);
  * await charge(check.subtotalCents);   // the SERVER's number
  * ```
+ *
+ * With a per-merchant catalog, pass the location the order is being placed at
+ * and use a lookup that resolves overrides:
+ *
+ * ```ts
+ * const check = await verifyCheckout(body.lines, pricesAt, { scope: { locationId } });
+ * ```
  */
 export async function verifyCheckout(
   lines: unknown,
-  lookup: PriceLookup,
+  // Typed as the scoped form alone rather than a union: a `PriceLookup` is
+  // already structurally assignable here (fewer parameters, narrower return),
+  // and a union of call signatures would reject the two-argument call below.
+  lookup: ScopedPriceLookup,
+  options: VerifyCheckoutOptions = {},
 ): Promise<CheckoutVerification> {
   if (!Array.isArray(lines) || lines.length === 0) {
     return { ok: false, reason: "empty", message: "Your cart is empty." };
@@ -83,11 +181,23 @@ export async function verifyCheckout(
     parsed.push({ variantId: l.variantId, quantity: l.quantity, unitPriceCents: l.unitPriceCents });
   }
 
-  const prices = await lookup([...new Set(parsed.map((l) => l.variantId))]);
+  const { prices, outOfStock } = normalizeLookup(
+    await lookup([...new Set(parsed.map((l) => l.variantId))], options.scope),
+  );
 
   const verified: VerifiedLine[] = [];
   let subtotalCents = 0;
   for (const line of parsed) {
+    // Checked before the price, because a sold-out variant is usually still
+    // priced: reading `prices` first would report it as available and let the
+    // charge through.
+    if (outOfStock.has(line.variantId)) {
+      return {
+        ok: false,
+        reason: "out-of-stock",
+        message: "An item in your cart just sold out.",
+      };
+    }
     const serverPrice = prices.get(line.variantId);
     if (serverPrice === undefined) {
       return {
