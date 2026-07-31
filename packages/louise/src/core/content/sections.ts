@@ -182,6 +182,23 @@ export interface SectionDef {
    * only, never CSS — the site component reads them and switches its own styles.
    */
   settings?: Record<string, SectionField>;
+  /**
+   * Where this section's CONTENT truth lives, when it isn't the page (ADR 0010
+   * Phase B). `"external"` marks a section that mirrors a system the site
+   * doesn't own — a Square-backed product grid — so the editor rings it yellow
+   * and its wrench configures the mirror (category, filters, hidden items),
+   * never the mirrored content itself. Omitted means the page owns it, which
+   * is every section that existed before Phase B.
+   */
+  source?: "external";
+  /**
+   * Site-settings keys this section READS when it renders — e.g.
+   * `["addressStreet", "hours"]` for a location panel. The coupling is
+   * otherwise invisible (it lives inside the site's Astro component), and it
+   * is what the shared-value editor counts to say "used in N surfaces"
+   * before a green-ring edit changes every one of them.
+   */
+  consumes?: string[];
 }
 
 /** The site's catalog of preconfigured section types (schema only — the bespoke

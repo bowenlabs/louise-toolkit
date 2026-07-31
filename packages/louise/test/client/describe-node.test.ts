@@ -180,3 +180,58 @@ describe("describeNode — paths that address nothing", () => {
     expect(at(path as (string | number)[])).toBeNull();
   });
 });
+
+describe("describeNode — the source model (ADR 0010 Phase B)", () => {
+  const external: SectionCatalog = {
+    productGrid: {
+      label: "Product grid",
+      source: "external",
+      fields: { heading: { type: "text" } },
+      settings: { categoryId: { type: "select", inline: false, options: [] } },
+    },
+  };
+  const extCtx = { items: [{ _type: "productGrid" }] as SectionItem[], catalog: external };
+
+  it("tones an external-source section external, leaving its capabilities alone", () => {
+    // The page still owns the section's position and inspector; only the tone
+    // says its CONTENT mirrors a system the site doesn't own.
+    expect(describeNode([0], extCtx)).toMatchObject({
+      ordered: { index: 0, count: 1 },
+      fields: true,
+      tone: "external",
+      label: "Product grid",
+    });
+  });
+
+  it("resolves a declared shared key to a wrench-only green node", () => {
+    const d = describeNode(["settings", "addressStreet"], {
+      ...ctx,
+      shared: { addressStreet: { label: "Street address" } },
+    });
+    expect(d).toEqual({ fields: true, tone: "shared", label: "Street address" });
+  });
+
+  it("falls back to the key when a shared def has no label", () => {
+    const d = describeNode(["settings", "phone"], { ...ctx, shared: { phone: {} } });
+    expect(d).toMatchObject({ tone: "shared", label: "phone" });
+  });
+
+  it.each([
+    ["an undeclared shared key", ["settings", "nope"]],
+    ["a shared path with no key", ["settings"]],
+    ["a shared path deeper than a key", ["settings", "hours", "monday"]],
+  ])("returns null for %s", (_label, path) => {
+    // Same stale-marker rule as everywhere else: a settings marker the editor
+    // wasn't told about reads as unmarked, not as a wrench over a mystery.
+    expect(
+      describeNode(path as (string | number)[], {
+        ...ctx,
+        shared: { hours: { label: "Hours" } },
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null for any settings path when no shared map is given", () => {
+    expect(describeNode(["settings", "addressStreet"], ctx)).toBeNull();
+  });
+});
