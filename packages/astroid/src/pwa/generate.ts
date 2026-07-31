@@ -45,14 +45,49 @@ export interface PwaConfig {
   themeColor?: string;
   /** Extra paths to precache alongside the scope root. */
   shell?: string[];
+  /**
+   * A prerendered page to serve when a navigation fails offline, e.g.
+   * `"/offline"`.
+   *
+   * Without it the fallback is the scope root — the *dynamic* app shell, which
+   * is exactly the wrong thing to precache when the app is auth-gated: that
+   * response carries `Cache-Control: no-store`, so either nothing is cached and
+   * the fallback is empty, or a signed-in shell is stored and later served to
+   * whoever opens the app next.
+   *
+   * Point it at a page with no session-specific markup. It is precached with the
+   * shell, so it must be prerendered — a dynamic route here fails at exactly the
+   * moment it is needed.
+   */
+  offlineFallback?: string;
+  /**
+   * Subdirectory under `public/` to emit `sw.js` and the manifest into, e.g.
+   * `"studio"`. Default: the public root.
+   *
+   * For a PWA served from its own subdomain that rewrites to a path prefix —
+   * `studio.example.com/` → `/studio/` — the browser fetches `/sw.js` at *its*
+   * origin root, which rewrites to `/studio/sw.js`. Emitting at the public root
+   * puts the file where nothing will ask for it.
+   *
+   * Set this to the same prefix the host rewrites to. With `scope` equal to the
+   * serving path, no `Service-Worker-Allowed` header is needed — a worker may
+   * always control its own directory and below.
+   */
+  emitDir?: string;
 }
 
 /** True when this project switched the PWA on. */
 export const usesPwa = (config: AstroidConfig): boolean => (config.modules ?? []).includes("pwa");
 
 /** Resolved PWA settings — config over derivation over default. */
-export function resolvePwa(config: AstroidConfig): Required<Omit<PwaConfig, "shell">> & {
+export function resolvePwa(config: AstroidConfig): Required<
+  Omit<PwaConfig, "shell" | "offlineFallback" | "emitDir">
+> & {
   shell: string[];
+  /** `null` when the app falls back to the scope root (see the config note). */
+  offlineFallback: string | null;
+  /** Normalized to no leading/trailing slash; `""` for the public root. */
+  emitDir: string;
 } {
   const pwa = config.pwa ?? {};
   // Normalized to a leading slash and no trailing one (except root), because
@@ -68,8 +103,24 @@ export function resolvePwa(config: AstroidConfig): Required<Omit<PwaConfig, "she
     orientation: pwa.orientation ?? "any",
     backgroundColor: pwa.backgroundColor ?? "#ffffff",
     themeColor: pwa.themeColor ?? config.theme.colors.brand,
-    shell: [scope, "/manifest.webmanifest", ...(pwa.shell ?? [])],
+    offlineFallback: pwa.offlineFallback ?? null,
+    emitDir: (pwa.emitDir ?? "").replace(/^\/+|\/+$/g, ""),
+    // The offline page is precached with the shell — a fallback fetched on
+    // demand is a fallback that isn't there when the network is.
+    shell: [
+      scope,
+      `${assetBase(pwa.emitDir)}/manifest.webmanifest`,
+      ...(pwa.offlineFallback ? [pwa.offlineFallback] : []),
+      ...(pwa.shell ?? []),
+    ],
   };
+}
+
+/** URL prefix the emitted `sw.js` + manifest are served from — `""` at the
+ *  public root, `"/studio"` under an `emitDir`. */
+function assetBase(emitDir: string | undefined): string {
+  const dir = (emitDir ?? "").replace(/^\/+|\/+$/g, "");
+  return dir ? `/${dir}` : "";
 }
 
 /**
@@ -143,6 +194,14 @@ export function generateServiceWorker(config: AstroidConfig): string | null {
     "//                 present as 'my changes don't save'",
     `const CACHE = ${JSON.stringify(cacheName)};`,
     `const SCOPE = ${JSON.stringify(pwa.scope)};`,
+    ...(pwa.offlineFallback
+      ? [
+          "// A prerendered page with no session-specific markup. The scope root is",
+          "// the app SHELL, which on an auth-gated app is `Cache-Control: no-store`",
+          "// — so falling back to it serves either nothing or someone else's shell.",
+          `const OFFLINE = ${JSON.stringify(pwa.offlineFallback)};`,
+        ]
+      : []),
     `const SHELL = ${JSON.stringify([...new Set(pwa.shell)])};`,
     "",
     "self.addEventListener('install', (event) => {",
@@ -210,7 +269,9 @@ export function generateServiceWorker(config: AstroidConfig): string | null {
     "            .catch(() => {});",
     "          return res;",
     "        })",
-    "        .catch(() => caches.match(req).then((r) => r || caches.match(SCOPE))),",
+    pwa.offlineFallback
+      ? "        .catch(() => caches.match(req).then((r) => r || caches.match(OFFLINE))),"
+      : "        .catch(() => caches.match(req).then((r) => r || caches.match(SCOPE))),",
     "    );",
     "    return;",
     "  }",
@@ -249,14 +310,19 @@ export function generateServiceWorker(config: AstroidConfig): string | null {
 export function generatePwaHeaders(config: AstroidConfig): string | null {
   if (!usesPwa(config)) return null;
 
+  // Paths must match where the files are actually emitted — a stanza for
+  // `/sw.js` while the worker lives at `/studio/sw.js` sets headers on nothing,
+  // and the no-cache rule is what stops a bad worker sticking around.
+  const base = assetBase(config.pwa?.emitDir);
+
   return [
     "",
     "# The service worker must revalidate on every load, or a bad worker sticks",
     "# around until its cache entry expires — and it controls every page in scope.",
-    "/sw.js",
+    `${base}/sw.js`,
     "  Cache-Control: no-cache",
     "",
-    "/manifest.webmanifest",
+    `${base}/manifest.webmanifest`,
     "  Content-Type: application/manifest+json",
     "  Cache-Control: public, max-age=3600",
     "",
