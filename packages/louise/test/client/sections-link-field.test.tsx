@@ -94,7 +94,11 @@ function pageHost(): HTMLElement {
   return host;
 }
 
-function mount(host: HTMLElement, builtInRoutes?: { path: string; title: string }[]) {
+function mount(
+  host: HTMLElement,
+  builtInRoutes?: { path: string; title: string }[],
+  pagePathForSlug?: (slug: string) => string,
+) {
   vi.spyOn(window.location, "reload").mockImplementation(() => {});
   return mountSections(host, {
     catalog: CATALOG,
@@ -102,6 +106,7 @@ function mount(host: HTMLElement, builtInRoutes?: { path: string; title: string 
     initial: [{ _type: "cta", label: "Shop", href: "/shop" }],
     autoSave: { debounceMs: 0 },
     ...(builtInRoutes ? { builtInRoutes } : {}),
+    ...(pagePathForSlug ? { pagePathForSlug } : {}),
   });
 }
 
@@ -174,6 +179,25 @@ describe("inspector — link field", () => {
     // Built-ins lead, then DB pages. Without the built-ins this picker would be
     // missing the destinations a site links to most.
     expect(optionValues()).toEqual(["", "/shop", "/contact", "/about"]);
+  });
+
+  it("maps slugs through pagePathForSlug and dedupes by path", async () => {
+    // The home-row alias (coracle QA, louise-toolkit#348): the DB row a site
+    // serves at `/` mapped to `/home` by default, so the picker offered "Home"
+    // twice — once as the built-in `/`, once as a duplicate-content alias.
+    // The site maps the slug; the picker collapses the pair by path, built-in
+    // first.
+    stubFetch([
+      { slug: "home", title: "Home" },
+      { slug: "about", title: "About" },
+    ]);
+    const host = pageHost();
+    dispose = mount(host, [{ path: "/", title: "Home" }], (slug) =>
+      slug === "home" ? "/" : `/${slug}`,
+    );
+    await openInspector(host);
+
+    expect(optionValues()).toEqual(["", "/", "/about"]);
   });
 
   it("still renders the picker from DB pages alone when no routes are registered", async () => {

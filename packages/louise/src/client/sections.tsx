@@ -56,7 +56,7 @@ import {
 } from "./realtime.js";
 import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "./editor-events.js";
 import { Icon } from "./icons.jsx";
-import { LinkField, type PageChoice, setBuiltInRoutes } from "./link-field.jsx";
+import { LinkField, type PageChoice, setBuiltInRoutes, setPagePathForSlug } from "./link-field.jsx";
 import { MediaPicker } from "./media-picker.jsx";
 import { type RichTextField, mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
@@ -139,6 +139,15 @@ export interface SectionsEditorProps {
    * `builtInPages`.
    */
   builtInRoutes?: PageChoice[];
+  /**
+   * How the picker turns a `pages` row's slug into a path. Default `/${slug}`.
+   *
+   * For the row a site renders somewhere other than its slug — the `home` row
+   * served at `/` — the default offers editors a duplicate-content alias
+   * (`/home`) next to the real destination. Map it here and the picker's
+   * path-dedupe collapses the pair into the built-in entry.
+   */
+  pagePathForSlug?: (slug: string) => string;
   pageId: number;
   initial: SectionItem[];
   /** Auto-save inline section edits as a draft on an idle debounce — never
@@ -663,6 +672,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // page), so register the site's code routes once here rather than threading
     // the prop down to each field (#38).
     setBuiltInRoutes(props.builtInRoutes);
+    setPagePathForSlug(props.pagePathForSlug);
 
     // Advertise that there is a history drawer to open, so the Settings strip can
     // show its History icon; cleared on cleanup so the icon can't outlive us.

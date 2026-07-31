@@ -39,11 +39,24 @@ export function setBuiltInRoutes(routes: PageChoice[] | undefined): void {
   builtInRoutes = routes ?? [];
 }
 
+// How a `pages` row's slug becomes a path. `/${slug}` is the truth for every
+// conventional row, but a site can render one row somewhere else entirely —
+// coracle's `home` row IS the homepage, served at `/`, and mapping it to
+// `/home` offered editors a duplicate-content alias as if it were a page.
+let pagePathForSlug: (slug: string) => string = (slug) => `/${slug}`;
+
+/** Override how the picker turns a page slug into a path. Called by
+ *  `mountSections`; last write wins, `undefined` restores the default. */
+export function setPagePathForSlug(map: ((slug: string) => string) | undefined): void {
+  pagePathForSlug = map ?? ((slug) => `/${slug}`);
+}
+
 /** Reset the module-level caches. Tests only — a stale page list would leak
  *  across cases. */
 export function resetLinkFieldCache(): void {
   pagesCache = null;
   builtInRoutes = [];
+  pagePathForSlug = (slug) => `/${slug}`;
 }
 
 /**
@@ -63,8 +76,20 @@ export function LinkField(props: {
   const [url, setUrl] = createSignal(props.href);
 
   // Built-ins lead: they're the hand-authored routes a site links to most, and
-  // they can't be confused with content the editor might rename.
-  const choices = (): PageChoice[] => [...builtInRoutes, ...pages()];
+  // they can't be confused with content the editor might rename. Deduped by
+  // PATH — a destination's identity — so a DB row mapping onto a built-in's
+  // path (the home row, once `pagePathForSlug` sends it to `/`) shows once,
+  // under its hand-authored title.
+  const choices = (): PageChoice[] => {
+    const seen = new Set<string>();
+    const out: PageChoice[] = [];
+    for (const c of [...builtInRoutes, ...pages()]) {
+      if (seen.has(c.path)) continue;
+      seen.add(c.path);
+      out.push(c);
+    }
+    return out;
+  };
 
   onMount(() => {
     if (pagesCache) return;
@@ -73,7 +98,10 @@ export function LinkField(props: {
         r.ok ? (r.json() as Promise<{ pages?: { slug: string; title: string }[] }>) : { pages: [] },
       )
       .then((d) => {
-        pagesCache = (d.pages ?? []).map((p) => ({ path: `/${p.slug}`, title: p.title }));
+        pagesCache = (d.pages ?? []).map((p) => ({
+          path: pagePathForSlug(p.slug),
+          title: p.title,
+        }));
         setPages(pagesCache);
       })
       .catch(() => {
