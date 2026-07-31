@@ -40,7 +40,12 @@ import { astroidPortal } from "../portal/config.js";
 import { generateAstroidPortalAuth, generateAstroidPortalAuthRoute } from "../portal/scaffold.js";
 import { generateAstroidTenancy } from "../tenancy/index.js";
 import { generateAstroidEditSession } from "../realtime/scaffold.js";
-import { generatePwaHeaders, generateServiceWorker, generateWebManifest } from "../pwa/generate.js";
+import {
+  generatePwaHeaders,
+  generateServiceWorker,
+  generateWebManifest,
+  resolvePwa,
+} from "../pwa/generate.js";
 import { astroidUsesQueues } from "../queues/messages.js";
 import { generateAstroidQueueSeam, generateAstroidWebhookRoutes } from "../queues/scaffold.js";
 
@@ -143,18 +148,29 @@ export function generateAstroidScaffoldFiles(config: AstroidConfig): ScaffoldFil
   // bundled, and `_headers` is shared with whatever else writes to it.
   const sw = generateServiceWorker(config);
   if (sw) {
-    files.push({ path: "public/sw.js", contents: sw });
+    // `emitDir` puts them where the BROWSER will ask for them. A PWA on its own
+    // subdomain that rewrites to a path prefix (studio.example.com/ → /studio/)
+    // fetches /sw.js at its own origin root, which rewrites to /studio/sw.js —
+    // so a worker emitted at the public root is a 404 nothing explains.
+    const pwaDir = resolvePwa(config).emitDir;
+    const publicBase = pwaDir ? `public/${pwaDir}` : "public";
+    files.push({ path: `${publicBase}/sw.js`, contents: sw });
     const manifest = generateWebManifest(config);
-    if (manifest) files.push({ path: "public/manifest.webmanifest", contents: manifest });
+    if (manifest) {
+      files.push({ path: `${publicBase}/manifest.webmanifest`, contents: manifest });
+    }
     const headers = generatePwaHeaders(config);
     if (headers) {
       files.push({
+        // `_headers` stays at the public root wherever the worker lives — it is
+        // one file for the whole site, and Cloudflare only reads it there.
         path: "public/_headers",
         contents: headers,
         apply: "append-once",
         // The service-worker path is the one token this stanza always contains
-        // and nothing else in a `_headers` file would.
-        marker: "/sw.js",
+        // and nothing else in a `_headers` file would. Includes the emit dir, so
+        // moving the worker rewrites the stanza rather than appending a second.
+        marker: `${pwaDir ? `/${pwaDir}` : ""}/sw.js`,
       });
     }
   }

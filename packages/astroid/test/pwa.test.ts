@@ -175,3 +175,48 @@ describe("generatePwaHeaders", () => {
     );
   });
 });
+
+describe("offlineFallback (#309)", () => {
+  it("falls back to the scope root when unset — unchanged behaviour", () => {
+    const sw = generateServiceWorker(withPwa({ scope: "/order" }))!;
+    expect(sw).toContain("caches.match(SCOPE)");
+    expect(sw).not.toContain("OFFLINE");
+  });
+
+  it("falls back to the prerendered page when set", () => {
+    // The scope root is the app SHELL. On an auth-gated app that response is
+    // `Cache-Control: no-store`, so falling back to it serves either nothing or
+    // a signed-in shell to whoever opens the app next.
+    const sw = generateServiceWorker(withPwa({ scope: "/order", offlineFallback: "/offline" }))!;
+    expect(sw).toContain('const OFFLINE = "/offline";');
+    expect(sw).toContain("caches.match(OFFLINE)");
+    expect(sw).not.toContain("caches.match(SCOPE)");
+  });
+
+  it("precaches the offline page — one fetched on demand isn't there when needed", () => {
+    expect(resolvePwa(withPwa({ offlineFallback: "/offline" })).shell).toContain("/offline");
+    expect(resolvePwa(withPwa({})).offlineFallback).toBeNull();
+  });
+});
+
+describe("emitDir (#309)", () => {
+  it("defaults to the public root", () => {
+    expect(resolvePwa(withPwa({})).emitDir).toBe("");
+    expect(resolvePwa(withPwa({})).shell).toContain("/manifest.webmanifest");
+    expect(generatePwaHeaders(withPwa({}))).toContain("\n/sw.js\n");
+  });
+
+  it("moves the manifest reference and the headers stanza together", () => {
+    // A stanza for /sw.js while the worker lives at /studio/sw.js sets headers
+    // on nothing — and the no-cache rule is what stops a bad worker sticking.
+    const pwa = withPwa({ scope: "/studio", emitDir: "studio" });
+    expect(resolvePwa(pwa).shell).toContain("/studio/manifest.webmanifest");
+    const headers = generatePwaHeaders(pwa)!;
+    expect(headers).toContain("\n/studio/sw.js\n");
+    expect(headers).toContain("\n/studio/manifest.webmanifest\n");
+  });
+
+  it("normalizes slashes, so `/studio/` and `studio` agree", () => {
+    expect(resolvePwa(withPwa({ emitDir: "/studio/" })).emitDir).toBe("studio");
+  });
+});
