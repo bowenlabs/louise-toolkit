@@ -104,7 +104,7 @@ describe("generated middleware", () => {
     expect(out).toContain("const label = tenantLabel(context.url.hostname, TENANCY);");
     expect(out).toContain("context.locals.tenant = label ? await resolveTenant(label) : null;");
     expect(out).toContain("rewrite: (context) => {");
-    expect(out).toContain("`/t/${tenant.slug}${context.url.pathname}`");
+    expect(out).toContain("`/t/${tenant.slug}${context.url.pathname}${context.url.search}`");
   });
 
   it("reads the reserved list from the config, not a copy", () => {
@@ -120,7 +120,7 @@ describe("generated middleware", () => {
       ...tenanted,
       tenancy: { ...tenanted.tenancy!, rewritePrefix: "/merchant" },
     });
-    expect(out).toContain("`/merchant/${tenant.slug}${context.url.pathname}`");
+    expect(out).toContain("`/merchant/${tenant.slug}${context.url.pathname}${context.url.search}`");
   });
 
   it("emits nothing tenancy-shaped when it isn't configured", () => {
@@ -203,7 +203,7 @@ describe("tenancy.apps — first-party app labels", () => {
       'import { appPrefix, astroidRateRules, isRewriteExcluded, tenantLabel } from "astroidjs";',
     );
     expect(out).toContain("const app = appPrefix(context.url.hostname, TENANCY);");
-    expect(out).toContain("if (app) return `${app}${context.url.pathname}`;");
+    expect(out).toContain("if (app) return `${app}${context.url.pathname}${context.url.search}`;");
     // App check precedes the tenant check inside the one rewrite hook.
     const appAt = out.indexOf("const app = appPrefix");
     const tenantAt = out.indexOf("const tenant = context.locals.tenant;");
@@ -352,5 +352,31 @@ describe("generated middleware — host-agnostic paths are never rewritten", () 
       tenancy: { hostPattern: "*.example.com", rewriteExclude: [] },
     });
     expect(out).toContain("isRewriteExcluded(context.url.pathname, [])");
+  });
+});
+
+describe("the rewrite preserves the query string", () => {
+  // The rewrite chooses which PAGE renders; it does not get to edit what was
+  // asked of it. Dropping `search` silently loses filters, pagination,
+  // campaign tags — and every typed search param a routed island reads, which
+  // on an app host is the whole point of using a router.
+  it("carries search through the tenant branch", () => {
+    const out = generateAstroidMiddleware(tenanted);
+    expect(out).toContain("${context.url.pathname}${context.url.search}");
+  });
+
+  it("carries search through the app branch too", () => {
+    const out = generateAstroidMiddleware({
+      ...base,
+      hosts: ["example.com"],
+      tenancy: { hostPattern: "*.example.com", apps: { studio: "/studio" } },
+    });
+    expect(out).toContain("if (app) return `${app}${context.url.pathname}${context.url.search}`;");
+  });
+
+  it("never emits a bare pathname rewrite", () => {
+    // The regression this guards: a rewrite that ends at `pathname`.
+    const out = generateAstroidMiddleware(tenanted);
+    expect(out).not.toContain("${context.url.pathname}`");
   });
 });

@@ -634,11 +634,14 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
                 "    // map, checked before the tenant — an app exists whether or not any",
                 "    // tenant does, and needs no lookup.",
                 "    const app = appPrefix(context.url.hostname, TENANCY);",
-                "    if (app) return `${app}${context.url.pathname}`;",
+                "    // `search` is preserved: the rewrite chooses which page renders, not",
+                "    // what was asked of it. Dropping it silently loses filters, pagination,",
+                "    // campaign tags — and every typed search param a routed island reads.",
+                "    if (app) return `${app}${context.url.pathname}${context.url.search}`;",
               ]
             : []),
           "    const tenant = context.locals.tenant;",
-          `    return tenant ? \`${rewritePrefix}/\${tenant.slug}\${context.url.pathname}\` : undefined;`,
+          `    return tenant ? \`${rewritePrefix}/\${tenant.slug}\${context.url.pathname}\${context.url.search}\` : undefined;`,
           "  },",
         ]
       : []),
