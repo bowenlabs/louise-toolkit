@@ -1,5 +1,436 @@
 # louise-toolkit
 
+## 0.23.0
+
+### Minor Changes
+
+- 71cc1d7: **One flag turns AI generation off, separately from the binding.**
+
+  AI was gated by binding presence and nothing else: if `env.AI` was provisioned the
+  assists were live, and the only way to turn them off was to unprovision it. That
+  is a real switch, and for "this site never uses AI" arguably the right one. It
+  stops working the moment you want to keep the binding and still disable
+  _generation_ — an embeddings-backed search that must keep running while alt-text
+  and SEO suggestions go quiet, a client whose contract forbids generated copy, or a
+  temporary kill after a bad model swap.
+
+  `LOUISE_AI=off` in `vars`, plus `aiRunner(env)` in place of `(env) => env.AI`:
+
+  ```ts
+  aiRoute({ resolveEditor, ai: aiRunner });
+  ```
+
+  **One exported definition, not four.** Every consumer reached the runner through
+  its own accessor, so a flag written at each call site would be four chances to
+  drift — and a kill switch you don't trust is worse than none. Astroid's generated
+  worker and `workers/site` both wire it now.
+
+  **Two decisions the issue left open, resolved:**
+
+  **Scope — generation only.** Embeddings power site search and generate nothing, so
+  gating them would mean disabling "AI content" silently breaks search: a
+  consequence nobody predicts from the flag's name, surfacing as "search returns
+  nothing" long after the flag was flipped. `vector.ai` deliberately stays on the
+  binding. Unprovisioning `AI` still turns off everything.
+
+  **"Off by choice" vs "not configured" — distinguished now, not later.** Both
+  answer `503` and both hide the control, which is correct for an unprovisioned
+  binding but wrong for a deliberate opt-out, where the honest answer is "AI assists
+  are turned off for this site". The 503 body carries `reason: "disabled" |
+"unconfigured"`. Shipped together because a kill switch whose state is invisible
+  is exactly what the flag is trying to fix.
+
+  `LOUISE_AI` **cannot turn AI on** — with no binding there is nothing to enable, so
+  the var stays a ceiling rather than a second source of truth. `off`, `false`, `0`,
+  `no`, and `disabled` all mean off, case-insensitively; every other value means on,
+  so no typo can accidentally disable AI, only spell "off" more than one way.
+
+- e56d546: **`getLouiseAuth` takes an explicit `rpID`, so one passkey can cover an apex and
+  its admin subdomain.**
+
+  The passkey relying-party ID was derived from the request origin. That is right
+  for a single-origin site and wrong the moment an admin app lives on its own
+  subdomain: `example.com` and `studio.example.com` become two relying parties, so
+  the same person enrols **two separate passkeys** and then picks the right one from
+  a list on every sign-in.
+
+  ```ts
+  getLouiseAuth(env, baseURL, {
+    rpName: "My Studio",
+    rpID: "example.com", // both origins, one credential
+    cookiePrefix: "louise-studio", // …but its own session
+  });
+  ```
+
+  Additive — omit it and behaviour is byte-for-byte what it was.
+
+  **The sessions stay separate, and that is the desirable half.** A shared
+  credential is not a shared login. Pair `rpID` with **host-only cookies** (no
+  `Domain` attribute, `crossSubDomainCookies` off — the default) and a distinct
+  `cookiePrefix` per instance. Widening the cookie to the parent domain would
+  broadcast the admin session to every sibling subdomain, including untrusted tenant
+  storefronts — the failure this option exists to avoid rather than cause.
+
+  `rpID` must be the origin's own domain or a parent of it; a browser rejects a
+  registration whose rpID is neither, so a typo fails at enrolment rather than
+  silently. It is a bare domain — no scheme, no port.
+
+- 1cf8d2e: **New: `louise-toolkit/commerce/fourthwall-platform` — the Fourthwall Platform
+  API (Open API v1.0).**
+
+  At-cost fulfillment orders and product creation. Raw `fetch` + HTTP Basic, no
+  SDK, V8-native, matching the other three provider clients.
+
+  A separate subpath from `/commerce/fourthwall`, and the split is the point.
+  Different base URL and different auth, yes — but the reason it is a hard split is
+  the **trust boundary**. The storefront `storefront_token` is public-safe by
+  design and shipping it to a browser is the intended use; these are credentials
+  that place orders and create products, and they must never leave a Worker. One
+  module holding both is how the wrong one ends up in a client bundle: a component
+  imports it for `lowestPrice`, the bundler pulls the whole graph, and the order
+  client lands in the browser's source map. Two modules make that a build error
+  rather than a leak.
+
+  **External orders** — `validateExternalOrder`, `createExternalOrder`,
+  `listExternalOrders`, `getExternalOrder`, `cancelExternalOrder`, plus a local
+  `isCancellable` so a UI can hide the button instead of offering an action that
+  throws.
+
+  `validateExternalOrder` is the only place the at-cost breakdown
+  (`manufacturingCost`, `fulfillmentFee`, `shippingCost`, `totalCreatorCost`) is
+  available before money is committed. **Fourthwall answers 200 for a validation
+  that FAILED**, with the reasons in the body — so `res.ok` is not the verdict, and
+  the client reads `valid`/`errors` instead. Treating the status as the answer
+  submits an order that was just told it wouldn't work.
+
+  **`createExternalOrder` never retries, even when `config.retry` is set.**
+  Fourthwall has no idempotency-key header, so unlike Square a retried create that
+  actually succeeded server-side is a second order and a second charge. A sync job
+  that enabled retries globally must not silently inherit that on the one call that
+  spends money.
+
+  **Products** — `createProduct`, `deleteProduct`, `setProductAvailability`,
+  `setProductState`, `addProductImages`, and read-only `getProductInventory`.
+
+  **There is no product update, and there never will be — the API has none.** No
+  endpoint changes a product's name, description, price, or variants after
+  creation. The only remedy is delete and re-create, which mints a new id, so
+  anything keyed on the old one has to be reconciled. That is documented at
+  `createProduct` rather than in a release note, because it is where someone
+  looking for `updateProduct` will actually land.
+
+  `createProduct` takes a discriminated input: physical products carry
+  `profitMargin` (Fourthwall derives the price), digital products carry an absolute
+  `price`. The type makes the wrong one unspellable rather than silently ignored.
+
+  `getProductInventory` returns `quantity: null` for an untracked variant, distinct
+  from `0` — collapsing them hides a sellable variant. There is also no inventory
+  webhook, so stock drift is only detectable by polling.
+
+  **Rate limiting, on by default.** A token bucket per shop honouring the two
+  published limits — 100 requests/10s globally and 5 `POST /products`/minute — both
+  counted per shop, so adding API users buys no budget. Continuous refill rather
+  than a fixed window, since a fixed window lets 2× the limit through across a
+  boundary. Product creates spend from both buckets, and acquisition is serialized
+  so N concurrent callers can't all observe the same empty bucket and burst
+  together.
+
+  The buckets are per **isolate**, and the module says so plainly: two Workers
+  isolates, or a cron and a queue consumer running concurrently, each get a full
+  bucket. This prevents the failure that actually happens — one loop hammering an
+  endpoint it could have paced itself under — and does not pretend to be
+  distributed coordination. Put the calls behind a Durable Object if you need that.
+
+  `rateLimitKey` groups clients that share a shop; it defaults to `username`, which
+  is right for one user per shop and wrong for several.
+
+- 2164d91: **`mountStudio` — the Louise editor as a full-page admin app.**
+
+  The drawer shell was drawer-shaped: summoned over a live page, dismissed, gone.
+  Right for editing in place, wrong for the back-office half of the job — a session
+  spent in Media and Pages, deep-linked and bookmarked. A site wanting that had to
+  rebuild the shell even though every panel it needed already existed.
+
+  ```ts
+  import { mountStudio } from "louise-toolkit/client/studio";
+  mountStudio({ title: "Acme Studio", users: true });
+  ```
+
+  **A second presentation, not a second implementation.** Both render the same
+  panels through a shared `surface` module, so they cannot drift about which panels
+  exist or how a dashboard card deep-links to one. The drawer adds a scrim, a dialog
+  role, a focus trap and a close button; the studio adds none of them because it is
+  always open. Its own subpath (`louise-toolkit/client/studio`) keeps each out of
+  the other's bundle.
+
+  **Two constraints are built in rather than left to the caller:**
+
+  - **The shell renders no data and no session-specific markup**, so it stays
+    precacheable by a service worker — pair with `PwaConfig.offlineFallback`. Every
+    panel fetches through `/api/*` on mount, and `title` is a site name rather than
+    an editor name for exactly this reason.
+  - **A 401 becomes a navigation.** A full-page app can't degrade to "render the
+    public page" — there is no page underneath — so an expired session sends the
+    browser to `signInPath` (default `/signin`). Handled centrally, because the one
+    panel that forgot would render an empty list that reads as "no data" rather than
+    "signed out".
+
+  Two supporting changes fall out of that:
+
+  - `apiGet` / `apiSend` now throw a **`LouiseApiError` carrying `status`**, with an
+    `isApiStatus(error, 401)` helper. Callers genuinely branch on status, and
+    matching it by parsing an error string would break the first time the message
+    was reworded.
+  - **401s are no longer retried** (both presentations). An expired session fails
+    again a second later by definition, so the retry only delayed the response to it
+    by the length of the backoff. A 403 — a permissions answer, not an expired
+    session — is still retried once.
+
+- 71cc1d7: **Catalog writes can now carry imagery and taxonomy, and locations can be created.**
+
+  The read path already mapped `image_ids` and `categories` / `reporting_category`;
+  the write body emitted neither, so `mapCatalogItem` after a write always came back
+  with `imageUrl: null` and a pushed item landed in no category at all. Both are now
+  on `CatalogPresentationInput`, shared by `upsertCatalogItem` and
+  `batchUpsertCatalogObjects`:
+
+  - `imageIds` — display order, first is primary
+  - `categoryIds`
+  - `reportingCategoryId` — the single category Square attributes sales to
+
+  **`reportingCategoryId` must appear in `categoryIds`, and that now throws if it
+  doesn't.** Square reports against it regardless of membership, so the mismatch
+  costs you a product that is missing from every sales breakdown while looking
+  correct in the dashboard — findable only by someone who already suspects it.
+
+  Unset keys are omitted rather than sent empty. An absent key means "leave it
+  alone" and `[]` means "clear it", so defaulting to `[]` would strip every item's
+  imagery on the first price update.
+
+  **`createCatalogImage`** uploads the bytes and returns the id those `imageIds`
+  take — the catalog write accepts ids, never bytes. It is multipart, and
+  deliberately not built on the JSON verbs: `content-type` has to carry the boundary
+  `fetch` generates, and setting it by hand breaks the upload in a way that surfaces
+  as a Square-side rejection. Pass `objectId` to attach during upload, or omit it
+  and attach later — which is what you want for many items sharing one picture,
+  since re-uploading the same bytes bills and stores per item.
+
+  **`createLocation` / `updateLocation`** complete the Locations API. `updateLocation`
+  is sparse, so an omitted field is never cleared — but note that `address` is a
+  nested object Square replaces wholesale, so a partial address replaces the whole
+  one. Currency is deliberately not settable: Square derives it from the seller
+  account, so all locations under one account share it. A merchant needing a
+  different currency needs a different account, which is an onboarding constraint
+  worth knowing before designing around it.
+
+- 71cc1d7: **Fixed: order search broke on the eleventh location.** `searchOrders` and
+  `searchOrdersByCustomer` passed `locationIds` straight through to
+  `/v2/orders/search`, where Square caps `location_ids` at **10 per call** — a
+  documented hard ceiling that answers an eleventh id with a 400, not a truncation.
+
+  Both now chunk at 10 and merge, sequentially rather than in parallel: a
+  300-location account is 30 searches, and firing those at once is the surest way
+  to meet the rate limit this client only retries when asked to.
+
+  Merging needs one thing more than concatenation. **Square sorts within a
+  response, not across our chunks**, so above 10 locations the result was ordered
+  per chunk and unordered overall — which spot-checks fine and puts the wrong rows
+  in any "top N" or "most recent" that trusts the order. Results are re-sorted on
+  the same axis the search used, with orders missing that timestamp sorted last in
+  both directions (an `OPEN` order has no `closed_at`, and unguarded it lands where
+  "newest" should be). `searchOrdersByCustomer` also trims to `limit` after
+  merging, since `limit` is per request and N chunks otherwise return N×limit.
+
+  An empty `locationIds` now throws instead of asking Square to reject it. Not
+  returning `[]` deliberately: a reporting call that silently yields no rows reads
+  as "no sales", which is worse than an error.
+
+  Also adds **`calculateOrder`** (`POST /v2/orders/calculate`) — preview a cart's
+  totals including auto-applied taxes through the same pricing engine checkout
+  uses, without persisting an order to clean up if the customer walks away. It
+  shares `orderLineItemBody` with `createOrder` and `createPaymentLink`, so the
+  preview cannot drift from the charge.
+
+- 71cc1d7: **`readModifyWriteCatalog` — edit a catalog object without silently erasing it.**
+
+  Square documents this hazard verbatim: _"If a client reads an object at an older
+  API version and writes it back at a newer version, fields that were introduced
+  between those two versions will be absent from the request, and the server will
+  interpret that absence"_ — as an intentional clear. `SQUARE_VERSION` was pinned,
+  but nothing enforced read/write symmetry at the call site and there was no helper,
+  so every consumer hand-rolled one and any of them could get it wrong.
+
+  The generalised form is worse than the version-skew case: _any_ read-modify-write
+  that rebuilds the object from the fields it models erases whatever it doesn't.
+  `location_overrides` is the one that hurts, because per-location pricing is
+  invisible in a naive round trip and its loss looks like a pricing decision.
+
+  So the helper never rebuilds. It reads the raw object, hands _that object_ to the
+  mutator, and writes back what it got — with the version from that read (a
+  concurrent write then makes yours fail rather than clobber) and the same pinned
+  `Square-Version` on both calls. `SquareCatalogObject` is deliberately an open type
+  with an index signature: a closed interface would invite exactly the
+  reconstruct-from-parts bug this exists to prevent.
+
+  **Two write-path guards**, folded in from the multi-location work:
+
+  - **A variation's locations must be a subset of its parent item's.** Square
+    documents the rule and does not enforce it — violating it yields a silent
+    partial state where the item renders at a location with no purchasable
+    variation beneath it. Now a thrown `Error` before the request rather than a
+    puzzle in production.
+  - **250 variations per item**, Square's cap and the first ceiling a
+    per-merchant-variation design meets. Thrown before the write instead of arriving
+    as a 400 partway through a catalog push.
+
+  Both apply to `upsertCatalogItem` and `batchUpsertCatalogObjects`.
+
+- 89a9afb: **Wildcard host dispatch: a `rewrite` hook, and the `tenancy` config that uses it.**
+
+  Serving `*.example.com` from one Worker — scoped views of one brand's data, a
+  per-merchant storefront — had no seam. `AstroidConfig.hosts` is consumed only by
+  the wrangler generator, which emits `{ pattern, custom_domain: true }`; a wildcard
+  needs `{ pattern, zone_name }` and explicitly **not** `custom_domain`, so `hosts`
+  cannot express it. And there was nowhere to put the dispatch: `src/middleware.ts`
+  is generated, Astro permits exactly one middleware file, `extend` returns `void`
+  and `guard` returns only a `Response` — so **neither existing hook could rewrite**.
+
+  **`createLouiseMiddleware` gains `rewrite?: (context) => string | undefined`**
+  (louise-toolkit), called before `next()` and **after `guard`** — so route policy
+  stays written against the URL a visitor actually asked for rather than an internal
+  one. It sits outside the `extend` try/catch for the same reason `guard` does: a
+  rewrite that throws must not degrade into rendering the _unrewritten_ path, which
+  under host dispatch is another tenant's page.
+
+  **`AstroidConfig.tenancy`** (astroidjs) wires it up: the wrangler generator emits
+  the wildcard zone route alongside the apex custom domain, the generated middleware
+  resolves a label and rewrites, and a scaffold-once `src/tenancy.ts` holds the
+  lookup.
+
+  ```ts
+  tenancy: { hostPattern: "*.example.com", reserved: ["www", "studio"] },
+  hosts: ["example.com"],
+  ```
+
+  **The site keeps every decision.** What a label maps to, whether the lookup is
+  cached, and what an unknown host means all live in `src/tenancy.ts` — with the
+  last stated as a decision rather than defaulted quietly, since falling through to
+  the ordinary site means a stranger's CNAME renders your homepage.
+
+  **Two config-time refusals.** A non-wildcard `hostPattern` (that is a custom
+  domain — put it in `hosts`), and an apex missing from `hosts`: a wildcard route
+  does not match its own apex, so `example.com` would 404 the moment tenancy was
+  switched on, with a symptom that reads as unrelated to the feature that caused it.
+
+  `tenantLabel(host, tenancy)` is exported and pure so a site can unit-test its own
+  reserved list. It returns `null` for the apex, off-pattern hosts, reserved labels,
+  and dotted labels — Cloudflare's wildcard matches one level, and a dotted slug
+  would put a `/` in the rewrite path.
+
+  This does not weaken the one-brand-per-project rule; that note in `config.ts` is
+  clarified rather than contradicted.
+
+### Patch Changes
+
+- 71cc1d7: **The editor and settings chrome stopped loading full-size originals.**
+
+  Published pages render through `<MediaSlot>`, which is what it exists for. The
+  chrome had no equivalent: every `<img>` in `src/client` pointed at the raw
+  media-library URL, so a 6 MB camera original was fetched at full resolution to
+  fill a 120 px thumbnail. The media picker was the worst case — open it against a
+  library of 200 assets and the browser is asked for 200 full-size masters.
+  `loading="lazy"` bounds how many arrive at once; it doesn't make any of them
+  smaller.
+
+  Edit-mode-only, so it never touched published-page metrics — most likely why it
+  went unnoticed. It was still the slowest surface in the product, and slow for the
+  people using it most.
+
+  A new internal `thumb(url, px)` wraps `cfImage` at 2× the display box, applied at
+  all six chrome call sites: both picker grids, the media-library tile, the image
+  field's selected-value preview, the sections image preview, and the ProseKit
+  image node view. Each renders at a known size, which is what makes this cheap —
+  the caller passes the box rather than guessing.
+
+  `ImageField`'s `transform` prop had been designed and left unwired — its own doc
+  comment named `cfImage` as the intended use and no caller ever passed one. It now
+  **defaults** to a sized derivative and remains available as an override.
+
+  Two things preserved deliberately:
+
+  - **The ProseKit node view transforms for display only.** `attrs().src` is what
+    serializes into stored content and what the site renders via `set:html`, so
+    rewriting it would bake a fixed width and crop into the document and defeat
+    re-cropping later. A test asserts both halves — the rendered `<img>` carries a
+    `/cdn-cgi/image/` URL, the serialized HTML does not — because asserting only
+    the stored side would still pass if the node view stopped transforming at all.
+  - **The zone dependency.** `/cdn-cgi/image/` requires Image Resizing on the
+    serving zone; a site whose `MEDIA_URL` is a plain R2 bucket domain gets the
+    original back — correct, just not smaller. Documented on the helper so nobody
+    debugs it twice.
+
+- 7a08f74: **Fixed docs: the TanStack validator bridge must be wired to `onChangeAsync`, not
+  `onChange`.**
+
+  `tanstackFieldValidator` returns an async function — deliberately, so DB-backed
+  custom rules can be awaited. TanStack Form keys its validator slots on exactly
+  that distinction, and the toolkit's own doc comment and both docs pages showed the
+  **sync** slot.
+
+  Verified against `@tanstack/solid-form@1.33.2`: a promise-returning function in
+  `onChange` is stored **as the promise**, so `meta.errors` holds a pending
+  `Promise` instead of a string. Nothing throws. The message never renders and the
+  submit button never disables — which reads exactly like "validation isn't
+  running", and sends you looking upstream rather than at the wiring.
+
+  ```diff
+  - <form.Field name="email" validators={{ onChange: v.email }}>
+  + <form.Field name="email" validators={{ onChangeAsync: v.email }}>
+  ```
+
+  `onBlurAsync` and `onSubmitAsync` take the same function; pair with
+  `onChangeAsyncDebounceMs` when a rule hits the network.
+
+  Docs-only for the runtime — no behaviour changed — but the previous instructions
+  produced a form that silently didn't validate.
+
+  Also documents that the validator map is **flat**: `defineForm` has no array or
+  nested field type, because each field is one column. A form with repeating rows
+  builds its array with TanStack's own API and attaches these validators to the
+  leaves.
+
+  **Removed a doc comment pointing at an export that does not exist.**
+  `client/forms.tsx` advertised an opt-in solid-form scaffold at
+  `louise-toolkit/client/tanstack-form`. There is no such subpath, no such module,
+  and `@tanstack/solid-form` is not a peer dependency — following the comment gets
+  you a resolution error. It now says what is actually true: build a complex form
+  yourself with TanStack and keep one validation definition through
+  `tanstackFormValidators`. No scaffold is planned, and the docs say why.
+
+- 7a08f74: **Documented: a routed app inside an Astro `client:only` island.**
+
+  `@tanstack/solid-router` mounted in a `client:only="solid-js"` island is
+  undocumented anywhere upstream — the Router repo's Solid examples are all
+  standalone Vite or Start-based. Spiked (#317) against `astro@7.1.6` +
+  `@tanstack/solid-router@1.170.18` and verified in a real browser: deep-link
+  refresh through an Astro catch-all, `basepath`, history across island
+  navigations, and that navigation genuinely stays client-side.
+
+  Both router configurations work — literal prefixed route paths, or
+  `basepath: "/app"` with root-relative ones. Router #4888 is filed against
+  `@tanstack/solid-start` and doesn't apply.
+
+  **One caveat, documented rather than smoothed over:** Astro's static build emits
+  directory-style URLs (`/app/orders/` → `index.html`) while the router writes
+  history entries _without_ a trailing slash. `astro preview` serves both, but
+  that's the preview server being lenient — confirm it on a real deploy, since this
+  is the class of thing that works in dev and 404s in production. Serving the app
+  from its own subdomain sidesteps it entirely: the browser only sees root paths, so
+  `basepath` is `/`.
+
+  Docs only. ADR 0011 moves Router from "unproven, spike before committing" to
+  adopted, and records the #316 form findings alongside it.
+
 ## 0.22.0
 
 ### Minor Changes
