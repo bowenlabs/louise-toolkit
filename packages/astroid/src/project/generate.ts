@@ -38,6 +38,7 @@ import {
   usesRealtime,
 } from "../realtime/scaffold.js";
 import { ASTROID_SECRET_PLACEHOLDER } from "../secrets.js";
+import { tenancyZone } from "../tenancy/index.js";
 import { generateAstroidSchema } from "../schema/generate.js";
 import { generateAstroidMiddleware, generateAstroidWorker } from "../worker/generate.js";
 
@@ -137,11 +138,24 @@ export function generateAstroidWrangler(config: AstroidConfig): string {
   p('  "compatibility_flags": ["nodejs_compat"],');
   p("  // @astrojs/cloudflare builds this entry and wires the static assets under dist/.");
   p('  "main": "src/worker.ts",');
-  if (primaryHost) {
+  const tenancy = config.tenancy;
+  if (primaryHost || tenancy) {
     p("  // Custom domains this Worker serves (from your defineAstroid `hosts`).");
     p('  "routes": [');
     for (const host of hosts) {
       p(`    { "pattern": ${JSON.stringify(host)}, "custom_domain": true },`);
+    }
+    if (tenancy) {
+      // A wildcard is a ZONE route, never a custom domain — Cloudflare rejects
+      // `custom_domain: true` on a pattern containing `*`, which is precisely
+      // why `hosts` cannot express this.
+      p("    // Wildcard tenant hosts (`tenancy.hostPattern`). A zone route, NOT a");
+      p("    // custom_domain — Cloudflare refuses a wildcard custom domain. The");
+      p("    // apex is routed separately above: `*.example.com` does NOT match");
+      p("    // `example.com`, so without a `hosts` entry the apex would 404.");
+      p(
+        `    { "pattern": ${JSON.stringify(`${tenancy.hostPattern}/*`)}, "zone_name": ${JSON.stringify(tenancyZone(tenancy))} },`,
+      );
     }
     p("  ],");
   } else {

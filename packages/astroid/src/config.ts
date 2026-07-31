@@ -10,10 +10,16 @@
 //
 // ONE brand per project. Every site Astroid targets (coracle.coffee,
 // ghostfire.coffee, themidwestartist.com, louise-web) serves a single brand from a
-// single deploy — none does host/tenant dispatch. The axis that genuinely
-// multiplexes is *editors* (Louise's org plugin, #100) and *audiences* (a gated
-// portal alongside the public site), not brands — so both live here as options on
-// the one brand, not as a `brands[]` array.
+// single deploy. The axis that genuinely multiplexes is *editors* (Louise's org
+// plugin, #100) and *audiences* — a gated portal alongside the public site, or a
+// per-merchant storefront on its own subdomain (`tenancy`) — not brands. So all
+// of them live here as options on the one brand, not as a `brands[]` array.
+//
+// `tenancy` is worth being precise about, because "serves many hosts" sounds like
+// the thing this paragraph rules out and isn't. It serves scoped VIEWS OF ONE
+// BRAND'S DATA — the same theme, the same catalog, the same editors — narrowed by
+// host. It is the portal's axis, one step further out. A second brand still means
+// a second project.
 //
 // The vocabulary below is not invented: `Archetype`, `SectionKind`, and
 // `ModuleKind` are extracted from the real sites Astroid targets — a storefront
@@ -266,6 +272,53 @@ export interface QueuesConfig {
  * anywhere. Adding it in the dashboard instead drifts from the config that is
  * supposed to describe the deploy.
  */
+/**
+ * Serve `*.example.com` from this one Worker — scoped views of **this brand's**
+ * data, narrowed by host. A per-merchant storefront, a per-client gallery.
+ *
+ * Not multi-brand: see the note at the top of this file. Same theme, same
+ * catalog, same editors; the host selects a slice.
+ *
+ * Astroid provides only the plumbing that cannot live in a site: the wildcard
+ * Worker route (which `hosts` cannot express) and the one middleware file Astro
+ * permits. **Everything that decides anything stays yours** — what a label maps
+ * to, whether the lookup is cached, and what an unknown host should do. Those
+ * live in the scaffolded `src/tenancy.ts`, which is yours to edit.
+ */
+export interface TenancyConfig {
+  /**
+   * The wildcard host, e.g. `"*.example.com"`. Emitted as a **zone route**
+   * (`{ pattern, zone_name }`), never `custom_domain: true` — a wildcard cannot
+   * be a custom domain, which is exactly why `hosts` cannot express this.
+   */
+  hostPattern: string;
+  /**
+   * The Cloudflare zone the pattern belongs to. Defaults to `hostPattern` minus
+   * its leading `*.`, which is right whenever the wildcard sits directly under
+   * the zone apex. Set it explicitly for a deeper pattern — `*.shop.example.com`
+   * is served by the `example.com` zone, not a `shop.example.com` one.
+   */
+  zone?: string;
+  /**
+   * Labels that are **not** tenants — `www`, `admin`, `studio`, `api`. These
+   * skip the tenant lookup entirely and render the ordinary site.
+   *
+   * Declared here rather than in the seam because the generated middleware needs
+   * it before it can decide whether to call the seam at all, and because
+   * forgetting `www` is the mistake that turns your marketing homepage into a
+   * failed tenant lookup.
+   */
+  reserved?: string[];
+  /**
+   * Internal path prefix a tenant request is rewritten to. Default `"/t"`, so
+   * `acme.example.com/prints` renders `/t/acme/prints`.
+   *
+   * The visitor's URL never changes — this is an internal rewrite, so links
+   * built from `Astro.url` stay public and correct.
+   */
+  rewritePrefix?: string;
+}
+
 export interface AstroidCron {
   /** Standard 5-field cron, UTC — e.g. `"*&#47;15 * * * *"`. */
   expression: string;
@@ -366,6 +419,12 @@ export interface AstroidConfig {
   key: string;
   /** Hostname(s) this site serves (prod + preview), for custom-domain routes. */
   hosts?: string[];
+  /**
+   * Serve a wildcard host from this Worker, mapping each subdomain to an
+   * internal path prefix. See {@link TenancyConfig} — and note it is an
+   * *audiences* axis, not multi-brand.
+   */
+  tenancy?: TenancyConfig;
   /** Starting shape; sets section/module/nav defaults the site can override. */
   archetype: Archetype;
   /** The single brand's theme (display name + color tokens + font). */
@@ -494,6 +553,48 @@ function assertCrons(config: AstroidConfig): void {
   }
 }
 
+/**
+ * The tenancy misconfigurations that fail late, or not at all.
+ *
+ * All three are cheap to state and expensive to discover: two surface as a
+ * wrangler deploy error naming a zone or a pattern rather than the config that
+ * produced it, and the third never surfaces at all — it just serves the wrong
+ * page.
+ */
+function assertTenancy(config: AstroidConfig): void {
+  const tenancy = config.tenancy;
+  if (!tenancy) return;
+
+  const pattern = tenancy.hostPattern?.trim();
+  if (!pattern) {
+    throw new AstroidConfigError('`tenancy.hostPattern` is required, e.g. `"*.example.com"`');
+  }
+  if (!pattern.startsWith("*.")) {
+    throw new AstroidConfigError(
+      `\`tenancy.hostPattern\` must be a wildcard starting with "*." — got "${pattern}". ` +
+        "A fixed host is a custom domain: put it in `hosts` instead.",
+    );
+  }
+
+  const apex = pattern.slice(2);
+  if (!apex.includes(".")) {
+    throw new AstroidConfigError(
+      `\`tenancy.hostPattern\` "${pattern}" has no domain after the wildcard`,
+    );
+  }
+
+  // A wildcard does NOT match its own apex, so the apex needs its own route.
+  // Without one it 404s — and the symptom is "the marketing site is down"
+  // immediately after enabling a feature that reads like it only adds hosts.
+  if (!(config.hosts ?? []).some((host) => host.toLowerCase() === apex.toLowerCase())) {
+    throw new AstroidConfigError(
+      `\`tenancy.hostPattern\` is "${pattern}", but "${apex}" is not in \`hosts\`. ` +
+        "A wildcard route does not match its own apex, so the apex would 404. " +
+        `Add "${apex}" to \`hosts\`.`,
+    );
+  }
+}
+
 export function defineAstroid(config: AstroidConfig): AstroidConfig {
   if (!config.key || config.key.trim().length === 0) {
     throw new AstroidConfigError(
@@ -530,6 +631,7 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
   // offered: the first gives false confidence, the second sends you looking for
   // an answer. Fail loudly, at config load, naming the workaround.
   assertCrons(config);
+  assertTenancy(config);
 
   if (config.portal?.gated) {
     throw new AstroidConfigError(

@@ -93,6 +93,33 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * swallowed error there would serve the protected page.
    */
   guard?: (context: APIContext) => Response | undefined | Promise<Response | undefined>;
+  /**
+   * Rewrite the request internally before the page runs — return the path to
+   * render, or `undefined` to render the requested one. Runs **after**
+   * {@link guard}, so policy is still expressed against the URL the visitor
+   * actually asked for rather than an internal one.
+   *
+   * This exists because neither existing hook can rewrite: `extend` returns
+   * `void` and `guard` returns only a `Response`. Astro permits exactly one
+   * middleware file, and in a generated one there is nowhere else to put it.
+   *
+   * The motivating case is host dispatch — serving `*.example.com` from one
+   * Worker by mapping a subdomain onto an internal path prefix. The middleware
+   * stays policy-free: what a host means, and whether an unknown one is a 404,
+   * belong to the site.
+   *
+   * ```ts
+   * rewrite: (context) => {
+   *   const tenant = context.locals.tenant;
+   *   return tenant ? `/t/${tenant.slug}${context.url.pathname}` : undefined;
+   * },
+   * ```
+   *
+   * The visitor's URL is unchanged — this is an internal rewrite, not a
+   * redirect, so `context.url` still reads as the public address and links
+   * rendered from it stay correct.
+   */
+  rewrite?: (context: APIContext) => string | undefined | Promise<string | undefined>;
   /** Edit-mode cookie name. Default {@link LOUISE_EDIT_COOKIE} (`"louise_edit"`).
    *  Change it and the `withEdgeCache` bypass predicate must be told too, or an
    *  editor gets served the cached public page. */
@@ -190,7 +217,16 @@ export function createLouiseMiddleware<TEditor = unknown>(
     const denied = await config.guard?.(context);
     if (denied) return denied;
 
-    const response = await next();
+    // After the guard, deliberately: a rewrite changes which page renders, not
+    // who may see it, so authorizing against the rewritten path would mean
+    // policy written in internal URLs the site never publishes.
+    //
+    // Outside the try/catch too, for the same reason the guard is: a rewrite
+    // that throws must not degrade into rendering the UNREWRITTEN path, which
+    // for host dispatch is another tenant's page.
+    const rewrite = await config.rewrite?.(context);
+
+    const response = rewrite === undefined ? await next() : await next(rewrite);
 
     // content freshness: cached HTML would hide editor edits. Edit-mode pages are
     // per-editor and must be live (`no-store`); public HTML `no-cache` so edits

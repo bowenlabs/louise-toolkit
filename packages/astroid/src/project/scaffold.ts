@@ -38,6 +38,7 @@ import { generateMapEmbedComponent, generateMapTileRoute } from "../map/scaffold
 import { generateAstroidGalleryPage } from "../portfolio/scaffold.js";
 import { astroidPortal } from "../portal/config.js";
 import { generateAstroidPortalAuth, generateAstroidPortalAuthRoute } from "../portal/scaffold.js";
+import { generateAstroidTenancy } from "../tenancy/index.js";
 import { generateAstroidEditSession } from "../realtime/scaffold.js";
 import { generatePwaHeaders, generateServiceWorker, generateWebManifest } from "../pwa/generate.js";
 import { astroidUsesQueues } from "../queues/messages.js";
@@ -171,6 +172,12 @@ export function generateAstroidScaffoldFiles(config: AstroidConfig): ScaffoldFil
   // because `persist` is the seam a project tunes.
   const editSession = generateAstroidEditSession(config);
   if (editSession) files.push({ path: "src/edit-session.ts", contents: editSession });
+
+  // --- tenancy: what a subdomain maps to ------------------------------------
+  // Astroid owns the wildcard route and the middleware wiring; this file owns
+  // every decision — the lookup, its caching, and what an unknown host means.
+  const tenancy = generateAstroidTenancy(config);
+  if (tenancy) files.push({ path: "src/tenancy.ts", contents: tenancy });
 
   // --- portal: the second auth instance + its mounted catch-all -------------
   // A site edits the reset email and the role a new account gets, but not the
