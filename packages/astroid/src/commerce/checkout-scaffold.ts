@@ -22,7 +22,7 @@
 
 import type { AstroidConfig } from "../config.js";
 import { astroidCatalogMirror } from "./mirror.js";
-import { astroidCommerceProviders, astroidCommerceRoles } from "./roles.js";
+import { astroidCommerceProviders, astroidCommerceRoles, hasMultiLocation } from "./roles.js";
 
 /** Does this project take card payments in-page? Square storefront only. */
 export function usesCardCheckout(config: AstroidConfig): boolean {
@@ -41,6 +41,7 @@ export function usesCardCheckout(config: AstroidConfig): boolean {
 export function generateAstroidCheckoutRoute(config: AstroidConfig): string | null {
   if (!usesCardCheckout(config)) return null;
   const { table } = astroidCatalogMirror(config);
+  const multi = hasMultiLocation(config.commerce);
 
   return [
     "// Server-authoritative checkout (POST /api/checkout).",
@@ -49,9 +50,18 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
     "// receipt email all belong here. What should NOT change is the ORDER of the",
     "// steps below; each one is load-bearing:",
     "//",
-    "//   1. Re-price every line from the D1 catalog mirror. The client's price is",
-    "//      a STALENESS CHECK, never an input to the charge. Accept `unitPrice`",
-    "//      from the request body and anyone can buy anything for a penny.",
+    multi
+      ? "//   0. Resolve WHICH MERCHANT this sale belongs to, from the host — never\n" +
+        "//      from the request body. See `resolveLocationId` below."
+      : null,
+    multi
+      ? "//   1. Re-price every line AT THAT LOCATION, live from Square. The client's\n" +
+        "//      price is a STALENESS CHECK, never an input to the charge. Accept\n" +
+        "//      `unitPrice` from the request body and anyone can buy anything for a\n" +
+        "//      penny."
+      : "//   1. Re-price every line from the D1 catalog mirror. The client's price is\n" +
+        "//      a STALENESS CHECK, never an input to the charge. Accept `unitPrice`\n" +
+        "//      from the request body and anyone can buy anything for a penny.",
     "//   2. Refuse on mismatch rather than charging the server's number silently.",
     "//      Being charged more than the page said is worse than being asked to",
     "//      review the cart.",
@@ -61,40 +71,99 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
     "//   4. Charge only when commerce is actually provisioned. With placeholder",
     "//      secrets this simulates instead — it must never call Square with a",
     "//      dummy credential.",
+    multi
+      ? "//\n" +
+        "// Step 4 runs BEFORE step 1 here, and only here: per-location re-pricing is\n" +
+        "// itself a Square call, so the provisioning check has to come first or the\n" +
+        "// rule above is broken by the very step that enforces it."
+      : null,
     'import type { APIRoute } from "astro";',
     'import { env } from "cloudflare:workers";',
     "import {",
     "  checkoutIdempotencyKey,",
-    "  readCatalog,",
+    multi ? null : "  readCatalog,",
     "  resolveCommerceStatus,",
     "  type SecretSource,",
     "  verifyCheckout,",
     '} from "astroidjs";',
-    'import { createPayment } from "louise-toolkit/commerce/square";',
+    multi
+      ? 'import { createPayment, retrieveVariationPricesAt } from "louise-toolkit/commerce/square";'
+      : 'import { createPayment } from "louise-toolkit/commerce/square";',
     'import { isSameOrigin } from "louise-toolkit/security";',
     'import astroidConfig from "../../../astroid.config.js";',
     "",
     "export const prerender = false;",
     "",
-    "/** Server-side prices, in minor units, straight from the catalog mirror. */",
-    "async function serverPrices(variantIds: string[]): Promise<Map<string, number>> {",
-    "  // `readCatalog` returns the product ARRAY (published only by default).",
-    "  const items = await readCatalog({",
-    "    db: env.DB,",
-    `    table: ${JSON.stringify(table)},`,
-    "  });",
-    "  const prices = new Map<string, number>();",
-    "  for (const item of items) {",
-    "    // The mirror stores MAJOR units (dollars); the charge is in minor units.",
-    "    // `Math.round` is not decoration — 19.99 * 100 is 1998.9999999999998, and",
-    "    // a float cent here fails the exact-equality staleness check on every",
-    "    // single checkout.",
-    "    if (variantIds.includes(item.externalId)) {",
-    "      prices.set(item.externalId, Math.round(item.price * 100));",
-    "    }",
-    "  }",
-    "  return prices;",
-    "}",
+    ...(multi
+      ? [
+          "// ── Which merchant is this? ────────────────────────────────────────────────",
+          "//",
+          '// `square.locations: "multi"` means the location is a property of the',
+          "// REQUEST, not of the environment — which is why Astroid does not require a",
+          "// SQUARE_LOCATION_ID for this project. Fill this in and keep two rules:",
+          "//",
+          "//   * Derive it from the HOST (or an authenticated session), never from the",
+          "//     request body. A body-supplied location lets a customer name the",
+          "//     cheapest merchant's id and pay that price at the dearest merchant's",
+          "//     shop — the same exploit as a client-supplied price, one level back.",
+          "//   * Return null for anything unrecognised. Falling back to a default",
+          "//     rings one merchant's sale against another merchant's books, and looks",
+          "//     completely successful while doing it.",
+          "//",
+          "// Returning null refuses the checkout. That is deliberate: an unwired",
+          "// multi-merchant store should take no money rather than the wrong money.",
+          "function resolveLocationId(request: Request): string | null {",
+          "  const host = new URL(request.url).hostname.toLowerCase();",
+          "  // TODO(you): map host → Square location id (a constant map here, a D1",
+          "  // lookup, or `tenantLabel` from astroidjs if you use Astroid tenancy).",
+          "  const locations: Record<string, string> = {};",
+          "  return locations[host] ?? null;",
+          "}",
+          "",
+          "/** Server-side prices, in minor units, at ONE merchant's location. */",
+          "async function serverPrices(",
+          "  variantIds: string[],",
+          "  scope?: { locationId?: string },",
+          "): Promise<Map<string, number>> {",
+          "  // Live from Square rather than the D1 mirror, and not by preference: the",
+          "  // mirror holds ONE price per item, so it structurally cannot answer",
+          '  // "what does this cost at this location". `retrieveVariationPricesAt`',
+          "  // resolves `location_overrides`, and omits any variation the merchant",
+          "  // does not carry — so an unstocked id fails closed as `unavailable`",
+          "  // instead of silently selling at the base price.",
+          "  const locationId = scope?.locationId;",
+          "  if (!locationId) return new Map();",
+          "  const environment =",
+          '    env.SQUARE_ENVIRONMENT === "production" ? "production" : "sandbox";',
+          "  const money = await retrieveVariationPricesAt(",
+          '    { accessToken: env.SQUARE_ACCESS_TOKEN ?? "", environment },',
+          "    variantIds,",
+          "    locationId,",
+          "  );",
+          "  return new Map([...money].map(([id, m]) => [id, m.amount]));",
+          "}",
+        ]
+      : [
+          "/** Server-side prices, in minor units, straight from the catalog mirror. */",
+          "async function serverPrices(variantIds: string[]): Promise<Map<string, number>> {",
+          "  // `readCatalog` returns the product ARRAY (published only by default).",
+          "  const items = await readCatalog({",
+          "    db: env.DB,",
+          `    table: ${JSON.stringify(table)},`,
+          "  });",
+          "  const prices = new Map<string, number>();",
+          "  for (const item of items) {",
+          "    // The mirror stores MAJOR units (dollars); the charge is in minor units.",
+          "    // `Math.round` is not decoration — 19.99 * 100 is 1998.9999999999998, and",
+          "    // a float cent here fails the exact-equality staleness check on every",
+          "    // single checkout.",
+          "    if (variantIds.includes(item.externalId)) {",
+          "      prices.set(item.externalId, Math.round(item.price * 100));",
+          "    }",
+          "  }",
+          "  return prices;",
+          "}",
+        ]),
     "",
     "const json = (body: unknown, status = 200) =>",
     "  new Response(JSON.stringify(body), {",
@@ -130,32 +199,75 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
     '    return json({ error: "A uuid `cartId` is required" }, 400);',
     "  }",
     "",
-    "  // 1 + 2: re-price and refuse on mismatch.",
-    "  const check = await verifyCheckout(body.lines, serverPrices);",
-    "  if (!check.ok) return json({ error: check.message, reason: check.reason }, 409);",
-    "",
-    "  // 3: stable per cart, distinct per customer.",
-    '  const idempotencyKey = await checkoutIdempotencyKey(check, "order", cartId);',
-    "",
-    "  // 4: dormant until provisioned. An unconfigured store still re-prices and",
-    "  // still refuses a stale cart — it just doesn't move money.",
-    "  // Cast as the toolkit's own `astroidModuleStatus` does: `readSecret`",
-    "  // accepts a plain string OR a Secrets Store binding, which CloudflareEnv",
-    "  // types more narrowly than the resolver's `SecretSource` map.",
-    "  const status = await resolveCommerceStatus(",
-    "    astroidConfig.commerce,",
-    "    env as unknown as Record<string, SecretSource>,",
-    "  );",
-    "  if (!status.configured) {",
-    "    console.info(",
-    '      `[astroid:commerce] simulated checkout — unprovisioned: ${status.missing.join(", ")}`,',
-    "    );",
-    "    return json({",
-    "      simulated: true,",
-    "      subtotalCents: check.subtotalCents,",
-    "      idempotencyKey,",
-    "    });",
-    "  }",
+    ...(multi
+      ? [
+          "  // 0: whose sale is this? Refuse rather than guess.",
+          "  const locationId = resolveLocationId(request);",
+          "  if (!locationId) {",
+          '    return json({ error: "This storefront is not open for orders." }, 409);',
+          "  }",
+          "",
+          "  // 4, EARLY — and the ordering is the point. Re-pricing per location is",
+          "  // itself a live Square call, so the dormancy gate has to precede",
+          "  // verification here rather than follow it; running it after would call",
+          "  // Square with a placeholder token, which this route must never do.",
+          "  //",
+          "  // The cost is real and worth naming: an unprovisioned multi-merchant",
+          "  // store cannot do the staleness check at all, because the prices live at",
+          "  // the provider. It says so (`priced: false`) rather than echoing the",
+          "  // client's total back as if the server had agreed to it.",
+          "  //",
+          "  // Cast as the toolkit's own `astroidModuleStatus` does: `readSecret`",
+          "  // accepts a plain string OR a Secrets Store binding, which CloudflareEnv",
+          "  // types more narrowly than the resolver's `SecretSource` map.",
+          "  const status = await resolveCommerceStatus(",
+          "    astroidConfig.commerce,",
+          "    env as unknown as Record<string, SecretSource>,",
+          "  );",
+          "  if (!status.configured) {",
+          "    console.info(",
+          '      `[astroid:commerce] simulated checkout — unprovisioned: ${status.missing.join(", ")}`,',
+          "    );",
+          "    return json({ simulated: true, priced: false });",
+          "  }",
+          "",
+          "  // 1 + 2: re-price AT THIS LOCATION and refuse on mismatch.",
+          "  const check = await verifyCheckout(body.lines, serverPrices, {",
+          "    scope: { locationId },",
+          "  });",
+          "  if (!check.ok) return json({ error: check.message, reason: check.reason }, 409);",
+          "",
+          "  // 3: stable per cart, distinct per customer.",
+          '  const idempotencyKey = await checkoutIdempotencyKey(check, "order", cartId);',
+        ]
+      : [
+          "  // 1 + 2: re-price and refuse on mismatch.",
+          "  const check = await verifyCheckout(body.lines, serverPrices);",
+          "  if (!check.ok) return json({ error: check.message, reason: check.reason }, 409);",
+          "",
+          "  // 3: stable per cart, distinct per customer.",
+          '  const idempotencyKey = await checkoutIdempotencyKey(check, "order", cartId);',
+          "",
+          "  // 4: dormant until provisioned. An unconfigured store still re-prices and",
+          "  // still refuses a stale cart — it just doesn't move money.",
+          "  // Cast as the toolkit's own `astroidModuleStatus` does: `readSecret`",
+          "  // accepts a plain string OR a Secrets Store binding, which CloudflareEnv",
+          "  // types more narrowly than the resolver's `SecretSource` map.",
+          "  const status = await resolveCommerceStatus(",
+          "    astroidConfig.commerce,",
+          "    env as unknown as Record<string, SecretSource>,",
+          "  );",
+          "  if (!status.configured) {",
+          "    console.info(",
+          '      `[astroid:commerce] simulated checkout — unprovisioned: ${status.missing.join(", ")}`,',
+          "    );",
+          "    return json({",
+          "      simulated: true,",
+          "      subtotalCents: check.subtotalCents,",
+          "      idempotencyKey,",
+          "    });",
+          "  }",
+        ]),
     "",
     '  const sourceId = typeof body.sourceId === "string" ? body.sourceId : "";',
     '  if (!sourceId) return json({ error: "A card token (`sourceId`) is required" }, 400);',
@@ -174,7 +286,11 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
     "      sourceId,",
     "      // The SERVER's number, never the client's.",
     '      amountMoney: { amount: check.subtotalCents, currency: "USD" },',
-    '      locationId: env.SQUARE_LOCATION_ID ?? "",',
+    multi
+      ? "      // The location the cart was PRICED against — necessarily the same one,\n" +
+        "      // or the sale rings against a merchant who never quoted this total."
+      : null,
+    multi ? "      locationId," : '      locationId: env.SQUARE_LOCATION_ID ?? "",',
     "      idempotencyKey,",
     '      ...(typeof body.verificationToken === "string"',
     "        ? { verificationToken: body.verificationToken }",
@@ -191,7 +307,12 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
     "  });",
     "};",
     "",
-  ].join("\n");
+    // `null` marks a line that belongs to the other location mode. Dropped
+    // rather than emitted as "" so the generated file has no stray blank lines
+    // where a single-location project's checkout differs from a multi's.
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 /**
@@ -206,6 +327,7 @@ export function generateAstroidCheckoutRoute(config: AstroidConfig): string | nu
  */
 export function generateAstroidSquareCard(config: AstroidConfig): string | null {
   if (!usesCardCheckout(config)) return null;
+  const multi = hasMultiLocation(config.commerce);
 
   return [
     "---",
@@ -220,10 +342,24 @@ export function generateAstroidSquareCard(config: AstroidConfig): string | null 
     "// commerce is on), so no policy change is needed.",
     'import { env } from "cloudflare:workers";',
     "",
+    ...(multi
+      ? [
+          "// Multi-location: the merchant is a property of the PAGE, so the id comes",
+          "// in as a prop. Only the card iframe is bound to it — the charge takes its",
+          "// location from the server, which resolves it independently in",
+          "// /api/checkout. This one cannot pick the merchant, and shouldn't: it is",
+          "// rendered from markup a customer can reach.",
+          "interface Props {",
+          "  locationId: string;",
+          "}",
+          "const { locationId } = Astro.props;",
+          "",
+        ]
+      : []),
     "// The PUBLIC application id — safe in the browser, unlike the access token.",
     "// Absent (an unprovisioned store) → render nothing rather than a dead form.",
     "const appId = env.SQUARE_APP_ID;",
-    "const locationId = env.SQUARE_LOCATION_ID;",
+    multi ? null : "const locationId = env.SQUARE_LOCATION_ID;",
     'const environment = env.SQUARE_ENVIRONMENT ?? "sandbox";',
     "const ready = Boolean(appId && locationId);",
     "---",
@@ -240,8 +376,9 @@ export function generateAstroidSquareCard(config: AstroidConfig): string | null 
     "    </div>",
     "  ) : (",
     '    <p class="text-sm opacity-70">',
-    "      Card payments are not configured yet — set SQUARE_APP_ID and",
-    "      SQUARE_LOCATION_ID.",
+    multi
+      ? "      Card payments are not configured yet — set SQUARE_APP_ID and pass a\n      `locationId` prop."
+      : "      Card payments are not configured yet — set SQUARE_APP_ID and\n      SQUARE_LOCATION_ID.",
     "    </p>",
     "  )",
     "}",
@@ -273,7 +410,9 @@ export function generateAstroidSquareCard(config: AstroidConfig): string | null 
     "  }",
     "</script>",
     "",
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 /** Does this project talk to Square in ANY role — storefront, invoicing, or

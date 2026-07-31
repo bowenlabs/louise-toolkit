@@ -4,16 +4,25 @@ export {
   catalogNormalizer,
   type FourthwallProductLike,
   fourthwallToCatalogItem,
+  type SquareAdapterOptions,
+  squareItemSoldAt,
   type SquareItemLike,
+  type SquareLocationOverrideLike,
+  type SquarePresenceLike,
   squareToCatalogItem,
 } from "./adapters.js";
 export {
+  type CheckoutRefusal,
+  type CheckoutScope,
   type CheckoutVerification,
   checkoutIdempotencyKey,
   type ClientLine,
   type PriceLookup,
+  type ScopedPriceLookup,
+  type ScopedPrices,
   verifyCheckout,
   type VerifiedLine,
+  type VerifyCheckoutOptions,
 } from "./checkout.js";
 export {
   astroidCatalogLoaderConfig,
