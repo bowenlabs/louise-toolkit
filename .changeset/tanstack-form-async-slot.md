@@ -31,3 +31,11 @@ Also documents that the validator map is **flat**: `defineForm` has no array or
 nested field type, because each field is one column. A form with repeating rows
 builds its array with TanStack's own API and attaches these validators to the
 leaves.
+
+**Removed a doc comment pointing at an export that does not exist.**
+`client/forms.tsx` advertised an opt-in solid-form scaffold at
+`louise-toolkit/client/tanstack-form`. There is no such subpath, no such module,
+and `@tanstack/solid-form` is not a peer dependency — following the comment gets
+you a resolution error. It now says what is actually true: build a complex form
+yourself with TanStack and keep one validation definition through
+`tanstackFormValidators`. No scaffold is planned, and the docs say why.

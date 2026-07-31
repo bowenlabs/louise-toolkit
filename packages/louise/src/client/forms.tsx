@@ -5,8 +5,21 @@
 // validation client-side (reuses `validateSubmission` → the shared Rule engine —
 // no second validation definition), and POSTs to the form's `formRoute`. Field
 // state is a Solid `createStore` (the same lightweight approach `mountSections`
-// uses); no form-state dependency. For complex/multi-step forms, an opt-in
-// `@tanstack/solid-form` scaffold lives in `louise-toolkit/client/tanstack-form`.
+// uses); no form-state dependency.
+//
+// For a COMPLEX form — multi-step, field arrays, cross-field rules — hand-build
+// it with `@tanstack/solid-form` and keep Louise's one validation definition via
+// `tanstackFormValidators` (louise-toolkit/forms). Wire those to TanStack's
+// `onChangeAsync` slot, not `onChange`: they are async by contract, and a
+// promise in a sync slot is stored AS the promise, so validation silently never
+// appears (#316).
+//
+// There is deliberately NO generated solid-form scaffold. `defineForm` is flat
+// by construction — one column per field, no arrays, no nesting — so anything
+// generated from it is a flat form, which is exactly what `<Form>` above already
+// renders with no dependency at all. The scaffold would cost a peer dependency
+// and an export subpath to do the same job worse; what a complex form actually
+// needs from Louise is the validator bridge, not a component (#313).
 //
 // Unstyled by default: every element carries a `louise-form*` class hook so a
 // site keeps its own look. Import `injectStyles` if you want the Louise chrome.

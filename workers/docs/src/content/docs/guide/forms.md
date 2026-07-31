@@ -132,6 +132,19 @@ nested field type, because each field is one column. A form with repeating rows
 builds the array with TanStack's own API and attaches these validators to the
 leaves.
 
+**There is no generated solid-form component, on purpose.** Since `defineForm` is
+flat, anything generated from it would be a flat form — which is what `<Form>`
+already renders, with no dependency. The reason to reach for TanStack is the
+shapes `defineForm` can't express, and there the form is yours to build; what
+Louise contributes is the validators, so your client checks and your server
+checks stay one definition.
+
+If you do build one with array fields, key the rows by a stable id rather than
+by index. Removing a row currently marks the shifted siblings `isTouched`
+([form#2131](https://github.com/TanStack/form/issues/2131)), and since most UIs
+only show an error once a field is touched, that surfaces a validation error
+against a row the person never edited.
+
 ## Review
 
 The submissions review route (`inquiriesRoute`) and the Settings' Inquiries tab
