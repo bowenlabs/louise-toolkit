@@ -240,3 +240,43 @@ describe("createLouiseMiddleware — rewrite (#307)", () => {
     await expect(mw(makeContext("GET", "/prints"), next)).rejects.toThrow("tenant lookup failed");
   });
 });
+
+describe("createLouiseMiddleware — extend survives an auth failure", () => {
+  it("still runs extend when resolveEditor throws", async () => {
+    // The dormant-until-provisioned state: SESSION_SECRET is a sentinel, so
+    // resolveEditor throws on every request. That must degrade to "signed
+    // out" — never to "extend was skipped", because extend is what writes
+    // locals.tenant, and skipping it silently turns every tenant subdomain
+    // into the ordinary site. Found live on themidwestartist.com's Wave 4.
+    let extended = false;
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => {
+        throw new Error("SESSION_SECRET is not configured");
+      },
+      extend: (context) => {
+        extended = true;
+        (context.locals as Record<string, unknown>).tenant = { slug: "acme" };
+      },
+    });
+    const ctx = makeContext("GET", "/");
+    await run(mw, ctx);
+    expect(extended).toBe(true);
+    expect((ctx.locals as Record<string, unknown>).tenant).toEqual({ slug: "acme" });
+    expect((ctx.locals as Record<string, unknown>).editor).toBeNull();
+  });
+
+  it("still resolves the editor when extend throws", async () => {
+    // Symmetric: a broken extend must not cancel auth either.
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => ({ email: "meg@example.com" }) as never,
+      extend: () => {
+        throw new Error("tenant lookup exploded");
+      },
+    });
+    const ctx = makeContext("GET", "/");
+    await run(mw, ctx);
+    expect((ctx.locals as { editor: { email: string } | null }).editor).toEqual({
+      email: "meg@example.com",
+    });
+  });
+});
