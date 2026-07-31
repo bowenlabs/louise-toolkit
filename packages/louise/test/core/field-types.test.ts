@@ -18,7 +18,21 @@ import {
   unknownFieldTypes,
   validateFieldType,
 } from "../../src/core/content/field-types.js";
-import type { SectionCatalog, SectionField } from "../../src/core/content/sections.js";
+// The published names, type-only — erased at build, so importing the barrel here
+// costs nothing at runtime, and `typecheck` covers `test/`. See the "published
+// surface" block at the bottom for what these aliases assert.
+import type {
+  FieldOption as OptionViaContent,
+  FieldOptions as OptionsViaContent,
+  FieldOptionsResolver as ResolverViaContent,
+} from "../../src/core/content/index.js";
+import type {
+  FieldOption as OptionViaSections,
+  FieldOptions as OptionsViaSections,
+  FieldOptionsResolver as ResolverViaSections,
+  SectionCatalog,
+  SectionField,
+} from "../../src/core/content/sections.js";
 import { validateSections } from "../../src/core/content/sections.js";
 import { isMediaUrl } from "../../src/core/media/storage.js";
 
@@ -246,5 +260,37 @@ describe("the duplicated predicates agree with their originals", () => {
       ).includes("href=");
       expect(rejectedByField, href).toBe(strippedBySanitizer);
     }
+  });
+});
+
+describe("the published surface", () => {
+  // #382. `SectionField.options` is typed with `FieldOptions`, but the option
+  // types lived only in `field-types.ts` — a module neither published entry
+  // includes. So a site declaring a resolver-backed picker could USE the field
+  // and not NAME its type, and had to redeclare a structural stand-in.
+  //
+  // These are compile-time assertions: the bodies barely matter, the annotations
+  // are the test. If the re-export in sections.ts is dropped, the imports at the
+  // top of this file stop resolving and `typecheck` fails.
+  it("names the option types from louise-toolkit/content", () => {
+    const literal: OptionViaContent[] = [{ value: "brand", label: "Brand" }];
+    const resolver: ResolverViaContent = async () => literal;
+    const either: OptionsViaContent = resolver;
+    // `options` accepts both arms, which is the reason the alias exists.
+    const declared: SectionField = { type: "select", options: literal };
+    const fetched: SectionField = { type: "select", options: either };
+    expect(declared.options).toBe(literal);
+    expect(typeof fetched.options).toBe("function");
+  });
+
+  it("names them identically from the drizzle-free content/sections entry", () => {
+    // Assignable both ways ⇒ the same type, not a second declaration that drifts.
+    // The `content` barrel reaches these THROUGH `sections.js`, and a site on the
+    // server-safe entry (no drizzle) must get the same names.
+    const option: OptionViaSections = { value: "a" } satisfies OptionViaContent;
+    const resolver: ResolverViaSections = (async () => [option]) satisfies ResolverViaContent;
+    const options: OptionsViaSections = resolver satisfies OptionsViaContent;
+    const backToContent: OptionsViaContent = options;
+    expect(backToContent).toBe(resolver);
   });
 });

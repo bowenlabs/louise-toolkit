@@ -35,6 +35,17 @@ import { type ValidationBuilder, type ValidationFieldContext, validateValue } fr
 // drift the "asserted identical in test" comments are there to prevent.
 export { isSafeLinkUrl } from "./field-types.js";
 
+// Also re-exported, for a plainer reason: `SectionField.options` is typed with
+// `FieldOptions`, so a site declaring a resolver-backed picker has to be able to
+// NAME the type. These lived only in `field-types.js`, which the content barrel
+// doesn't include — so `louise-toolkit/content` published a field whose type was
+// unreachable, and a site wanting to annotate its resolver had to redeclare a
+// structural stand-in. Re-exporting here covers both entries at once: the
+// `content` barrel (via its `export * from "./sections.js"`) and the
+// drizzle-free `louise-toolkit/content/sections` entry, which points at this
+// module directly.
+export type { FieldOption, FieldOptions, FieldOptionsResolver } from "./field-types.js";
+
 /**
  * The names a section field may declare.
  *
