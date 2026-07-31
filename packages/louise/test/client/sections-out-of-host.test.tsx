@@ -42,7 +42,13 @@ function page(): { host: HTMLElement; heading: HTMLElement; cta: HTMLElement } {
   const cta = document.createElement("a");
   cta.setAttribute("data-louise-node", "0.cta");
   cta.textContent = "Shop";
-  document.body.append(host, heading, cta);
+  // Three appendChild calls, not one variadic append(): with
+  // @cloudflare/workers-types in the typecheck lib set, ParentNode.append
+  // resolves to a 1–2 arg overload and TS2554s on three (CI-only — the
+  // vitest transform doesn't typecheck).
+  document.body.appendChild(host);
+  document.body.appendChild(heading);
+  document.body.appendChild(cta);
   return { host, heading, cta };
 }
 
