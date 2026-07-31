@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { type AstroidConfig, defineAstroid } from "../src/config.js";
 import { generateAstroidWrangler } from "../src/project/generate.js";
-import { generateAstroidTenancy, tenancyZone, tenantLabel } from "../src/tenancy/index.js";
+import {
+  appPrefix,
+  generateAstroidTenancy,
+  tenancyZone,
+  tenantLabel,
+} from "../src/tenancy/index.js";
 import { generateAstroidMiddleware } from "../src/worker/generate.js";
 
 const base: AstroidConfig = {
@@ -153,5 +158,84 @@ describe("defineAstroid — tenancy validation", () => {
 
   it("accepts a well-formed config", () => {
     expect(() => defineAstroid(tenanted)).not.toThrow();
+  });
+});
+
+describe("tenancy.apps — first-party app labels", () => {
+  const withApps: AstroidConfig = {
+    ...base,
+    hosts: ["example.com"],
+    tenancy: {
+      hostPattern: "*.example.com",
+      reserved: ["www"],
+      apps: { studio: "/studio" },
+    },
+  };
+  const t = withApps.tenancy!;
+
+  it("appPrefix maps an app host to its internal prefix", () => {
+    expect(appPrefix("studio.example.com", t)).toBe("/studio");
+  });
+
+  it("appPrefix ignores port and case, so `wrangler dev` behaves like production", () => {
+    expect(appPrefix("STUDIO.example.com:8788", t)).toBe("/studio");
+  });
+
+  it("appPrefix is null for the apex, off-pattern, dotted, and non-app hosts", () => {
+    expect(appPrefix("example.com", t)).toBeNull();
+    expect(appPrefix("studio.pages.dev", t)).toBeNull();
+    expect(appPrefix("a.studio.example.com", t)).toBeNull();
+    expect(appPrefix("acme.example.com", t)).toBeNull();
+  });
+
+  it("an app label is implicitly reserved — never offered to resolveTenant", () => {
+    expect(tenantLabel("studio.example.com", t)).toBeNull();
+    // …while an ordinary label still is.
+    expect(tenantLabel("acme.example.com", t)).toBe("acme");
+  });
+
+  it("emits the app rewrite before the tenant rewrite, from the same TENANCY", () => {
+    const out = generateAstroidMiddleware(withApps);
+    expect(out).toContain('import { appPrefix, astroidRateRules, tenantLabel } from "astroidjs";');
+    expect(out).toContain("const app = appPrefix(context.url.hostname, TENANCY);");
+    expect(out).toContain("if (app) return `${app}${context.url.pathname}`;");
+    // App check precedes the tenant check inside the one rewrite hook.
+    const appAt = out.indexOf("const app = appPrefix");
+    const tenantAt = out.indexOf("const tenant = context.locals.tenant;");
+    expect(appAt).toBeGreaterThan(-1);
+    expect(tenantAt).toBeGreaterThan(appAt);
+  });
+
+  it("emits no appPrefix machinery without apps", () => {
+    expect(generateAstroidMiddleware(tenanted)).not.toContain("appPrefix");
+  });
+
+  it("defineAstroid refuses an app label that is also reserved", () => {
+    expect(() =>
+      defineAstroid({
+        ...withApps,
+        tenancy: { ...t, reserved: ["www", "studio"] },
+      }),
+    ).toThrow(/both `tenancy.apps` and `tenancy.reserved`/);
+  });
+
+  it("defineAstroid refuses a prefix that would produce a broken rewrite", () => {
+    for (const bad of ["studio", "/", "/studio/"]) {
+      expect(() =>
+        defineAstroid({
+          ...withApps,
+          tenancy: { ...t, apps: { studio: bad } },
+        }),
+      ).toThrow(/internal path prefix/);
+    }
+  });
+
+  it("defineAstroid refuses a dotted app label", () => {
+    expect(() =>
+      defineAstroid({
+        ...withApps,
+        tenancy: { ...t, apps: { "a.b": "/studio" } },
+      }),
+    ).toThrow(/single subdomain label/);
   });
 });

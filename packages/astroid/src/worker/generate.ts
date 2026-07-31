@@ -503,12 +503,11 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
     // two import statements for the same module is legal and reads as an
     // oversight in a file nobody is supposed to hand-edit.
     `import { ${[
+      ...(tenancy && Object.keys(tenancy.apps ?? {}).length ? ["appPrefix"] : []),
       ...(portal ? ["astroidPortalGuardConfig"] : []),
       "astroidRateRules",
       ...(portal ? ["guardResponse", "portalGuard", "resolvePortalSession"] : []),
-      ...(tenancy
-        ? [...(Object.keys(tenancy.apps ?? {}).length ? ["appPrefix"] : []), "tenantLabel"]
-        : []),
+      ...(tenancy ? ["tenantLabel"] : []),
     ].join(", ")} } from "astroidjs";`,
     'import astroidConfig from "../astroid.config.js";',
     ...(tenancy
