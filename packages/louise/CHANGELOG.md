@@ -1,5 +1,117 @@
 # louise-toolkit
 
+## 0.24.0
+
+### Minor Changes
+
+- 934676d: **The link picker can map a page slug to its real path, and dedupes by path.**
+
+  The picker turned every `pages` row into `/${slug}`, which is wrong for exactly
+  one row on most sites: the one served at `/`. Coracle's `home` row produced a
+  second "Home" entry pointing at `/home` — a duplicate-content alias offered to
+  editors as if it were a page (found in the #348 live QA).
+
+  `mountSections` accepts `pagePathForSlug?: (slug: string) => string` and the
+  picker's choice list now dedupes by path, built-ins first — so a DB row mapped
+  onto a built-in's path collapses into the hand-authored entry rather than
+  appearing twice.
+
+- eb6ff81: **The yellow wrench works: an external section's inspector gains its source-settings group.**
+
+  ADR 0010 Phase B, slice B4 (#375). A section declaring the object form of
+  `source` now opens a two-group inspector:
+
+  - **Source settings first** — the mirror's knobs (which category, which items
+    hidden), declared as `SectionField`s under `source.settings` and stored in
+    the site-settings `custom` JSON under `source.settingsKey`. They PATCH
+    `/api/louise/settings` the moment a value commits — shared by every page,
+    so they cannot ride the page draft — and the group's caption says so:
+    "Save immediately, everywhere this content appears." A failed save keeps the
+    optimistic value on screen **with** the error, so the editor knows the page
+    and the store disagree. After a save the section re-renders through the
+    fragment route, so the canvas reflects the new source config.
+  - **Everything else unchanged** — the section's own fields, arrays, and layout
+    keep staging into the draft exactly as before.
+
+  Supporting pieces:
+
+  - `SectionDef.source` widens to `"external" | ExternalSource` (`kind`,
+    `label`, `settingsKey`, `settings`); `externalSourceOf` normalizes the two
+    forms. A section whose _only_ knobs are source settings still gets its
+    wrench.
+  - `SectionField.multiple` (select only): the value is a string array, rendered
+    as a checkbox list over the same literal-or-fetched options, validated
+    member-wise with the same resolver exemption as single selects — the shape a
+    mirror's filter lists need.
+
+- 24335e9: **A node's source is now a first-class property — ring colour becomes f(source).**
+
+  ADR 0010 Phase B, slice B2 (#373). Two declarations and one resolver change,
+  exactly at the seam A1 reserved for them:
+
+  - `SectionDef.source?: "external"` marks a section whose content mirrors a
+    system the site doesn't own (a Square-backed grid). `describeNode`'s section
+    arm tones it `external` (yellow) instead of `section`; its position, layout,
+    and inspector capabilities are untouched — the page still owns those.
+  - `SectionDef.consumes?: string[]` names the site-settings keys a section reads
+    when it renders — a coupling that was invisible inside the site's Astro
+    components, and the input to the "used in N surfaces" count the shared-value
+    editor will show (slice B5).
+  - `describeNode` gains the `["settings", key]` arm: a
+    `data-louise-node="settings.<key>"` marker resolves to a wrench-only node
+    toned `shared` (green) when the key is declared in the new
+    `DescribeContext.shared` map — and to `null` (unmarked) when it isn't, the
+    same stale-marker rule as every other path.
+
+  Nothing passes `shared` or declares `source` yet, so no editor behaviour
+  changes until the inspector arms land (B4/B5). The chrome needs no change at
+  all — which was the point of the seam.
+
+- fa9e636: **The chrome palette now covers every `NodeTone`, and an unknown tone degrades visibly.**
+
+  `NodeTone` has reserved `shared` (green) and `external` (yellow) since A1, but
+  `TONE_CSS` only styled the three depth-derived tones. Returning one of the
+  reserved tones from `describeNode` rendered an _invisible_ selection: the base
+  active rule set only `border-radius` (no ring), and the toolbar had no
+  background under its white glyphs. That failure reads as a resolver bug and
+  sends you debugging the wrong file — found while re-checking the Phase B
+  premises on #347.
+
+  Three changes, no behaviour change for the existing tones:
+
+  - **`shared` and `external` get ring + bar rules.** Each uses one value for
+    both roles: `--louise-shared` (`#15803d`, 5.02:1 against white) and
+    `--louise-external` (`#a16207`, 4.92:1) both clear the toolbar's 4.5:1
+    (WCAG 1.4.3) without a darker `-strong` variant. External is deliberately
+    NOT `--louise-yellow` — `#ca8a04` measures 2.94:1, failing the ring's 3:1
+    as well as the bar's 4.5:1, and the token already carries save/publish
+    semantics. Same reasoning gives `shared` its own token.
+  - **The base rules carry a slate fallback** (ring `#64748b`, bar `#475569`),
+    so a tone the palette doesn't know paints a neutral ring and a legible bar
+    instead of nothing.
+  - **The palette is one overridable block.** `--louise-violet` and the three
+    `--louise-*-strong` values node-chrome reads were never declared anywhere —
+    every reference fell through to its literal, so overriding a base colour
+    recoloured the ring but not the toolbar. All are now declared in the
+    `:root` block in `styles.ts` next to the tokens that already existed.
+
+### Patch Changes
+
+- cc5cc4b: **Markers outside the sections host now resolve everywhere the editor looks.**
+
+  The chrome has always hovered every `data-louise-node` in the document, but the
+  editor's own lookups were host-scoped: the wireInline scan and `nodeEl` — the
+  inspector popover's anchor — both queried under `props.host`. A marker rendered
+  outside the host was silently inert for in-place editing, and its inspector
+  popover fell back to the viewport-origin default position instead of anchoring
+  to the element.
+
+  No site stamps such a marker today, which is why nothing ever failed loudly —
+  but ADR 0010 Phase B stamps `settings.*` paths in the Nav and Footer, which
+  render outside the host by construction (#374). Both lookups now query the
+  host's document; host-owned operations (inserting sections, sibling order) stay
+  host-scoped, since sections really do live there.
+
 ## 0.23.0
 
 ### Minor Changes
