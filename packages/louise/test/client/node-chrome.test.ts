@@ -227,6 +227,45 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
     // link bar stuck on the section palette.
     expect(toolbar()?.getAttribute("data-louise-tone")).toBe("value");
   });
+
+  it("has a palette rule for every NodeTone, ring and bar", () => {
+    // jsdom doesn't cascade injected stylesheets, so this pins the CSS text: a
+    // tone that `describeNode` can return but the palette doesn't style renders
+    // an INVISIBLE selection (no ring, white glyphs on transparent) — a failure
+    // that looks like a resolver bug, which is why it gets a named test.
+    const el = document.createElement("div");
+    el.setAttribute("data-louise-node", "0");
+    document.body.appendChild(el);
+    dispose = mountNodeChrome({ ...noopActions, resolve: () => ({ tone: "section" }) });
+
+    const css = document.getElementById("louise-chrome-style")?.textContent ?? "";
+    const tones: string[] = ["section", "block", "value", "shared", "external"];
+    for (const tone of tones) {
+      expect(css).toContain(`.louise-node-active[data-louise-tone="${tone}"]`);
+      expect(css).toContain(`.louise-chrome-toolbar[data-louise-tone="${tone}"]`);
+    }
+  });
+
+  it("degrades an unknown tone to the neutral fallback, not to nothing", () => {
+    const el = document.createElement("div");
+    el.setAttribute("data-louise-node", "0");
+    document.body.appendChild(el);
+    // A tone from a future phase this chrome build doesn't know. The chrome has
+    // no opinion, so it must still stamp the attribute…
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: () => ({ fields: true, tone: "someday" as never }),
+    });
+    over(el);
+    expect(el.getAttribute("data-louise-tone")).toBe("someday");
+    expect(toolbar()?.getAttribute("data-louise-tone")).toBe("someday");
+
+    // …and the base rules must paint SOMETHING for it: a ring on the active
+    // node and a background under the bar's white glyphs.
+    const css = document.getElementById("louise-chrome-style")?.textContent ?? "";
+    expect(css).toMatch(/\.louise-node-active \{[^}]*box-shadow/);
+    expect(css).toMatch(/^\.louise-chrome-toolbar \{[^}]*background/m);
+  });
 });
 
 describe("mountNodeChrome — the empty-container affordance", () => {

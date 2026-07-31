@@ -77,9 +77,26 @@ const CHROME_KEYSHORTCUTS = "Enter Alt+ArrowUp Alt+ArrowDown Delete";
  *  stays on brand at 3:1. Each `--*-strong` below is measured against white.
  *  (Pre-0010 the link layer had no background rule at all and its bar rendered
  *  orange — a defect that could only happen because each layer hand-built its own
- *  chrome.) */
+ *  chrome.)
+ *
+ *  The Phase B tones (`shared` green, `external` yellow — ADR 0010) each use ONE
+ *  value for both roles: `#15803d` is 5.02:1 and `#a16207` is 4.92:1 against
+ *  white, so both clear the toolbar's 4.5:1 without a darker variant. Yellow is
+ *  deliberately NOT `--louise-yellow` (`#ca8a04`): that value is 2.94:1 — it
+ *  fails the ring's 3:1 as well as the bar's 4.5:1 — and the token is already
+ *  loaded with save/publish semantics. Same reasoning gives `shared` its own
+ *  token rather than `--louise-green`.
+ *
+ *  The base rules carry a slate fallback so a tone this palette doesn't know
+ *  degrades to a visible neutral ring and a legible bar (slate-500 4.76:1 /
+ *  slate-600 7.0:1) — without it, an unhandled tone rendered NO ring and white
+ *  glyphs on transparent, which reads as a resolver bug and sends you debugging
+ *  the wrong file. */
 const TONE_CSS = `
-[${NODE_MARKER_ATTR}].louise-node-active { border-radius: 4px; }
+[${NODE_MARKER_ATTR}].louise-node-active {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px #64748b;
+}
 [${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="section"] {
   box-shadow: 0 0 0 2px var(--louise-orange, #ea7317);
 }
@@ -89,9 +106,18 @@ const TONE_CSS = `
 [${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="value"] {
   box-shadow: 0 0 0 2px var(--louise-violet, #7c3aed);
 }
+[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="shared"] {
+  box-shadow: 0 0 0 2px var(--louise-shared, #15803d);
+}
+[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="external"] {
+  box-shadow: 0 0 0 2px var(--louise-external, #a16207);
+}
+.louise-chrome-toolbar { background: #475569; }
 .louise-chrome-toolbar[data-louise-tone="section"] { background: var(--louise-orange-strong, #b45309); }
 .louise-chrome-toolbar[data-louise-tone="block"] { background: var(--louise-blue-strong, #0f6ecd); }
 .louise-chrome-toolbar[data-louise-tone="value"] { background: var(--louise-violet-strong, #6d28d9); }
+.louise-chrome-toolbar[data-louise-tone="shared"] { background: var(--louise-shared, #15803d); }
+.louise-chrome-toolbar[data-louise-tone="external"] { background: var(--louise-external, #a16207); }
 `;
 
 const CHROME_CSS = `

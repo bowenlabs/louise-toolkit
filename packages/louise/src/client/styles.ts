@@ -16,6 +16,21 @@ const CSS = `
   --louise-green: #15803d;
   --louise-orange: #ea7317;
   --louise-yellow: #ca8a04;
+  --louise-violet: #7c3aed;
+  /* Toolbar backgrounds, one stop darker than their ring — white glyphs need
+     4.5:1 (WCAG 1.4.3) where the ring only needs 3:1. node-chrome.ts reads
+     these with matching literal fallbacks; they are declared here so the whole
+     palette is one overridable block rather than half tokens, half literals
+     buried in TONE_CSS. */
+  --louise-orange-strong: #b45309;
+  --louise-blue-strong: #0f6ecd;
+  --louise-violet-strong: #6d28d9;
+  /* ADR 0010 Phase B ring tones. Distinct from --louise-green/--louise-yellow
+     on purpose: those carry save/publish semantics, and #ca8a04 fails contrast
+     as a ring (2.94:1). One value serves ring AND bar for both of these
+     (5.02:1 / 4.92:1 against white). */
+  --louise-shared: #15803d;
+  --louise-external: #a16207;
   /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
      the same family, just a heavier weight. The @font-face is bundled (base64)
      via brandFontsCss in injectStyles() — only on Louise surfaces. */
