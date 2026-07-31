@@ -5,16 +5,9 @@ Publishing is **manual** (no release Action). The version bump is a separate ste
 that happens in its own PR (`pnpm changeset` → `changeset version`, reviewed and
 merged); this doc covers the publish that follows.
 
-> **The pending 0.16.0 / 0.2.0 / 0.2.0 release matters:** published
-> `astroidjs@0.1.2` has no `./astro` export, but the scaffold template imports
-> `astroidjs/astro`, so `npm create astroid` from the registry dies before Astro
-> loads its config. `astroidjs@0.2.0` carries that export — this is the release
-> that makes `pnpm create astroid` work off npm.
-
 ## Publish
 
-The version-bump PR is already merged (`main` is at `astroidjs 0.2.0`), so this
-is all that's left:
+Once the version-bump PR is merged:
 
 ```sh
 cd ~/GitHub/louise-toolkit
@@ -44,16 +37,27 @@ Notes:
 
 ## Verify
 
+Read the expected numbers off `main` rather than out of this file — a version
+hardcoded in a runbook is a version that goes stale between releases:
+
 ```sh
-npm view louise-toolkit version    # 0.16.0
-npm view astroidjs version         # 0.2.0
-npm view create-astroid version    # 0.2.0
-# the ./astro export actually shipped:
-npm view astroidjs exports --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log('./astro published:', './astro' in JSON.parse(s)))"
+for p in packages/louise packages/astroid packages/create-astroid; do
+  node -e "const p=require('./$p/package.json');console.log(p.name, p.version)"
+done
 ```
 
-**The real smoke test — scaffold from the LIVE registry** (dies on 0.1.2, builds
-on 0.2.0):
+Then check npm agrees:
+
+```sh
+npm view louise-toolkit version
+npm view astroidjs version
+npm view create-astroid version
+```
+
+**The real smoke test — scaffold from the LIVE registry.** CI's scaffold smokes
+build from local tarballs, so they cannot catch a broken export map, a missing
+`files` entry, or a dependency that resolves in-workspace and nowhere else. This
+is the only check that exercises what a stranger actually gets:
 
 ```sh
 cd "$(mktemp -d)"
@@ -61,11 +65,23 @@ pnpm create astroid@latest my-site --key mysite --name "My Site" --archetype mar
 cd my-site && pnpm install && pnpm exec astro check && pnpm exec astro build
 ```
 
+The scaffold's declared toolkit ranges are derived from `create-astroid`'s own
+resolved dependencies, not hand-written, and `scripts/ci/checks/scaffold-versions.mjs`
+fails the build if anyone re-hardcodes a literal. So a version bump needs no edit
+to `template/package.json` — if you find yourself making one, that check is about
+to fail and the derivation is what needs fixing.
+
 ## If something goes wrong
 
 - **Interrupted mid-publish** (e.g. louise-toolkit published, astroidjs didn't):
   just re-run `pnpm changeset publish`. It skips versions already on npm and
   publishes the rest.
 - **You cannot cleanly unpublish.** If a bad version ships, roll forward with a
-  patch (`pnpm changeset` → `changeset version` → publish `0.2.1`), don't
-  unpublish.
+  patch (`pnpm changeset` → `changeset version` → publish), don't unpublish.
+
+## Pre-1.0
+
+Versions are pre-1.0, so a minor bump is where breaking changes live and there is
+no deprecation cycle. Read the changelogs before publishing — `changeset version`
+writes them from the changesets, and they are the only place a behaviour change
+is explained at the length it deserves.
