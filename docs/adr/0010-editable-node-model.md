@@ -1,8 +1,11 @@
 # ADR 0010 — The editable-node model: one recursive node, one field registry, one marker
 
-- **Status:** Accepted (2026-07-28) — A1 shipped in `louise-toolkit@0.21.0` /
-  `astroidjs@0.5.0` (2026-07-29). Amended below where building it changed the
-  answer.
+- **Status:** **Implemented** (2026-07-31). A1 shipped in `louise-toolkit@0.21.0`
+  / `astroidjs@0.5.0` (2026-07-29); A1+A2 together in `0.22.0`, which is the
+  version the sites migrated onto (A3, #348); Phase B in `0.24.0` + `0.25.0`
+  (#347). Amended below where building it changed the answer — including three
+  passages that described Phase B as future work and are now marked with what
+  actually happened.
 - **Deciders:** Baylee (solo maintainer)
 - **Supersedes:** ADR 0005 §2 (the three-attribute marker contract) and §3 (the
   per-layer chrome). The rest of 0005 — the fragment-render contract, instant
@@ -146,6 +149,12 @@ orange/blue/violet exactly. Keying off capabilities was rejected: a section with
 no `blocks` policy has no `children` and would come out blue. Phase B replaces
 this wholesale with `source`, so it is deliberately a heuristic with a short life,
 confined to the editor's `resolve` — the chrome already has no opinion.
+
+> **Amendment (0.24.0/0.25.0):** it did, and the short life was the point. Depth
+> still answers for page-owned nodes; `describeNode` now returns `external` when
+> a `SectionDef` declares `source`, and `shared` for a `["settings", key]` path.
+> Ring colour became `f(source)` by changing that one function — **the chrome was
+> not touched**, which is the prediction this ADR was making.
 
 **Which nodes carry a marker: the render decides, for now.** Two models exist:
 
@@ -319,6 +328,21 @@ Corollary: **#37 is not built on the current chrome.** It is the forcing functio
 that exposed this ADR, and building it as spec'd would roughly double the layer
 plumbing and add two grammars immediately before deleting all of it.
 
+> **Amendment (2026-07-31): shipped, and the deferral paid.** The gate was
+> answered first — the Phase 3 spec was re-grounded against this model and its
+> five §9 questions decided (coracle.coffee#47) — and only then sliced: tone
+> palette (#372), source model (#373), document-wide node lookups (#374),
+> external end-to-end (#375), shared end-to-end (#376). Released in `0.24.0` and
+> `0.25.0`.
+>
+> What the deferral bought, concretely: **two of the spec's own conclusions were
+> already obsolete by the time it was built.** Revision 1 proposed new
+> `data-louise-shared` / `data-louise-source` attributes — A1's single grammar
+> made them unnecessary (a settings path is just a path). And it named dynamic
+> option lists as "the one piece of framework work Phase 3 cannot avoid" — A2 had
+> already shipped it as `FieldOptionsResolver`. Building #37 on the old chrome
+> would have added both.
+
 ## Migration — a clean cut, renamed in one line
 
 The marker attributes are the site-facing contract: every `.astro` render stamps
@@ -361,3 +385,16 @@ asks for them; enabling is not the same as adopting.
 **Unresolved (deliberately).** The five open questions in
 `coracle.coffee/docs/phase-3-reference-rings.md` §9 gate Phase B and are not
 pre-empted here.
+
+> **Amendment (2026-07-31).** The §9 questions are answered and recorded as
+> decisions in that spec's revision 2. The `source` model did not prove wrong:
+> both tones shipped without a chrome change. Nested containers remain enabled
+> and unadopted, as intended.
+>
+> One risk this section did **not** anticipate, worth recording because it cost
+> a debugging detour: `TONE_CSS` styled three tones and had no fallback, so
+> returning a reserved tone rendered an _invisible_ selection — no ring, white
+> glyphs on transparent. A resolver-shaped symptom with a stylesheet cause. Fixed
+> in #372 with per-tone rules plus a neutral fallback, so an unhandled tone now
+> degrades to something visible. The general lesson: when a switch is exhaustive
+> in TypeScript but open in CSS, the CSS needs the default arm.
