@@ -1,5 +1,45 @@
 # louise-toolkit
 
+## 0.25.1
+
+### Patch Changes
+
+- 2a16348: **`extend` now survives an auth failure — and vice versa.**
+
+  `createLouiseMiddleware` wrapped editor-session resolution and the `extend`
+  hook in one `try/catch`. When `resolveEditor` threw — which it does on every
+  request while `SESSION_SECRET` is still the `DUMMY_REPLACE_ME` sentinel, i.e.
+  the dormant-until-provisioned state every module is supposed to survive —
+  `extend` was silently skipped along with it. Everything `extend` feeds died
+  too: `locals.tenant` was never written, so astroid's host dispatch quietly
+  served the ordinary site on every tenant subdomain, with no error anywhere.
+
+  The two now get separate catches. An unprovisioned editor secret degrades to
+  "signed out"; a broken tenant lookup degrades to "no tenant"; neither cancels
+  the other. Found live on themidwestartist.com's Wave 4 storefront work, where
+  the symptom — merchant hosts rendering the marketing homepage — pointed at
+  everything except the auth secret.
+
+- 3bae09a: **`louise-toolkit/content` re-exports `FieldOption` / `FieldOptions` /
+  `FieldOptionsResolver`.**
+
+  `SectionField.options` is typed with `FieldOptions`, but the option types
+  themselves live in `core/content/field-types.ts` — a module the content barrel
+  doesn't include, and which `sections.ts` only type-_imported_. The published
+  entry therefore shipped a field whose type could not be named: a site declaring
+  a resolver-backed picker had to redeclare a structural stand-in
+  (`type FieldOption = { value: string; label?: string }`) to annotate its own
+  resolver.
+
+  They're now re-exported from `sections.ts`, alongside the existing
+  `isSafeLinkUrl` re-export, which covers both entries at once — the
+  `louise-toolkit/content` barrel and the drizzle-free
+  `louise-toolkit/content/sections`. Also un-dangles the
+  `{@link FieldOptionsResolver}` in `SectionField.options`'s doc comment, which
+  pointed at a symbol the module didn't export.
+
+  Types only — no runtime change.
+
 ## 0.25.0
 
 ### Minor Changes
