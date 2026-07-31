@@ -62,6 +62,11 @@
       "import": "./dist/client/settings/index.js",
       "default": "./dist/client/settings/index.js"
     },
+    "./client/studio": {
+      "types": "./dist/client/studio/index.d.ts",
+      "import": "./dist/client/studio/index.js",
+      "default": "./dist/client/studio/index.js"
+    },
     "./content": {
       "types": "./dist/core/content/index.d.ts",
       "import": "./dist/core/content/index.js",

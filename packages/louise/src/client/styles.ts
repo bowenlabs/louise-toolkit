@@ -359,6 +359,37 @@ const CSS = `
   overflow-y: auto;
   padding: 18px;
 }
+
+/* The full-page presentation (mountStudio). Same head/tabs/body/footer parts as
+   the drawer — only the frame differs: no scrim, no slide-in, no fixed width,
+   and it fills the viewport instead of overlaying a page. A wider body gets a
+   max-width so panel rows don't stretch to 2560px on a desktop monitor. */
+.louise-studio {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  font-family: var(--louise-font-body);
+  color: #0f172a;
+}
+.louise-studio-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.louise-studio-body {
+  width: 100%;
+  max-width: 1100px;
+  margin-inline: auto;
+}
+/* A page-level studio owns the viewport, so stop the host document scrolling
+   behind it — the drawer needs the opposite (the page beneath stays live). */
+html[data-louise-studio],
+html[data-louise-studio] body {
+  height: 100%;
+  margin: 0;
+}
 .louise-muted {
   color: #64748b;
   font-size: 14px;

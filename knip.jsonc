@@ -40,6 +40,7 @@
         "src/astro/index.ts",
         "src/client/index.ts",
         "src/client/settings/index.ts",
+        "src/client/studio/index.ts",
         "src/core/ai/index.ts",
         "src/core/analytics/index.ts",
         "src/core/auth/index.ts",

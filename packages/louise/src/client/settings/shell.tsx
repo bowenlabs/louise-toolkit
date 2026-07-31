@@ -19,24 +19,26 @@
 // theme while the page around it stays on the site's own theme.
 
 import { QueryClientProvider } from "@tanstack/solid-query";
-import { createSignal, For, type JSX, onCleanup, Show } from "solid-js";
+import { createSignal, type JSX, onCleanup, Show } from "solid-js";
 import { render } from "solid-js/web";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { wireDialogA11y } from "../a11y.js";
 import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "../editor-events.js";
 import { Icon } from "../icons.jsx";
 import { injectStyles } from "../styles.js";
-import { BUILTIN_CARDS } from "./dashboard/cards.jsx";
-import { HealthPanel } from "./dashboard/health-panel.jsx";
-import { HomePanel } from "./dashboard/home-panel.jsx";
 import type { DashboardApi, DashboardCard } from "./dashboard/types.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
-import { MediaPanel } from "./media-panel.jsx";
 import { DrawerFooter, PanelActionsProvider } from "./panel-actions.jsx";
-import { type BuiltInPageRef, type PageTemplate, PagesPanel } from "./pages-panel.jsx";
+import type { BuiltInPageRef, PageTemplate } from "./pages-panel.jsx";
 import { createSettingsQueryClient } from "./query.js";
-import { SettingsPanel } from "./settings-panel.jsx";
-import { UsersPanel } from "./users-panel.jsx";
+import {
+  type CollectionTab,
+  type FrameworkPanel,
+  FrameworkNav,
+  initialPanel,
+  SurfacePanels,
+  SurfaceTabs,
+} from "./surface.jsx";
 
 /** Event the edit-bar's Settings action fires to open Louise Settings. */
 export const OPEN_SETTINGS_EVENT = "louise:open-settings";
@@ -45,16 +47,9 @@ export const OPEN_SETTINGS_EVENT = "louise:open-settings";
 // settings entrypoint, the way hosts already consume OPEN_SETTINGS_EVENT.
 export { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT };
 
-/** A site-registered collection tab (the BOTTOM group). The framework panels are
- *  not `CollectionTab`s — they're fixed in the top strip and can't be added here. */
-export interface CollectionTab {
-  /** Stable id (sites typically reuse it as a query-key segment). */
-  id: string;
-  /** Tab label shown in the bottom nav. */
-  label: string;
-  /** The panel body, rendered when this tab is active. */
-  panel: () => JSX.Element;
-}
+// `CollectionTab` and the panel set live in ./surface, shared with the full-page
+// studio so the two presentations can't drift about which panels exist.
+export type { CollectionTab, FrameworkPanel } from "./surface.jsx";
 
 export interface SettingsConfig {
   /** Editor display name shown in the Louise Settings header. */
@@ -97,44 +92,12 @@ export interface SettingsConfig {
   home?: boolean;
 }
 
-/** The framework panels, keyed by their top-strip icon. Home/Media/Pages/Settings
- *  are always present; `users` is opt-in (config.users + a wired editorsRoute).
- *  `health` is a hidden drill-in (reached from the Home Health card, not a
- *  top-strip button). */
-type FrameworkPanel = "home" | "users" | "media" | "pages" | "settings" | "health";
-const BASE_FRAMEWORK_BUTTONS: {
-  id: FrameworkPanel;
-  label: string;
-  icon: "user" | "image" | "fileText" | "gear" | "house";
-}[] = [
-  { id: "media", label: "Media", icon: "image" },
-  { id: "pages", label: "Pages", icon: "fileText" },
-  { id: "settings", label: "Settings", icon: "gear" },
-];
-
 export function Settings(props: SettingsConfig) {
   const tabs = () => props.tabs ?? [];
-  const showHome = () => props.home !== false;
-  // The top strip: Home first (unless disabled), then Users (opt-in), then the
-  // fixed Media/Pages/Settings.
-  const frameworkButtons = () => [
-    ...(showHome() ? [{ id: "home" as const, label: "Home", icon: "house" as const }] : []),
-    ...(props.users ? [{ id: "users" as const, label: "Users", icon: "user" as const }] : []),
-    ...BASE_FRAMEWORK_BUTTONS,
-  ];
-  // The built-in cards a site didn't hide, plus the site's own cards.
-  const allCards = (): DashboardCard[] => [
-    ...BUILTIN_CARDS.filter((c) => !(props.dashboard?.hide ?? []).includes(c.id)),
-    ...(props.dashboard?.cards ?? []),
-  ];
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<string | undefined>(tabs()[0]?.id);
   // Framework panels aren't tabs — they open over the tabs via the top strip.
-  // Default landing is Home; with Home disabled, open Pages (no tabs) so the
-  // body isn't empty, else the first tab.
-  const [overlay, setOverlay] = createSignal<FrameworkPanel | null>(
-    showHome() ? "home" : tabs().length === 0 ? "pages" : null,
-  );
+  const [overlay, setOverlay] = createSignal<FrameworkPanel | null>(initialPanel(props));
 
   // Whether a sections surface is mounted, and so whether there is any version
   // history to open. Re-read each time the drawer opens rather than once at
@@ -180,20 +143,7 @@ export function Settings(props: SettingsConfig) {
               <span class="louise-who-name">{props.userName}</span>
             </span>
             <div class="louise-drawer-head-actions">
-              <For each={frameworkButtons()}>
-                {(b) => (
-                  <button
-                    class="louise-drawer-close louise-frame-btn"
-                    classList={{ "is-active": overlay() === b.id }}
-                    type="button"
-                    aria-label={b.label}
-                    aria-pressed={overlay() === b.id}
-                    onClick={() => toggleOverlay(b.id)}
-                  >
-                    <Icon name={b.icon} />
-                  </button>
-                )}
-              </For>
+              <FrameworkNav config={props} active={overlay()} onToggle={toggleOverlay} />
               {/* History sits with the framework icons but is NOT one: it opens
                   the sections version drawer rather than an overlay panel, so it
                   never takes `is-active`/`aria-pressed`. Hidden when no sections
@@ -219,22 +169,12 @@ export function Settings(props: SettingsConfig) {
             </div>
           </header>
 
-          <Show when={tabs().length > 0}>
-            <nav class="louise-drawer-tabs">
-              <For each={tabs()}>
-                {(t) => (
-                  <button
-                    class="louise-tab"
-                    classList={{ "is-active": overlay() === null && tab() === t.id }}
-                    type="button"
-                    onClick={() => selectTab(t.id)}
-                  >
-                    {t.label}
-                  </button>
-                )}
-              </For>
-            </nav>
-          </Show>
+          <SurfaceTabs
+            tabs={tabs()}
+            active={tab()}
+            overlayOpen={overlay() !== null}
+            onSelect={selectTab}
+          />
 
           {/* The action footer is shell-owned: the active panel/editor pushes its
               save/cancel/publish actions onto the stack and they render in the
@@ -242,37 +182,7 @@ export function Settings(props: SettingsConfig) {
               panels push) and the footer (which reads the top frame). */}
           <PanelActionsProvider>
             <div class="louise-drawer-body">
-              <Show when={overlay() === "home"}>
-                <HomePanel cards={allCards()} navigate={navigate} />
-              </Show>
-              <Show when={overlay() === "health"}>
-                <HealthPanel navigate={navigate} endpoint={props.dashboard?.healthEndpoint} />
-              </Show>
-              <Show when={overlay() === "users"}>
-                <UsersPanel endpoint={props.usersEndpoint} />
-              </Show>
-              <Show when={overlay() === "media"}>
-                <MediaPanel />
-              </Show>
-              <Show when={overlay() === "pages"}>
-                <PagesPanel
-                  builtInPages={props.builtInPages}
-                  pageTemplates={props.pageTemplates}
-                  ogCard={props.ogCard}
-                />
-              </Show>
-              <Show when={overlay() === "settings"}>
-                <SettingsPanel
-                  baseGroups={props.settingsBaseGroups}
-                  extension={props.settingsExtension}
-                  extras={props.settingsExtras}
-                />
-              </Show>
-              <Show when={overlay() === null}>
-                <For each={tabs()} fallback={<p class="louise-muted">Pick a section above.</p>}>
-                  {(t) => <Show when={tab() === t.id}>{t.panel()}</Show>}
-                </For>
-              </Show>
+              <SurfacePanels config={props} overlay={overlay()} tab={tab()} navigate={navigate} />
             </div>
             <DrawerFooter />
           </PanelActionsProvider>

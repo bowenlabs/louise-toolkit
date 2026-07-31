@@ -4,6 +4,7 @@ import {
   apiGet,
   apiSend,
   createSettingsQueryClient,
+  LouiseApiError,
   louiseQueryKey,
   louiseQueryKeys,
 } from "../../src/client/settings/query.js";
@@ -15,7 +16,17 @@ describe("createSettingsQueryClient", () => {
     const q = client.getDefaultOptions().queries;
     expect(q?.refetchOnWindowFocus).toBe(false);
     expect(q?.staleTime).toBe(30_000);
-    expect(q?.retry).toBe(1);
+    // Retry is a predicate now, not a count: one retry for a flaky network, and
+    // none for a 401. An expired session fails again by definition, so retrying
+    // only delays the surface's response to it (the studio redirects to sign-in)
+    // by the length of the backoff.
+    const retry = q?.retry as (failureCount: number, error: unknown) => boolean;
+    expect(typeof retry).toBe("function");
+    expect(retry(0, new Error("network"))).toBe(true);
+    expect(retry(1, new Error("network"))).toBe(false);
+    expect(retry(0, new LouiseApiError("GET", "/api/louise/pages", 401))).toBe(false);
+    // A 403 is a permissions answer, not an expired session — still retried once.
+    expect(retry(0, new LouiseApiError("GET", "/api/louise/pages", 403))).toBe(true);
   });
 });
 
