@@ -112,6 +112,11 @@
       "import": "./dist/core/commerce/fourthwall.js",
       "default": "./dist/core/commerce/fourthwall.js"
     },
+    "./commerce/fourthwall-platform": {
+      "types": "./dist/core/commerce/fourthwall-platform.d.ts",
+      "import": "./dist/core/commerce/fourthwall-platform.js",
+      "default": "./dist/core/commerce/fourthwall-platform.js"
+    },
     "./commerce/stripe": {
       "types": "./dist/core/commerce/stripe.d.ts",
       "import": "./dist/core/commerce/stripe.js",
