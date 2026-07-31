@@ -1,8 +1,8 @@
 # ADR 0011 — TanStack adapters on Solid: adopt Query and Form, constrain Table, decline Pacer
 
-- **Status:** Accepted (2026-07-29) — **Query adopted (in use), Form adopted with a caveat, Table read-only only, Pacer declined, Router unproven.** Revisit per adapter under the triggers below.
+- **Status:** Accepted (2026-07-29) — **Query adopted (in use), Form adopted with a caveat, Table read-only only, Pacer declined, Router adopted.** Revisit per adapter under the triggers below. Amended 2026-07-31 after the #316 and #317 spikes.
 - **Deciders:** Baylee (solo maintainer)
-- **Issues:** #313 (form scaffold), #314 (table limits), #315 (pacer decision), #316 (form array bugs), #317 (router spike)
+- **Issues:** #313 (form scaffold), #314 (table limits), #315 (pacer decision), #316 (form array bugs — spiked), #317 (router spike — done)
 - **Related:** ADR 0001 (opinionated Astro + Cloudflare), ADR 0007 (why the Solid client lints separately)
 
 ## Context
@@ -60,8 +60,25 @@ shifted siblings touched) — which is exactly the shape the validator bridge
 exists to serve.
 
 **So: adopt, and build the most nested, most array-heavy form first rather than
-last.** If it reproduces, the workaround is documented in the toolkit once
-instead of rediscovered per site (#316).
+last.** #316 spiked this against 1.33.2 and found two things worth carrying:
+
+- **form#2131 reproduces exactly.** Removing an array row marks the shifted
+  siblings `isTouched` — three rows, remove the first, and two rows nobody edited
+  come back `true`. It is not cosmetic in combination with Louise validators,
+  because most UIs gate error display on `isTouched`: the user sees a validation
+  error against data they never touched. Key rows by a stable id rather than
+  index.
+- **The bigger find was ours.** `tanstackFieldValidator` is async by contract, and
+  the toolkit documented it into TanStack's _sync_ `onChange` slot — where a
+  promise-returning validator is stored as the promise, so the error is a pending
+  `Promise` rather than a string and validation silently never appears. That reads
+  identically to form#1256, which is worth knowing before blaming upstream. Fixed;
+  use `onChangeAsync`.
+
+The premise of reproducing against a nested `defineForm` config turned out to be
+unbuildable: `FormConfig.fields` is flat by construction, one column per field. A
+repeating-row form uses TanStack's own array API with these validators on the
+leaves.
 
 ### `@tanstack/solid-table` — read-only tables only
 
@@ -103,14 +120,36 @@ not a soon-to-be-fixed bug.
 Query's. Server-side rate limiting belongs in KV, where the toolkit already does
 it (`matchRateRule`).
 
-### `@tanstack/solid-router` — unproven, spike before committing
+### `@tanstack/solid-router` — adopted; the island mount works
 
-Mounting it inside an Astro `client:only="solid-js"` island appears to be
-undocumented anywhere upstream; the Router repo's Solid examples are all
-standalone Vite or Start-based. A full-page admin app inside an island is going
-to be a recurring shape here, so it is worth the spike (#317) — deep-link
-refresh through the Astro catch-all, `basepath` behaviour, history across the
-island boundary — but not worth adopting on faith.
+Mounting it inside an Astro `client:only="solid-js"` island is undocumented
+anywhere upstream — the Router repo's Solid examples are all standalone Vite or
+Start-based — so #317 spiked it rather than adopting on faith. **It works**,
+against `astro@7.1.6` + `@tanstack/solid-router@1.170.18`, and all four questions
+came back clean:
+
+- **Deep-link refresh.** An Astro catch-all (`src/pages/app/[...path].astro`)
+  serving every sub-path to the same island renders the correct route on a cold
+  load of `/app/orders/42`, and again after a refresh.
+- **`basepath`.** Two configurations work identically: literal prefixed route
+  paths (`/app/orders`), or `basepath: "/app"` with root-relative ones. Router
+  #4888 (incomplete basepath handling) is filed against `@tanstack/solid-start`
+  and does not bite here.
+- **History.** Back and forward move between island routes correctly.
+- **Navigation stays client-side** — a `window` global set before a link click
+  survives it, so the island is not silently doing document loads.
+
+**The one caveat, and it is a deploy-time one.** Astro's static build emits
+directory-style URLs (`/app/orders/` → `index.html`) while the router writes
+history entries _without_ a trailing slash (`/app/orders`). So the URL a user
+copies after navigating differs from the one Astro emitted. `astro preview` serves
+both, but that is the preview server being lenient — confirm the deployed
+trailing-slash behaviour before relying on it, because this is exactly the class
+of thing that works in dev and 404s in production.
+
+**Serving the studio from its own subdomain sidesteps `basepath` entirely.** With
+the tenancy rewrite (#307) mapping `studio.example.com/` to an internal prefix,
+the browser only ever sees root paths, so `basepath` is `/`.
 
 **Not TanStack Start**, in any case: Start owns its own Vite build graph on
 Cloudflare and therefore wants its own Worker, which is incompatible with the
@@ -135,7 +174,8 @@ build, one auth surface.
   Hotkeys have, _and_ `async-retryer` lands in `packages/solid-pacer`.
 - **Table** — either upstream issue closes with real cell-level reactivity
   against a Solid store.
-- **Router** — the #317 spike returns a working island mount, at which point this
-  ADR gains a decision rather than a spike.
+- **Router** — resolved by #317; see above. Revisit if the trailing-slash caveat
+  turns out to bite on Cloudflare, or if Start ever stops owning its own build
+  graph.
 - **Form** — #316's reproduction comes back clean, which would let the caveat
   drop to a footnote.

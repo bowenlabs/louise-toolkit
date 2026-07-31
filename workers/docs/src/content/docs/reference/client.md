@@ -286,3 +286,47 @@ groupable lists, column visibility. That's Table's real strength.
 pagination happen in SQL, a plain `<For>` plus a sort signal is less code, less
 bundle, and keeps granular reactivity. Table's value is _client-side_ row
 modelling — if D1 is already doing that work, Table is paying for nothing.
+
+### A routed app inside an Astro island
+
+`@tanstack/solid-router` works inside a `client:only="solid-js"` island — verified
+against `astro@7.1.6` + `@tanstack/solid-router@1.170.18`. It is undocumented
+upstream, so the shape is worth stating.
+
+Two pieces. An Astro **catch-all** that serves every sub-path to the same island,
+so a deep link or a refresh reaches the router at all:
+
+```astro
+---
+// src/pages/app/[...path].astro
+import App from "../../components/App.tsx";
+export const prerender = false; // or getStaticPaths() for a static build
+---
+
+<html><body><App client:only="solid-js" /></body></html>
+```
+
+And the router itself, either with literal prefixed paths (`/app/orders`) or with
+`basepath: "/app"` and root-relative ones. **Both work**; router
+[#4888](https://github.com/TanStack/router/issues/4888) is filed against
+`@tanstack/solid-start` and doesn't apply here.
+
+`client:only`, not `client:load` — there is no SSR pass, so there is no hydration
+mismatch to reason about.
+
+:::caution[Check trailing slashes before you ship]
+Astro's static build emits directory-style URLs (`/app/orders/` → `index.html`),
+while the router writes history entries **without** a trailing slash
+(`/app/orders`). So the URL a user copies after navigating isn't the one Astro
+emitted. `astro preview` serves both — that's the preview server being lenient —
+so confirm the behaviour on your actual deploy. This is the class of thing that
+works in dev and 404s in production.
+
+Serving the app from its own subdomain sidesteps it: with a host rewrite the
+browser only sees root paths, and `basepath` is just `/`.
+:::
+
+**Not TanStack Start.** It owns its own Vite build graph on Cloudflare and so
+wants its own Worker, which is incompatible with the single-Worker composition
+here — `composeWorker` composes handlers, not builds. A standalone router in an
+island keeps one Worker, one build, one auth surface.
