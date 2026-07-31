@@ -206,9 +206,23 @@ export function createLouiseMiddleware<TEditor = unknown>(
           locals.editMode = context.cookies.get(editCookie)?.value === "1";
         }
       }
+    } catch {
+      // Missing bindings (e.g. plain `astro preview`, an unprovisioned
+      // SESSION_SECRET) → public rendering. Auth degrading is fine; what it
+      // must NOT do is cancel anything else.
+    }
+
+    // extend gets its OWN catch, deliberately separate from auth's. When these
+    // shared one, `resolveEditor` throwing (a sentinel SESSION_SECRET — the
+    // dormant-until-provisioned state every module is supposed to survive)
+    // silently skipped extend too, and everything extend feeds died with it:
+    // `locals.tenant` never set, so host dispatch quietly served the ordinary
+    // site on every tenant subdomain. An unprovisioned editor secret must
+    // degrade to "signed out", never to "storefronts don't resolve".
+    try {
       await config.extend?.(context);
     } catch {
-      // Missing bindings (e.g. plain `astro preview`) → public rendering.
+      // extend's own failure still degrades to public rendering.
     }
 
     // Outside the catch above, on purpose: a guard exists to REFUSE, so an
