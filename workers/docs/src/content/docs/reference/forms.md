@@ -105,6 +105,12 @@ Dependency-free validators in `@tanstack/solid-form`'s shape, backed by the same
 `Rule` engine — so a complex hand-built form keeps one validation definition. The
 consumer brings the peer.
 
+**Wire them to `onChangeAsync`** (or `onBlurAsync` / `onSubmitAsync`), never
+`onChange`. They are async by contract, and a promise-returning function in a sync
+slot is stored as the promise — `meta.errors` then holds a pending `Promise`
+instead of a string, so the message never renders and submit never disables. See
+the [forms guide](/guide/forms/#complex-forms-tanstack-form).
+
 ## Catalog without new tables
 
 For one-off forms (RSVP/waitlist/booking), store into the shared `submissions`

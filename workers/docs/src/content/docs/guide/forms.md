@@ -107,8 +107,8 @@ Louise's one `Rule` engine via the dependency-free adapter:
 import { tanstackFormValidators } from "louise-toolkit/forms";
 const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | undefined }
 
-// wire each into a TanStack field:
-<form.Field name="email" validators={{ onChange: v.email }}>
+// wire each into a TanStack field — note the ASYNC slot:
+<form.Field name="email" validators={{ onChangeAsync: v.email }}>
   {/* … */}
 </form.Field>;
 ```
@@ -116,6 +116,21 @@ const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | 
 `tanstackFormValidators` (and per-field `tanstackFieldValidator`) return
 functions in TanStack Form's validator shape, backed by `validateField` — so a
 complex hand-built form runs the same checks as `<Form>` and the server.
+
+:::caution[Use `onChangeAsync`, not `onChange`]
+These validators are async by contract, and TanStack keys its validator slots on
+that. A promise-returning function in `onChange` is stored **as the promise**, so
+`meta.errors` holds a pending `Promise` rather than a string: nothing throws, the
+message never renders, and the submit button never disables — which reads exactly
+like validation not running at all.
+
+`onBlurAsync` and `onSubmitAsync` take the same function.
+:::
+
+The map is **flat**, mirroring `FormConfig.fields` — `defineForm` has no array or
+nested field type, because each field is one column. A form with repeating rows
+builds the array with TanStack's own API and attaches these validators to the
+leaves.
 
 ## Review
 

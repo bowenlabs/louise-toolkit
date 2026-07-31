@@ -182,6 +182,39 @@ describe("tanstackFormValidators", () => {
     expect(await validators.note({ value: "toolong" })).toMatch(/at most 3/);
     expect(await validators.note({ value: "ok" })).toBeUndefined();
   });
+
+  it("returns a PROMISE, which is why these belong in TanStack's async slots", () => {
+    // Verified against @tanstack/solid-form 1.33.2 (#316): a promise-returning
+    // function in `onChange` is stored AS THE PROMISE, so `meta.errors` holds a
+    // pending Promise instead of a string — nothing throws, the message never
+    // renders, and submit never disables. `onChangeAsync` resolves it correctly.
+    //
+    // Pinned here rather than upstream because the toolkit's own docs showed the
+    // sync slot, and the symptom reads as "validation isn't running".
+    const form = defineForm({
+      name: "contact",
+      fields: { email: { type: "email", label: "Email", required: true } },
+    });
+    const result = tanstackFormValidators(form).email({ value: "" });
+    expect(result).toBeInstanceOf(Promise);
+  });
+
+  it("is flat — `defineForm` has no array or nested field type", () => {
+    // Each field is one column, so a repeating-row form builds its array with
+    // TanStack's own API and attaches these validators to the leaves.
+    const form = defineForm({
+      name: "contact",
+      fields: {
+        email: { type: "email", label: "Email" },
+        note: { type: "textarea", label: "Note" },
+      },
+    });
+    const validators = tanstackFormValidators(form);
+    expect(Object.keys(validators)).toEqual(["email", "note"]);
+    for (const validator of Object.values(validators)) {
+      expect(typeof validator).toBe("function");
+    }
+  });
 });
 
 // --- verifyTurnstileToken --------------------------------------------------
