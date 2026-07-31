@@ -506,7 +506,9 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
       ...(portal ? ["astroidPortalGuardConfig"] : []),
       "astroidRateRules",
       ...(portal ? ["guardResponse", "portalGuard", "resolvePortalSession"] : []),
-      ...(tenancy ? [...(Object.keys(tenancy.apps ?? {}).length ? ["appPrefix"] : []), "tenantLabel"] : []),
+      ...(tenancy
+        ? [...(Object.keys(tenancy.apps ?? {}).length ? ["appPrefix"] : []), "tenantLabel"]
+        : []),
     ].join(", ")} } from "astroidjs";`,
     'import astroidConfig from "../astroid.config.js";',
     ...(tenancy
