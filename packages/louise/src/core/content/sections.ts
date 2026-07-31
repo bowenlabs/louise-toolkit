@@ -35,6 +35,12 @@ import { type ValidationBuilder, type ValidationFieldContext, validateValue } fr
 // drift the "asserted identical in test" comments are there to prevent.
 export { isSafeLinkUrl } from "./field-types.js";
 
+// Also re-exported, for the same "published from here" reason: `SectionField.
+// options` below is typed with `FieldOptions`, so a site catalog declaring a
+// resolver-backed picker needs these names from the entry that gave it
+// `SectionField` — without them the only option is a structural stand-in.
+export type { FieldOption, FieldOptions, FieldOptionsResolver } from "./field-types.js";
+
 /**
  * The names a section field may declare.
  *
