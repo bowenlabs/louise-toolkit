@@ -119,6 +119,15 @@ export interface SectionField {
    * swatch looks like, and a site's renderer may ignore it entirely.
    */
   display?: string;
+  /**
+   * `select` only — the value is a **string array**, any number of the options
+   * (ADR 0010 Phase B). Rendered as a checkbox list rather than a dropdown;
+   * validated as an array whose every member is an allowed value (resolver-
+   * backed sets keep the same write-path exemption as single selects). The
+   * shape a mirror's filter lists need — "these subcategories", "these items
+   * hidden".
+   */
+  multiple?: boolean;
   /** `array` only — label for each repeated item (e.g. "Feature"). */
   itemLabel?: string;
   /** `array` only — the fields of each repeated item. With a {@link SectionField.discriminator}
@@ -184,13 +193,18 @@ export interface SectionDef {
   settings?: Record<string, SectionField>;
   /**
    * Where this section's CONTENT truth lives, when it isn't the page (ADR 0010
-   * Phase B). `"external"` marks a section that mirrors a system the site
-   * doesn't own — a Square-backed product grid — so the editor rings it yellow
-   * and its wrench configures the mirror (category, filters, hidden items),
-   * never the mirrored content itself. Omitted means the page owns it, which
-   * is every section that existed before Phase B.
+   * Phase B). Marks a section that mirrors a system the site doesn't own — a
+   * Square-backed product grid — so the editor rings it yellow and its wrench
+   * configures the mirror (category, filters, hidden items), never the
+   * mirrored content itself. Omitted means the page owns it, which is every
+   * section that existed before Phase B.
+   *
+   * The bare `"external"` form is the tone alone; the object form additionally
+   * declares the mirror's configuration, which the inspector renders as its
+   * own group writing to SITE SETTINGS — immediately, not into the page draft
+   * (see {@link ExternalSource}).
    */
-  source?: "external";
+  source?: "external" | ExternalSource;
   /**
    * Site-settings keys this section READS when it renders — e.g.
    * `["addressStreet", "hours"]` for a location panel. The coupling is
@@ -199,6 +213,39 @@ export interface SectionDef {
    * before a green-ring edit changes every one of them.
    */
   consumes?: string[];
+}
+
+/**
+ * The object form of {@link SectionDef.source} — an external mirror plus its
+ * site-owned configuration (ADR 0010 Phase B).
+ *
+ * `settings` are the knobs of the MIRROR (which category, which filters, which
+ * items hidden), not of the section: their values live in the site-settings
+ * `custom` JSON under `settingsKey`, shared by every page that renders the
+ * section — which is why the inspector writes them through the settings route,
+ * immediately, instead of staging them into a page draft. A field may be a
+ * resolver-backed `select` (the usual case — the choices come from the external
+ * system's API).
+ */
+export interface ExternalSource {
+  kind: "external";
+  /** Editor-facing name of the system — "Square" — used to title the inspector
+   *  group. Falls back to "Source". */
+  label?: string;
+  /** The site-settings custom key holding this mirror's configuration object,
+   *  e.g. `"shop"` → `site_settings.custom.shop`. Required for `settings` to
+   *  have anywhere to live. */
+  settingsKey?: string;
+  /** The mirror's configuration fields, keyed by property within that object. */
+  settings?: Record<string, SectionField>;
+}
+
+/** Normalize {@link SectionDef.source} — `"external"` and the object form both
+ *  answer, so consumers switch on one shape. `null` for a page-owned section. */
+export function externalSourceOf(def: SectionDef | undefined): ExternalSource | null {
+  const s = def?.source;
+  if (!s) return null;
+  return s === "external" ? { kind: "external" } : s;
 }
 
 /** The site's catalog of preconfigured section types (schema only — the bespoke

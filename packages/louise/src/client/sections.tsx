@@ -66,17 +66,22 @@ import { thumb } from "./thumb.js";
 // drives both this on-page editor and the write-time validator (louise-toolkit/content's
 // validateSections). Type-only import — no server/validation code enters the
 // client bundle.
-import type {
-  BlockCatalog,
-  BlockDef,
-  BlockItem,
-  SectionCatalog,
-  SectionDef,
-  SectionField,
-  SectionFieldType,
-  RichTextFieldOptions,
-  SectionItem,
+import {
+  type BlockCatalog,
+  type BlockDef,
+  type BlockItem,
+  type ExternalSource,
+  // Runtime, not type-only — a pure normalizer over the schema, already
+  // server-safe (describe-node.ts imports it too).
+  externalSourceOf,
+  type SectionCatalog,
+  type SectionDef,
+  type SectionField,
+  type SectionFieldType,
+  type RichTextFieldOptions,
+  type SectionItem,
 } from "../core/content/sections.js";
+import { apiGet, apiSend } from "./settings/query.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
 // Whether a field is edited in place is the field TYPE's business now (ADR 0010
@@ -296,6 +301,143 @@ function SelectField(props: {
         </span>
       </Show>
     </>
+  );
+}
+
+/**
+ * A `select` with `multiple` (ADR 0010 Phase B): a checkbox list over the same
+ * choices — literal or fetched — writing a string array. A checkbox list, not a
+ * multi-`<select>`, because ctrl-click selection is invisible and editors lose
+ * it; the drawer's Square panel established the pattern.
+ */
+function MultiSelectField(props: {
+  field: SectionField;
+  label: string;
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const choices = createFieldOptions(() => props.field.options);
+  const toggle = (v: string, on: boolean) => {
+    props.onChange(on ? [...props.value, v] : props.value.filter((x) => x !== v));
+  };
+  return (
+    <div class="louise-field">
+      <span class="louise-field-label">{props.label}</span>
+      <Show
+        when={!choices.loading()}
+        fallback={<span class="louise-inspector-note">Loading…</span>}
+      >
+        <div class="louise-multiselect" role="group" aria-label={props.label}>
+          <For each={choices.options()}>
+            {(o) => (
+              <label class="louise-field-inline">
+                <input
+                  type="checkbox"
+                  checked={props.value.includes(o.value)}
+                  onChange={(e) => toggle(o.value, e.currentTarget.checked)}
+                />
+                <span>{o.label ?? o.value}</span>
+              </label>
+            )}
+          </For>
+        </div>
+      </Show>
+      <Show when={choices.error()}>
+        <span class="louise-field-error" role="alert">
+          {choices.error()}
+        </span>
+      </Show>
+    </div>
+  );
+}
+
+/**
+ * The SOURCE-SETTINGS group of an external section's inspector (ADR 0010
+ * Phase B / #375) — the yellow wrench's reason to exist.
+ *
+ * Different write path from everything else in the popover, on purpose: these
+ * are the mirror's knobs, stored in site settings and shared by every page that
+ * renders the section, so they PATCH `/api/louise/settings` the moment a value
+ * commits — they cannot ride the page draft, and pretending they could would
+ * stage a lie (spec §4/§5, bowenlabs/coracle.coffee#47). The caption says so
+ * because the surrounding groups all stage.
+ *
+ * Values are read once per open. A failed load disables nothing silently — the
+ * fields render against empty values with the error shown; a failed save keeps
+ * the optimistic value on screen WITH the error, so the editor knows the page
+ * and the store disagree.
+ */
+function SourceSettingsGroup(props: { source: ExternalSource; onSaved: () => void }) {
+  const key = props.source.settingsKey ?? "";
+  const [values, setValues] = createSignal<Record<string, unknown> | null>(null);
+  const [error, setError] = createSignal("");
+
+  onMount(() => {
+    apiGet<{ settings?: Record<string, unknown> }>("/api/louise/settings").then(
+      (d) => {
+        const cur = d.settings?.[key];
+        setValues(
+          cur && typeof cur === "object" && !Array.isArray(cur)
+            ? { ...(cur as Record<string, unknown>) }
+            : {},
+        );
+      },
+      () => {
+        setValues({});
+        setError("Couldn’t load the source settings");
+      },
+    );
+  });
+
+  const edit = (k: string, v: unknown) => setValues({ ...(values() ?? {}), [k]: v });
+  const save = () => {
+    setError("");
+    apiSend("PATCH", "/api/louise/settings", { [key]: values() ?? {} }).then(
+      () => props.onSaved(),
+      () => setError("Couldn’t save — this change hasn’t taken effect"),
+    );
+  };
+
+  return (
+    <div class="louise-inspector-group">
+      <span class="louise-field-label">{props.source.label ?? "Source"} settings</span>
+      <p class="louise-inspector-note">Save immediately, everywhere this content appears.</p>
+      <Show when={values()}>
+        <For each={Object.entries(props.source.settings ?? {})}>
+          {([sk, field]) => (
+            <Show
+              when={field.multiple}
+              fallback={
+                <label class="louise-field">
+                  <span class="louise-field-label">{field.label ?? humanize(sk)}</span>
+                  <ScalarField
+                    field={field}
+                    value={String(values()?.[sk] ?? "")}
+                    onInput={(v) => edit(sk, v)}
+                    onCommit={save}
+                  />
+                </label>
+              }
+            >
+              <MultiSelectField
+                field={field}
+                label={field.label ?? humanize(sk)}
+                value={Array.isArray(values()?.[sk]) ? (values()?.[sk] as string[]) : []}
+                onChange={(next) => {
+                  edit(sk, next);
+                  save();
+                }}
+              />
+            </Show>
+          )}
+        </For>
+      </Show>
+      <Show when={error()}>
+        <span class="louise-field-error" role="alert">
+          {error()}
+        </span>
+      </Show>
+    </div>
   );
 }
 function blankRecord(fields: Record<string, SectionField>): Record<string, unknown> {
@@ -1655,6 +1797,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             target.kind === "field" ? {} : (inspectDef(target)?.settings ?? {});
           const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
           const hasSettings = () => Object.keys(settings()).length > 0;
+          // The external mirror's configuration (Phase B / #375) — present only
+          // on a section wrench whose def declares where the knobs live.
+          const source = (): ExternalSource | null => {
+            if (target.kind !== "section") return null;
+            const src = externalSourceOf(sectionDef());
+            return src?.settingsKey && Object.keys(src.settings ?? {}).length > 0 ? src : null;
+          };
           // The non-inline "dock" fields (link URL, image, token) — edited here in
           // the inspector (#182) instead of the floating dock. Inline text/rich-text
           // fields are edited on the page; arrays stay their own membership UI.
@@ -1705,6 +1854,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     <Icon name="x" />
                   </button>
                 </div>
+
+                {/* Source settings (Phase B / #375): the external mirror's knobs,
+                    FIRST — they are what a yellow wrench opens for. They write to
+                    site settings immediately; everything below stages a draft. */}
+                <Show when={source()}>
+                  {(src) => (
+                    <SourceSettingsGroup source={src()} onSaved={() => commitField(target)} />
+                  )}
+                </Show>
 
                 {/* Field editing (#182): the section/block's non-inline fields —
                     formerly the floating dock's form — now live in the gear. */}
@@ -1930,7 +2088,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     editFields().length === 0 &&
                     arrayEditFields().length === 0 &&
                     !layouts() &&
-                    !hasSettings()
+                    !hasSettings() &&
+                    !source()
                   }
                 >
                   <p class="louise-inspector-empty">Nothing to configure here yet.</p>
