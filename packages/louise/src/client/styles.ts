@@ -860,6 +860,19 @@ html[data-louise-studio] body {
 /* Source-settings group (Phase B): the caption carries the write-path warning —
    these values save immediately, unlike everything else in the popover. */
 .louise-inspector-note { margin: 2px 0 6px; color: #64748b; font-size: 11px; }
+/* The green panel's persistent warning band (#376) — tinted with the shared
+   tone so the panel reads as the ring that opened it. Not a confirm(): the
+   count is readable the whole time the panel is open. */
+.louise-shared-band {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(21, 128, 61, 0.12);
+  border: 1px solid rgba(21, 128, 61, 0.35);
+  color: var(--louise-shared, #15803d);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .louise-multiselect { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
 .louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 /* "New page from template" chooser (Pages panel). */

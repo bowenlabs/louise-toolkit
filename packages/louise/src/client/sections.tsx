@@ -29,7 +29,7 @@
 // updates only that leaf — no row teardown, no focus loss.
 
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { describeNode } from "./describe-node.js";
+import { describeNode, SHARED_PATH_HEAD } from "./describe-node.js";
 import { createFieldOptions } from "./field-options.js";
 import { mountNodeChrome } from "./node-chrome.js";
 import {
@@ -83,6 +83,14 @@ import {
 } from "../core/content/sections.js";
 import { apiGet, apiSend } from "./settings/query.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
+
+/**
+ * One shared site-settings value the editor may edit on-canvas (Phase B /
+ * #376): a {@link SectionField} (its `type` picks the control, its `label`
+ * names the wrench) plus the chrome surfaces that render it — the half of the
+ * used-in count that no `sections` JSON records.
+ */
+export type SharedValueDef = SectionField & { surfaces?: string[] };
 
 // Whether a field is edited in place is the field TYPE's business now (ADR 0010
 // A2) — one answer in `field-types.ts`, where the validator reads it too. This
@@ -144,6 +152,19 @@ export interface SectionsEditorProps {
    * `builtInPages`.
    */
   builtInRoutes?: PageChoice[];
+  /**
+   * SHARED site-settings values editable on-canvas (ADR 0010 Phase B / #376),
+   * keyed by settings key. A render stamps `data-louise-node="settings.<key>"`
+   * on the element showing the value — Nav, Footer, a location panel — and a
+   * declared key resolves to a green wrench-only node whose inspector edits
+   * the SOURCE: one value, every surface, saved immediately through the
+   * settings route (there is no settings draft — the band says so).
+   *
+   * `surfaces` names the chrome surfaces that render the key ("the header")
+   * — the part of the used-in count no page's `sections` JSON records. Pages
+   * are counted from the catalog's `consumes` declarations.
+   */
+  shared?: Record<string, SharedValueDef>;
   /**
    * How the picker turns a `pages` row's slug into a path. Default `/${slug}`.
    *
@@ -440,6 +461,109 @@ function SourceSettingsGroup(props: { source: ExternalSource; onSaved: () => voi
     </div>
   );
 }
+
+/** "the header and 3 pages" — the used-in phrase, from the static chrome
+ *  surfaces plus the consuming-page count. Empty when nothing is known, and the
+ *  band then carries only the save-immediately warning. */
+function describeSurfaces(surfaces: string[], pages: number): string {
+  const parts = [...surfaces];
+  if (pages > 0) parts.push(`${pages} page${pages === 1 ? "" : "s"}`);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+/**
+ * The GREEN inspector (Phase B / #376): one shared site-settings value, edited
+ * at its source.
+ *
+ * Everything about this panel exists to make one fact unmissable: the value is
+ * used in N surfaces and **saves immediately** — there is no settings draft to
+ * stage into (spec §4, decided). The warning band is persistent, not a
+ * confirm(): a modal inside a `role="dialog"` popover helps nobody, and a
+ * count you can read beats a question you click through.
+ *
+ * The count is assembled client-side from what the editor already has: the
+ * def's static chrome surfaces ("the header"), plus the pages whose stored
+ * sections include a type whose catalog def `consumes` this key.
+ */
+function SharedValuePanel(props: {
+  name: string;
+  def: SharedValueDef;
+  catalog: SectionCatalog;
+  onSaved: (value: string) => void;
+}) {
+  const [value, setValue] = createSignal<string | null>(null);
+  const [error, setError] = createSignal("");
+  const [usedIn, setUsedIn] = createSignal(describeSurfaces(props.def.surfaces ?? [], 0));
+
+  onMount(() => {
+    apiGet<{ settings?: Record<string, unknown> }>("/api/louise/settings").then(
+      (d) => setValue(String(d.settings?.[props.name] ?? "")),
+      () => {
+        setValue("");
+        setError("Couldn’t load the current value");
+      },
+    );
+    // Which section types read this key — declared, not discovered (spec §3
+    // approach A). No consumers declared → the static surfaces are the count.
+    const consumers = Object.entries(props.catalog)
+      .filter(([, d]) => d.consumes?.includes(props.name))
+      .map(([type]) => type);
+    if (consumers.length === 0) return;
+    apiGet<{ pages?: { sections?: unknown }[] }>("/api/louise/pages").then(
+      (d) => {
+        const count = (d.pages ?? []).filter((p) => {
+          // D1 JSON columns may arrive as strings — parse defensively; a page
+          // whose sections can't be read just doesn't count.
+          let secs: unknown = p.sections;
+          if (typeof secs === "string") {
+            try {
+              secs = JSON.parse(secs);
+            } catch {
+              secs = null;
+            }
+          }
+          return (
+            Array.isArray(secs) &&
+            secs.some((s) => consumers.includes(String((s as { _type?: string })?._type)))
+          );
+        }).length;
+        setUsedIn(describeSurfaces(props.def.surfaces ?? [], count));
+      },
+      () => {
+        // The count is informative, not load-bearing — the band still warns.
+      },
+    );
+  });
+
+  const save = () => {
+    setError("");
+    apiSend("PATCH", "/api/louise/settings", { [props.name]: value() ?? "" }).then(
+      () => props.onSaved(value() ?? ""),
+      () => setError("Couldn’t save — this change hasn’t taken effect"),
+    );
+  };
+
+  return (
+    <div class="louise-inspector-group">
+      <p class="louise-shared-band" role="note">
+        {usedIn() ? `Used in ${usedIn()} — ` : ""}saves immediately, everywhere.
+      </p>
+      <Show when={value() !== null}>
+        <label class="louise-field">
+          <span class="louise-field-label">{props.def.label ?? humanize(props.name)}</span>
+          <ScalarField field={props.def} value={value() ?? ""} onInput={setValue} onCommit={save} />
+        </label>
+      </Show>
+      <Show when={error()}>
+        <span class="louise-field-error" role="alert">
+          {error()}
+        </span>
+      </Show>
+    </div>
+  );
+}
 function blankRecord(fields: Record<string, SectionField>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, f] of Object.entries(fields)) out[k] = blankValue(f);
@@ -718,7 +842,11 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
 type InspectTarget =
   | { kind: "section"; index: number }
   | { kind: "block"; section: number; block: number }
-  | { kind: "field"; section: number; block?: number; key: string };
+  | { kind: "field"; section: number; block?: number; key: string }
+  // A SHARED site-settings value (Phase B / #376) — addresses no section at
+  // all: its truth lives in the settings table, and its inspector is the one
+  // panel whose writes do NOT stage into the page draft.
+  | { kind: "shared"; key: string };
 
 function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [state, setState] = createStore<{ items: SectionItem[] }>({
@@ -884,6 +1012,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             items: state.items,
             catalog: props.catalog,
             blocks: props.blocks,
+            shared: props.shared,
           }),
         onMove: (path, delta) => moveNode(path, delta),
         onDelete: (path) => deleteNode(path),
@@ -1092,6 +1221,18 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     (props.host.ownerDocument ?? document).querySelector<HTMLElement>(
       `[${NODE_MARKER_ATTR}="${formatNodePath(path)}"]`,
     );
+
+  // After a shared save (Phase B / #376), mirror the new value onto EVERY
+  // marker carrying the key — the Nav renders `settings.nav` twice (desktop +
+  // mobile), and updating one would leave the page lying about the other.
+  // Plain-text values only: anything richer renders server-side and gets its
+  // truth on the next load — the save itself already went through.
+  const syncSharedMarkers = (key: string, def: SharedValueDef, value: string): void => {
+    if (def.type !== "text" && def.type !== "textarea") return;
+    const doc = props.host.ownerDocument ?? document;
+    const selector = `[${NODE_MARKER_ATTR}="${SHARED_PATH_HEAD}.${key}"]`;
+    for (const el of doc.querySelectorAll<HTMLElement>(selector)) el.textContent = value;
+  };
 
   // POST one section item to the fragment-render route and return its
   // server-rendered HTML (an Astro partial — the same `<Sections>` markup the
@@ -1348,6 +1489,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const b = asBlock(path);
     if (b) return { kind: "block", section: b[0], block: b[1] };
     const [head, ...rest] = path;
+    // ["settings", key] — a shared value (Phase B). Only declared keys resolve
+    // to chrome at all, so reaching here means the key is real.
+    if (head === SHARED_PATH_HEAD && rest.length === 1 && typeof rest[0] === "string") {
+      return { kind: "shared", key: rest[0] };
+    }
     if (typeof head !== "number") return null;
     // [i, key] — a field on the section.
     if (rest.length === 1 && typeof rest[0] === "string") {
@@ -1369,12 +1515,16 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Edit a section's `_layout` + `_settings` (or a block's `_settings`) contextually.
   // A layout/settings change alters the render, so it re-renders the section via
   // the fragment route (the same seam as block add / swap-type).
-  const inspectSection = (t: InspectTarget) => (t.kind === "section" ? t.index : t.section);
+  // A `shared` target owns no section; -1 indexes nothing, so every item/def
+  // helper below degrades to `undefined` for it — and the popover body branches
+  // to the shared panel before any of them matter.
+  const inspectSection = (t: InspectTarget) =>
+    t.kind === "section" ? t.index : t.kind === "shared" ? -1 : t.section;
   /** The block index within that section, or `undefined` for a section-level
    *  target. A `field` target inherits its OWNER's position — a CTA's destination
    *  is stored on the block that renders it, not on the link. */
   const inspectBlock = (t: InspectTarget): number | undefined =>
-    t.kind === "section" ? undefined : t.block;
+    t.kind === "section" || t.kind === "shared" ? undefined : t.block;
   const inspectItem = (t: InspectTarget): (SectionItem & BlockItem) | undefined => {
     const section = state.items[inspectSection(t)];
     const block = inspectBlock(t);
@@ -1390,6 +1540,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
    *  target anchors to the FIELD's own element, so a CTA's panel opens beside
    *  that CTA rather than beside the section around it. */
   const inspectPath = (t: InspectTarget): NodePath => {
+    if (t.kind === "shared") return [SHARED_PATH_HEAD, t.key];
     const block = inspectBlock(t);
     const owner: NodePath =
       block === undefined ? [inspectSection(t)] : [inspectSection(t), "blocks", block];
@@ -1827,9 +1978,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           const si = () => inspectSection(target);
           // A scoped panel is titled by its field; everything else by its type.
           const title = () =>
-            target.kind === "field"
-              ? (inspectDef(target)?.fields?.[target.key]?.label ?? humanize(target.key))
-              : (inspectDef(target)?.label ?? inspectItem(target)?._type);
+            target.kind === "shared"
+              ? (props.shared?.[target.key]?.label ?? humanize(target.key))
+              : target.kind === "field"
+                ? (inspectDef(target)?.fields?.[target.key]?.label ?? humanize(target.key))
+                : (inspectDef(target)?.label ?? inspectItem(target)?._type);
+          // The shared panel replaces the whole body — a shared value has no
+          // layouts, no arrays, no draft-staged anything (Phase B / #376).
+          const sharedTarget = () =>
+            target.kind === "shared" && props.shared?.[target.key]
+              ? { key: target.key, def: props.shared[target.key] }
+              : null;
           return (
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} aria-hidden="true" />
@@ -1854,6 +2013,21 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     <Icon name="x" />
                   </button>
                 </div>
+
+                {/* The green panel (Phase B / #376): one shared value, edited at
+                    its source, with the used-in count and the save-immediately
+                    band. Replaces the whole body — every other group is empty
+                    for a shared target by construction. */}
+                <Show when={sharedTarget()}>
+                  {(st) => (
+                    <SharedValuePanel
+                      name={st().key}
+                      def={st().def}
+                      catalog={props.catalog}
+                      onSaved={(v) => syncSharedMarkers(st().key, st().def, v)}
+                    />
+                  )}
+                </Show>
 
                 {/* Source settings (Phase B / #375): the external mirror's knobs,
                     FIRST — they are what a yellow wrench opens for. They write to
@@ -2089,7 +2263,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                     arrayEditFields().length === 0 &&
                     !layouts() &&
                     !hasSettings() &&
-                    !source()
+                    !source() &&
+                    !sharedTarget()
                   }
                 >
                   <p class="louise-inspector-empty">Nothing to configure here yet.</p>
