@@ -337,6 +337,23 @@ export interface TenancyConfig {
    * makes local dev work, since `wrangler dev` cannot serve subdomains.
    */
   apps?: Record<string, string>;
+  /**
+   * What a syntactically-valid tenant host whose label resolves to NOTHING
+   * (`resolveTenant` returned `null`) should get.
+   *
+   * `"fallthrough"` (the default) renders the ordinary site — which means a
+   * stranger who points a CNAME at your zone gets your homepage. `"404"` emits
+   * a guard that refuses the request instead, which is the right answer the
+   * moment tenant hosts are commercial surfaces: an unknown storefront must be
+   * unambiguously *not a page*, not a copy of the marketing site under someone
+   * else's name.
+   *
+   * Either way the decision stays visible in config rather than buried in the
+   * seam: `resolveTenant` decides *what exists*; this decides what not-existing
+   * means. Reserved labels, app labels, the apex, and off-pattern hosts are
+   * never affected — they aren't tenant candidates at all.
+   */
+  unknown?: "fallthrough" | "404";
 }
 
 export interface AstroidCron {
