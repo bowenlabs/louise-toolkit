@@ -13,10 +13,15 @@
 // create-astroid's schema generators, which call this function but never run the
 // beforeChange hook below). Both entries are drizzle-free: `content/define` for
 // the config types/builders, and `content/sections` for the write-time section
-// validators. That second entry is what the Rule-evaluator split
-// (louise-toolkit/src/core/content/rule.ts) added, so this hook can import the
-// validators STATICALLY instead of the dynamic `import("louise-toolkit/content")`
-// it used to need to keep the CLI's graph drizzle-free.
+// validators. That second entry is what the Rule-evaluator split added, so this
+// hook can import the validators STATICALLY instead of the dynamic
+// `import("louise-toolkit/content")` it used to need to keep the CLI's graph
+// drizzle-free.
+//
+// Note the entry named here is the PUBLIC subpath. Astroid must never reach into
+// `louise-toolkit/src/...` — that resolves only because the workspace aliases the
+// package to its source, and would break the moment astroid consumes a published
+// tarball (#327).
 import {
   type CollectionConfig,
   type ContentConfig,

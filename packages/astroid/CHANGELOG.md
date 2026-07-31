@@ -1,5 +1,309 @@
 # astroidjs
 
+## 0.7.0
+
+### Minor Changes
+
+- e56d546: **`AstroidConfig.crons` — more than two scheduled triggers.**
+
+  `astroidCrons()` returned exactly two expressions and the generated `scheduled`
+  handler dispatched on those two literals, so a project needing a third had two bad
+  options: add it in the Cloudflare dashboard, where it drifts from the
+  `wrangler.jsonc` that is supposed to describe the deploy; or add it to
+  `triggers.crons`, where the generated dispatch never matches it and Cloudflare
+  fires an invocation that does nothing, with no error anywhere.
+
+  ```ts
+  crons: [
+    { expression: "*/15 * * * *", message: { kind: "inventory_pull" } },
+    { expression: "30 3 * * *", message: { kind: "nightly_reconcile" } },
+  ],
+  ```
+
+  Each entry is emitted into **both** `triggers.crons` and the dispatch, from the
+  same list, so the two cannot drift. `scripts/ci/checks/crons-dispatched.mjs`
+  already enforces that agreement against a real scaffold; there is now a unit test
+  asserting the same invariant.
+
+  The message is **enqueued, never run inline**, so the work takes the same retry
+  and DLQ path as everything else and a slow job can't hold the scheduled handler
+  open. It is typed `unknown` because the consumer owns the message vocabulary —
+  whatever you put there arrives at your `handleQueueMessage`'s `onMessage`.
+
+  **Two config-time refusals**, both for failures that are otherwise silent:
+
+  - **A duplicate expression.** One handler dispatches on `controller.cron` in
+    order, so a cron colliding with the health scan, the catalog re-sync, or another
+    entry never reaches its own branch — the first wins, and the config reads as
+    though both are live. This is the exact unreachable-trigger failure the feature
+    exists to prevent, so it refuses rather than reproduces it.
+  - **Crons without the queue consumer.** A cron's work is enqueued, so without one
+    the generated handler would `send` to a binding the project never creates.
+
+- 660a433: **`PwaConfig.offlineFallback` and `PwaConfig.emitDir`** — the two gaps blocking a
+  PWA scoped to something other than the site root.
+
+  **`offlineFallback`.** The generated service worker's navigate catch fell back to
+  `caches.match(SCOPE)` — the _dynamic app shell_. On an auth-gated app that is
+  precisely the wrong thing to precache: the response carries `Cache-Control:
+no-store`, so either nothing is cached and the offline fallback is empty, or a
+  signed-in shell is stored and later served to whoever opens the app next. Point
+  this at a prerendered page instead; it is precached with the shell, since a
+  fallback fetched on demand is a fallback that isn't there when the network is.
+
+  **`emitDir`.** `sw.js` and the manifest were written to `public/` unconditionally.
+  A PWA served from its own subdomain that rewrites to a path prefix
+  (`studio.example.com/` → `/studio/`) has the browser fetch `/sw.js` at _its_ origin
+  root, which rewrites to `/studio/sw.js` — so a worker at the public root is a 404
+  with nothing to explain it.
+
+  ```ts
+  pwa: { scope: "/studio", emitDir: "studio", offlineFallback: "/offline" },
+  ```
+
+  The `_headers` stanza moves with the files (its `no-cache` rule is what stops a
+  bad worker sticking around, and a stanza pointing at a path nothing serves sets
+  headers on nothing), while `_headers` itself stays at the public root, where
+  Cloudflare reads it. Its append-once marker moves too, so switching `emitDir` on
+  rewrites the stanza rather than appending a second one.
+
+  With `scope` equal to the serving path, no `Service-Worker-Allowed` header is
+  needed — a worker may always control its own directory and below.
+
+- 71cc1d7: **Fixed: one provider's webhook could storm another provider's API.**
+
+  `astroidQueueHandler` ran the site's `refreshCatalog` seam for any webhook whose
+  event type matched the sending provider's catalog prefixes. But the seam is
+  provider-blind by construction — it re-syncs whichever catalog _that site_ uses,
+  which is not necessarily the provider that sent the event.
+
+  Two commerce providers is now a supported configuration, and that is where it
+  bites. A site running Fourthwall as its storefront and Square as its POS means
+  `refreshCatalog` re-pulls Fourthwall — while Square emits `inventory.count.updated`
+  on **every single sale**. Each in-person transaction therefore triggered a full
+  Fourthwall re-sync against an unrelated provider's rate limit. The periodic refresh
+  is unaffected, so the site looks healthy right up until the day it's busy.
+
+  Two additive changes, no break:
+
+  - **`refreshCatalog` now receives the message that triggered it** —
+    `(message: AstroidQueueMessage) => void | Promise<void>`. A zero-argument seam
+    stays valid, so existing consumers compile and behave identically.
+  - **`catalogProvider`** scopes the dispatch. Set it and only that provider's
+    webhooks trigger a refresh; leave it unset and any catalog-affecting webhook
+    does, which is what every single-provider project already gets.
+
+  The periodic `catalog_refresh` is deliberately never scoped — it is the safety net,
+  and a safety net with an exception is not one.
+
+  The scaffolded `src/queue.ts` now emits `catalogProvider` for projects configured
+  with more than one commerce provider, set to the storefront's, so the two-provider
+  case is wired correctly on the way in rather than discovered on a busy Saturday.
+
+- d7b0277: **Location-scoped pricing: `ScopedPriceLookup`, `verifyCheckout` scope, an
+  `"out-of-stock"` refusal, and a location-aware Square adapter.**
+
+  One catalog sold through several merchants carries a different price per
+  location — each shop's commission absorbed in its own Square
+  `location_overrides` entry. Nothing in the checkout path could see that
+  dimension, so a cart was re-priced against **base** prices no matter which
+  storefront it came from: a customer could pay the cheapest merchant's price at
+  the dearest merchant's shop. That is the same exploit as trusting the client's
+  `unitPriceCents`, one level further back.
+
+  All additive; a single-location store changes nothing.
+
+  - **`ScopedPriceLookup = (ids, scope?) => Promise<Map | ScopedPrices>`.** A plain
+    `PriceLookup` stays assignable — fewer parameters, narrower return.
+  - **`verifyCheckout(lines, lookup, { scope })`** passes the scope through to the
+    lookup.
+  - **`"out-of-stock"`** joins the refusal union. A lookup reaches it by returning
+    `{ prices, outOfStock }`; a bare `Map` can't express it and guessing would put
+    the wrong sentence in front of a customer. Delisted is gone and should leave
+    the cart, sold out is coming back and is worth a notify-me. Stock is checked
+    **before** price, because a sold-out variation is usually still priced.
+  - **`squareToCatalogItem(item, { locationId })`** replaces `Math.min` over every
+    variation. It drops variations the merchant doesn't carry and prices the rest
+    through their overrides. The headline number is scoped for the same reason the
+    variants are: `price` means "from", so computing it over the whole catalog
+    advertises a price this merchant will never honour — and since the dropped
+    variation is usually the cheap one, the error runs in the direction a customer
+    notices at the till.
+  - **`squareItemSoldAt(item, locationId)`** is new, because the adapter can't skip
+    a row for you — it returns one item, and "don't store this" isn't a
+    `CatalogItem`. Without the guard an unstocked item mirrors as a $0 card.
+
+  **Also fixes the generated checkout route under `square: { locations: "multi" }`,
+  which charged against an ambient location id that does not exist.**
+
+  `commerceProviderCredentials` deliberately drops `SQUARE_LOCATION_ID` for
+  multi-location projects, on the stated grounds that any path defaulting to an
+  ambient id "would ring one merchant's sale against another merchant's books, and
+  the sale would look perfectly successful while doing it." The scaffold was
+  exactly such a path: it emitted `locationId: env.SQUARE_LOCATION_ID ?? ""` — a
+  var the project is told not to set — so the charge either failed outright or, if
+  someone set the var to quiet it, credited one location for every merchant's
+  sales.
+
+  Multi-location now generates a route that:
+
+  - resolves the merchant in a `resolveLocationId(request)` you fill in, from the
+    **host**, and refuses the checkout when it returns `null` rather than falling
+    back to a default;
+  - re-prices at that location live from Square via `retrieveVariationPricesAt`,
+    because the D1 mirror holds one price per item and structurally cannot answer
+    "what does this cost here";
+  - charges the same location it priced against;
+  - runs the **dormancy gate before verification** rather than after — per-location
+    re-pricing is itself a Square call, so the old ordering would have the
+    enforcing step break the rule it enforces ("never call Square with a dummy
+    credential"). An unprovisioned multi-merchant store therefore can't do the
+    staleness check at all, and says so (`priced: false`) instead of echoing the
+    client's total back as though the server had agreed to it.
+
+  `SquareCard.astro` takes `locationId` as a prop there too. Single-location output
+  is byte-identical to before.
+
+- 89a9afb: **Wildcard host dispatch: a `rewrite` hook, and the `tenancy` config that uses it.**
+
+  Serving `*.example.com` from one Worker — scoped views of one brand's data, a
+  per-merchant storefront — had no seam. `AstroidConfig.hosts` is consumed only by
+  the wrangler generator, which emits `{ pattern, custom_domain: true }`; a wildcard
+  needs `{ pattern, zone_name }` and explicitly **not** `custom_domain`, so `hosts`
+  cannot express it. And there was nowhere to put the dispatch: `src/middleware.ts`
+  is generated, Astro permits exactly one middleware file, `extend` returns `void`
+  and `guard` returns only a `Response` — so **neither existing hook could rewrite**.
+
+  **`createLouiseMiddleware` gains `rewrite?: (context) => string | undefined`**
+  (louise-toolkit), called before `next()` and **after `guard`** — so route policy
+  stays written against the URL a visitor actually asked for rather than an internal
+  one. It sits outside the `extend` try/catch for the same reason `guard` does: a
+  rewrite that throws must not degrade into rendering the _unrewritten_ path, which
+  under host dispatch is another tenant's page.
+
+  **`AstroidConfig.tenancy`** (astroidjs) wires it up: the wrangler generator emits
+  the wildcard zone route alongside the apex custom domain, the generated middleware
+  resolves a label and rewrites, and a scaffold-once `src/tenancy.ts` holds the
+  lookup.
+
+  ```ts
+  tenancy: { hostPattern: "*.example.com", reserved: ["www", "studio"] },
+  hosts: ["example.com"],
+  ```
+
+  **The site keeps every decision.** What a label maps to, whether the lookup is
+  cached, and what an unknown host means all live in `src/tenancy.ts` — with the
+  last stated as a decision rather than defaulted quietly, since falling through to
+  the ordinary site means a stranger's CNAME renders your homepage.
+
+  **Two config-time refusals.** A non-wildcard `hostPattern` (that is a custom
+  domain — put it in `hosts`), and an apex missing from `hosts`: a wildcard route
+  does not match its own apex, so `example.com` would 404 the moment tenancy was
+  switched on, with a symptom that reads as unrelated to the feature that caused it.
+
+  `tenantLabel(host, tenancy)` is exported and pure so a site can unit-test its own
+  reserved list. It returns `null` for the apex, off-pattern hosts, reserved labels,
+  and dotted labels — Cloudflare's wildcard matches one level, and a dotted slug
+  would put a `/` in the rewrite path.
+
+  This does not weaken the one-brand-per-project rule; that note in `config.ts` is
+  clarified rather than contradicted.
+
+### Patch Changes
+
+- 71cc1d7: **One flag turns AI generation off, separately from the binding.**
+
+  AI was gated by binding presence and nothing else: if `env.AI` was provisioned the
+  assists were live, and the only way to turn them off was to unprovision it. That
+  is a real switch, and for "this site never uses AI" arguably the right one. It
+  stops working the moment you want to keep the binding and still disable
+  _generation_ — an embeddings-backed search that must keep running while alt-text
+  and SEO suggestions go quiet, a client whose contract forbids generated copy, or a
+  temporary kill after a bad model swap.
+
+  `LOUISE_AI=off` in `vars`, plus `aiRunner(env)` in place of `(env) => env.AI`:
+
+  ```ts
+  aiRoute({ resolveEditor, ai: aiRunner });
+  ```
+
+  **One exported definition, not four.** Every consumer reached the runner through
+  its own accessor, so a flag written at each call site would be four chances to
+  drift — and a kill switch you don't trust is worse than none. Astroid's generated
+  worker and `workers/site` both wire it now.
+
+  **Two decisions the issue left open, resolved:**
+
+  **Scope — generation only.** Embeddings power site search and generate nothing, so
+  gating them would mean disabling "AI content" silently breaks search: a
+  consequence nobody predicts from the flag's name, surfacing as "search returns
+  nothing" long after the flag was flipped. `vector.ai` deliberately stays on the
+  binding. Unprovisioning `AI` still turns off everything.
+
+  **"Off by choice" vs "not configured" — distinguished now, not later.** Both
+  answer `503` and both hide the control, which is correct for an unprovisioned
+  binding but wrong for a deliberate opt-out, where the honest answer is "AI assists
+  are turned off for this site". The 503 body carries `reason: "disabled" |
+"unconfigured"`. Shipped together because a kill switch whose state is invisible
+  is exactly what the flag is trying to fix.
+
+  `LOUISE_AI` **cannot turn AI on** — with no binding there is nothing to enable, so
+  the var stays a ceiling rather than a second source of truth. `off`, `false`, `0`,
+  `no`, and `disabled` all mean off, case-insensitively; every other value means on,
+  so no typo can accidentally disable AI, only spell "off" more than one way.
+
+- dc33db0: **Declare the `astro` dependency astroid has always had.**
+
+  `astroidjs` imports `astro`, `astro/types` and `astro:actions`, and ships 25
+  `.astro` components — while declaring `astro` nowhere: not a dependency, not a
+  peer, not even a dev dependency. Its own typecheck passed only because `astro`
+  hoisted out of `louise-toolkit`'s devDependencies in the workspace.
+
+  That is invisible today and load-bearing tomorrow. In a scaffolded project it
+  happens to work, because `create-astroid`'s template pins `astro` itself and the
+  installer resolves it from there. What it costs is the two things a peer
+  dependency is for: nothing tells you which Astro versions this package actually
+  supports, and nothing complains when you install it somewhere Astro isn't. And
+  the moment astroid stops living beside louise in one workspace (#327), the hoist
+  disappears and its typecheck has no `astro` to resolve at all.
+
+  Now declared as an optional peer at `^7.0.9` — matched to what the template pins,
+  which is the version astroid is actually built and smoke-tested against — plus a
+  devDependency so the package typechecks on its own rather than on a neighbour's
+  graph.
+
+  Optional rather than required because `astroidjs` has a real non-Astro surface
+  (`defineAstroid`, the queue handler, the commerce and tenancy helpers) that runs
+  in a plain Worker, and a required peer would make that an install warning for no
+  reason.
+
+- 71cc1d7: **The scaffolded queue consumer now says to turn Square's retry on.** `SquareConfig.retry`
+  has existed since the multi-location wave, off by default so an attended checkout route
+  keeps failing fast — a customer watching a spinner is better served by an error than by
+  three silent backoffs. The queue consumer is the exact inverse: nobody is watching, and a
+  rate-limited catalog push that gives up halfway leaves the site serving a half-applied
+  catalog.
+
+  That distinction lived only in a source comment on the library side, so the one place it
+  actually matters — the `refreshCatalog` seam a project fills in — never mentioned it. The
+  scaffolded `src/queue.ts` now does, with the Square-specific form when Square is the
+  storefront provider and a generic note otherwise.
+
+  Comment-only in generated output; no behaviour change to existing projects.
+
+- Updated dependencies [71cc1d7]
+- Updated dependencies [e56d546]
+- Updated dependencies [71cc1d7]
+- Updated dependencies [1cf8d2e]
+- Updated dependencies [2164d91]
+- Updated dependencies [71cc1d7]
+- Updated dependencies [71cc1d7]
+- Updated dependencies [71cc1d7]
+- Updated dependencies [7a08f74]
+- Updated dependencies [7a08f74]
+- Updated dependencies [89a9afb]
+  - louise-toolkit@0.23.0
+
 ## 0.6.0
 
 ### Minor Changes
