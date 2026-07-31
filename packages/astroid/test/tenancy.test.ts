@@ -239,3 +239,53 @@ describe("tenancy.apps — first-party app labels", () => {
     ).toThrow(/single subdomain label/);
   });
 });
+
+describe("tenancy.unknown — what a failed tenant lookup means", () => {
+  const with404: AstroidConfig = {
+    ...base,
+    hosts: ["example.com"],
+    tenancy: {
+      hostPattern: "*.example.com",
+      reserved: ["www"],
+      apps: { studio: "/studio" },
+      unknown: "404",
+    },
+  };
+
+  it('emits a guard that refuses a resolved-to-nothing tenant host under "404"', () => {
+    const out = generateAstroidMiddleware(with404);
+    expect(out).toContain("guard: (context) => {");
+    expect(out).toContain(
+      "if (tenantLabel(context.url.hostname, TENANCY) && !context.locals.tenant) {",
+    );
+    expect(out).toContain('return new Response("Not found", { status: 404 });');
+    // The guard must run against locals.tenant, which `extend` sets — so both
+    // hooks have to be present in the same emission.
+    expect(out).toContain("context.locals.tenant = label ? await resolveTenant(label) : null;");
+  });
+
+  it("emits no guard at all under the fallthrough default", () => {
+    // `tenanted` has tenancy but no `unknown` — the pre-existing behaviour
+    // (stranger's subdomain renders the ordinary site) must be unchanged.
+    expect(generateAstroidMiddleware(tenanted)).not.toContain("guard:");
+  });
+
+  it("composes with the portal guard in ONE guard function", () => {
+    const out = generateAstroidMiddleware({
+      ...with404,
+      portal: { enabled: true },
+    });
+    // One `guard:` key — a second would silently shadow the first in the
+    // object literal, which is the exact bug composition exists to prevent.
+    expect(out.match(/guard: \(context\) => \{/g)).toHaveLength(1);
+    // Tenant refusal first, then the portal's prefix table.
+    const tenantAt = out.indexOf('return new Response("Not found", { status: 404 });');
+    const portalAt = out.indexOf("const decision = portalGuard(");
+    expect(tenantAt).toBeGreaterThan(-1);
+    expect(portalAt).toBeGreaterThan(tenantAt);
+  });
+
+  it("accepts the config without complaint", () => {
+    expect(() => defineAstroid(with404)).not.toThrow();
+  });
+});

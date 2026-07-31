@@ -575,20 +575,36 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
           "  },",
         ]
       : []),
-    ...(portal
+    ...(portal || tenancy?.unknown === "404"
       ? [
-          "  // Route guard: the declarative prefix→roles table from your config.",
-          "  // An /api/* route always answers in JSON — redirecting fetch() to an",
-          "  // HTML login page returns 200 and markup, which reads as success.",
           "  guard: (context) => {",
-          "    const decision = portalGuard(",
-          "      context.url.pathname,",
-          "      context.locals.portalUser,",
-          "      PORTAL_GUARD,",
-          "    );",
-          "    if (!decision) return undefined;",
-          '    if (decision.kind === "redirect") return context.redirect(decision.location);',
-          "    return guardResponse(decision) ?? undefined;",
+          ...(tenancy?.unknown === "404"
+            ? [
+                "    // A syntactically-valid tenant host whose label resolved to nothing is",
+                '    // NOT a page (config `tenancy.unknown: "404"`). Falling through would',
+                "    // render the marketing homepage on a stranger's subdomain. Reserved",
+                "    // labels, app labels, and the apex never reach here — tenantLabel",
+                "    // returns null for all of them, so they are not tenant candidates.",
+                "    if (tenantLabel(context.url.hostname, TENANCY) && !context.locals.tenant) {",
+                '      return new Response("Not found", { status: 404 });',
+                "    }",
+              ]
+            : []),
+          ...(portal
+            ? [
+                "    // Route guard: the declarative prefix→roles table from your config.",
+                "    // An /api/* route always answers in JSON — redirecting fetch() to an",
+                "    // HTML login page returns 200 and markup, which reads as success.",
+                "    const decision = portalGuard(",
+                "      context.url.pathname,",
+                "      context.locals.portalUser,",
+                "      PORTAL_GUARD,",
+                "    );",
+                "    if (!decision) return undefined;",
+                '    if (decision.kind === "redirect") return context.redirect(decision.location);',
+                "    return guardResponse(decision) ?? undefined;",
+              ]
+            : ["    return undefined;"]),
           "  },",
         ]
       : []),
@@ -600,8 +616,8 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
           "  // redirect — so links built from Astro.url stay correct.",
           "  //",
           "  // An unknown subdomain is YOUR decision: `resolveTenant` returning null",
-          "  // falls through to the ordinary site below. Return a 404 from `guard`",
-          "  // instead if a stranger's subdomain should not render your homepage.",
+          "  // falls through to the ordinary site below — or 404s first, when the",
+          '  // config sets `tenancy.unknown: "404"` (see the guard above).',
           "  rewrite: (context) => {",
           ...(Object.keys(tenancy.apps ?? {}).length
             ? [
