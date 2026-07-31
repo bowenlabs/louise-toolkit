@@ -317,6 +317,26 @@ export interface TenancyConfig {
    * built from `Astro.url` stay public and correct.
    */
   rewritePrefix?: string;
+  /**
+   * First-party apps on their own labels, mapped to the internal path prefix
+   * each serves from — `{ studio: "/studio" }` serves
+   * `studio.example.com/<path>` from `src/pages/studio/<path>`.
+   *
+   * This is the missing half of {@link PwaConfig.emitDir}'s subdomain story:
+   * an app label is not a tenant (there is no lookup — the studio exists
+   * whether or not any tenant does) and not merely reserved (a reserved label
+   * renders the ordinary site, which turns the admin host into a second copy
+   * of the marketing homepage). It is a static rewrite, decided at config time.
+   *
+   * An app label is implicitly reserved: `tenantLabel` never offers it to
+   * `resolveTenant`, and listing it in `reserved` too is refused — one list
+   * per fact, or the two drift.
+   *
+   * Same internal-rewrite semantics as tenants: the visitor's URL never
+   * changes, and the path form stays reachable on the apex — which is what
+   * makes local dev work, since `wrangler dev` cannot serve subdomains.
+   */
+  apps?: Record<string, string>;
 }
 
 export interface AstroidCron {
@@ -592,6 +612,31 @@ function assertTenancy(config: AstroidConfig): void {
         "A wildcard route does not match its own apex, so the apex would 404. " +
         `Add "${apex}" to \`hosts\`.`,
     );
+  }
+
+  // App labels: each failure below otherwise surfaces as a rewrite to a path
+  // that renders the wrong page, with nothing pointing back at the config.
+  for (const [label, prefix] of Object.entries(tenancy.apps ?? {})) {
+    if (!label || label.includes(".")) {
+      throw new AstroidConfigError(
+        `\`tenancy.apps\` label "${label}" must be a single subdomain label — ` +
+          "Cloudflare's wildcard matches one level.",
+      );
+    }
+    if ((tenancy.reserved ?? []).includes(label)) {
+      throw new AstroidConfigError(
+        `"${label}" is in both \`tenancy.apps\` and \`tenancy.reserved\`. ` +
+          "An app label is implicitly reserved — keep it in `apps` only, or the " +
+          "two lists drift and `reserved` silently wins.",
+      );
+    }
+    if (!prefix.startsWith("/") || prefix === "/" || prefix.endsWith("/")) {
+      throw new AstroidConfigError(
+        `\`tenancy.apps.${label}\` must be an internal path prefix like "/studio" ` +
+          `(leading slash, no trailing slash, not "/") — got "${prefix}". ` +
+          'The rewrite is `prefix + pathname`, so "/" or a trailing slash produces "//…".',
+      );
+    }
   }
 }
 

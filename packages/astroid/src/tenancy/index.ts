@@ -28,30 +28,59 @@ export function tenancyZone(tenancy: TenancyConfig): string {
 }
 
 /**
- * The subdomain label for a host under the wildcard, or `null` when the host is
- * not a tenant candidate at all.
- *
- * `null` covers three distinct cases that all mean "render the ordinary site":
- * the apex itself (a wildcard does not match its own apex), a host outside the
- * pattern (a preview domain, `localhost`), and a reserved label.
- *
- * Exported and pure so a site can unit-test its own reserved list without
- * standing up a request.
+ * The single subdomain label under the wildcard, before any policy — or `null`
+ * for the apex, an off-pattern host, or a dotted label. Shared by
+ * {@link tenantLabel} and {@link appPrefix} so their host handling (port,
+ * case, one-level-only) cannot drift.
  */
-export function tenantLabel(host: string, tenancy: TenancyConfig): string | null {
+function hostLabel(host: string, tenancy: TenancyConfig): string | null {
   const suffix = tenancy.hostPattern.replace(/^\*\./, "");
   // Strip a port: `acme.example.com:8788` under `wrangler dev`.
   const hostname = host.split(":")[0]?.toLowerCase() ?? "";
   if (!hostname.endsWith(`.${suffix}`)) return null;
 
   const label = hostname.slice(0, -(suffix.length + 1));
-  // Only a single label is a tenant. `a.b.example.com` under `*.example.com` is
+  // Only a single label counts. `a.b.example.com` under `*.example.com` is
   // not `a.b` — Cloudflare's wildcard matches one level, and treating a dotted
   // string as a slug would put a `/` in a rewrite path.
   if (!label || label.includes(".")) return null;
+  return label;
+}
 
-  const reserved = tenancy.reserved ?? [];
-  return reserved.includes(label) ? null : label;
+/**
+ * The subdomain label for a host under the wildcard, or `null` when the host is
+ * not a tenant candidate at all.
+ *
+ * `null` covers four distinct cases that all mean "not a tenant": the apex
+ * itself (a wildcard does not match its own apex), a host outside the pattern
+ * (a preview domain, `localhost`), a reserved label, and an app label — which
+ * has its own static rewrite via {@link appPrefix} instead of a lookup.
+ *
+ * Exported and pure so a site can unit-test its own reserved list without
+ * standing up a request.
+ */
+export function tenantLabel(host: string, tenancy: TenancyConfig): string | null {
+  const label = hostLabel(host, tenancy);
+  if (!label) return null;
+  if ((tenancy.reserved ?? []).includes(label)) return null;
+  return tenancy.apps && label in tenancy.apps ? null : label;
+}
+
+/**
+ * The internal path prefix an app host rewrites to, or `null` when the host is
+ * not an app host — `appPrefix("studio.example.com", …)` → `"/studio"` under
+ * `apps: { studio: "/studio" }`.
+ *
+ * Static by design: an app exists whether or not any tenant does, so there is
+ * no per-request lookup and nothing to cache. Same host handling as
+ * {@link tenantLabel} (port and case ignored, one label only), so `wrangler
+ * dev` behaves like production.
+ */
+export function appPrefix(host: string, tenancy: TenancyConfig): string | null {
+  const apps = tenancy.apps;
+  if (!apps) return null;
+  const label = hostLabel(host, tenancy);
+  return label ? (apps[label] ?? null) : null;
 }
 
 /**

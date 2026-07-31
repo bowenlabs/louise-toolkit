@@ -506,7 +506,9 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
       ...(portal ? ["astroidPortalGuardConfig"] : []),
       "astroidRateRules",
       ...(portal ? ["guardResponse", "portalGuard", "resolvePortalSession"] : []),
-      ...(tenancy ? ["tenantLabel"] : []),
+      ...(tenancy
+        ? [...(Object.keys(tenancy.apps ?? {}).length ? ["appPrefix"] : []), "tenantLabel"]
+        : []),
     ].join(", ")} } from "astroidjs";`,
     'import astroidConfig from "../astroid.config.js";',
     ...(tenancy
@@ -602,6 +604,15 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
           "  // falls through to the ordinary site below. Return a 404 from `guard`",
           "  // instead if a stranger's subdomain should not render your homepage.",
           "  rewrite: (context) => {",
+          ...(Object.keys(tenancy.apps ?? {}).length
+            ? [
+                "    // First-party app hosts (config `tenancy.apps`): a static label→prefix",
+                "    // map, checked before the tenant — an app exists whether or not any",
+                "    // tenant does, and needs no lookup.",
+                "    const app = appPrefix(context.url.hostname, TENANCY);",
+                "    if (app) return `${app}${context.url.pathname}`;",
+              ]
+            : []),
           "    const tenant = context.locals.tenant;",
           `    return tenant ? \`${rewritePrefix}/\${tenant.slug}\${context.url.pathname}\` : undefined;`,
           "  },",
