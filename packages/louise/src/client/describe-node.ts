@@ -27,7 +27,21 @@ export interface DescribeContext {
   items: SectionItem[];
   catalog: SectionCatalog;
   blocks?: BlockCatalog;
+  /**
+   * The site-settings keys that may be marked on the page as shared values
+   * (ADR 0010 Phase B) — `data-louise-node="settings.<key>"`. A marked key
+   * missing from this map resolves to `null`, exactly like a stale section
+   * marker: better unmarked than a wrench over something the editor can't
+   * actually edit.
+   */
+  shared?: Record<string, { label?: string }>;
 }
+
+/** The path head that addresses site settings instead of the page's `sections`
+ *  JSON. A settings path carries no index, so reorders never re-stamp it —
+ *  which is what lets these markers live outside the sections host (Nav,
+ *  Footer) where nothing would re-stamp them. */
+export const SHARED_PATH_HEAD = "settings";
 
 /** Whether a section/block def has anything worth opening an inspector for.
  *
@@ -115,6 +129,18 @@ function childLabel(
  */
 export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescriptor | null {
   const [i, ...rest] = path;
+
+  // ["settings", key] — a SHARED value (ADR 0010 Phase B): site settings
+  // rendered on this page, one value with many surfaces. Wrench-only, like any
+  // value node, but toned `shared` because editing it changes every surface at
+  // once — the editor's inspector, not this descriptor, carries that warning.
+  if (i === SHARED_PATH_HEAD) {
+    if (rest.length !== 1 || typeof rest[0] !== "string") return null;
+    const def = ctx.shared?.[rest[0]];
+    if (!def) return null;
+    return { fields: true, tone: "shared", label: def.label ?? rest[0] };
+  }
+
   if (typeof i !== "number") return null;
   const item = ctx.items[i];
   if (!item) return null;
@@ -123,6 +149,11 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
 
   // [i] — a section. Ordered within the page, and a container when its def opts
   // into the block layer AND the editor was given a block catalog to seed from.
+  //
+  // Tone is f(source) (ADR 0010 Phase B): a def declaring `source: "external"`
+  // rings yellow — the page still owns its position and layout (so `ordered`
+  // and `fields` are untouched), but its content mirrors a system the site
+  // doesn't own, and the inspector says so.
   if (rest.length === 0) {
     const canHoldBlocks = !!sectionDef.blocks && !!ctx.blocks;
     const childName = childLabel(sectionDef.blocks, ctx.blocks);
@@ -137,7 +168,7 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
           }
         : {}),
       fields: hasInspectableContent(sectionDef),
-      tone: "section",
+      tone: sectionDef.source === "external" ? "external" : "section",
       label: sectionDef.label,
     };
   }
