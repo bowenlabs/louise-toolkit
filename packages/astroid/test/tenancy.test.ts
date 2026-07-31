@@ -4,6 +4,7 @@ import { generateAstroidWrangler } from "../src/project/generate.js";
 import {
   appPrefix,
   generateAstroidTenancy,
+  isRewriteExcluded,
   tenancyZone,
   tenantLabel,
 } from "../src/tenancy/index.js";
@@ -93,7 +94,9 @@ describe("generated wrangler routes", () => {
 describe("generated middleware", () => {
   it("resolves the tenant in extend and rewrites after the guard", () => {
     const out = generateAstroidMiddleware(tenanted);
-    expect(out).toContain('import { astroidRateRules, tenantLabel } from "astroidjs";');
+    expect(out).toContain(
+      'import { astroidRateRules, isRewriteExcluded, tenantLabel } from "astroidjs";',
+    );
     expect(out).toContain('import { resolveTenant } from "./tenancy.js";');
     // One import per module — two statements for `astroidjs` reads as an
     // oversight in a file nobody is meant to hand-edit.
@@ -196,7 +199,9 @@ describe("tenancy.apps — first-party app labels", () => {
 
   it("emits the app rewrite before the tenant rewrite, from the same TENANCY", () => {
     const out = generateAstroidMiddleware(withApps);
-    expect(out).toContain('import { appPrefix, astroidRateRules, tenantLabel } from "astroidjs";');
+    expect(out).toContain(
+      'import { appPrefix, astroidRateRules, isRewriteExcluded, tenantLabel } from "astroidjs";',
+    );
     expect(out).toContain("const app = appPrefix(context.url.hostname, TENANCY);");
     expect(out).toContain("if (app) return `${app}${context.url.pathname}`;");
     // App check precedes the tenant check inside the one rewrite hook.
@@ -287,5 +292,65 @@ describe("tenancy.unknown — what a failed tenant lookup means", () => {
 
   it("accepts the config without complaint", () => {
     expect(() => defineAstroid(with404)).not.toThrow();
+  });
+});
+
+describe("isRewriteExcluded", () => {
+  it("matches the prefix itself and anything under it", () => {
+    expect(isRewriteExcluded("/api", ["/api"])).toBe(true);
+    expect(isRewriteExcluded("/api/louise/crm", ["/api"])).toBe(true);
+  });
+
+  it("is segment-aware — a coincidental name is not an API path", () => {
+    // Without this, a site with an /apiary page would lose it on every
+    // tenant host, which is a very confusing way to find out about a prefix.
+    expect(isRewriteExcluded("/apiary", ["/api"])).toBe(false);
+    expect(isRewriteExcluded("/apiary/bees", ["/api"])).toBe(false);
+  });
+
+  it("excludes nothing when the list is empty", () => {
+    expect(isRewriteExcluded("/api/x", [])).toBe(false);
+  });
+
+  it("honours a trailing slash in the configured prefix", () => {
+    expect(isRewriteExcluded("/api/x", ["/api/"])).toBe(true);
+  });
+});
+
+describe("generated middleware — host-agnostic paths are never rewritten", () => {
+  it("skips /api by default, BEFORE the app and tenant branches", () => {
+    const out = generateAstroidMiddleware({
+      ...base,
+      hosts: ["example.com"],
+      tenancy: { hostPattern: "*.example.com", apps: { studio: "/studio" } },
+    });
+    expect(out).toContain("import { appPrefix, astroidRateRules, isRewriteExcluded, tenantLabel }");
+    expect(out).toContain('isRewriteExcluded(context.url.pathname, ["/api"])');
+    // Order matters: an app host with a catch-all page would otherwise answer
+    // fetch("/api/…") with HTML, so the exclusion must come first.
+    const excludeAt = out.indexOf("isRewriteExcluded(context.url.pathname");
+    const appAt = out.indexOf("const app = appPrefix(");
+    const tenantAt = out.indexOf("const tenant = context.locals.tenant;");
+    expect(excludeAt).toBeGreaterThan(-1);
+    expect(appAt).toBeGreaterThan(excludeAt);
+    expect(tenantAt).toBeGreaterThan(excludeAt);
+  });
+
+  it("emits a site's own exclusion list verbatim", () => {
+    const out = generateAstroidMiddleware({
+      ...base,
+      hosts: ["example.com"],
+      tenancy: { hostPattern: "*.example.com", rewriteExclude: ["/api", "/_actions"] },
+    });
+    expect(out).toContain('isRewriteExcluded(context.url.pathname, ["/api","/_actions"])');
+  });
+
+  it("emits an empty list when a site opts out", () => {
+    const out = generateAstroidMiddleware({
+      ...base,
+      hosts: ["example.com"],
+      tenancy: { hostPattern: "*.example.com", rewriteExclude: [] },
+    });
+    expect(out).toContain("isRewriteExcluded(context.url.pathname, [])");
   });
 });
