@@ -411,7 +411,15 @@ function wireInline(
   // to describe a field the catalog already fully described. Now the marker says
   // only WHERE the field is; whether it's edited in place, and with which editor,
   // comes from its type.
-  const nodes = host.querySelectorAll<HTMLElement>(`[${NODE_MARKER_ATTR}]`);
+  //
+  // Document-wide, not host-scoped (#374): the chrome already hovers every
+  // marker in the document, and a marker outside the sections host — Phase B
+  // stamps `settings.*` paths in the Nav/Footer — must resolve the same way
+  // everywhere. A host-scoped scan made such a marker silently inert. Paths
+  // that address nothing in the catalog still fall out via `fieldAtPath`.
+  const nodes = (host.ownerDocument ?? document).querySelectorAll<HTMLElement>(
+    `[${NODE_MARKER_ATTR}]`,
+  );
   for (const node of Array.from(nodes)) {
     const path = node.getAttribute(NODE_MARKER_ATTR);
     if (!path) continue;
@@ -934,8 +942,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // The rendered element carrying a given node path, when it's on the page.
+  // Looked up in the whole document, not under the host (#374): the inspector
+  // popover anchors on this, and a host-scoped lookup sent any out-of-host
+  // marker's popover to the viewport-origin fallback — silently, which is the
+  // worst way. The chrome's own hover lookup has always been document-wide.
   const nodeEl = (path: NodePath): HTMLElement | null =>
-    props.host.querySelector<HTMLElement>(`[${NODE_MARKER_ATTR}="${formatNodePath(path)}"]`);
+    (props.host.ownerDocument ?? document).querySelector<HTMLElement>(
+      `[${NODE_MARKER_ATTR}="${formatNodePath(path)}"]`,
+    );
 
   // POST one section item to the fragment-render route and return its
   // server-rendered HTML (an Astro partial — the same `<Sections>` markup the
