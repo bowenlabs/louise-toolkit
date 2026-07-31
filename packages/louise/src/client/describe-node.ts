@@ -12,11 +12,13 @@
 // reference rings changes this function and nothing in the chrome.
 
 import { isInlineField } from "../core/content/field-types.js";
-import type {
-  BlockCatalog,
-  SectionCatalog,
-  SectionField,
-  SectionItem,
+import {
+  type BlockCatalog,
+  externalSourceOf,
+  type SectionCatalog,
+  type SectionDef,
+  type SectionField,
+  type SectionItem,
 } from "../core/content/sections.js";
 import type { NodeDescriptor, NodePath } from "./node.js";
 
@@ -52,9 +54,15 @@ function hasInspectableContent(def: {
   fields: Record<string, { type: string; inline?: boolean }>;
   layouts?: Record<string, unknown>;
   settings?: Record<string, unknown>;
+  source?: SectionDef["source"];
 }): boolean {
   if (def.layouts && Object.keys(def.layouts).length > 0) return true;
   if (def.settings && Object.keys(def.settings).length > 0) return true;
+  // An external mirror's configuration counts (ADR 0010 Phase B): a section
+  // whose ONLY knobs are source settings — a product grid with no fields of
+  // its own — still needs its wrench, or the yellow ring leads nowhere.
+  const src = externalSourceOf(def as SectionDef);
+  if (src?.settings && Object.keys(src.settings).length > 0) return true;
   return Object.entries(def.fields).some(
     ([, f]) => f.type === "array" || !isInlineField(f as SectionField),
   );
@@ -168,7 +176,7 @@ export function describeNode(path: NodePath, ctx: DescribeContext): NodeDescript
           }
         : {}),
       fields: hasInspectableContent(sectionDef),
-      tone: sectionDef.source === "external" ? "external" : "section",
+      tone: externalSourceOf(sectionDef) ? "external" : "section",
       label: sectionDef.label,
     };
   }

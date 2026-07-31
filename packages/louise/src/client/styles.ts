@@ -857,6 +857,11 @@ html[data-louise-studio] body {
 .louise-inspector-layouts { display: flex; flex-wrap: wrap; gap: 6px; }
 .louise-inspector-active { background: var(--louise-blue); color: #fff; border-color: transparent; }
 .louise-inspector-empty { margin: 0; color: #64748b; font-size: 12px; }
+/* Source-settings group (Phase B): the caption carries the write-path warning —
+   these values save immediately, unlike everything else in the popover. */
+.louise-inspector-note { margin: 2px 0 6px; color: #64748b; font-size: 11px; }
+.louise-multiselect { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

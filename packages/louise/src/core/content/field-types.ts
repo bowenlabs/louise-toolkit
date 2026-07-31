@@ -315,6 +315,19 @@ defineFieldType({
     // Phase B is where this gets a real answer: an `external` source is MIRRORED
     // by definition (ADR 0010), and a local mirror is something the write path can
     // check without leaving the Worker.
+    // `multiple` (Phase B): the value is a string ARRAY — any number of the
+    // options. Same resolver exemption as the single form, member-wise.
+    if (field.multiple) {
+      if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
+        return bad(path, "must be an array of strings");
+      }
+      if (isOptionsResolver(field.options)) return undefined;
+      const allowedSet = (field.options ?? []).map((o) => o.value);
+      const unknown = value.find((v) => !allowedSet.includes(v as string));
+      return unknown === undefined
+        ? undefined
+        : bad(path, `has an unknown value ${JSON.stringify(unknown)}`);
+    }
     if (isOptionsResolver(field.options)) {
       return typeof value === "string" ? undefined : bad(path, "must be a string");
     }

@@ -567,6 +567,34 @@ describe("validateSections — select (closed choice)", () => {
     expect(e[0].path).toBe("sections[0]._settings.align");
   });
 
+  it("multiple: accepts an array of declared options, rejects strays and non-arrays", async () => {
+    // Phase B (#375): a mirror's filter lists ("these subcategories hidden")
+    // are any-number-of-the-options, stored as a string array.
+    const multiCatalog: SectionCatalog = {
+      grid: {
+        label: "Grid",
+        fields: {
+          hidden: {
+            type: "select",
+            multiple: true,
+            options: [{ value: "a" }, { value: "b" }],
+          },
+        },
+      },
+    };
+    const errs = async (value: unknown) =>
+      (await validateSections(multiCatalog, value)).filter((v) => v.severity === "error");
+
+    expect(await errs([{ _type: "grid", hidden: [] }])).toEqual([]);
+    expect(await errs([{ _type: "grid", hidden: ["a", "b"] }])).toEqual([]);
+    const stray = await errs([{ _type: "grid", hidden: ["a", "z"] }]);
+    expect(stray).toHaveLength(1);
+    expect(stray[0].message).toContain('unknown value "z"');
+    // The single-select shape is not valid for a multiple field — an editor
+    // bug, not a degraded mode.
+    expect(await errs([{ _type: "grid", hidden: "a" }])).toHaveLength(1);
+  });
+
   it("rejects everything when a select declares no options", async () => {
     // A select with no options can't accept any value — better a loud rejection
     // than silently behaving like a text field.
