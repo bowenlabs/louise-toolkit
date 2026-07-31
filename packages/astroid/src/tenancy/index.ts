@@ -14,6 +14,25 @@ import type { AstroidConfig, TenancyConfig } from "../config.js";
 /** Default internal prefix a tenant request is rewritten to. */
 export const ASTROID_TENANT_PREFIX = "/t";
 
+/** Path prefixes the host rewrite leaves alone unless a site says otherwise.
+ *  See {@link TenancyConfig.rewriteExclude} for why `/api` is the default. */
+export const ASTROID_REWRITE_EXCLUDE = ["/api"];
+
+/**
+ * Whether a path is host-agnostic and must render from its own address rather
+ * than the rewritten one.
+ *
+ * Segment-aware on purpose: a prefix of `/api` must match `/api` and `/api/x`
+ * but never `/apiary`, or a site could lose a page to a coincidental name.
+ *
+ * Exported and pure so a site can unit-test its own exclusion list.
+ */
+export function isRewriteExcluded(pathname: string, exclude: string[]): boolean {
+  return exclude.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix.replace(/\/$/, "")}/`),
+  );
+}
+
 /**
  * The Cloudflare zone a wildcard pattern belongs to.
  *

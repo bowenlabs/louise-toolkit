@@ -354,6 +354,27 @@ export interface TenancyConfig {
    * never affected — they aren't tenant candidates at all.
    */
   unknown?: "fallthrough" | "404";
+  /**
+   * Path prefixes the host rewrite must leave alone. Default `["/api"]`.
+   *
+   * The rewrite exists to choose which PAGE renders for a host. An API route
+   * is not a page: its address is absolute, chosen by the client that calls
+   * it, and it reads the host from `locals.tenant` rather than from its own
+   * path. Rewriting it moves it somewhere no route matches — and on an app
+   * host with a catch-all page, somewhere much worse than a 404: the page
+   * catch-all answers, so `fetch("/api/…")` gets HTML (or a redirect to a
+   * sign-in) instead of JSON, and every data load on that host silently fails
+   * while the same code works on the apex.
+   *
+   * That is not hypothetical — it is why this default exists (found on
+   * themidwestartist.com's studio, where the whole admin app loaded and then
+   * fetched nothing).
+   *
+   * Set `[]` to rewrite everything, or add prefixes for other host-agnostic
+   * surfaces (`/_actions`, `/webhooks`). Matching is prefix-based on a path
+   * segment, so `/api` matches `/api/x` and `/api` but never `/apiary`.
+   */
+  rewriteExclude?: string[];
 }
 
 export interface AstroidCron {
