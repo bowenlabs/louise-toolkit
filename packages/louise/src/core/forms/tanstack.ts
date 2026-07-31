@@ -18,7 +18,11 @@ import type { FormConfig, FormField } from "./types.js";
 import { coerceFormValue, validateField } from "./validate.js";
 
 /** A TanStack Form field-validator: returns an error string, or `undefined` when
- *  valid. Async so DB-backed custom rules can be awaited. */
+ *  valid.
+ *
+ *  Async so DB-backed custom rules can be awaited — which is also why these
+ *  belong in TanStack's `onChangeAsync` / `onBlurAsync` / `onSubmitAsync` slots
+ *  rather than the sync ones. See {@link tanstackFieldValidator}. */
 export type TanstackFieldValidator = (args: { value: unknown }) => Promise<string | undefined>;
 
 /**
@@ -26,9 +30,21 @@ export type TanstackFieldValidator = (args: { value: unknown }) => Promise<strin
  * like the server, runs {@link validateField}, and returns the first error's
  * message (TanStack shows one error per field) or `undefined`.
  *
+ * **Wire it to an `*Async` slot.** These validators are async by contract (below),
+ * and TanStack keys its slots on that: a promise-returning function in `onChange`
+ * is stored *as the promise*, so `meta.errors` holds a pending Promise instead of
+ * a string. Nothing throws — the message simply never renders and the submit
+ * button never disables, which reads exactly like "validation isn't running".
+ *
  * ```tsx
- * <form.Field name="email" validators={{ onChange: tanstackFieldValidator("email", fields.email) }}>
+ * <form.Field
+ *   name="email"
+ *   validators={{ onChangeAsync: tanstackFieldValidator("email", fields.email) }}
+ * >
  * ```
+ *
+ * `onBlurAsync` and `onSubmitAsync` take the same function; pair with
+ * `onChangeAsyncDebounceMs` if a rule hits the network.
  */
 export function tanstackFieldValidator(key: string, field: FormField): TanstackFieldValidator {
   return async ({ value }) => {
@@ -39,9 +55,14 @@ export function tanstackFieldValidator(key: string, field: FormField): TanstackF
 
 /**
  * Build a `{ [fieldName]: validator }` map for every field in a form, ready to
- * spread onto each `<form.Field validators={{ onChange: map[name] }}>`. Complex
- * forms wire these into `@tanstack/solid-form` and keep Louise's one validation
- * definition.
+ * spread onto each `<form.Field validators={{ onChangeAsync: map[name] }}>`.
+ * Complex forms wire these into `@tanstack/solid-form` and keep Louise's one
+ * validation definition.
+ *
+ * The map is FLAT, mirroring `FormConfig.fields` — `defineForm` has no array or
+ * nested field type, since each field is one column. A form with repeating rows
+ * builds its array with TanStack's own API and attaches these validators to the
+ * leaves.
  */
 export function tanstackFormValidators(config: FormConfig): Record<string, TanstackFieldValidator> {
   return Object.fromEntries(
