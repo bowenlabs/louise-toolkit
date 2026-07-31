@@ -88,6 +88,7 @@ export default {
       "src/astro/index.ts",
       "src/client/index.ts",
       "src/client/settings/index.ts",
+      "src/client/studio/index.ts",
       "src/core/content/index.ts",
       // Drizzle-free "describe content" entry — see the note in define.ts.
       "src/core/content/define.ts",

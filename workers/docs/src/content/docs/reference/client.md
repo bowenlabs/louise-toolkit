@@ -287,6 +287,51 @@ pagination happen in SQL, a plain `<For>` plus a sort signal is less code, less
 bundle, and keeps granular reactivity. Table's value is _client-side_ row
 modelling — if D1 is already doing that work, Table is paying for nothing.
 
+## `louise-toolkit/client/studio`
+
+```ts
+import { mountStudio } from "louise-toolkit/client/studio";
+
+mountStudio({ title: "Acme Studio", users: true, signInPath: "/studio/login" });
+```
+
+The same editor as a **full-page admin app** rather than a drawer over a live
+page. Both presentations render the same panels — Home, Media, Pages, Settings,
+Users, and your registered tabs — so they cannot drift about which panels exist;
+only the chrome differs. The drawer adds a scrim, a dialog role, a focus trap and
+a close button. The studio adds none of those, because it is simply always open.
+
+Its **own subpath**, so a marketing page that only opens the drawer doesn't pull
+the studio into its bundle, and a studio route doesn't pull the drawer's scrim and
+focus trap into its.
+
+Config is `SettingsConfig` minus the drawer-only bits, plus:
+
+|              |                                                                                |
+| ------------ | ------------------------------------------------------------------------------ |
+| `title`      | Header text. **Static config — a site name, never an editor name.** See below. |
+| `signInPath` | Where to send the browser on a 401. Default `/signin`.                         |
+| `target`     | Element or selector to render into. Omit for a body-appended root.             |
+
+`mountStudio` is idempotent on the default root and returns a disposer, so a
+router can unmount the island cleanly.
+
+### Two constraints worth understanding
+
+**The shell renders no data and no session-specific markup.** Every panel fetches
+through `/api/*` on mount, so the HTML is identical for every editor and for a
+signed-out visitor — which is what makes it precacheable by a service worker
+(pair with [`PwaConfig.offlineFallback`](/reference/astroid/#pwa)). Baking a name
+or a row count into the shell either stops it being cacheable or, worse, gets it
+cached and served to the next person. That's why `title` is a site name.
+
+**A 401 is a navigation, not an empty state.** A full-page studio can't degrade to
+"render the public page" the way the drawer can — there is no page underneath it.
+So a 401 from any panel query sends the browser to `signInPath`, handled centrally
+rather than per panel: the panel that forgot would render an empty list that reads
+as "no data" instead of "signed out". 401s are also never retried, so the redirect
+isn't delayed by a backoff.
+
 ### A routed app inside an Astro island
 
 `@tanstack/solid-router` works inside a `client:only="solid-js"` island — verified

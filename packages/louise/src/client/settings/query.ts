@@ -8,6 +8,28 @@
 import { QueryClient } from "@tanstack/solid-query";
 
 /**
+ * A failed API call, carrying the HTTP status.
+ *
+ * The status is a property rather than only text in the message because callers
+ * genuinely branch on it — the full-page studio redirects to sign-in on a 401,
+ * and matching that by parsing an error string would break the first time the
+ * message is reworded.
+ */
+export class LouiseApiError extends Error {
+  readonly status: number;
+  constructor(method: string, url: string, status: number) {
+    super(`${method} ${url} ${status}`);
+    this.name = "LouiseApiError";
+    this.status = status;
+  }
+}
+
+/** Whether an unknown thrown value is a {@link LouiseApiError} with this status. */
+export function isApiStatus(error: unknown, status: number): boolean {
+  return error instanceof LouiseApiError && error.status === status;
+}
+
+/**
  * The Settings' QueryClient. The Settings is a short-lived, editor-only surface
  * that opens over the live page, so: no window-focus refetch, a short stale
  * window to keep tab switches snappy without hammering the API, and one retry.
@@ -15,7 +37,15 @@ import { QueryClient } from "@tanstack/solid-query";
 export function createSettingsQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
-      queries: { refetchOnWindowFocus: false, staleTime: 30_000, retry: 1 },
+      queries: {
+        refetchOnWindowFocus: false,
+        staleTime: 30_000,
+        // One retry for a flaky network — but never for a 401. An expired
+        // session fails again a second later by definition, so retrying only
+        // delays whatever the surface does about it (the studio redirects to
+        // sign-in) by the length of the backoff.
+        retry: (failureCount, error) => !isApiStatus(error, 401) && failureCount < 1,
+      },
     },
   });
 }
@@ -44,20 +74,21 @@ export const louiseQueryKeys = {
   health: ["louise", "health"],
 } as const;
 
-/** GET JSON, throwing on a non-2xx status. */
+/** GET JSON, throwing {@link LouiseApiError} on a non-2xx status. */
 export async function apiGet<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET ${url} ${res.status}`);
+  if (!res.ok) throw new LouiseApiError("GET", url, res.status);
   return (await res.json()) as T;
 }
 
-/** Send JSON (POST/PATCH/DELETE/…) and parse the JSON response; throws on non-2xx. */
+/** Send JSON (POST/PATCH/DELETE/…) and parse the JSON response; throws
+ *  {@link LouiseApiError} on a non-2xx status. */
 export async function apiSend<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${method} ${url} ${res.status}`);
+  if (!res.ok) throw new LouiseApiError(method, url, res.status);
   return (await res.json()) as T;
 }
