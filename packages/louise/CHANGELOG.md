@@ -1,5 +1,49 @@
 # louise-toolkit
 
+## 0.25.3
+
+### Patch Changes
+
+- 67189d1: feat(sections): warn when a richText field is rendered into a `<p>`
+
+  A `richText` value is HTML the editor produced — `<p>`, lists, blockquotes.
+  Rendering it into a `<p>` is invalid nesting, and the parser does not merely
+  tolerate it: it CLOSES the paragraph and hoists the block content out as a
+  following sibling. The `data-louise-node` marker stays on the now-empty `<p>`,
+  so the editor mounts on nothing while the prose sits outside it, unmarked and
+  uneditable — and every paragraph break the editor creates is hoisted straight
+  back out.
+
+  Nothing about that fails loudly. The page renders; the field is simply inert.
+  Two sites shipped it independently before anyone noticed, which is why this
+  belongs in the framework rather than in each site's conventions.
+
+  `wireInline` already knows the field is `richText` and holds the node, so it now
+  checks the tag and warns with the field's path and the remedy. Warning only —
+  the field still half-works, and breaking an owner's editing session over a
+  markup nit would be the worse failure. Plain-text fields in a `<p>` are correct
+  and say nothing.
+
+- 9137487: fix(settings): the drawer's link lists lost focus after every keystroke
+
+  `LinkListEditor` rendered its rows with `<For>`, which is keyed by REFERENCE.
+  Its `update` helper replaces the edited row with a new object
+  (`rows.map((r, j) => (j === i ? { ...r, ...patch } : r))`), so every keystroke
+  made that row a new item — `<For>` tore the row's DOM down and rebuilt it, the
+  `<input>` being typed into was destroyed mid-edit, and focus fell to `<body>`.
+
+  The visible symptom is that typing a nav label or URL in the Settings drawer
+  accepts one character and then deselects, so the owner has to click back in for
+  every letter.
+
+  Now `<Index>`, which keys by POSITION: the row's elements are created once and
+  only the values update, so the focused input survives. The rows are positional
+  anyway — reorder moves values between fixed slots rather than moving DOM.
+
+  Field editors that iterate a STABLE list (a constant, or `Object.keys()`
+  captured once) were never affected: nothing re-keys them, so their inputs are
+  never recreated.
+
 ## 0.25.2
 
 ### Patch Changes
