@@ -193,9 +193,10 @@ describe("media asset route", () => {
 
   it("decodes a percent-escaped key", async () => {
     const route = emittedRoute(generateAstroidWorker(base));
-    const res = await route({ url: `${MEDIA_BASE}/web/two%20words.jpg` }, stubEnv([
-      "web/two words.jpg",
-    ]));
+    const res = await route(
+      { url: `${MEDIA_BASE}/web/two%20words.jpg` },
+      stubEnv(["web/two words.jpg"]),
+    );
     expect(res?.status).toBe(200);
   });
 
