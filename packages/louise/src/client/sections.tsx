@@ -410,7 +410,7 @@ function SourceSettingsGroup(props: { source: ExternalSource; onSaved: () => voi
     );
   });
 
-  const edit = (k: string, v: unknown) => setValues({ ...(values() ?? {}), [k]: v });
+  const edit = (k: string, v: unknown) => setValues({ ...values(), [k]: v });
   const save = () => {
     setError("");
     apiSend("PATCH", "/api/louise/settings", { [key]: values() ?? {} }).then(
