@@ -23,7 +23,7 @@ jobs:
     name: Lint & dead code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
       # `vp check` is per-package: it reads its config from that package's
@@ -80,7 +80,7 @@ jobs:
     name: Type-check & unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
       - name: Type-check the library
@@ -104,7 +104,7 @@ jobs:
     name: Build & pack
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
       # `pnpm run build` here, not `vp run louise#pack`: the task-runner form can
@@ -136,14 +136,14 @@ jobs:
       - name: Pack the three published packages
         run: scripts/ci/pack-tarballs.sh "$RUNNER_TEMP/louise-pack"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tarballs
           path: ${{ runner.temp }}/louise-pack/*.tgz
           retention-days: 1
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: louise-dist
           path: packages/louise/dist
@@ -161,12 +161,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: pack
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           cache-suffix: scaffold-storefront
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tarballs
           path: ${{ runner.temp }}/louise-pack
@@ -183,7 +183,7 @@ jobs:
       # fact; the script tails it, but the full file is worth keeping.
       - name: Upload the wrangler dev log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: live-smoke-dev-log
           path: ${{ runner.temp }}/louise-clean-room/smoke/dev.log
@@ -195,12 +195,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: pack
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           cache-suffix: scaffold-portfolio
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tarballs
           path: ${{ runner.temp }}/louise-pack
@@ -215,12 +215,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: pack
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
       # The site resolves `louise-toolkit/*` through the workspace link, which
       # points at dist/. Restore the packed build rather than rebuilding it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: louise-dist
           path: packages/louise/dist
