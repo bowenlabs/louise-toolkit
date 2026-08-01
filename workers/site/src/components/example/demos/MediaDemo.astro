@@ -1,0 +1,141 @@
+---
+// A self-contained preview of the media upload path for /examples/media. Unlike
+// the forms demo — which ships a deliberate mini-copy of the validation engine —
+// this one imports and runs the REAL louise-toolkit/media functions in the
+// browser: `sniffImageType`, `imageDimensions` and `cfImage` are pure, zero-dep,
+// binding-free, so the verification you watch here is byte-for-byte the code the
+// Worker runs. What it deliberately does NOT do is the final `bucket.put` — an
+// anonymous visitor writing to a real R2 bucket is not a demo, it's an open
+// upload endpoint. So it stops one line short, at exactly the point the server
+// would have stored the object. Nothing leaves the browser.
+---
+
+{/* #region example:demo */}
+<div class="louise-media-demo grid gap-3">
+  <label
+    class="louise-media-drop flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-base-300 px-4 py-8 text-center transition hover:border-primary hover:bg-primary/5"
+  >
+    <i class="ph ph-image text-3xl text-base-content/40" aria-hidden="true"></i>
+    <span class="text-sm font-semibold">Drop an image, or click to choose</span>
+    <span class="text-xs text-base-content/50">JPEG · PNG · GIF · WebP · AVIF · TIFF</span>
+    <input class="louise-media-input sr-only" type="file" accept="image/*" />
+  </label>
+
+  <output class="louise-media-out hidden grid gap-3" aria-live="polite"></output>
+</div>
+
+<script>
+  // The real thing — the same pure functions the upload route calls. No mirror,
+  // no reimplementation: these tree-shake out of louise-toolkit/media into the
+  // client bundle because none of them touch a binding.
+  import { cfImage, imageDimensions, sniffImageType } from "louise-toolkit/media";
+
+  // Mirrors of the two constants `putMedia` applies that aren't exported — the
+  // size ceiling, and the key-safe filename rule. Display only.
+  const MAX_BYTES = 10 * 1024 * 1024;
+  const safeName = (n: string) => n.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  document.querySelectorAll<HTMLElement>(".louise-media-demo").forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>(".louise-media-input");
+    const drop = root.querySelector<HTMLElement>(".louise-media-drop");
+    const out = root.querySelector<HTMLElement>(".louise-media-out");
+    if (!input || !drop || !out) return;
+
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (file) void inspect(file);
+    });
+
+    // Drag-and-drop onto the label, with a hover affordance while dragging.
+    drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      drop.classList.add("border-primary", "bg-primary/5");
+    });
+    drop.addEventListener("dragleave", () =>
+      drop.classList.remove("border-primary", "bg-primary/5"),
+    );
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.classList.remove("border-primary", "bg-primary/5");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) void inspect(file);
+    });
+
+    async function inspect(file: File) {
+      const buffer = await file.arrayBuffer();
+
+      // 1. Size cap — the server rejects before buffering, with a 413.
+      if (buffer.byteLength > MAX_BYTES) {
+        return reject(413, `File too large (max ${MAX_BYTES / 1024 / 1024} MB)`);
+      }
+
+      // 2. The security-critical step: the real type comes from the leading magic
+      //    bytes, never from `file.type`. A spoofed MIME would otherwise be stored
+      //    AND SERVED as an image from a public media domain.
+      const head = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 32));
+      const verified = sniffImageType(head);
+      if (!verified) return reject(415, "Unsupported or invalid image file");
+
+      // 3. Intrinsic dimensions straight out of the header — no pixel decode, no
+      //    image library. (The server prefers the Images binding when it has one;
+      //    this is the binding-free fallback, which is all a browser needs.)
+      const dims = imageDimensions(
+        new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 65536)),
+      );
+
+      // 4. What the server would write, and what it would serve back. `cfImage`
+      //    only rewrites the path — the derivative is generated at the edge on
+      //    request, so it costs nothing in the bucket.
+      const key = `web/${Date.now()}-${safeName(file.name)}`;
+      const url = `https://media.example.com/${key}`;
+      const thumb = cfImage(url, { width: 480, fit: "cover", gravity: "auto" });
+
+      const claimed = file.type || "(none)";
+      const spoofed = claimed !== verified;
+
+      out!.className = "louise-media-out grid gap-3";
+      out!.innerHTML = `
+        <div class="flex gap-3">
+          <img src="${URL.createObjectURL(file)}" alt="" class="h-20 w-20 rounded-lg object-cover ring-1 ring-base-300" />
+          <dl class="grid flex-1 grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+            <dt class="text-base-content/50">Browser claims</dt>
+            <dd class="font-mono ${spoofed ? "text-error line-through" : ""}">${esc(claimed)}</dd>
+            <dt class="text-base-content/50">Sniffed from bytes</dt>
+            <dd class="font-mono font-semibold text-success">${verified}</dd>
+            <dt class="text-base-content/50">Dimensions</dt>
+            <dd class="font-mono">${dims ? `${dims.width} × ${dims.height}` : "unknown"}</dd>
+            <dt class="text-base-content/50">Size</dt>
+            <dd class="font-mono">${(buffer.byteLength / 1024).toFixed(1)} KB</dd>
+          </dl>
+        </div>
+        ${
+          spoofed
+            ? `<p class="rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
+                 <strong>Caught a mismatch.</strong> The file says <code>${esc(claimed)}</code>;
+                 its bytes say <code>${verified}</code>. The object is stored as what it
+                 <em>is</em> — trusting the claim is how a public media domain ends up
+                 serving something that isn't an image.
+               </p>`
+            : ""
+        }
+        <div class="grid gap-1 text-[11px]">
+          <span class="text-base-content/50">R2 key <code class="text-base-content/80">${esc(key)}</code></span>
+          <span class="text-base-content/50">Derivative <code class="break-all text-base-content/80">${esc(thumb)}</code></span>
+        </div>
+        <p class="text-[11px] text-base-content/40">
+          Verified in your browser by the real toolkit functions. Nothing was uploaded —
+          the demo stops where <code>bucket.put</code> would run.
+        </p>`;
+    }
+
+    function reject(status: number, message: string) {
+      out!.className = "louise-media-out grid gap-3";
+      out!.innerHTML = `<p class="rounded-lg bg-error/10 px-3 py-2 text-sm text-error">
+        <strong>${status}</strong> — ${esc(message)}. Rejected before anything is written.
+      </p>`;
+    }
+  });
+</script>
+{/* #endregion example:demo */}
