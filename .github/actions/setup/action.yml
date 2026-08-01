@@ -35,7 +35,7 @@ runs:
     # Pin the runner to Node 26 (repo engines + .nvmrc). Vite+ runs with
     # VP_NODE_MANAGER=no below, so it uses this runner Node rather than
     # managing its own.
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: 26
 
@@ -43,7 +43,7 @@ runs:
     # is cached by version rather than by lockfile.
     - name: Restore the Vite+ toolchain
       id: vp-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.vite-plus
         key: vite-plus-${{ runner.os }}-${{ inputs.vp-version }}
@@ -89,7 +89,7 @@ runs:
     # resolve a tree this lockfile doesn't describe, so a stale store restored by
     # prefix still saves them most of a cold install.
     - name: Cache the pnpm store
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
         key: pnpm-store-${{ runner.os }}-${{ inputs.cache-suffix }}-${{ hashFiles('pnpm-lock.yaml') }}
