@@ -462,6 +462,24 @@ export interface SettingsConfig {
   imageKeys?: string[];
 }
 
+/** Media-library upload policy. */
+export interface MediaConfig {
+  /**
+   * Largest accepted upload, in bytes. Default 10 MB (louise-toolkit's
+   * `DEFAULT_MAX_BYTES`).
+   *
+   * Raise it when the masters ARE the product — a photographer's or painter's
+   * portfolio uploads 40 MB camera files and only ever serves Cloudflare-
+   * resized derivatives, so the master's size costs storage, not page weight.
+   *
+   * Bounded by the platform, not by this setting: a Cloudflare Worker rejects
+   * a request body over 100 MB before any handler runs, so a value above that
+   * would fail at the edge with no error you can catch. Validated at generate
+   * time rather than surfacing as a mystery upload failure in production.
+   */
+  maxUploadBytes?: number;
+}
+
 export interface DeployConfig {
   platform: "cloudflare";
   /** Media base for R2 + `cf-image` resizing — matches Louise's media route
@@ -539,6 +557,8 @@ export interface AstroidConfig {
   /** Site-specific editable settings — extra `custom` keys + image keys on top
    *  of Astroid's base `site_settings` columns. */
   settings?: SettingsConfig;
+  /** Media-library upload policy (e.g. a larger `maxUploadBytes`). */
+  media?: MediaConfig;
   /**
    * Force the contact form + `inquiries` table on or off. Omit to detect from
    * the config (a `contact` section, or a wholesale-inquiry module). Set `true`
@@ -678,6 +698,28 @@ function assertTenancy(config: AstroidConfig): void {
   }
 }
 
+/** Cloudflare rejects a request body over 100 MB at the edge, before any Worker
+ *  handler runs — so an upload limit above it can never be honoured, and the
+ *  failure arrives as an opaque edge error rather than the route's own 413. */
+const WORKERS_MAX_REQUEST_BODY_BYTES = 100 * 1024 * 1024;
+
+function assertMediaConfig(media: MediaConfig | undefined): void {
+  const max = media?.maxUploadBytes;
+  if (max === undefined) return;
+  if (!Number.isInteger(max) || max <= 0) {
+    throw new AstroidConfigError(
+      `\`media.maxUploadBytes\` must be a positive integer number of BYTES; got ${max}`,
+    );
+  }
+  if (max > WORKERS_MAX_REQUEST_BODY_BYTES) {
+    throw new AstroidConfigError(
+      `\`media.maxUploadBytes\` (${max}) exceeds Cloudflare's 100 MB request-body limit. ` +
+        "A body that large is rejected at the edge before the Worker runs, so the upload " +
+        "would fail with an error the media route never sees.",
+    );
+  }
+}
+
 export function defineAstroid(config: AstroidConfig): AstroidConfig {
   if (!config.key || config.key.trim().length === 0) {
     throw new AstroidConfigError(
@@ -696,6 +738,10 @@ export function defineAstroid(config: AstroidConfig): AstroidConfig {
   // Fourthwall, a storefront over Stripe) fails here rather than at runtime on
   // the first invoice, as a missing function.
   assertCommerceRoles(config.commerce);
+
+  // A media limit above the platform's own body cap is unhonourable — reject it
+  // here rather than let an editor watch a 120 MB upload die at the edge.
+  assertMediaConfig(config.media);
 
   // A portal is a SECOND Better Auth instance beside the editor's. Reject any
   // isolation that would collide with the editor on the same origin (a shared
