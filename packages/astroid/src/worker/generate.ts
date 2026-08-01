@@ -133,11 +133,18 @@ export function generateAstroidWorker(config: AstroidConfig): string {
         return "aiRoute({ resolveEditor, ai: aiRunner })";
       case "seoFix":
         return "seoFixRoute({ table: pages, resolveEditor, ai: aiRunner })";
-      case "media":
+      case "media": {
         // `altText` fills a new upload's alt from the image itself. Best-effort
         // by contract — a model error or a missing binding never fails the
         // upload — so it costs nothing on a project that doesn't want it.
-        return "mediaRoute({ table: media, resolveEditor, referenceSources: MEDIA_REFERENCE_SOURCES, altText: aiRunner })";
+        //
+        // `maxBytes` is emitted only when the site raised it: omitted, the
+        // route keeps louise-toolkit's DEFAULT_MAX_BYTES, so the generated
+        // line stays identical for every project that doesn't care.
+        const maxBytes = config.media?.maxUploadBytes;
+        const maxArg = maxBytes ? `, maxBytes: ${maxBytes}` : "";
+        return `mediaRoute({ table: media, resolveEditor, referenceSources: MEDIA_REFERENCE_SOURCES, altText: aiRunner${maxArg} })`;
+      }
       case "editors":
         // The editor instance's user table is `louise_`-prefixed (the editor
         // convention — the unprefixed `user` table is left for a second/portal

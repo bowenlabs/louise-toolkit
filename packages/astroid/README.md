@@ -61,9 +61,20 @@ export default defineAstroid({
   theme: { name: "Meg Bowen Studio", colors: { brand: "#2b2b2b" } },
   sections: ["hero", "gallery", "aboutIntro", "contact"],
   portal: { enabled: true },
+  // The masters ARE the product here: 40 MB camera files upload once and only
+  // resized derivatives are ever served, so the size costs storage, not page
+  // weight. Omit to keep the 10 MB default.
+  media: { maxUploadBytes: 40 * 1024 * 1024 },
   deploy: { platform: "cloudflare" },
 });
 ```
+
+`media.maxUploadBytes` is checked at generate time, not in production: a value
+above Cloudflare's **100 MB request-body limit** is rejected outright, because
+the edge drops an oversized body before the Worker runs — the media route never
+gets to answer with its own `413`, so the editor would see an opaque failure.
+Zero, negatives, and non-integers are rejected too (that last one catches the
+megabytes-not-bytes slip).
 
 ## Commerce
 
