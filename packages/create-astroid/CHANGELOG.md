@@ -1,5 +1,13 @@
 # create-astroid
 
+## 0.3.17
+
+### Patch Changes
+
+- Updated dependencies [6711c1c]
+  - louise-toolkit@0.26.0
+  - astroidjs@0.9.4
+
 ## 0.3.16
 
 ### Patch Changes
