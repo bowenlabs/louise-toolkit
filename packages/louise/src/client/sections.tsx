@@ -699,6 +699,27 @@ function wireInline(
     // sanitizes it (sanitizeSectionsRichText) and the site renders it via
     // set:html — the same store/marker path, an HTML value instead of textContent.
     if (field.type === "richText") {
+      // A richText value is HTML the editor produced — `<p>`, lists, blockquotes.
+      // Rendering it into a `<p>` is invalid nesting, and the parser does not
+      // merely tolerate it: it CLOSES the paragraph and hoists the block content
+      // out as a following sibling. The marker stays on the now-empty `<p>`, so
+      // the editor below mounts on nothing while the prose sits outside it,
+      // unmarked and uneditable — and every paragraph break the editor creates is
+      // hoisted straight back out.
+      //
+      // Nothing about that fails loudly: the page renders, the field is simply
+      // inert. Two sites shipped it independently before anyone noticed, which is
+      // why this warns from the framework rather than living in each site's
+      // conventions. Warn only — the field still half-works, and breaking an
+      // owner's editing session over a markup nit would be worse.
+      if (node.tagName === "P") {
+        console.warn(
+          `[louise] "${path}" is a richText field rendered into a <p>. Block content ` +
+            "cannot nest inside a paragraph, so the browser moves it out of this " +
+            "element and the editor mounts on an empty node. Render rich text into " +
+            "a <div>.",
+        );
+      }
       node.classList.add("louise-editable", "louise-sfield");
       let rt: RichTextField;
       rt = mountRichText(
