@@ -148,6 +148,78 @@ describe("media delete-safety", () => {
   });
 });
 
+describe("media asset route", () => {
+  // These RUN the emitted route instead of matching its source text. The bug
+  // this covers shipped past a string assertion happily: the generator emitted
+  // `url.pathname.startsWith(`${MEDIA_BASE}/`)`, comparing a pathname against
+  // an ORIGIN. That is false for every request that has ever existed, so the
+  // route never ran and every uploaded image 404'd to the site's own error
+  // page — while a `toContain("mediaAssetRoute")` test stayed green.
+  const MEDIA_BASE = "https://media.acme.com";
+
+  /** Lift `mediaAssetRoute` out of the generated worker and make it callable. */
+  function emittedRoute(worker: string) {
+    const start = worker.indexOf("const mediaAssetRoute");
+    const end = worker.indexOf("\n};", start);
+    if (start < 0 || end < 0) throw new Error("no mediaAssetRoute in the generated worker");
+    const src = worker
+      .slice(start, end + 3)
+      .replace(": WorkerRoute<CloudflareEnv>", "")
+      .replace("const mediaAssetRoute =", "return");
+    return new Function("MEDIA_BASE", "Response", src)(MEDIA_BASE, Response) as (
+      request: { url: string },
+      env: { MEDIA: { get(key: string): Promise<unknown> } },
+    ) => Promise<Response | undefined>;
+  }
+
+  const stubEnv = (found: string[]) => ({
+    MEDIA: {
+      get: async (key: string) =>
+        found.includes(key)
+          ? {
+              body: null,
+              httpEtag: '"e"',
+              writeHttpMetadata: (_h: Headers) => {},
+            }
+          : null,
+    },
+  });
+
+  it("serves an object on the media host, keyed by the whole pathname", async () => {
+    const route = emittedRoute(generateAstroidWorker(base));
+    const res = await route({ url: `${MEDIA_BASE}/web/photo.jpg` }, stubEnv(["web/photo.jpg"]));
+    expect(res?.status).toBe(200);
+  });
+
+  it("decodes a percent-escaped key", async () => {
+    const route = emittedRoute(generateAstroidWorker(base));
+    const res = await route(
+      { url: `${MEDIA_BASE}/web/two%20words.jpg` },
+      stubEnv(["web/two words.jpg"]),
+    );
+    expect(res?.status).toBe(200);
+  });
+
+  it("404s a media-host path with no object behind it", async () => {
+    const route = emittedRoute(generateAstroidWorker(base));
+    const res = await route({ url: `${MEDIA_BASE}/web/missing.jpg` }, stubEnv([]));
+    expect(res?.status).toBe(404);
+  });
+
+  it("passes on requests to any other host, so the site still renders", async () => {
+    const route = emittedRoute(generateAstroidWorker(base));
+    // Same PATH, different origin — the site's own /web/photo.jpg must fall
+    // through to the SSR handler rather than being answered out of the bucket.
+    const res = await route({ url: `https://acme.com/web/photo.jpg` }, stubEnv(["web/photo.jpg"]));
+    expect(res).toBeUndefined();
+  });
+
+  it("passes on the media host's bare root, which names no key", async () => {
+    const route = emittedRoute(generateAstroidWorker(base));
+    expect(await route({ url: `${MEDIA_BASE}/` }, stubEnv([]))).toBeUndefined();
+  });
+});
+
 describe("AI assists", () => {
   it("mounts the AI routes and hands them the runner", () => {
     // The rewrite and SEO-suggest buttons ship in the editor drawer already.

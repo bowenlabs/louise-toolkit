@@ -364,10 +364,16 @@ export function generateAstroidWorker(config: AstroidConfig): string {
   p("];");
   p();
   p("// Stream uploaded media back from R2 at MEDIA_BASE (self-hosted, no public bucket).");
+  p("//");
+  p("// Scoped by ORIGIN, not by path prefix: MEDIA_BASE is an origin, and a");
+  p('// `url.pathname` ("/web/foo.jpg") can never start with one. Comparing the two');
+  p("// against each other made the guard permanently false, so the route never ran");
+  p("// and every uploaded asset fell through to the site's 404 page. On the media");
+  p("// host the whole pathname is the R2 key.");
   p("const mediaAssetRoute: WorkerRoute<CloudflareEnv> = async (request, env) => {");
   p("  const url = new URL(request.url);");
-  p("  if (!url.pathname.startsWith(`${MEDIA_BASE}/`)) return undefined;");
-  p("  const key = decodeURIComponent(url.pathname.slice(MEDIA_BASE.length + 1));");
+  p("  if (url.origin !== MEDIA_BASE) return undefined;");
+  p("  const key = decodeURIComponent(url.pathname.slice(1));");
   p("  if (!key) return undefined;");
   p("  const obj = await env.MEDIA.get(key);");
   p('  if (!obj) return new Response("Not found", { status: 404 });');
