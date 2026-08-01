@@ -7,7 +7,7 @@
 // look and behave exactly like the built-in ones.
 
 import { useQuery, useQueryClient } from "@tanstack/solid-query";
-import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
+import { createSignal, For, Index, type JSX, Match, Show, Switch } from "solid-js";
 import type { FieldTypeName } from "../../core/content/field-types.js";
 import { Icon } from "../icons.jsx";
 import { thumb } from "../thumb.js";
@@ -108,25 +108,34 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
   return (
     <div>
       <div class="louise-list">
-        <For each={props.rows} fallback={<p class="louise-muted">None yet.</p>}>
+        {/* Index, NOT For. `update` replaces the edited row with a new object, and
+            <For> is keyed by REFERENCE — so every keystroke made that row a new
+            item, tearing its DOM down and rebuilding it. The <input> being typed
+            into was destroyed mid-edit and focus fell to <body>, which reads as
+            "the drawer loses focus after every letter."
+
+            <Index> keys by POSITION: the row's elements are created once and only
+            the values update, so the focused input survives. The rows here are
+            positional anyway — reorder moves values between fixed slots. */}
+        <Index each={props.rows} fallback={<p class="louise-muted">None yet.</p>}>
           {(row, i) => (
             <div class="louise-list-item louise-settings-row">
               <div class="louise-reorder">
                 <button
                   class="louise-icon-btn"
                   type="button"
-                  disabled={i() === 0}
+                  disabled={i === 0}
                   aria-label="Move up"
-                  onClick={() => move(i(), -1)}
+                  onClick={() => move(i, -1)}
                 >
                   <Icon name="caretUp" />
                 </button>
                 <button
                   class="louise-icon-btn"
                   type="button"
-                  disabled={i() === props.rows.length - 1}
+                  disabled={i === props.rows.length - 1}
                   aria-label="Move down"
-                  onClick={() => move(i(), 1)}
+                  onClick={() => move(i, 1)}
                 >
                   <Icon name="caretDown" />
                 </button>
@@ -134,30 +143,30 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
               <div class="louise-settings-fields">
                 <input
                   class="louise-input"
-                  aria-label={`Link ${i() + 1} label`}
+                  aria-label={`Link ${i + 1} label`}
                   placeholder="Label"
-                  value={row.label}
-                  onInput={(e) => update(i(), { label: e.currentTarget.value })}
+                  value={row().label}
+                  onInput={(e) => update(i, { label: e.currentTarget.value })}
                 />
                 <input
                   class="louise-input"
-                  aria-label={`Link ${i() + 1} URL`}
+                  aria-label={`Link ${i + 1} URL`}
                   placeholder="/path or https://…"
-                  value={row.href}
-                  onInput={(e) => update(i(), { href: e.currentTarget.value })}
+                  value={row().href}
+                  onInput={(e) => update(i, { href: e.currentTarget.value })}
                 />
               </div>
               <button
                 class="louise-icon-btn"
                 type="button"
                 aria-label="Remove"
-                onClick={() => remove(i())}
+                onClick={() => remove(i)}
               >
                 <Icon name="trash" />
               </button>
             </div>
           )}
-        </For>
+        </Index>
       </div>
       <button class="louise-btn" type="button" onClick={add}>
         <Icon name="plus" /> Add link
