@@ -338,3 +338,39 @@ client returns. `SquareMoney` is an alias of the shared `Money`, and
 Pair it with `retrieveVariationPrices` at checkout to reject a tampered cart, then
 `createPayment` with the returned `orderId` so the charge matches the order.
 :::
+
+:::caution[Tax is opt-in on API-created orders]
+Square applies **no** tax to an order you create through the API. Dashboard tax
+settings reach POS and Square Online on their own, but not `CreateOrder` — so a
+storefront that says nothing charges pre-tax, with no error to notice, and the
+merchant finds out at reconciliation.
+
+Ask for it explicitly, and pass the **same** options to `calculateOrder`, or the
+total you show is not the total you charge:
+
+```ts
+const pricingOptions = { autoApplyTaxes: true };
+
+// what the cart displays
+const preview = await calculateOrder(config, { locationId, lineItems, pricingOptions });
+
+// what gets charged — same rules, so the two agree
+const order = await createOrder(config, { locationId, lineItems, pricingOptions });
+await createPayment(config, {
+  sourceId,
+  locationId,
+  orderId: order.id,
+  // Square's number, which now includes tax — not your own subtotal.
+  amountMoney: order.totalMoney,
+});
+```
+
+`order.totalTaxMoney` carries the tax half if you render it as its own line.
+
+Two things worth knowing. This client never sends `order.taxes[]`, which Square
+documents as double-taxing alongside `auto_apply_taxes`, so that combination is
+unreachable here. And whether `auto_apply_taxes` filters an item's `tax_ids` by
+the order's `location_id` is strongly implied by Square staff but never stated in
+the docs — if you sell the same item at two locations with different rates,
+confirm it against your own catalog before trusting it.
+:::

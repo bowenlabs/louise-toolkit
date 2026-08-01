@@ -1473,6 +1473,40 @@ export type SquareOrderLineItem =
   | { catalogObjectId: string; quantity: number }
   | { name: string; priceCents: number; quantity: number; currency?: string };
 
+/**
+ * Order-level pricing behaviour, sent as `order.pricing_options`.
+ *
+ * Square applies **nothing** by default to an API-created order. Dashboard tax
+ * settings reach POS and Square Online on their own, but not `CreateOrder` — so
+ * a storefront that omits this charges pre-tax, silently, and the merchant
+ * finds out at reconciliation. There is no error to notice.
+ *
+ * Two documented foot-guns:
+ *
+ *   - It must be nested INSIDE `order`. At the request root Square ignores it
+ *     without complaint — the call succeeds and the total is simply wrong.
+ *     That is why this is a field on the input rather than something a caller
+ *     assembles into the body themselves.
+ *   - Never combine `auto_apply_taxes` with an explicit `order.taxes[]`;
+ *     Square documents that as double-taxing. This client never sends
+ *     `taxes[]`, so that combination is unreachable from here by construction.
+ */
+export interface SquarePricingOptions {
+  /**
+   * Apply the taxes configured on each catalog item (its `tax_ids`).
+   *
+   * Whether Square filters those `tax_ids` by the order's `location_id` is
+   * strongly implied by Square staff but never stated in the docs. A seller
+   * with different rates per location should confirm it against their own
+   * catalog — two locations, two rates, one shared item — before trusting it.
+   * If both rates apply, that case needs an explicit location→tax-object map
+   * rather than this flag (#392).
+   */
+  autoApplyTaxes?: boolean;
+  /** Apply the automatic (rule-based) discounts configured in the Dashboard. */
+  autoApplyDiscounts?: boolean;
+}
+
 export interface SquareOrder {
   id: string;
   locationId: string;
@@ -1555,6 +1589,19 @@ function orderLineItemBody(li: SquareOrderLineItem) {
       };
 }
 
+/** `pricing_options` in Square's wire shape. Shared by {@link createOrder} and
+ *  {@link calculateOrder} so a previewed total cannot be computed under
+ *  different rules from the one that is charged — the single thing a preview
+ *  exists to guarantee. `undefined` when unset, so the key is omitted from the
+ *  body rather than sent as null. */
+function pricingOptionsBody(pricing: SquarePricingOptions | undefined) {
+  if (!pricing) return undefined;
+  return {
+    auto_apply_taxes: pricing.autoApplyTaxes,
+    auto_apply_discounts: pricing.autoApplyDiscounts,
+  };
+}
+
 export async function createOrder(
   config: SquareConfig,
   input: {
@@ -1563,6 +1610,9 @@ export async function createOrder(
     customerId?: string;
     referenceId?: string;
     idempotencyKey?: string;
+    /** Taxes and discounts are opt-in — see {@link SquarePricingOptions}.
+     *  Omitting this charges exactly the line-item prices, pre-tax. */
+    pricingOptions?: SquarePricingOptions;
   },
 ): Promise<SquareOrder> {
   const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders", {
@@ -1572,6 +1622,9 @@ export async function createOrder(
       customer_id: input.customerId,
       reference_id: input.referenceId,
       line_items: input.lineItems.map(orderLineItemBody),
+      // Nested inside `order`, never at the request root, where Square would
+      // ignore it silently.
+      pricing_options: pricingOptionsBody(input.pricingOptions),
     },
   });
   if (!res.order) throw new Error("Square order creation returned no order");
@@ -1752,12 +1805,15 @@ export async function searchOrders(
 }
 
 /**
- * Preview an order's totals — including auto-applied taxes and discounts —
- * without creating one. POST /v2/orders/calculate.
+ * Preview an order's totals without creating one. POST /v2/orders/calculate.
  *
  * The order is never persisted, so this is the honest way to show a cart total
  * that matches what checkout will charge: the same pricing engine, no order to
  * clean up if the customer walks away.
+ *
+ * Pass the SAME `pricingOptions` you will pass to {@link createOrder}. Taxes
+ * are not applied by default here either, so a preview that omits them while
+ * the charge applies them is the exact mismatch this call exists to prevent.
  */
 export async function calculateOrder(
   config: SquareConfig,
@@ -1765,6 +1821,9 @@ export async function calculateOrder(
     locationId: string;
     lineItems: SquareOrderLineItem[];
     customerId?: string;
+    /** Must match what {@link createOrder} will be given, or the previewed
+     *  total is not the total that gets charged. */
+    pricingOptions?: SquarePricingOptions;
   },
 ): Promise<SquareOrder> {
   const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders/calculate", {
@@ -1772,6 +1831,7 @@ export async function calculateOrder(
       location_id: input.locationId,
       customer_id: input.customerId,
       line_items: input.lineItems.map(orderLineItemBody),
+      pricing_options: pricingOptionsBody(input.pricingOptions),
     },
   });
   if (!res.order) throw new Error("Square order calculation returned no order");
