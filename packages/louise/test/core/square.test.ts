@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SquareOrderLineItem } from "../../src/core/commerce/square.js";
 import {
   calculateOrder,
   centsToMajor,
@@ -584,6 +585,55 @@ describe("createOrder", () => {
         ],
       },
     });
+  });
+
+  it("nests pricing_options INSIDE order, where Square actually reads it", async () => {
+    // The foot-gun this guards: at the request root Square ignores the field
+    // without erroring, so the call succeeds and the order is simply untaxed.
+    // Asserting the nesting is the only way that regression is visible.
+    const calls = stubFetch({ order: { id: "ORD1" } });
+
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      pricingOptions: { autoApplyTaxes: true },
+    });
+
+    const body = calls[0]?.body as Record<string, unknown> & {
+      order: { pricing_options?: unknown };
+    };
+    expect(body.order.pricing_options).toEqual({
+      auto_apply_taxes: true,
+      auto_apply_discounts: undefined,
+    });
+    expect(body).not.toHaveProperty("pricing_options");
+  });
+
+  it("omits pricing_options entirely when unset, so today's callers are unchanged", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+    });
+
+    const body = calls[0]?.body as { order: Record<string, unknown> };
+    expect(body.order.pricing_options).toBeUndefined();
+  });
+
+  it("never sends order.taxes[], which Square documents as double-taxing", async () => {
+    // Not a configuration choice — there is no way to express `taxes[]`
+    // through this client, and this pins that it stays that way.
+    const calls = stubFetch({ order: { id: "ORD1" } });
+
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      pricingOptions: { autoApplyTaxes: true },
+    });
+
+    const body = calls[0]?.body as { order: Record<string, unknown> };
+    expect(body.order).not.toHaveProperty("taxes");
   });
 });
 
@@ -1189,6 +1239,54 @@ describe("calculateOrder", () => {
       quantity: "1",
       base_price_money: { amount: 500, currency: "USD" },
     });
+  });
+
+  it("prices the preview under the same pricing_options as the charge", async () => {
+    // The whole point of a preview is that the number shown is the number
+    // charged. Taxes are opt-in on BOTH calls, so a preview that omitted them
+    // while createOrder applied them would show a total the customer never
+    // agreed to — and it would look correct in isolation on either side.
+    // One object passed to both calls: the test would be worthless if the two
+    // sides could be given different carts.
+    const cart = {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 2 }] as SquareOrderLineItem[],
+      pricingOptions: { autoApplyTaxes: true },
+    };
+
+    const previewCalls = stubFetch({ order: { id: "preview" } });
+    await calculateOrder(CONFIG, cart);
+    const preview = previewCalls[0].body as { order: { pricing_options?: unknown } };
+    vi.unstubAllGlobals();
+
+    const chargeCalls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, cart);
+    const charge = chargeCalls[0].body as { order: { pricing_options?: unknown } };
+
+    expect(preview.order.pricing_options).toEqual({
+      auto_apply_taxes: true,
+      auto_apply_discounts: undefined,
+    });
+    expect(preview.order.pricing_options).toEqual(charge.order.pricing_options);
+  });
+
+  it("maps the tax Square computed back out", async () => {
+    stubFetch({
+      order: {
+        id: "preview",
+        total_money: { amount: 2600, currency: "USD" },
+        total_tax_money: { amount: 200, currency: "USD" },
+      },
+    });
+    const order = await calculateOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 2 }],
+      pricingOptions: { autoApplyTaxes: true },
+    });
+
+    // A caller showing a tax line needs both halves, not just the total.
+    expect(order.totalMoney).toEqual({ amount: 2600, currency: "USD" });
+    expect(order.totalTaxMoney).toEqual({ amount: 200, currency: "USD" });
   });
 });
 
