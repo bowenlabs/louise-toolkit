@@ -9,9 +9,15 @@
 // Auth is a `storefront_token` query param per Fourthwall's docs:
 //   GET https://storefront-api.fourthwall.com/v1/collections?storefront_token=…
 //
-// NOTE: exact response envelopes (results vs bare array, paging cursor) and
-// the money unit (major vs minor) are confirmed against a live store when the
-// token is provisioned — the parsing below is defensive about both.
+// NOTE: exact response envelopes (results vs bare array) and the money unit
+// (major vs minor) are confirmed against a live store when the token is
+// provisioned — the parsing below is defensive about both.
+//
+// Paging is no longer one of the open questions, and leaving it open cost
+// something: list endpoints answer `{ results, paging: { hasNextPage } }` and
+// take `page` (0-indexed) + `size`, and because `unwrap` kept only `results`,
+// every catalog read was one page of an unknown default size, presented as the
+// whole collection. `getCollectionProducts` walks it now.
 
 import { s } from "../schema/index.js";
 import { hmacSha256Base64, safeEqual } from "./index.js";
@@ -79,6 +85,32 @@ function unwrap<T>(data: unknown): T[] {
   return [];
 }
 
+/**
+ * Whether a `{ results, paging }` envelope says another page exists.
+ *
+ * The other half of {@link unwrap}, and the half that was missing: `unwrap`
+ * takes the array and drops everything around it, so `paging.hasNextPage` —
+ * the only field that says the list is incomplete — was discarded on every
+ * call.
+ *
+ * A bare array carries no paging and is therefore the whole answer. Anything
+ * other than an explicit `true` reads as "no more", so a malformed or absent
+ * envelope ends the walk instead of looping on it.
+ */
+function hasNextPage(data: unknown): boolean {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const paging = (data as { paging?: { hasNextPage?: unknown } }).paging;
+  return !!paging && paging.hasNextPage === true;
+}
+
+/** Products per request. Fourthwall's documented example passes `size=50`; the
+ *  default when the parameter is OMITTED is not documented anywhere, which is
+ *  exactly why it is always sent. */
+const PAGE_SIZE = 50;
+
+/** Runaway backstop, not a catalog limit — 50 × 200 = 10,000 products. */
+const MAX_PAGES = 200;
+
 async function sfGet(
   token: string,
   path: string,
@@ -100,13 +132,38 @@ export async function listCollections(token: string): Promise<FwCollection[]> {
   return unwrap<FwCollection>(await sfGet(token, "/collections"));
 }
 
-/** Products within one collection, by collection slug. */
+/**
+ * Every product in a collection, following Fourthwall's paging to the end.
+ *
+ * This used to send no `page`/`size` and read whatever one page the server
+ * chose to return — then hand it back as if it were the collection. The
+ * failure is silent by construction: products past the first page do not
+ * error, they simply never appear, and a consumer mirroring the catalog gets a
+ * smaller shop with nothing to indicate it. It also gets worse the more the
+ * store sells, so it looks like a store that works right up until it matters.
+ * A real shop was two uploads from losing products this way.
+ *
+ * `size` is always sent because the omitted default is undocumented, and
+ * `page` is 0-indexed per Fourthwall's docs.
+ *
+ * THROWS at {@link MAX_PAGES} rather than returning what it has. A truncated
+ * catalog is worse than a failed call for the thing this feeds: a caller
+ * reconciling its mirror against "everything Fourthwall has" will delete or
+ * unpublish whatever it did not see.
+ */
 export async function getCollectionProducts(
   token: string,
   collectionSlug: string,
 ): Promise<FwProduct[]> {
-  return unwrap<FwProduct>(
-    await sfGet(token, `/collections/${encodeURIComponent(collectionSlug)}/products`),
+  const path = `/collections/${encodeURIComponent(collectionSlug)}/products`;
+  const out: FwProduct[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const data = await sfGet(token, path, { page: String(page), size: String(PAGE_SIZE) });
+    out.push(...unwrap<FwProduct>(data));
+    if (!hasNextPage(data)) return out;
+  }
+  throw new Error(
+    `Fourthwall collection "${collectionSlug}" still reported more pages after ${MAX_PAGES}; refusing to return a partial catalog.`,
   );
 }
 
