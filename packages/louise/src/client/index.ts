@@ -23,6 +23,7 @@ import {
   type RealtimeSession,
   resolveRealtime,
 } from "./realtime.js";
+import { NODE_MARKER_ATTR } from "./node.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 
@@ -410,18 +411,29 @@ function ensureLeaveHandlers(): void {
     activeRealtime = null;
   });
 
-  // Inert page navigation while editing: a click on a page link/CTA edits its
-  // label (or does nothing) instead of leaving the page, and a page form doesn't
-  // submit — so an edit session can't be lost to a stray click. Capture phase +
-  // preventDefault only (no stopPropagation), so inline-edit focus still lands and
-  // all CSS/hover is untouched. The editor's own chrome is exempt. This module is
-  // only ever loaded in edit mode, so it's safe to register unconditionally.
+  // Inert page navigation while editing: a click on an EDITABLE link/CTA edits
+  // its label (or does nothing) instead of leaving the page, so an edit session
+  // can't be lost to a stray click. Capture phase + preventDefault only (no
+  // stopPropagation), so inline-edit focus still lands and all CSS/hover is
+  // untouched. This module is only ever loaded in edit mode, so it's safe to
+  // register unconditionally.
+  //
+  // Scoped to the EDITING SURFACES, not to "everything that isn't chrome".
+  // Blocking every `a[href]` also blocked the site's own header nav, footer,
+  // brand mark and skip link — so an editor could not move between pages at
+  // all without first leaving edit mode. That is a worse failure than the
+  // stray click this guards against: losing an edit is recoverable, being
+  // unable to reach the next page is not.
+  //
+  // A link counts as page content when it sits inside a marked node, a
+  // sections host, or a legacy inline field — i.e. inside the region actually
+  // being edited. Site chrome navigates normally.
   document.addEventListener(
     "click",
     (e) => {
       const t = e.target as Element | null;
       if (!t || t.closest(LOUISE_CHROME_SELECTOR)) return;
-      if (t.closest("a[href]")) e.preventDefault();
+      if (isEditableSurfaceLink(t)) e.preventDefault();
     },
     true,
   );
@@ -435,6 +447,30 @@ function ensureLeaveHandlers(): void {
     true,
   );
 }
+
+/**
+ * Should a click on `target` be swallowed instead of navigating?
+ *
+ * True only for a link INSIDE an editing surface — the region being edited.
+ * Site chrome (header nav, footer, brand, skip link) returns false and
+ * navigates normally, which is how an editor moves between pages without first
+ * leaving edit mode.
+ *
+ * Exported for the test that pins both halves: blocking too little loses an
+ * edit to a stray click; blocking too much strands the editor on one page.
+ */
+export function isEditableSurfaceLink(target: Element | null): boolean {
+  const link = target?.closest("a[href]");
+  return Boolean(link?.closest(EDITING_SURFACE_SELECTOR));
+}
+
+/** The regions an editor is actually editing: a marked node, the sections host,
+ *  or a legacy inline field. Links inside these are inert while editing (a click
+ *  edits rather than navigates); links outside them — the site's nav, footer,
+ *  brand, skip link — navigate normally, which is how an editor moves between
+ *  pages without leaving edit mode. */
+const EDITING_SURFACE_SELECTOR =
+  `[${NODE_MARKER_ATTR}],[data-louise-sections],[data-louise-field]` as const;
 
 /** The editor's own injected chrome — exempt from the edit-mode navigation guard
  *  so its links/buttons/forms still work. Page content is everything else. */
