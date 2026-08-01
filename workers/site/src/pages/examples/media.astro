@@ -1,0 +1,67 @@
+---
+// /examples/media — the upload verification path. The left pane runs the REAL
+// louise-toolkit/media functions in your browser (they're pure and binding-free,
+// so they run identically here and in a Worker) and stops just before the R2
+// write. The "upload.ts" tab is sliced from the real handler in
+// src/lib/examples/media-upload.ts; the "MediaDemo.astro" tab is this page's live
+// demo. Both are pulled with `?raw` + extractRegion, so they can't drift.
+import Example from "../../components/example/Example.astro";
+import MediaDemo from "../../components/example/demos/MediaDemo.astro";
+import MediaDemoSource from "../../components/example/demos/MediaDemo.astro?raw";
+import SiteChrome from "../../components/SiteChrome.astro";
+import { extractRegion } from "../../lib/examples/region.js";
+import uploadSource from "../../lib/examples/media-upload.ts?raw";
+import "../../styles/fonts.css";
+import "../../styles/louise.css";
+
+export const prerender = false;
+
+const serverCode = extractRegion(uploadSource, "example:media-server");
+const demoCode = extractRegion(MediaDemoSource, "example:demo");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Media — Louise Toolkit examples</title>
+    <meta
+      name="description"
+      content="Verify and store an image upload on Cloudflare Workers with louise-toolkit/media — the real type is sniffed from magic bytes, dimensions come from the header, and the derivative URL is generated at the edge. Live demo plus the real handler."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="louise-type min-h-screen bg-base-100 text-base-content antialiased">
+    <SiteChrome>
+      <Example
+        title="Upload an image, verified by its bytes"
+        blurb="louise-toolkit/media never trusts a file's claimed MIME type — it reads the real format from the leading magic bytes, pulls intrinsic dimensions out of the header without decoding pixels, and serves resized derivatives from the edge. Drop a file on the left and watch the actual toolkit functions run."
+        route="/examples/media"
+        primitive="louise-toolkit/media"
+        testMode={true}
+        docHref="https://docs.louisetoolkit.com/guide/media"
+        sourceHref="https://github.com/bowenlabs/louise-toolkit/blob/main/packages/louise/src/core/media/sniff.ts"
+        tabs={[
+          { label: "upload.ts", lang: "ts", code: serverCode },
+          { label: "MediaDemo.astro", lang: "astro", code: demoCode },
+        ]}
+      >
+        <MediaDemo slot="live" />
+        <span slot="try"
+          >Rename a JPEG to <code>.png</code> and drop it — the sniffer reads the bytes and
+          catches the lie, exactly as the upload route would.</span
+        >
+      </Example>
+
+      <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
+        This page runs the real <code>sniffImageType</code>, <code>imageDimensions</code> and
+        <code>cfImage</code> — they take no bindings, so they behave the same in your browser
+        as on a Worker. The one thing it doesn't do is write to R2. For an upload that
+        actually stores a row and appears in the media library, use <a
+          class="link link-primary"
+          href="https://sandbox.louisetoolkit.com">the live sandbox</a
+        >.
+      </p>
+    </SiteChrome>
+  </body>
+</html>
