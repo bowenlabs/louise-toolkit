@@ -462,8 +462,6 @@ export interface SettingsConfig {
   imageKeys?: string[];
 }
 
-
-
 /** Media-library upload policy. */
 export interface MediaConfig {
   /**

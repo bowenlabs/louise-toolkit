@@ -25,12 +25,16 @@ describe("media.maxUploadBytes → generated worker", () => {
   });
 
   it("emits the byte count when a site raises it", () => {
-    const worker = generateAstroidWorker(defineAstroid({ ...base, media: { maxUploadBytes: 40 * MB } }));
+    const worker = generateAstroidWorker(
+      defineAstroid({ ...base, media: { maxUploadBytes: 40 * MB } }),
+    );
     expect(worker).toContain(`maxBytes: ${40 * MB}`);
   });
 
   it("keeps the rest of the media route intact", () => {
-    const worker = generateAstroidWorker(defineAstroid({ ...base, media: { maxUploadBytes: 40 * MB } }));
+    const worker = generateAstroidWorker(
+      defineAstroid({ ...base, media: { maxUploadBytes: 40 * MB } }),
+    );
     expect(worker).toContain("table: media");
     expect(worker).toContain("referenceSources: MEDIA_REFERENCE_SOURCES");
     expect(worker).toContain("altText: aiRunner");
