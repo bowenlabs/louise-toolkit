@@ -1,0 +1,107 @@
+name: Renovate
+
+# Self-hosted Renovate, running as the BowenLabs GitHub App rather than the
+# public Mend-hosted one. The reason is the actor name: the hosted app always
+# commits as `renovate[bot]` and cannot be renamed, while a self-hosted App's
+# *slug* becomes the actor — so this lands as `bowenlabs-renovate[bot]` on every
+# commit and PR.
+#
+# The second reason is access. A self-hosted App can be granted Dependabot alert
+# read, which lets `vulnerabilityAlerts` in renovate.json5 open a PR the moment
+# an advisory lands instead of waiting for the Monday slot. That gap is what let
+# four high-severity advisories sit for a month.
+#
+# ---------------------------------------------------------------------------
+# One-time setup (not automatable — creating the App mints a private key):
+#
+#   1. github.com/organizations/bowenlabs/settings/apps → New GitHub App
+#      Name: "BowenLabs Renovate"  (plain "Renovate" is taken on github.com,
+#      and the name is what determines the `bowenlabs-renovate[bot]` actor)
+#
+#   2. Permissions — Checks, Commit statuses, Contents, Issues, Pull requests
+#      and Workflows at read+write; Administration, Dependabot alerts, Members
+#      and Metadata at read.
+#
+#   3. Generate a private key, install the App on bowenlabs/louise-toolkit.
+#
+#   4. Repo secrets: RENOVATE_APP_ID (the numeric App ID) and
+#      RENOVATE_APP_PRIVATE_KEY (the whole .pem, BEGIN/END lines included).
+#
+# Until step 4 is done the preflight below skips the run rather than failing it,
+# so merging this workflow does not start a stream of red scheduled runs.
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    # Every six hours. Renovate's own `schedule` in renovate.json5 is what
+    # actually gates the work to Monday mornings — this cadence exists so the
+    # "at any time" vulnerability rule can fire promptly between those windows.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Renovate log level
+        required: false
+        default: info
+        type: choice
+        options: [info, debug]
+      dryRun:
+        description: Dry run — resolve and log, open nothing
+        required: false
+        default: false
+        type: boolean
+
+# A scheduled run and a manual one must never overlap: two Renovate processes on
+# one repo race each other's branches.
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    steps:
+      # `secrets` is not available in a job-level `if`, so the guard is a step
+      # that publishes an output the rest of the job keys off.
+      - name: Preflight — is the App configured yet?
+        id: preflight
+        env:
+          APP_ID: ${{ secrets.RENOVATE_APP_ID }}
+        run: |
+          if [ -z "$APP_ID" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::RENOVATE_APP_ID is not set — skipping. See the setup steps at the top of this workflow."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint an installation token from the App
+        id: token
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Checkout
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/checkout@v7
+
+      - name: Renovate
+        if: steps.preflight.outputs.ready == 'true'
+        uses: renovatebot/github-action@v46
+        with:
+          configurationFile: renovate.json5
+          token: ${{ steps.token.outputs.token }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || '' }}
+          # Scope the run to this repo. Without it a self-hosted run tries every
+          # repo the App can see.
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
