@@ -136,9 +136,14 @@ jobs:
         if: steps.preflight.outputs.ready == 'true'
         uses: actions/checkout@v7
 
+      # Pinned to an exact patch, unlike every other action here, because
+      # renovatebot/github-action publishes NO floating major tag — `@v46` does
+      # not resolve and the job dies in "Set up job", before the preflight can
+      # report anything useful. Renovate keeps this current through its own
+      # github-actions manager.
       - name: Renovate
         if: steps.preflight.outputs.ready == 'true'
-        uses: renovatebot/github-action@v46
+        uses: renovatebot/github-action@v46.2.4
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || '' }}
