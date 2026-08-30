@@ -18,7 +18,7 @@ inputs:
       so the reformat it causes is reviewable — the verify step below fails the
       run if they drift apart.
     required: false
-    default: 0.2.6
+    default: 0.3.0
   cache-suffix:
     description: >-
       Distinguishes this job's pnpm store cache entry. Jobs that install only the
