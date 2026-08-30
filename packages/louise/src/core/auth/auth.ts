@@ -152,6 +152,24 @@ export interface LouiseAuthConfig {
   /** Cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`): D1
    *  stays the source of truth, KV is the global read cache. Omit for D1-only. */
   sessionCacheKv?: SessionKV;
+  /**
+   * Where single-use verification values — magic links, password resets — are
+   * stored and consumed. Only meaningful alongside {@link sessionCacheKv};
+   * without it there is no secondary storage and these always live in D1.
+   *
+   * Defaults to `"database"`, and that default is a security one. Better Auth
+   * 1.7 requires `SecondaryStorage.getAndDelete` to be atomic precisely so one
+   * of these values cannot be consumed twice. Over KV it cannot be — there is
+   * no atomic primitive, and KV's cross-colo convergence widens the replay
+   * window well past a simple race. D1 is strongly consistent and deletes
+   * atomically, so consuming from there closes it, and KV stays what it is
+   * meant to be here: a session read cache.
+   *
+   * `"secondary"` restores the pre-0.27 behaviour (consume from KV). It trades
+   * that guarantee for one less D1 read on the verification path; take it only
+   * if you have measured that read and decided it matters.
+   */
+  verificationStorage?: "database" | "secondary";
   /** Enable multi-editor tenancy (organization plugin). Omit for a single-editor
    *  site. Mirror this on `AuthSchemaConfig.organizations` when regenerating the
    *  migration. See {@link LouiseOrganizationsConfig}. */
@@ -191,13 +209,14 @@ const KV_MIN_TTL_SEC = 60;
  *   - `getAndDelete` — a read followed by a delete. Better Auth requires this to
  *     be atomic so a single-use verification value (magic link, password reset)
  *     cannot be consumed twice; over KV it cannot be, and KV's cross-colo
- *     convergence widens the replay window well past a simple race. This is not
- *     a regression — 1.6 consumed the same values through separate `get` and
- *     `delete` calls on this same storage — but it is a real exposure, and the
- *     fix is to keep single-use values off KV entirely rather than to pretend
- *     this is atomic: set `verification: { storeInDatabase: true }` so they are
- *     consumed from D1 (strongly consistent, a genuine atomic delete) while KV
- *     stays what it is meant to be here, a session read cache.
+ *     convergence widens the replay window well past a simple race.
+ *
+ *     Which is why, by default, nothing reaches it: `verificationStorage`
+ *     defaults to `"database"`, so those values are consumed from D1 and this
+ *     method only ever sees whatever else Better Auth chooses to route through
+ *     secondary storage. It is implemented honestly rather than removed because
+ *     a site can opt back in with `verificationStorage: "secondary"`, and
+ *     because Better Auth may consume other single-use values here later.
  */
 export function kvSecondaryStorage(
   kv: SessionKV,
@@ -279,6 +298,16 @@ export async function getLouiseAuth(
   // renamed `<prefix><model>` so it queries the same tables the namespaced
   // `generateAuthSchemaSql` emits. Empty prefix → default names, no overrides.
   const prefix = config.tablePrefix ?? "";
+  // Keep single-use verification values on D1 even when KV is caching sessions
+  // — see `verificationStorage`. Only set when there IS a secondary storage to
+  // divert them from; without `sessionCacheKv` the option is a no-op and
+  // emitting it would just be noise in the Better Auth config.
+  const verificationOptions = {
+    ...(prefix ? { modelName: `${prefix}verification` } : {}),
+    ...(config.sessionCacheKv
+      ? { storeInDatabase: (config.verificationStorage ?? "database") === "database" }
+      : {}),
+  };
   const userOptions = {
     ...(prefix ? { modelName: `${prefix}user` } : {}),
     // Louise's standard first/last name fields, ahead of the site's own extras.
@@ -315,7 +344,7 @@ export async function getLouiseAuth(
       accountLinking: { enabled: false },
       ...(prefix ? { modelName: `${prefix}account` } : {}),
     },
-    ...(prefix ? { verification: { modelName: `${prefix}verification` } } : {}),
+    ...(Object.keys(verificationOptions).length ? { verification: verificationOptions } : {}),
     ...(config.customers
       ? {
           emailAndPassword: {
