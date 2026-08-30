@@ -12,7 +12,7 @@ import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
  * The framework-generic `pages` columns. Spread into your own
- * `sqliteTable("pages", { ...pagesColumns, /* extras *​/ })` to extend, or use
+ * `sqliteTable("pages", { ...pagesColumns, /* extras *\/ })` to extend, or use
  * the ready-made {@link pages} table when the generic set is enough.
  */
 export const pagesColumns = {

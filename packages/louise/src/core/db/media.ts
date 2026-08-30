@@ -17,7 +17,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
  * The framework-generic `media` columns. Spread into your own
- * `sqliteTable("media", { ...mediaColumns, /* extras *​/ })` to extend, or use
+ * `sqliteTable("media", { ...mediaColumns, /* extras *\/ })` to extend, or use
  * the ready-made {@link media} table when the generic set is enough.
  */
 export const mediaColumns = {

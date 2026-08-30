@@ -28,7 +28,7 @@ export const inquiriesForm = defineForm({
 
 /**
  * The framework-generic `inquiries` columns, derived from {@link inquiriesForm}.
- * Spread into your own `sqliteTable("inquiries", { ...inquiriesColumns, /* extras *​/ })`
+ * Spread into your own `sqliteTable("inquiries", { ...inquiriesColumns, /* extras *\/ })`
  * to extend, or use the ready-made {@link inquiries} table.
  */
 export const inquiriesColumns = inquiriesForm.columns;
