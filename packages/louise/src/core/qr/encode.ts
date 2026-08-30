@@ -231,11 +231,11 @@ function interleave(data: Uint8Array, version: number, ecc: QrErrorCorrection): 
 function buildMatrix(codewords: Uint8Array, version: number, ecc: QrErrorCorrection): QrMatrix {
   const size = version * 4 + 17;
   const modules: boolean[][] = Array.from({ length: size }, () =>
-    new Array<boolean>(size).fill(false),
+    Array.from({ length: size }, () => false),
   );
   // Function modules must not receive data and must not be masked.
   const reserved: boolean[][] = Array.from({ length: size }, () =>
-    new Array<boolean>(size).fill(false),
+    Array.from({ length: size }, () => false),
   );
 
   const set = (x: number, y: number, dark: boolean) => {

@@ -1,7 +1,8 @@
 // Custom happy-dom test environment (the #10 happy-dom blocker fix).
 //
 // The project builds/tests through the curl-installed Vite+ (`vp`) toolchain,
-// whose bundled vitest lives outside the workspace (~/.vite-plus/…). vitest's
+// whose bundled vitest lives outside the workspace (~/.local/share/vite-plus/…).
+// vitest's
 // *builtin* happy-dom environment does a bare `import('happy-dom')` from its own
 // bundled location, so it can't find happy-dom in the workspace node_modules and
 // the client test project fails to start.
@@ -9,9 +10,9 @@
 // A *path-named* environment is instead loaded through the project's module
 // runner (rooted at packages/louise), so THIS file's `import('happy-dom')`
 // resolves from the workspace. We mirror vitest's builtin happy-dom `setup`,
-// using the public `populateGlobal` helper from `vitest/environments`.
+// using the public `populateGlobal` helper from `vitest/runtime`.
 
-import { populateGlobal } from "vitest/environments";
+import { populateGlobal } from "vitest/runtime";
 
 interface HappyDOMOptions {
   url?: string;

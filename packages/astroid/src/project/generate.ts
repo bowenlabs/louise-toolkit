@@ -26,7 +26,6 @@ import {
 import type { AstroidConfig } from "../config.js";
 import {
   ASTROID_QUEUE_BINDING,
-  astroidCron,
   astroidCrons,
   astroidQueueNames,
   astroidUsesQueues,

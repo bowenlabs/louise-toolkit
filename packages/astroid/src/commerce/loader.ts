@@ -60,7 +60,15 @@ function decodeJson(value: unknown): unknown {
 
 /** Mirror row → `CatalogProduct`. */
 function toProduct(row: Record<string, unknown>): CatalogProduct {
-  const { images, variants, external_id, external_slug, sort_order, synced_at, ...rest } = row;
+  const {
+    images,
+    variants,
+    external_id,
+    external_slug,
+    sort_order,
+    synced_at: _synced_at,
+    ...rest
+  } = row;
   return {
     ...rest,
     externalId: String(external_id ?? ""),

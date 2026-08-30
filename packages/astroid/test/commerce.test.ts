@@ -655,7 +655,7 @@ describe("catalog sync — failure reporting", () => {
   it("reports a PARTIAL failure without throwing — tolerance is the point", async () => {
     let calls = 0;
     const flaky = {
-      prepare(sql: string) {
+      prepare(_sql: string) {
         calls++;
         if (calls === 1) throw new Error("transient");
         return {
