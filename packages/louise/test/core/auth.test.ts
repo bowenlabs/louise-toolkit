@@ -242,37 +242,39 @@ describe("pick", () => {
   });
 });
 
-describe("passkey rpID (#312)", () => {
-  // Better Auth initializes its adapter asynchronously on construction, so the
-  // stub has to be D1-shaped enough to satisfy that — otherwise the assertions
-  // still pass but the run fills with unhandled rejections.
-  const noopD1 = {
-    prepare: () => ({
-      bind: () => ({
-        all: async () => ({ results: [] }),
-        first: async () => null,
-        run: async () => ({}),
-      }),
+// Better Auth initializes its adapter asynchronously on construction, so the
+// stub has to be D1-shaped enough to satisfy that — otherwise the assertions
+// still pass and the RUN fails, on unhandled rejections rather than on any
+// assertion. Defined once and shared: it lived in two describe blocks, the copy
+// silently lost `exec`, and that is exactly the failure it produces.
+const noopD1 = {
+  prepare: () => ({
+    bind: () => ({
       all: async () => ({ results: [] }),
       first: async () => null,
       run: async () => ({}),
     }),
-    batch: async () => [],
-    exec: async () => ({ count: 0, duration: 0 }),
-  };
-  const authEnv = {
-    DB: noopD1 as unknown as D1Database,
-    SESSION_SECRET: "s".repeat(40),
-  } as unknown as LouiseAuthEnv;
-  const base = {
-    rpName: "Test Studio",
-    mailFrom: { email: "hello@example.com" },
-    renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
-  };
+    all: async () => ({ results: [] }),
+    first: async () => null,
+    run: async () => ({}),
+  }),
+  batch: async () => [],
+  exec: async () => ({ count: 0, duration: 0 }),
+};
+const authEnv = {
+  DB: noopD1 as unknown as D1Database,
+  SESSION_SECRET: "s".repeat(40),
+} as unknown as LouiseAuthEnv;
+const authBase = {
+  rpName: "Test Studio",
+  mailFrom: { email: "hello@example.com" },
+  renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
+};
 
+describe("passkey rpID (#312)", () => {
   /** The passkey plugin's resolved options, as Better Auth holds them. */
   const passkeyOptions = async (baseURL: string, over: Record<string, unknown> = {}) => {
-    const auth = await getLouiseAuth(authEnv, baseURL, { ...base, ...over } as never);
+    const auth = await getLouiseAuth(authEnv, baseURL, { ...authBase, ...over } as never);
     const plugins = (
       auth as unknown as { options: { plugins: { id?: string; options?: unknown }[] } }
     ).options.plugins;
@@ -299,7 +301,7 @@ describe("passkey rpID (#312)", () => {
     // Widening the cookie would broadcast the admin session to every sibling
     // subdomain, which is the failure this option exists to avoid.
     const auth = await getLouiseAuth(authEnv, "https://studio.example.com", {
-      ...base,
+      ...authBase,
       rpID: "example.com",
       cookiePrefix: "louise-studio",
     } as never);
@@ -426,31 +428,6 @@ describe("kvSecondaryStorage", () => {
 });
 
 describe("verification storage (single-use values stay on D1)", () => {
-  // Same D1-shaped stub as the passkey block: Better Auth initializes its
-  // adapter on construction, and a thinner stub leaves unhandled rejections
-  // behind even though the assertions still pass.
-  const noopD1 = {
-    prepare: () => ({
-      bind: () => ({
-        all: async () => ({ results: [] }),
-        first: async () => null,
-        run: async () => ({}),
-      }),
-      all: async () => ({ results: [] }),
-      first: async () => null,
-      run: async () => ({}),
-    }),
-    batch: async () => [],
-  };
-  const authEnv = {
-    DB: noopD1 as unknown as D1Database,
-    SESSION_SECRET: "s".repeat(40),
-  } as unknown as LouiseAuthEnv;
-  const base = {
-    rpName: "Test Studio",
-    mailFrom: { email: "hello@example.com" },
-    renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
-  };
   const kv = {
     get: async () => null,
     put: async () => {},
@@ -459,7 +436,7 @@ describe("verification storage (single-use values stay on D1)", () => {
 
   const verificationOf = async (over: Record<string, unknown>) => {
     const auth = await getLouiseAuth(authEnv, "https://example.com", {
-      ...base,
+      ...authBase,
       ...over,
     } as never);
     return (
