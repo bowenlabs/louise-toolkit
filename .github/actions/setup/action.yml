@@ -45,7 +45,13 @@ runs:
       id: vp-cache
       uses: actions/cache@v6
       with:
-        path: ~/.vite-plus
+        # Both layouts: 0.3.0 moved the install to an XDG path
+        # (~/.local/share/vite-plus); 0.2.x used ~/.vite-plus. Caching both keeps
+        # this working across a version change in either direction, and an
+        # absent path is not an error for actions/cache.
+        path: |
+          ~/.local/share/vite-plus
+          ~/.vite-plus
         key: vite-plus-${{ runner.os }}-${{ inputs.vp-version }}
 
     - name: Install Vite+
@@ -56,10 +62,30 @@ runs:
       run: curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
 
     # Unconditional: a cache hit restores the files but not the PATH entry.
-    # The installer drops the `vp` binary in ~/.vite-plus/bin.
+    # Find the `vp` binary rather than assuming where it lives.
+    #
+    # 0.3.0 moved the install from ~/.vite-plus/bin to the XDG location
+    # ~/.local/share/vite-plus/bin. Hardcoding the old path meant that on the
+    # first run after a version bump — the one run where the cache necessarily
+    # MISSES and the curl installer actually executes — every job died three
+    # steps later with a bare `vp: command not found`. Nothing pointed at the
+    # install path, because the install itself reported success.
+    #
+    # Checking both layouts and failing loudly here keeps the diagnosis at the
+    # step that owns it. Order matters: the newer path wins if a cache restore
+    # ever leaves both present.
     - name: Put `vp` on PATH
       shell: bash
-      run: echo "$HOME/.vite-plus/bin" >> "$GITHUB_PATH"
+      run: |
+        for dir in "$HOME/.local/share/vite-plus/bin" "$HOME/.vite-plus/bin"; do
+          if [ -x "$dir/vp" ]; then
+            echo "Found vp in $dir"
+            echo "$dir" >> "$GITHUB_PATH"
+            exit 0
+          fi
+        done
+        echo "::error::No vp binary in ~/.local/share/vite-plus/bin or ~/.vite-plus/bin. The Vite+ installer may have changed its install location again — check the 'Install locations' block it prints."
+        exit 1
 
     # Runs on cache hits too — a stale cache entry is one more way the binary and
     # the devDependency can drift apart, and it is the way that leaves no trace in
@@ -68,7 +94,19 @@ runs:
       shell: bash
       run: |
         # Fail loudly here rather than as a mystery formatting diff later.
-        got="$(vp --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+        #
+        # Extract with a bash match rather than `... | grep | head -1`. This step
+        # runs under `-e -o pipefail`, and 0.3.0 turned `vp --version` from a
+        # couple of lines into a dozen (it now lists vite, rolldown, vitest,
+        # oxfmt, oxlint…) — long enough that `head` can close the pipe while
+        # `grep` is still writing, which is a SIGPIPE that pipefail reports as
+        # failure. A gate whose job is to fail *clearly* should not have a race
+        # in it. `=~` takes the first match, which is vp's own version header.
+        vp_version_output="$(vp --version)"
+        got=""
+        if [[ "$vp_version_output" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+          got="${BASH_REMATCH[1]}"
+        fi
         want="$(node -p "require('./package.json').devDependencies['vite-plus'].replace(/^[^0-9]*/,'')")"
         echo "vp binary: $got   devDependency: $want"
         [ "$got" = "$want" ] || {
