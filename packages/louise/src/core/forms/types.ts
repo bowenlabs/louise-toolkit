@@ -138,7 +138,7 @@ export type FormColumns = Record<string, SQLiteColumn>;
  */
 export interface FormDefinition extends FormConfig {
   /** Derived Drizzle column builders — spread into your own
-   *  `sqliteTable(name, { ...columns, /* extras *​/ })`, or use {@link table}. */
+   *  `sqliteTable(name, { ...columns, /* extras *\/ })`, or use {@link table}. */
   columns: Record<string, SQLiteColumnBuilderBase>;
   /** The ready-made Drizzle table for this form. */
   table: AnyFormTable;
