@@ -424,3 +424,80 @@ describe("kvSecondaryStorage", () => {
     });
   });
 });
+
+describe("verification storage (single-use values stay on D1)", () => {
+  // Same D1-shaped stub as the passkey block: Better Auth initializes its
+  // adapter on construction, and a thinner stub leaves unhandled rejections
+  // behind even though the assertions still pass.
+  const noopD1 = {
+    prepare: () => ({
+      bind: () => ({
+        all: async () => ({ results: [] }),
+        first: async () => null,
+        run: async () => ({}),
+      }),
+      all: async () => ({ results: [] }),
+      first: async () => null,
+      run: async () => ({}),
+    }),
+    batch: async () => [],
+  };
+  const authEnv = {
+    DB: noopD1 as unknown as D1Database,
+    SESSION_SECRET: "s".repeat(40),
+  } as unknown as LouiseAuthEnv;
+  const base = {
+    rpName: "Test Studio",
+    mailFrom: { email: "hello@example.com" },
+    renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
+  };
+  const kv = {
+    get: async () => null,
+    put: async () => {},
+    delete: async () => {},
+  } as unknown as SessionKV;
+
+  const verificationOf = async (over: Record<string, unknown>) => {
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...base,
+      ...over,
+    } as never);
+    return (
+      auth as unknown as {
+        options: { verification?: { modelName?: string; storeInDatabase?: boolean } };
+      }
+    ).options.verification;
+  };
+
+  it("keeps magic links and resets on D1 by default when KV caches sessions", async () => {
+    // The security default. Better Auth requires `getAndDelete` to be atomic so
+    // one of these cannot be consumed twice, and KV cannot offer that.
+    expect((await verificationOf({ sessionCacheKv: kv }))?.storeInDatabase).toBe(true);
+  });
+
+  it("lets a site opt back into the KV path explicitly", async () => {
+    expect(
+      (await verificationOf({ sessionCacheKv: kv, verificationStorage: "secondary" }))
+        ?.storeInDatabase,
+    ).toBe(false);
+  });
+
+  it("says nothing about storage when there is no secondary storage to divert from", async () => {
+    // Without `sessionCacheKv` these already live in D1, so emitting the option
+    // would be noise. `verification` itself stays absent unless a prefix needs it.
+    expect(await verificationOf({})).toBeUndefined();
+    expect(await verificationOf({ verificationStorage: "secondary" })).toBeUndefined();
+  });
+
+  it("carries the table prefix alongside the storage choice", async () => {
+    // Both reasons to emit `verification` at once — the namespaced-table case
+    // (#15 Option B) must not drop the security default, or vice versa.
+    expect(await verificationOf({ tablePrefix: "auth_", sessionCacheKv: kv })).toEqual({
+      modelName: "auth_verification",
+      storeInDatabase: true,
+    });
+    expect(await verificationOf({ tablePrefix: "auth_" })).toEqual({
+      modelName: "auth_verification",
+    });
+  });
+});
