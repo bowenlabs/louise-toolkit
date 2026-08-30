@@ -1,0 +1,148 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // JSON5 rather than JSON so each rule can carry the reason it exists — the
+  // same call this repo already makes for knip.jsonc and wrangler.jsonc. Most
+  // of what follows is not general Renovate tuning; it encodes constraints that
+  // are specific to this workspace and would otherwise be rediscovered by
+  // breaking CI.
+
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard", // one tracking issue, so nothing is invisible
+    ":semanticCommits", // matches this repo's commit convention
+  ],
+
+  timezone: "America/Chicago",
+  schedule: ["before 6am on monday"],
+  labels: ["dependencies"],
+
+  // Enough headroom for the grouped PRs below without burying the queue.
+  prConcurrentLimit: 5,
+  prHourlyLimit: 0,
+  rebaseWhen: "conflicted",
+
+  // ---------------------------------------------------------------------------
+  // The point of the whole exercise.
+  //
+  // Nine of the ten advisories cleared in #414 needed no manifest edit at all —
+  // they were already inside the declared ranges and were fixed by regenerating
+  // the lockfile. `lockFileMaintenance` is exactly that operation on a schedule,
+  // and it is the single rule here most likely to prevent a repeat.
+  // ---------------------------------------------------------------------------
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on monday"],
+    commitMessageAction: "refresh",
+    commitMessageTopic: "the pnpm lockfile",
+  },
+
+  // A published advisory should not wait for Monday. The "at any time" schedule
+  // overrides the global one deliberately — that, plus the six-hourly workflow
+  // cron, is what makes an advisory PR show up within hours rather than days.
+  // (`prPriority` is not accepted here — Renovate only allows it in
+  // packageRules — and it is unnecessary: nothing else is queued off-schedule.)
+  vulnerabilityAlerts: {
+    enabled: true,
+    schedule: ["at any time"],
+    labels: ["dependencies", "security"],
+  },
+  osvVulnerabilityAlerts: true,
+
+  ignorePaths: [
+    // NOT source. `create-astroid/template/` is the scaffold's template set: its
+    // files carry `__ASTROID_*__` placeholders, several are not valid TypeScript
+    // standalone, and the toolkit versions in its package.json are sentinels
+    // (`0.0.0-replaced-at-scaffold`) that create-astroid DERIVES from its own
+    // resolved dependencies at pack time.
+    //
+    // `scripts/ci/checks/scaffold-versions.mjs` fails the build if those become
+    // hardcoded literals, which is precisely what a well-meaning Renovate PR
+    // would write. Nothing in this repo type-checks the template until it is
+    // scaffolded, so the clean-room smoke test is the only thing that would
+    // catch the damage — and it runs after the PR is already open. Leave it
+    // alone; the template is updated by the release, not by a bot.
+    "packages/create-astroid/template/**",
+  ],
+
+  packageRules: [
+    // -------------------------------------------------------------------------
+    // Pinned by contract — a bot cannot update these correctly
+    // -------------------------------------------------------------------------
+    {
+      matchPackageNames: ["vite-plus"],
+      enabled: false,
+      description: "Coupled to the `vp-version` default in .github/actions/setup, and that action FAILS the run when the two disagree — a version skew there once turned a green PR red overnight with no code change. Renovate can only edit package.json, so it would land exactly that skew. Bump both together, by hand, in one commit (see #415).",
+    },
+    {
+      matchPackageNames: ["@typescript/native-preview"],
+      enabled: false,
+      description: "A deliberately pinned nightly (7.0.0-dev.YYYYMMDD). It publishes daily, so leaving this on would mean a PR every morning forever. Moved when someone chooses to move it.",
+    },
+    {
+      matchPackageNames: ["typescript"],
+      allowedVersions: "<7",
+      description: "Held on 5.x. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1 (~Oct 2026), and both @astrojs/check and ADR 0008's type-aware lint depend on that API. The speed is already available through @typescript/native-preview, so there is nothing to gain by jumping early. Lift this when 7.1 ships AND @astrojs/check supports it — two conditions, not one.",
+    },
+
+    // -------------------------------------------------------------------------
+    // Blast radius — what must never ride along in a group
+    // -------------------------------------------------------------------------
+    {
+      matchDepTypes: ["peerDependencies"],
+      matchFileNames: [
+        "packages/louise/package.json",
+        "packages/astroid/package.json",
+        "packages/create-astroid/package.json",
+      ],
+      groupName: null,
+      labels: ["dependencies", "published-api"],
+      addLabels: ["published-api"],
+      description: "A peer range on a published package is consumer-visible API: raising a floor forces every consumer to upgrade, and this repo is pre-1.0 where that lands as a minor with no deprecation cycle. Never grouped, always reviewed on its own.",
+    },
+    {
+      matchUpdateTypes: ["major"],
+      groupName: null,
+      labels: ["dependencies", "major"],
+      addLabels: ["major"],
+      minimumReleaseAge: "7 days",
+      description: "Majors get their own PR and a week of soak time. The soak is not superstition — it is how a broken release gets yanked before it reaches this lockfile.",
+    },
+    {
+      matchManagers: ["npm"],
+      matchDepTypes: ["packageManager"],
+      groupName: null,
+      labels: ["dependencies", "toolchain"],
+      description: "pnpm itself. Installs here go through `corepack pnpm` against this pinned version; a mismatch between it and a globally-installed pnpm produces a store error rather than a clear message. Its own PR so the failure mode is obvious if one appears.",
+    },
+    {
+      matchDatasources: ["node-version"],
+      matchPackageNames: ["node"],
+      groupName: null,
+      labels: ["dependencies", "toolchain"],
+      description: "Node moves in .nvmrc, `engines`, and the CI setup action together. A major is a real decision about the deploy target, not a routine bump.",
+    },
+
+    // -------------------------------------------------------------------------
+    // Grouped — the routine, low-risk majority
+    // -------------------------------------------------------------------------
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      groupName: "GitHub Actions",
+      labels: ["dependencies", "ci"],
+    },
+    {
+      matchDepTypes: ["devDependencies"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "dev dependencies",
+      description: "Tooling that cannot reach a consumer. One PR, and CI is a genuine test of it — the full gate suite runs on every one.",
+    },
+    {
+      matchDepTypes: ["dependencies"],
+      matchUpdateTypes: ["patch"],
+      groupName: "runtime patches",
+      description: "Patch-level runtime updates. Kept apart from the dev group because these DO ship, even though `louise-toolkit` itself declares no runtime dependencies (everything is an optional peer) — the private workers do.",
+    },
+  ],
+}
