@@ -61,7 +61,9 @@ function alignmentPositions(version: number): number[] {
  *  encoder skipped. Derived independently from geometry, not shared with it. */
 function functionMap(version: number): boolean[][] {
   const size = version * 4 + 17;
-  const r: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
+  const r: boolean[][] = Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => false),
+  );
   const mark = (x: number, y: number) => {
     if (x >= 0 && x < size && y >= 0 && y < size) r[y]![x] = true;
   };
