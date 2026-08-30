@@ -3,15 +3,39 @@ name: Renovate
 # Self-hosted Renovate, running as the BowenLabs GitHub App rather than the
 # public Mend-hosted one. The reason is the actor name: the hosted app always
 # commits as `renovate[bot]` and cannot be renamed, while a self-hosted App's
-# *slug* becomes the actor — so this lands as `bowenlabs-renovate[bot]` on every
-# commit and PR.
+# *slug* becomes the actor — so this lands as `bowenlabs-renovate[bot]`.
 #
 # The second reason is access. A self-hosted App can be granted Dependabot alert
-# read, which lets `vulnerabilityAlerts` in renovate.json5 open a PR the moment
-# an advisory lands instead of waiting for the Monday slot. That gap is what let
-# four high-severity advisories sit for a month.
+# read, which lets `vulnerabilityAlerts` open a PR the moment an advisory lands
+# instead of waiting for the Monday slot. That gap is what let four high-severity
+# advisories sit for a month.
 #
 # ---------------------------------------------------------------------------
+# This workflow runs for THIS repo on a schedule, and is also callable by the
+# other bowenlabs repos so they do not each need a copy. A consuming site adds
+# a caller workflow:
+#
+#     name: Renovate
+#     on:
+#       schedule: [{ cron: "0 */6 * * *" }]
+#       workflow_dispatch:
+#     jobs:
+#       renovate:
+#         uses: bowenlabs/louise-toolkit/.github/workflows/renovate.yml@main
+#         secrets: inherit
+#
+# …plus a two-line `renovate.json5` extending the shared preset:
+#
+#     { extends: ["github>bowenlabs/louise-toolkit"] }
+#
+# which resolves to `default.json` at the root of this repo. Policy therefore
+# lives in exactly one place for every site.
+#
+# `secrets: inherit` is what makes ORG-level secrets the right home for the two
+# below — set them once on the bowenlabs org, scoped to whichever repos should
+# get Renovate, and no site needs its own copy.
+# ---------------------------------------------------------------------------
+#
 # One-time setup (not automatable — creating the App mints a private key):
 #
 #   1. github.com/organizations/bowenlabs/settings/apps → New GitHub App
@@ -22,20 +46,20 @@ name: Renovate
 #      and Workflows at read+write; Administration, Dependabot alerts, Members
 #      and Metadata at read.
 #
-#   3. Generate a private key, install the App on bowenlabs/louise-toolkit.
+#   3. Generate a private key, then install the App on the org and choose which
+#      repositories it may touch.
 #
-#   4. Repo secrets: RENOVATE_APP_ID (the numeric App ID) and
+#   4. ORG secrets: RENOVATE_APP_ID (the numeric App ID) and
 #      RENOVATE_APP_PRIVATE_KEY (the whole .pem, BEGIN/END lines included).
 #
 # Until step 4 is done the preflight below skips the run rather than failing it,
 # so merging this workflow does not start a stream of red scheduled runs.
-# ---------------------------------------------------------------------------
 
 on:
   schedule:
-    # Every six hours. Renovate's own `schedule` in renovate.json5 is what
-    # actually gates the work to Monday mornings — this cadence exists so the
-    # "at any time" vulnerability rule can fire promptly between those windows.
+    # Every six hours. Renovate's own `schedule` in the config is what gates the
+    # work to Monday mornings — this cadence exists so the "at any time" rules
+    # (vulnerability alerts, and toolkit releases) can fire promptly in between.
     - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
@@ -50,11 +74,28 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      logLevel:
+        required: false
+        default: info
+        type: string
+      dryRun:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      # Declared optional so the preflight guard can report a clear "not
+      # configured yet" instead of the run failing on a missing secret.
+      RENOVATE_APP_ID:
+        required: false
+      RENOVATE_APP_PRIVATE_KEY:
+        required: false
 
 # A scheduled run and a manual one must never overlap: two Renovate processes on
 # one repo race each other's branches.
 concurrency:
-  group: renovate
+  group: renovate-${{ github.repository }}
   cancel-in-progress: false
 
 permissions:
@@ -79,6 +120,8 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Scoped to the repository this run is FOR — which, in a called workflow,
+      # is the caller. One App, many repos, each run touching only its own.
       - name: Mint an installation token from the App
         id: token
         if: steps.preflight.outputs.ready == 'true'
@@ -96,12 +139,10 @@ jobs:
       - name: Renovate
         if: steps.preflight.outputs.ready == 'true'
         uses: renovatebot/github-action@v46
-        with:
-          configurationFile: renovate.json5
-          token: ${{ steps.token.outputs.token }}
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || '' }}
-          # Scope the run to this repo. Without it a self-hosted run tries every
-          # repo the App can see.
+          # Without this a self-hosted run tries every repo the App can see.
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+        with:
+          token: ${{ steps.token.outputs.token }}

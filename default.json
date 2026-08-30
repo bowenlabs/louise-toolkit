@@ -1,0 +1,92 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Shared Renovate preset for every site built on louise-toolkit.",
+    "Consume it with { \"extends\": [\"github>bowenlabs/louise-toolkit\"] } — that bare form resolves to THIS file (Renovate looks for default.json), and it is fetched from this repo's default branch, so a change here reaches every site on its next run.",
+    "Deliberately NOT the same file as this repo's own renovate.json5. That one carries library-specific rules a consuming site has no use for — the create-astroid template ignore, the vite-plus pin. The overlap between the two is intentional and small; a site should not inherit the library's plumbing.",
+    "Plain JSON rather than JSON5 because the bare github>owner/repo lookup only checks .json. Reasoning lives in `description` fields instead of comments, which is Renovate's own convention."
+  ],
+
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
+
+  "timezone": "America/Chicago",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "rebaseWhen": "conflicted",
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"],
+    "commitMessageAction": "refresh",
+    "commitMessageTopic": "the pnpm lockfile"
+  },
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "labels": ["dependencies", "security"]
+  },
+  "osvVulnerabilityAlerts": true,
+
+  "packageRules": [
+    {
+      "matchPackageNames": ["louise-toolkit", "astroidjs", "create-astroid"],
+      "groupName": "the toolkit",
+      "labels": ["dependencies", "toolkit"],
+      "schedule": ["at any time"],
+      "minimumReleaseAge": null,
+      "description": "The whole reason a site tracks this preset. Toolkit releases are the updates a Louise site most wants promptly — they carry the editor, auth and content fixes — and they are first-party, so the usual soak-before-trusting-a-stranger argument does not apply. Grouped so a release that bumps two of them lands as one PR, and taken off the weekly schedule so it does not wait until Monday."
+    },
+    {
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7",
+      "description": "Held on 5.x. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1, and Astro's tooling (@astrojs/check) depends on that API. Lift when 7.1 ships AND @astrojs/check supports it — two conditions, not one."
+    },
+    {
+      "matchPackageNames": ["vite-plus"],
+      "enabled": false,
+      "description": "Only relevant to repos that pin the Vite+ binary in a CI action alongside the devDependency; Renovate can edit only one of the two and would land exactly the skew that check exists to catch. Harmless on a site that does not use it."
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "labels": ["dependencies", "major"],
+      "minimumReleaseAge": "7 days",
+      "description": "Majors get their own PR and a week of soak. The soak is how a broken release gets yanked before it reaches a production site's lockfile."
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["packageManager"],
+      "groupName": null,
+      "labels": ["dependencies", "toolchain"],
+      "description": "pnpm itself. These repos install through `corepack pnpm` against the pinned version, and a mismatch surfaces as a store error rather than a clear message. Its own PR so that failure mode is obvious."
+    },
+    {
+      "matchDatasources": ["node-version"],
+      "matchPackageNames": ["node"],
+      "groupName": null,
+      "labels": ["dependencies", "toolchain"],
+      "description": "Node moves in .nvmrc, engines, and CI together, and on Cloudflare it is a decision about the deploy target rather than a routine bump."
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "GitHub Actions",
+      "labels": ["dependencies", "ci"]
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev dependencies",
+      "description": "Tooling that cannot reach a visitor. One PR, and the site's own CI is a real test of it."
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "runtime patches",
+      "description": "Patch-level runtime updates, kept apart from the dev group because these actually ship to the edge."
+    }
+  ]
+}
