@@ -23,8 +23,8 @@
     "release": "changeset publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
-    "@changesets/cli": "^2.31.0",
+    "@biomejs/biome": "^2.5.11",
+    "@changesets/cli": "^2.31.1",
     "eslint-plugin-solid": "^0.14.5",
     "knip": "^5.88.1",
     "vite-plus": "0.2.6"

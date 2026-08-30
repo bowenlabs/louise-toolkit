@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   activeCaptchaSecret,
   defaultResolveAdmins,
@@ -14,11 +14,13 @@ import {
   requireRole,
   resolveEditorSession,
   resolveSession,
+  type SessionKV,
   turnstileSecret,
   turnstileSiteKey,
   TURNSTILE_PLACEHOLDER,
   TURNSTILE_TEST_SITE_KEY,
 } from "../../src/core/auth/index.js";
+import { kvSecondaryStorage } from "../../src/core/auth/auth.js";
 
 const env = (over: Partial<Record<string, unknown>>): LouiseAuthEnv =>
   ({
@@ -308,5 +310,117 @@ describe("passkey rpID (#312)", () => {
     ).options;
     expect(options.advanced?.cookiePrefix).toBe("louise-studio");
     expect(options.advanced?.crossSubDomainCookies).toBeUndefined();
+  });
+});
+
+describe("kvSecondaryStorage", () => {
+  // A fake KV that records writes, so the tests can assert on TTLs as well as
+  // values — the TTL clamp is half of what this wrapper exists to do.
+  const fakeKv = () => {
+    const store = new Map<string, string>();
+    const puts: { key: string; value: string; ttl?: number }[] = [];
+    const deletes: string[] = [];
+    return {
+      store,
+      puts,
+      deletes,
+      kv: {
+        get: async (key: string) => store.get(key) ?? null,
+        put: async (key: string, value: string, opts?: { expirationTtl?: number }) => {
+          store.set(key, value);
+          puts.push({ key, value, ttl: opts?.expirationTtl });
+        },
+        delete: async (key: string) => {
+          store.delete(key);
+          deletes.push(key);
+        },
+      } as unknown as SessionKV,
+    };
+  };
+
+  describe("set", () => {
+    it("clamps a sub-minimum TTL up to KV's 60s floor", async () => {
+      const { kv, puts } = fakeKv();
+      await kvSecondaryStorage(kv).set("k", "v", 10);
+      expect(puts[0]).toMatchObject({ key: "k", value: "v", ttl: 60 });
+    });
+
+    it("passes a TTL above the floor through untouched, and omits it when absent", async () => {
+      const { kv, puts } = fakeKv();
+      const storage = kvSecondaryStorage(kv);
+      await storage.set("k", "v", 900);
+      await storage.set("k2", "v2");
+      expect(puts[0]?.ttl).toBe(900);
+      expect(puts[1]?.ttl).toBeUndefined();
+    });
+  });
+
+  describe("getAndDelete", () => {
+    it("returns the value and consumes the key", async () => {
+      const { kv, store, deletes } = fakeKv();
+      store.set("verification:abc", "token");
+      const got = await kvSecondaryStorage(kv).getAndDelete("verification:abc");
+      expect(got).toBe("token");
+      expect(deletes).toEqual(["verification:abc"]);
+      expect(store.has("verification:abc")).toBe(false);
+    });
+
+    it("skips the write on a miss — a replayed or expired link is the common case", async () => {
+      const { kv, deletes } = fakeKv();
+      expect(await kvSecondaryStorage(kv).getAndDelete("verification:gone")).toBeNull();
+      expect(deletes).toEqual([]);
+    });
+  });
+
+  describe("increment", () => {
+    it("counts up from 1 within one window", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      const { kv } = fakeKv();
+      const storage = kvSecondaryStorage(kv);
+      expect(await storage.increment("rl:ip", 10)).toBe(1);
+      expect(await storage.increment("rl:ip", 10)).toBe(2);
+      expect(await storage.increment("rl:ip", 10)).toBe(3);
+      vi.useRealTimers();
+    });
+
+    it("resets at the window boundary — the bucket key rotates with the clock", async () => {
+      // The reason for clock buckets over one long-lived key: KV cannot write a
+      // value without also writing a TTL, so a single key would have its expiry
+      // pushed forward on every increment and a busy client would never be
+      // unblocked. Crossing into the next 10s window must start over at 1.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:05Z"));
+      const { kv } = fakeKv();
+      const storage = kvSecondaryStorage(kv);
+      expect(await storage.increment("rl:ip", 10)).toBe(1);
+      expect(await storage.increment("rl:ip", 10)).toBe(2);
+      vi.setSystemTime(new Date("2026-01-01T00:00:15Z"));
+      expect(await storage.increment("rl:ip", 10)).toBe(1);
+      vi.useRealTimers();
+    });
+
+    it("keeps separate keys on separate counters", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      const { kv } = fakeKv();
+      const storage = kvSecondaryStorage(kv);
+      expect(await storage.increment("rl:a", 10)).toBe(1);
+      expect(await storage.increment("rl:b", 10)).toBe(1);
+      expect(await storage.increment("rl:a", 10)).toBe(2);
+      vi.useRealTimers();
+    });
+
+    it("clamps the bucket TTL to KV's floor without widening the window itself", async () => {
+      // A 10s window under a 60s TTL floor: the spent bucket lingers unread for
+      // 60s, but the key rotates every 10s, so the limit is still enforced over
+      // the window Better Auth asked for.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      const { kv, puts } = fakeKv();
+      await kvSecondaryStorage(kv).increment("rl:ip", 10);
+      expect(puts[0]?.ttl).toBe(60);
+      vi.useRealTimers();
+    });
   });
 });
