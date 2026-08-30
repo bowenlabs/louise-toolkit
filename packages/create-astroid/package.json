@@ -30,9 +30,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@better-auth/passkey": "^1.6.23",
+    "@better-auth/passkey": "^1.7.2",
     "astroidjs": "workspace:*",
-    "better-auth": "^1.6.23",
+    "better-auth": "^1.7.2",
     "louise-toolkit": "workspace:*"
   },
   "engines": {

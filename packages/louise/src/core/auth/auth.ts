@@ -164,17 +164,66 @@ export interface LouiseAuthConfig {
   defaultUserName?: string;
 }
 
+/** KV's floor for `expirationTtl`. Shorter TTLs are rejected outright. */
+const KV_MIN_TTL_SEC = 60;
+
 /**
  * KV-backed Better Auth `secondaryStorage`. Clamps TTL to KV's 60s minimum so
  * a short-lived write (e.g. Better Auth's internal rate limiter) can't error.
+ *
+ * Better Auth 1.7 added two methods to this interface, both specified as
+ * *atomic*. Cloudflare KV has no atomic primitives and is eventually consistent,
+ * so neither can be honoured exactly — the same constraint `security/rate-limit`
+ * documents for its own KV counters. What each one does here, and what it costs:
+ *
+ *   - `increment` — a fixed-window counter, bucketed by `floor(now / ttl)` the
+ *     way `security/rate-limit` does it, rather than one long-lived key. A clock
+ *     bucket is what makes the window actually *reset*: KV cannot set a value
+ *     without also setting a TTL, so a single key would have its expiry pushed
+ *     forward on every write and a busy client would never be unblocked. The
+ *     read→write gap can undercount under a burst, which lets a few extra
+ *     requests through but never wrongly blocks; a client can also get up to ~2x
+ *     the budget across a bucket boundary. Both fail safe for legitimate users.
+ *     Note the TTL floor above interacts with Better Auth's default 10s window:
+ *     the bucket key still rotates every 10s, so the limit is enforced over the
+ *     intended window and only the spent bucket lingers (unread) for 60s.
+ *
+ *   - `getAndDelete` — a read followed by a delete. Better Auth requires this to
+ *     be atomic so a single-use verification value (magic link, password reset)
+ *     cannot be consumed twice; over KV it cannot be, and KV's cross-colo
+ *     convergence widens the replay window well past a simple race. This is not
+ *     a regression — 1.6 consumed the same values through separate `get` and
+ *     `delete` calls on this same storage — but it is a real exposure, and the
+ *     fix is to keep single-use values off KV entirely rather than to pretend
+ *     this is atomic: set `verification: { storeInDatabase: true }` so they are
+ *     consumed from D1 (strongly consistent, a genuine atomic delete) while KV
+ *     stays what it is meant to be here, a session read cache.
  */
-function kvSecondaryStorage(kv: SessionKV): NonNullable<BetterAuthOptions["secondaryStorage"]> {
+export function kvSecondaryStorage(
+  kv: SessionKV,
+): NonNullable<BetterAuthOptions["secondaryStorage"]> {
+  const putWithTtl = (key: string, value: string, ttl?: number) =>
+    kv.put(key, value, ttl ? { expirationTtl: Math.max(ttl, KV_MIN_TTL_SEC) } : undefined);
   return {
     get: (key) => kv.get(key),
     set: async (key, value, ttl) => {
-      await kv.put(key, value, ttl ? { expirationTtl: Math.max(ttl, 60) } : undefined);
+      await putWithTtl(key, value, ttl);
     },
     delete: (key) => kv.delete(key),
+    getAndDelete: async (key) => {
+      const value = await kv.get(key);
+      // Skip the delete when there was nothing there — a miss is the common case
+      // on a replayed or expired link, and KV writes are the metered operation.
+      if (value !== null) await kv.delete(key);
+      return value;
+    },
+    increment: async (key, ttl) => {
+      const window = Math.max(ttl, 1);
+      const bucket = `${key}:${Math.floor(Date.now() / 1000 / window)}`;
+      const next = (Number(await kv.get(bucket)) || 0) + 1;
+      await putWithTtl(bucket, String(next), window);
+      return next;
+    },
   };
 }
 

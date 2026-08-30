@@ -31,6 +31,17 @@ overrides:
   esbuild: "^0.28.1"
   ws: "^8.21.1"
 
+  # js-yaml — CVE-2026-59870, quadratic CPU consumption resolving `!!omap`, and
+  # the 4.x fix was not backported below 4.3.1. Build-time only: it reaches us
+  # solely through workers/docs > @astrojs/starlight > @astrojs/internal-helpers,
+  # which parses frontmatter during `astro build` and ships nothing to a browser.
+  # Like the esbuild pin above this UNIFIES rather than forces — the tree already
+  # resolved a patched 4.3.2 next to the vulnerable 4.3.0, so this collapses the
+  # two 4.x copies onto one. Deliberately scoped to 4.x: a 3.x copy (js-yaml@3,
+  # via a different consumer) is outside the advisory's range and would break
+  # under a ^4 override.
+  js-yaml: "^4.3.1"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
