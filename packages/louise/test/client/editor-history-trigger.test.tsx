@@ -21,6 +21,7 @@ import {
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
 import { mountSections } from "../../src/client/sections.jsx";
 import { mountLouise } from "../../src/client/index.js";
+import { louiseNavigation } from "../../src/client/lifecycle.js";
 
 const CATALOG: SectionCatalog = { hero: { label: "Hero", fields: { heading: { type: "text" } } } };
 const INITIAL: SectionItem[] = [{ _type: "hero", heading: "Hi" }];
@@ -102,7 +103,7 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-louise-history");
   // mountLouise returns void and guards on this flag — reset it (and drop the
   // module-level leave handlers' view of the mount) so the next test mounts fresh.
-  document.dispatchEvent(new Event("astro:after-swap"));
+  louiseNavigation.afterSwap();
   delete document.documentElement.dataset.louiseMounted;
   document.getElementById("louise-chrome-style")?.remove();
   vi.unstubAllGlobals();

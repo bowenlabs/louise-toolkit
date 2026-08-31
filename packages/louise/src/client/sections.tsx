@@ -81,6 +81,7 @@ import {
   type RichTextFieldOptions,
   type SectionItem,
 } from "../core/content/sections.js";
+import { onLouiseNavigate } from "./lifecycle.js";
 import { apiGet, apiSend } from "./settings/query.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
 
@@ -1049,9 +1050,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` /
     // `pagehide` are the reliable "leaving" signals; the keepalive draft POST
     // lets a flush fired here still land. `beforeunload` warns while dirty.
-    // `astro:before-swap` covers Astro soft navigations (#74) — a view-transition
-    // nav fires none of the others, so without it the dock would drop pending
-    // edits before the swap. This dock is a disposable Solid component, so the
+    // The host's `before-swap` signal covers soft navigations (#74) — a
+    // router-driven nav fires none of the others, so without it the dock would
+    // drop pending edits. This dock is a disposable Solid component, so the
     // listeners are removed on cleanup (unlike mountLouise, which lives for the
     // whole page).
     if (autoCfg.enabled) {
@@ -1069,12 +1070,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       };
       document.addEventListener("visibilitychange", onVis);
       window.addEventListener("pagehide", onPageHide);
-      document.addEventListener("astro:before-swap", onSwap);
+      const offSwap = onLouiseNavigate("before-swap", onSwap);
       window.addEventListener("beforeunload", onBeforeUnload);
       onCleanup(() => {
         document.removeEventListener("visibilitychange", onVis);
         window.removeEventListener("pagehide", onPageHide);
-        document.removeEventListener("astro:before-swap", onSwap);
+        offSwap();
         window.removeEventListener("beforeunload", onBeforeUnload);
       });
     }

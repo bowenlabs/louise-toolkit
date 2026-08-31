@@ -109,6 +109,22 @@ const { versionedPageId, realtime } = Astro.props as {
         // drawer) was replaced and this script won't re-run, so re-boot for the
         // page just swapped in.
         document.addEventListener("astro:page-load", boot);
+
+        // Report navigation to the client (#327). The client used to listen for
+        // `astro:*` itself; those names now live in the host, which is what makes
+        // louise-toolkit framework-agnostic rather than Astro-aware. Wired inside
+        // the edit-mode branch so a public visitor never loads the client bundle,
+        // and idempotent because addEventListener dedupes an identical
+        // (type, listener) pair and the dynamic import is cached.
+        function wireNavigation() {
+          if (document.body.dataset.louiseEdit !== "1") return;
+          import("louise-toolkit/client").then(({ louiseNavigation }) => {
+            document.addEventListener("astro:before-swap", louiseNavigation.beforeSwap);
+            document.addEventListener("astro:after-swap", louiseNavigation.afterSwap);
+          });
+        }
+        wireNavigation();
+        document.addEventListener("astro:page-load", wireNavigation);
       </script>
     </>
   )

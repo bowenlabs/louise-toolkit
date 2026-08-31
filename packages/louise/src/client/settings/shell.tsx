@@ -25,6 +25,7 @@ import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { wireDialogA11y } from "../a11y.js";
 import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "../editor-events.js";
 import { Icon } from "../icons.jsx";
+import { onLouiseNavigate } from "../lifecycle.js";
 import { injectStyles } from "../styles.js";
 import type { DashboardApi, DashboardCard } from "./dashboard/types.js";
 import type { SettingsFieldGroup } from "./fields.jsx";
@@ -221,12 +222,11 @@ export function mountSettings(config: SettingsConfig): void {
   // Astro view transitions (#74) replace <body>, orphaning this drawer while its
   // window listeners (e.g. the OPEN_SETTINGS_EVENT handler) live on — so a Settings
   // click after a nav would fire a stale handler. Dispose the Solid root before the
-  // swap; the bootstrap re-mounts a fresh drawer on the next page (astro:page-load).
-  // Harmless in a non-Astro host (the event never fires).
-  const disposeOnSwap = () => {
+  // swap; the bootstrap re-mounts a fresh drawer on the next page. A host that
+  // never reports a swap simply never disposes early, which is correct for it.
+  const offSwap = onLouiseNavigate("before-swap", () => {
     dispose();
     root.remove();
-    document.removeEventListener("astro:before-swap", disposeOnSwap);
-  };
-  document.addEventListener("astro:before-swap", disposeOnSwap);
+    offSwap();
+  });
 }
