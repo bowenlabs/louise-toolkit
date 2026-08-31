@@ -13,6 +13,18 @@ export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from
 // nothing but the function.
 export { isSameOrigin } from "../auth/guard";
 export { matchRateRule, rateLimit, type RateLimitResult, type RateRule } from "./rate-limit";
+// The Durable-Object limiter — the only atomic counter on Workers, and the one
+// the auth surface should use. KV and the native binding are both permissive and
+// eventually consistent; see the header of ./rate-limit-do.
+export {
+  createRateLimiter,
+  type DurableRateLimitResult,
+  type DurableRateLimitRule,
+  type DurableRateLimitStorage,
+  durableRateLimitStorage,
+  type RateLimiter,
+  type RateLimitNamespace,
+} from "./rate-limit-do";
 export { getSessionSecret, readSecret, type ReadSecretOptions, type SecretSource } from "./secrets";
 export {
   allowCspDataFonts,
