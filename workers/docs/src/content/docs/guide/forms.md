@@ -1,13 +1,13 @@
 ---
 title: Forms
-description: Declarative forms — define fields once, get the table, capture route, and validation.
+description: Declarative forms—define fields once, get the table, capture route, and validation.
 sidebar:
   order: 10
 ---
 
 Louise can **review** submissions (the Inquiries tab) and now **build** the form
 behind them. `defineForm` is one definition that drives the submission table, the
-public capture route, server + client validation, and the review columns — no
+public capture route, server + client validation, and the review columns—no
 hand-rolled POST handler, columns, or validation per site. `inquiries` is just
 the **built-in default form**.
 
@@ -31,21 +31,19 @@ export const contact = defineForm({
 
 Field `type` is `text | email | tel | url | textarea | number | select |
 checkbox | date`. `required` makes the column `NOT NULL` **and** adds a required
-check. `validation` reuses the shared [`Rule`](/reference/content/#validation) builder
-— the _same_ engine the content collections use, so there's one validation definition.
+check. `validation` reuses the shared [`Rule`](/reference/content/#validation) builder—the _same_ engine the content collections use, so there's one validation definition.
 
 The result carries everything derived from the fields:
 
-- **`contact.table` / `contact.columns`** — the Drizzle table (spread `columns`
+- **`contact.table` / `contact.columns`**—the Drizzle table (spread `columns`
   into your own `sqliteTable` to add site columns like a `clientId`). Generate the
   migration with drizzle-kit as usual.
-- **`contact.reviewColumns`** — `{ key, label, type }[]` for the submissions panel.
+- **`contact.reviewColumns`**—`{ key, label, type }[]` for the submissions panel.
 
 ## Capture: `formRoute`
 
 `formRoute` is the **public** companion to the editor-gated review route. It's
-same-origin-guarded (CSRF) but **not** session-gated — anyone may submit —
-validates + coerces against the fields, applies the spam guard, and inserts:
+same-origin-guarded (CSRF) but **not** session-gated—anyone may submit—validates + coerces against the fields, applies the spam guard, and inserts:
 
 ```ts
 import { formRoute } from "louise-toolkit/editor";
@@ -69,7 +67,7 @@ Mounted at `/api/louise/forms/<name>` by default. A submission returns `201 {
 ok: true }`; a validation failure returns `422 { error, violations }` (per-field
 `{ path, message }`); a rate-limited request returns `429` with `Retry-After`; a
 failed Turnstile or cross-origin request returns `403`. Unknown keys in the body
-are ignored — only declared fields are read and stored.
+are ignored—only declared fields are read and stored.
 
 A plain HTML `<form method="POST">` works out of the box (it sends `Referer`, so
 the same-origin check passes); a `fetch` with a JSON body works too.
@@ -78,7 +76,7 @@ the same-origin check passes); a `fetch` with a JSON body works too.
 
 `louise-toolkit/client` ships a headless `<Form>` that renders accessible inputs from
 the catalog and **mirrors the exact server validation client-side** (it reuses
-`validateSubmission` — the same `Rule` engine, no second definition), then POSTs
+`validateSubmission`—the same `Rule` engine, no second definition), then POSTs
 to the form's `formRoute`. It's unstyled by default (every element has a
 `louise-form*` class hook), so a site keeps its own look.
 
@@ -90,7 +88,7 @@ import { contact } from "./forms"; // a client-safe { name, fields } config
 ```
 
 Pass a plain `{ name, fields }` config to the client (not the `defineForm`
-_result_, which carries the Drizzle table — keep that server-side). For a
+_result_, which carries the Drizzle table—keep that server-side). For a
 non-Solid site, `mountForm(hostEl, { form })` renders into a DOM node and returns
 a disposer. A `file` field uploads through the media route and stores the
 returned URL. On a `422` the server's per-field messages are painted back onto
@@ -100,7 +98,7 @@ the inputs.
 
 The base `<Form>` covers flat, generated forms with no dependency. For a
 multi-step form, field arrays, or async cross-field rules, reach for
-[`@tanstack/solid-form`](https://tanstack.com/form) — and still validate with
+[`@tanstack/solid-form`](https://tanstack.com/form)—and still validate with
 Louise's one `Rule` engine via the dependency-free adapter:
 
 ```tsx
@@ -114,26 +112,26 @@ const v = tanstackFormValidators(contact); // { [field]: ({ value }) => error | 
 ```
 
 `tanstackFormValidators` (and per-field `tanstackFieldValidator`) return
-functions in TanStack Form's validator shape, backed by `validateField` — so a
+functions in TanStack Form's validator shape, backed by `validateField`—so a
 complex hand-built form runs the same checks as `<Form>` and the server.
 
 :::caution[Use `onChangeAsync`, not `onChange`]
 These validators are async by contract, and TanStack keys its validator slots on
 that. A promise-returning function in `onChange` is stored **as the promise**, so
 `meta.errors` holds a pending `Promise` rather than a string: nothing throws, the
-message never renders, and the submit button never disables — which reads exactly
+message never renders, and the submit button never disables—which reads exactly
 like validation not running at all.
 
 `onBlurAsync` and `onSubmitAsync` take the same function.
 :::
 
-The map is **flat**, mirroring `FormConfig.fields` — `defineForm` has no array or
+The map is **flat**, mirroring `FormConfig.fields`—`defineForm` has no array or
 nested field type, because each field is one column. A form with repeating rows
 builds the array with TanStack's own API and attaches these validators to the
 leaves.
 
 **There is no generated solid-form component, on purpose.** Since `defineForm` is
-flat, anything generated from it would be a flat form — which is what `<Form>`
+flat, anything generated from it would be a flat form—which is what `<Form>`
 already renders, with no dependency. The reason to reach for TanStack is the
 shapes `defineForm` can't express, and there the form is yours to build; what
 Louise contributes is the validators, so your client checks and your server
@@ -157,10 +155,10 @@ capture **and** review with no extra wiring.
 All guards are opt-in per form. The visible ones are enforced only when
 `formRoute` is given the matching binding:
 
-- **Rate limit** — a KV fixed-window limiter (reuses
+- **Rate limit**—a KV fixed-window limiter (reuses
   [`security/rate-limit`](/reference/security/)), keyed by `CF-Connecting-IP` by
   default. Fails open (a limiter outage never blocks submissions).
-- **Turnstile** — server-side token verification (`verifyTurnstileToken`) of the
+- **Turnstile**—server-side token verification (`verifyTurnstileToken`) of the
   `cf-turnstile-response` field. Fails closed. See the
   [turnstile setup path](https://developers.cloudflare.com/turnstile/) for the
   widget.
@@ -168,9 +166,9 @@ All guards are opt-in per form. The visible ones are enforced only when
 Two **silent** heuristics reject a likely bot with a _fake success_ (so it can't
 tune) and never insert:
 
-- `spam.honeypot: "website"` — a decoy field a bot fills but a human never sees.
+- `spam.honeypot: "website"`—a decoy field a bot fills but a human never sees.
   The `<Form>` helper emits it hidden + `autocomplete="off"`.
-- `spam.minSeconds: 2` — a minimum time between render and submit. The helper
+- `spam.minSeconds: 2`—a minimum time between render and submit. The helper
   stamps a `louise_ts` at mount; a plain HTML form that doesn't stamp one is not
   penalized.
 
@@ -194,8 +192,7 @@ the submission.
 
 ## A catalog of forms (no new table each time)
 
-A first-class form like `inquiries` gets its own typed table. For one-off forms —
-RSVP, waitlist, booking — write to the shared **`submissions`** table
+A first-class form like `inquiries` gets its own typed table. For one-off forms—RSVP, waitlist, booking—write to the shared **`submissions`** table
 (`louise-toolkit/db`) instead, so a new form needs **no migration**:
 
 ```ts

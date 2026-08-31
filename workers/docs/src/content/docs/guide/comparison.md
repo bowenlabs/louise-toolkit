@@ -1,22 +1,19 @@
 ---
 title: Comparison & non-goals
-description: How Louise differs from Tina, Sanity, and Payload — and the deliberate non-goals that tell you when it isn't the right tool.
+description: How Louise differs from Tina, Sanity, and Payload—and the deliberate non-goals that tell you when it isn't the right tool.
 sidebar:
   order: 13
 ---
 
 Louise is a **toolkit for building editable sites on Astro + Cloudflare Workers**.
-Editable content is the headline, but it's one of ~two dozen primitives —
-alongside commerce, media, forms, auth, queues, email, AI, analytics, realtime,
+Editable content is the headline, but it's one of ~two dozen primitives—alongside commerce, media, forms, auth, queues, email, AI, analytics, realtime,
 and workflows. So a head-to-head "which CMS" table undersells it. This page is
-still useful for evaluating the part that _does_ overlap — the editing model —
-and, just as important, for telling you when Louise is the **wrong** choice.
+still useful for evaluating the part that _does_ overlap—the editing model—and, just as important, for telling you when Louise is the **wrong** choice.
 
 ## The short version
 
 Tina, Sanity, and Payload are excellent, mature content platforms with large
-ecosystems. Reach for one of them when you want a **headless content backend** —
-a decoupled API that feeds any number of frontends, hosted infrastructure or a
+ecosystems. Reach for one of them when you want a **headless content backend**—a decoupled API that feeds any number of frontends, hosted infrastructure or a
 database server, and a large editorial team.
 
 Reach for **Louise** when your site _is_ the product: an Astro app on Cloudflare
@@ -33,7 +30,7 @@ auth / AI from the same toolkit rather than stitched-together services.
 | Datastore           | **Your D1 + R2**                                       | Git (Markdown/MDX) + Tina Cloud    | Sanity-hosted                      | MongoDB or Postgres         |
 | Hosting             | **Self-hosted on your Cloudflare account**             | Self-host + optional Tina Cloud    | SaaS                               | Self-host                   |
 | Frontend framework  | **Astro** (core primitives framework-agnostic)         | React-oriented                     | Any (headless)                     | Any (headless)              |
-| Separate admin app? | **No** — the site is the surface                       | No (overlay)                       | Yes                                | Yes                         |
+| Separate admin app? | **No**—the site is the surface                         | No (overlay)                       | Yes                                | Yes                         |
 | Scope               | **Full toolkit** (commerce, forms, media, auth, AI, …) | Content                            | Content                            | Content (+ plugins)         |
 | License / cost      | **MIT, no per-seat pricing**                           | OSS + paid cloud                   | Free tier → usage pricing          | OSS + paid cloud            |
 
@@ -44,26 +41,26 @@ current docs. The point is architectural shape, not a feature scorecard._
 
 - **No separate admin.** There's no Studio, no `/admin` React app, no overlay
   bolted onto your frontend. An editor logs in and the live page becomes
-  editable where the content lives — text where the text is, structured sections
+  editable where the content lives—text where the text is, structured sections
   through your own components.
 - **V8-native, edge-first.** Everything runs in workerd / Cloudflare Workers with
   D1 and R2 as the datastore. No Node runtime, no database server to operate, no
   hosted content lake in the loop. Published pages ship **no editor JS** (the
   client self-gates to edit mode).
 - **It owns render + edit + schema, but not your markup.** Louise is not headless
-  — it renders, edits, and stores — yet the site still owns every pixel; editors
+  —it renders, edits, and stores—yet the site still owns every pixel; editors
   change content and structured sections through _your_ components.
 - **Content is one primitive of many.** Commerce (Stripe / Square / Fourthwall),
   forms, media, auth, AI (Workers AI: alt text, rewrite, SEO, embeddings),
   queues, email, realtime, and workflows are all first-party, dependency-injected
-  primitives — not a marketplace of third-party plugins.
+  primitives—not a marketplace of third-party plugins.
 
 ## Non-goals
 
 These are deliberate. Knowing them up front saves you from adopting Louise for a
 job it isn't built for.
 
-- **Not multi-cloud.** The batteries assume **Cloudflare** — D1, R2, KV, Queues,
+- **Not multi-cloud.** The batteries assume **Cloudflare**—D1, R2, KV, Queues,
   Workers. The core primitives are dependency-injected and framework-agnostic
   (they run in any Worker or a unit test), but Louise is not trying to abstract
   over AWS / Vercel-Node / a self-managed Postgres. If you're not on Cloudflare,
@@ -85,8 +82,7 @@ job it isn't built for.
 ## Louise vs. Astroid
 
 If Louise's "assemble the primitives yourself" model sounds like a lot of wiring:
-that's what **Astroid** — the opinionated meta-framework layered over Louise —
-exists to remove. One typed `defineAstroid` config generates the worker routes,
+that's what **Astroid**—the opinionated meta-framework layered over Louise—exists to remove. One typed `defineAstroid` config generates the worker routes,
 middleware, schema, and theme a site would otherwise hand-write, and
 `pnpm create astroid` scaffolds the whole app in one command.
 
@@ -97,9 +93,8 @@ See the [Astroid guide](/guide/astroid/).
 
 ## Credibility
 
-Louise is **pre-1.0 and dogfooded on four production sites** —
-[coracle.coffee](https://coracle.coffee), [ghostfire.coffee](https://ghostfire.coffee),
-and [themidwestartist.com](https://themidwestartist.com) among them — so its
+Louise is **pre-1.0 and dogfooded on four production sites**—[coracle.coffee](https://coracle.coffee), [ghostfire.coffee](https://ghostfire.coffee),
+and [themidwestartist.com](https://themidwestartist.com) among them—so its
 primitives are shaped by real usage, not a spec. The
 [public roadmap](https://github.com/bowenlabs/louise-toolkit/milestone/1) tracks
 what's next in the open.

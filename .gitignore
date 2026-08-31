@@ -20,3 +20,6 @@ coverage/
 workers/site/public/_docs/
 # (The CI scaffold smoke test now scaffolds into $RUNNER_TEMP, outside the repo,
 # so there's nothing in-tree left to ignore.)
+
+# Vale style packages, fetched by `vale sync` — pinned in .vale.ini, not vendored.
+.vale/

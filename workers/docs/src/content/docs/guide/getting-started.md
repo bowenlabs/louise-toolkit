@@ -5,17 +5,17 @@ sidebar:
   order: 1
 ---
 
-Louise is a toolkit for building sites on **Astro + Cloudflare Workers** — content,
+Louise is a toolkit for building sites on **Astro + Cloudflare Workers**—content,
 commerce, media, forms, auth, and AI as composable primitives, with editing the live
 page in place as the headline. It's a library, not a scaffold: you add it to a
 Cloudflare Workers app and wire the pieces you need. The core primitives are
 framework-agnostic (they run under Astro, Hono, a bare Worker, or a unit test); the
-batteries — the client, theme, and Astroid — target Astro on Cloudflare.
+batteries—the client, theme, and Astroid—target Astro on Cloudflare.
 
 :::tip[See it running first]
 Two live surfaces let you try Louise before wiring it in. The
 [interactive examples](https://louisetoolkit.com/examples) show each primitive as
-live UI backed by real, drift-proof source — the
+live UI backed by real, drift-proof source—the
 [contact form](https://louisetoolkit.com/examples/forms) and
 [Workers checkout](https://louisetoolkit.com/examples/commerce) are live today. The
 [sandbox](https://sandbox.louisetoolkit.com) is a write-capable demo that resets
@@ -73,7 +73,7 @@ export default {
 
 Bindings arrive on `env`, but plain **env vars and secrets** (an API token, a
 provider mode) are easy to fat-finger. On Astro, declare a schema and let
-`astro:env` validate it and generate a typed accessor — the values still come
+`astro:env` validate it and generate a typed accessor—the values still come
 from `wrangler.jsonc` `vars` / `wrangler secret` at runtime, this is just the
 schema on top:
 
@@ -97,7 +97,7 @@ export default defineConfig({
 ```
 
 Import the validated values from `astro:env/server` and pass them into the Louise
-primitive — same dependency-injection model, just type-checked first:
+primitive—same dependency-injection model, just type-checked first:
 
 ```ts
 import { SQUARE_ENV, SQUARE_TOKEN } from "astro:env/server";
@@ -119,7 +119,7 @@ edit mode, mark the editable regions and mount the client.
 <h1 data-louise-field="settings:1:heroHeadline">Your Studio</h1>
 ```
 
-**2. Mount the client.** It self-gates — if the page has no markers (i.e. it
+**2. Mount the client.** It self-gates—if the page has no markers (that is, it
 wasn't rendered in edit mode) `mountLouise` does nothing, so you can lazy-import
 it safely.
 
@@ -129,7 +129,7 @@ mountLouise();
 ```
 
 **3. Accept the save.** The client sends one `PATCH` per changed field to your
-save endpoint. **Allowlist every writable field** — a forged request must not be
+save endpoint. **Allowlist every writable field**—a forged request must not be
 able to touch an unlisted column.
 
 ```ts

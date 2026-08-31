@@ -1,6 +1,6 @@
 ---
 title: worker
-description: "louise-toolkit/worker — composeWorker, a cookie-aware edge cache, and typed self-healing recovery for the Worker entrypoint."
+description: "louise-toolkit/worker—composeWorker, a cookie-aware edge cache, and typed self-healing recovery for the Worker entrypoint."
 sidebar:
   order: 6.75
 ---
@@ -36,7 +36,7 @@ to handle the request, or `undefined` to pass it to the next route.
 ```ts
 export default composeWorker<Env>({
   routes: [louiseApiRoute, ogImageRoute],
-  fetch: ssrHandler, // e.g. @astrojs/cloudflare's handle
+  fetch: ssrHandler, // for example, @astrojs/cloudflare's handle
   queue: (batch, env) => processBatch(batch, (m) => handle(m, env)),
 });
 ```
@@ -58,8 +58,8 @@ interface EdgeCacheConfig {
 A **cookie-aware** edge cache for the SSR fallback. It caches public GETs in the
 Worker-controlled Cache API (`caches.default`), keyed by URL, and stores a
 response only when it carries a cacheable [`CDN_CACHE_CONTROL`](#helpers)
-directive — the header the Astro Cloudflare cache provider emits from
-`Astro.cache.set(...)`. Bypassed requests (e.g. an authenticated editor) and
+directive—the header the Astro Cloudflare cache provider emits from
+`Astro.cache.set(...)`. Bypassed requests (for example, an authenticated editor) and
 non-GETs always run the handler. Drop-in for `composeWorker`'s `fetch`.
 
 ```ts
@@ -70,7 +70,7 @@ export default composeWorker<Env>({
 
 :::caution[Why not `Cloudflare-CDN-Cache-Control`?]
 That header drives Cloudflare's **automatic** edge cache, which is keyed by URL
-and runs _before_ the Worker — blind to cookies, so a page cached for an
+and runs _before_ the Worker—blind to cookies, so a page cached for an
 anonymous visitor could be served to a logged-in editor. `withEdgeCache` strips
 that header from every response (the automatic cache never engages) and sends
 the client `Cache-Control: no-store`, keeping `caches.default` the only shared
@@ -80,8 +80,8 @@ cache holding the HTML. This was the failure mode behind earlier reverts; see
 
 ### Helpers
 
-- `CDN_CACHE_CONTROL` — the response header consumed as the "cache me" signal.
-- `isCacheableDirective(directive)` — is a Cache-Control value an opt-in
+- `CDN_CACHE_CONTROL`—the response header consumed as the "cache me" signal.
+- `isCacheableDirective(directive)`—is a Cache-Control value an opt-in
   (`public`/unspecified with a positive `max-age`, not `no-store`/`no-cache`/`private`)?
 
 ## `withHealing(route, options)`
@@ -117,7 +117,7 @@ const healed = withHealing(apiRoute, {
 ```
 
 :::note[Retries re-run the whole route]
-Safe for idempotent reads; a retried POST can double-write — `retries` defaults
+Safe for idempotent reads; a retried POST can double-write—`retries` defaults
 to `0`, opt in only per code. `TRANSIENT_CODES` (`DB_ERROR`, `CACHE_ERROR`,
 `STORAGE_ERROR`, `QUEUE_ERROR`) is exported as guidance for which codes are
 generally safe to retry. `describeFailure(ctx)` builds a flat, serializable

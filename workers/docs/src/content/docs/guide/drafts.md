@@ -6,7 +6,7 @@ sidebar:
 ---
 
 By default the sections editor writes straight to the live page. Opt a collection
-into **drafts** and edits stage as versions instead — the live page only changes
+into **drafts** and edits stage as versions instead—the live page only changes
 when you **Publish**, and every version is recoverable.
 
 ## The model
@@ -15,16 +15,16 @@ A page's main row is the **live** document (what the public site renders). Draft
 live in a companion `${slug}_versions` table until published; a nullable
 `published_version_id` on the main row points at the live version.
 
-- **Save draft** stores a full snapshot in `${slug}_versions` — the live row is
+- **Save draft** stores a full snapshot in `${slug}_versions`—the live row is
   untouched. With [auto-save](/guide/inline-editing/#auto-save) on (the default),
-  edits stage this draft automatically on an idle debounce — no button.
+  edits stage this draft automatically on an idle debounce—no button.
 - **Publish** copies a version's snapshot onto the live row and sets
   `published_version_id`, running full field validation.
 - **Unpublish** clears the pointer; **Restore** is just publishing an older
   version again.
 
 Publishing is a distinct privilege from editing (`access.publish`), and is
-**always a manual, explicit action** — auto-save only ever stages drafts, it
+**always a manual, explicit action**—auto-save only ever stages drafts, it
 never publishes.
 
 ## Opting in
@@ -51,7 +51,7 @@ export const pagesVersions = collectionVersionsTable(pagesCollection);
 // pages: { …pagesColumns, publishedVersionId: integer("published_version_id") }
 ```
 
-Mount [`versionsRoute`](/reference/editor/) — **before `pagesRoute`**, so its
+Mount [`versionsRoute`](/reference/editor/)—**before `pagesRoute`**, so its
 `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher:
 
 ```ts
@@ -63,8 +63,7 @@ versionsRoute({
 });
 ```
 
-A save merges the edit (config fields only) over the newest **pending draft** —
-falling back to the live row when there is none — and stores a complete,
+A save merges the edit (config fields only) over the newest **pending draft**—falling back to the live row when there is none—and stores a complete,
 publishable snapshot; the field keys must match the `pages` table's property
 names so publish's write maps straight onto columns. Merging over the pending
 draft (not always the live row) is what lets a partial save layer onto
@@ -74,15 +73,14 @@ work-in-progress instead of reverting it (see below).
 
 A save sends only the fields it changed, and the route backfills the rest. That
 works cleanly when **one** surface drives a page's drafts. Mounting two versioned
-surfaces on the same page — e.g. `mountLouise({ versionedPageId })` for an inline
-body **and** a sections editor for the same page id — is not the supported model:
+surfaces on the same page—for example, `mountLouise({ versionedPageId })` for an inline
+body **and** a sections editor for the same page id—is not the supported model:
 
 - Each surface would render its own **Save draft** / **Publish**. The framework
   de-dupes the shared edit bar (only the first surface's actions land on it), but
   the two surfaces still save independently.
 - Saves are made safe by merging each partial edit over the newest pending draft
-  rather than the live row, so concurrent surfaces no longer revert each other —
-  but keeping **one** versioned surface per page is still the clearer model.
+  rather than the live row, so concurrent surfaces no longer revert each other—but keeping **one** versioned surface per page is still the clearer model.
 
 If a page needs both an inline body and Louise Sections, prefer a single
 surface (put the body in the sections catalog, or vice versa) so one **Save
@@ -91,7 +89,7 @@ draft** / **Publish** governs the whole page.
 ## Rendering
 
 View mode renders the live main row. In **edit mode**, resume the latest draft so
-work-in-progress is visible until published — query the newest `status: 'draft'`
+work-in-progress is visible until published—query the newest `status: 'draft'`
 version for the page and render its content, falling back to the main row.
 
 ### Read-your-writes behind read replication
@@ -99,8 +97,7 @@ version for the page and render its content, falling back to the main row.
 Resuming a draft reads back what auto-save just wrote. On a default D1 database
 this is always consistent (reads hit the primary). Enable [D1 read
 replication](https://developers.cloudflare.com/d1/best-practices/read-replication/)
-and a resume read can land on a replica that hasn't caught up to the write yet —
-"my edit vanished." The toolkit closes that gap with the **D1 Sessions API**, and
+and a resume read can land on a replica that hasn't caught up to the write yet—"my edit vanished." The toolkit closes that gap with the **D1 Sessions API**, and
 it's wired for you:
 
 - The draft **write** (auto-save) runs through a `first-primary` session, so the
@@ -110,11 +107,11 @@ it's wired for you:
 - The **resume read** opens a session anchored at that cookie
   (`resumeReadSession(env.DB, Astro.cookies)`) and hands the session to
   `latestDraftSections` / `latestDraftBody`, so the read is guaranteed to see the
-  write. The cookie round-trips automatically — no client code.
+  write. The cookie round-trips automatically—no client code.
 
 Writes always target the primary, so this only shapes the read path. With
 replication **off** (or on a runtime without the Sessions API) it degrades to the
-raw binding — behaviour is identical, so the seam is safe to ship before you flip
+raw binding—behaviour is identical, so the seam is safe to ship before you flip
 replication on.
 
 ```ts
@@ -132,12 +129,12 @@ if (editMode && home) {
 
 The lower-level seam lives in `louise-toolkit/db`: `openD1Session(DB, constraint)`
 returns a session (or the raw binding as a fallback), `d1Bookmark(client)` reads
-the current bookmark, and `db(session)` accepts either — Drizzle only calls
+the current bookmark, and `db(session)` accepts either—Drizzle only calls
 `prepare`/`batch`, which a session implements.
 
 #### Enabling replication on your database
 
-There's no wrangler command yet — enable it in the dashboard (**D1 → your
+There's no wrangler command yet—enable it in the dashboard (**D1 → your
 database → Settings → Enable Read Replication**), or via the REST API with a token
 that has **D1:Edit**:
 

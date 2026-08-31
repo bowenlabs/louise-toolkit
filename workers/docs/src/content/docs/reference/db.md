@@ -1,6 +1,6 @@
 ---
 title: db
-description: "louise-toolkit/db — Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
+description: "louise-toolkit/db—Drizzle over D1, plus the framework-owned pages, inquiries, and site_settings tables."
 sidebar:
   order: 1
 ---
@@ -10,7 +10,7 @@ import { db, pages, inquiries, siteSettings, siteSettingsColumns } from "louise-
 ```
 
 A thin wrapper around Drizzle's D1 driver. **Raw binding in, Drizzle instance
-out** — the schema is yours, never Louise's.
+out**—the schema is yours, never Louise's.
 
 Peer dependency: `drizzle-orm`.
 
@@ -59,9 +59,9 @@ variant when you need to extend it.
 The two other framework-generic content tables, offered on the same
 compose-or-use-as-is pattern:
 
-- **`pages`** (`pagesColumns`, `Page`, `NewPage`) — slug, title, sanitized rich
+- **`pages`** (`pagesColumns`, `Page`, `NewPage`)—slug, title, sanitized rich
   `body`, publish status, SEO/OG, ordering, timestamps.
-- **`inquiries`** (`inquiriesColumns`, `Inquiry`, `NewInquiry`) — contact-form
+- **`inquiries`** (`inquiriesColumns`, `Inquiry`, `NewInquiry`)—contact-form
   submissions.
 
 ```ts
@@ -79,15 +79,14 @@ drizzle-kit still generates each site's migration from its composed schema, so
 sharing the column set costs no flexibility.
 
 :::tip
-`db()` stays schema-agnostic — the tables above are **opt-in building blocks**,
+`db()` stays schema-agnostic—the tables above are **opt-in building blocks**,
 not a schema Louise imposes. They exist so the core content tables (`pages`,
-`inquiries`, `site_settings`) don't drift between projects; everything else —
-products, artworks, your content model — is yours. The
+`inquiries`, `site_settings`) don't drift between projects; everything else—products, artworks, your content model—is yours. The
 [`content`](/reference/content/) module generates Drizzle schema from a collection
 config if you want that.
 :::
 
 :::note
-Auth tables (`user`, `session`, …) are **not** here — they're generated from your
+Auth tables (`user`, `session`, …) are **not** here—they're generated from your
 [`auth`](/reference/auth/) config by Better Auth, not hand-written.
 :::

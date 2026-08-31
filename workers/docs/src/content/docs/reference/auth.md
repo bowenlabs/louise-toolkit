@@ -1,6 +1,6 @@
 ---
 title: auth
-description: "louise-toolkit/auth — Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
+description: "louise-toolkit/auth—Better Auth setup: magic-link + passkey editor sign-in, behind one request-scoped factory."
 sidebar:
   order: 9
 ---
@@ -17,7 +17,7 @@ import {
 
 The shared Better Auth setup for a Louise site: magic-link + passkey editor
 sign-in (allowlist-gated), optional customer email/password, and captcha, behind
-one **request-scoped** factory. Framework-agnostic — you wire the helpers into
+one **request-scoped** factory. Framework-agnostic—you wire the helpers into
 your Astro middleware and routes.
 
 Peer dependencies: `better-auth`, `@better-auth/passkey`. Builds on
@@ -40,26 +40,26 @@ function getLouiseAuth(
 ```
 
 Constructs the request-scoped auth instance. `baseURL` is the origin (Better
-Auth signs callback URLs and binds the passkey `rpID` against it) — derive it
+Auth signs callback URLs and binds the passkey `rpID` against it)—derive it
 from the request, so a multi-tenant deployment gets the correct origin-bound
 relying party per tenant. Better Auth 1.5+ speaks D1 natively; the binding is
 passed straight to `database` (no adapter).
 
 ### `LouiseAuthConfig`
 
-| field                  | purpose                                                                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rpName`               | passkey relying-party display name                                                                                                                                          |
-| `rpID?`                | passkey relying-party **domain**. Defaults to the request origin's hostname; pin it to the apex so one passkey covers an admin subdomain too — see below                    |
-| `mailFrom`             | `from` for the magic-link email                                                                                                                                             |
-| `renderMagicLinkEmail` | render the email body (site branding)                                                                                                                                       |
-| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup                                          |
-| `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                                                              |
-| `additionalFields?`    | extra Better Auth user columns (e.g. `squareCustomerId`)                                                                                                                    |
-| `tablePrefix?`         | namespace the auth tables in the same D1 (e.g. `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
-| `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                  |
-| `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                      |
-| `extraPlugins?`        | additional Better Auth plugins                                                                                                                                              |
+| field                  | purpose                                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rpName`               | passkey relying-party display name                                                                                                                                                  |
+| `rpID?`                | passkey relying-party **domain**. Defaults to the request origin's hostname; pin it to the apex so one passkey covers an admin subdomain too—see below                              |
+| `mailFrom`             | `from` for the magic-link email                                                                                                                                                     |
+| `renderMagicLinkEmail` | render the email body (site branding)                                                                                                                                               |
+| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup                                                  |
+| `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                                                                      |
+| `additionalFields?`    | extra Better Auth user columns (for example, `squareCustomerId`)                                                                                                                    |
+| `tablePrefix?`         | namespace the auth tables in the same D1 (for example, `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
+| `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                          |
+| `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                              |
+| `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                      |
 
 ```ts
 // src/lib/auth.ts
@@ -96,17 +96,17 @@ getLouiseAuth(env, baseURL, {
 });
 ```
 
-**The sessions stay separate, and that is the point** — a shared credential is
+**The sessions stay separate, and that is the point**—a shared credential is
 not a shared login. The combination that makes this safe:
 
 - **Host-only cookies.** No `Domain` attribute and `crossSubDomainCookies` off,
   which is the default. Widening the cookie to the parent domain would broadcast
-  the admin session to every sibling subdomain — including untrusted tenant
-  storefronts — which is the failure this option exists to avoid, not cause.
+  the admin session to every sibling subdomain—including untrusted tenant
+  storefronts—which is the failure this option exists to avoid, not cause.
 - **A distinct `cookiePrefix`** per instance, for the same reason two instances
   on one origin need one: otherwise the sessions collide.
 
-`rpID` must be the origin's own domain or a parent of it — a browser rejects a
+`rpID` must be the origin's own domain or a parent of it—a browser rejects a
 registration whose rpID is neither, so a typo fails at enrolment rather than
 silently. It is a bare domain: no scheme, no port.
 
@@ -121,15 +121,15 @@ function resolveEditorSession(
 ```
 
 Re-derives the editor session from the signed Better Auth session on every
-request — edit access is never trusted from the client. Returns the editor when
+request—edit access is never trusted from the client. Returns the editor when
 the user holds the editor role, else null. Assign the result to `locals` in your
 Astro middleware.
 
 ## `handleAuthRequest(auth, request, admins)`
 
 The Better Auth catch-all with the editor magic-link allowlist gate. A non-admin
-magic-link request is rejected **before** Better Auth runs — no token, no mail,
-no user row — and returns the same enumeration-safe response a real send does.
+magic-link request is rejected **before** Better Auth runs—no token, no mail,
+no user row—and returns the same enumeration-safe response a real send does.
 Use it in your `/api/auth/[...all]` route. `admins` is the resolved allowlist
 (the same source `resolveAdmins` uses).
 
@@ -147,17 +147,17 @@ resolved editor session. Returns an error `Response`, or null to proceed.
 
 ## Allowlist & Turnstile helpers
 
-- `defaultResolveAdmins(env)` — `OWNER_EMAIL` + optional `ENGINEER_EMAIL`, lowercased.
-- `isAllowedSignInEmail(admins, email)` — case-insensitive membership test.
-- `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)` — the both-halves-real captcha activation gate.
+- `defaultResolveAdmins(env)`—`OWNER_EMAIL` + optional `ENGINEER_EMAIL`, lowercased.
+- `isAllowedSignInEmail(admins, email)`—case-insensitive membership test.
+- `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the both-halves-real captcha activation gate.
 
 ## Generating the auth schema
 
-Better Auth doesn't ship hand-written table DDL — it _derives_ its tables (user,
+Better Auth doesn't ship hand-written table DDL—it _derives_ its tables (user,
 session, account, verification, passkey, the admin `role`/ban columns, plus any
 `additionalFields`) from the config. So Louise **always generates** the auth
 migration rather than hand-rolling it, from the _same_ plugin set the runtime
-factory uses — the committed schema can't drift from what `getLouiseAuth`
+factory uses—the committed schema can't drift from what `getLouiseAuth`
 expects. One command:
 
 ```sh
@@ -166,7 +166,7 @@ pnpm exec louise gen-auth-schema --out drizzle/0002_auth.sql
 ```
 
 `gen-auth-schema` takes an optional `--config <path>` (a module default-exporting
-an `AuthSchemaConfig` — `{ customers?, additionalFields?, tablePrefix? }`) so the
+an `AuthSchemaConfig`—`{ customers?, additionalFields?, tablePrefix? }`) so the
 generated columns match your runtime `LouiseAuthConfig`. Point it at the site's
 auth config (or a small module re-exporting its `additionalFields`/`customers`)
 and the base tables come from Louise, the extra columns from your config:
@@ -176,19 +176,19 @@ louise gen-auth-schema --config ./src/lib/auth-schema.config.ts --out drizzle/00
 ```
 
 Then apply it like any Drizzle/D1 migration (`wrangler d1 migrations apply`).
-Re-run the command whenever the auth config changes — never hand-edit the output.
+Re-run the command whenever the auth config changes—never hand-edit the output.
 The programmatic generator is also exported as
 `generateAuthSchemaSql(config): string`.
 
 ### Where the auth tables live
 
 Two supported layouts, chosen per deployment. Both keep one database and one
-migration stream — the difference is only a table-name namespace:
+migration stream—the difference is only a table-name namespace:
 
-| Option                                  | Isolation | user↔content joins | Best for                                                                                  |
-| --------------------------------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------- |
-| **A. Same D1, default names** (default) | low       | native SQL joins   | sites that join user↔content (customer↔order, `squareCustomerId`) — one owner, one stream |
-| **B. Same D1, `auth_` prefix**          | medium    | still native joins | a visible auth boundary in one database, without a second DB                              |
+| Option                                  | Isolation | user↔content joins | Best for                                                                                |
+| --------------------------------------- | --------- | ------------------ | --------------------------------------------------------------------------------------- |
+| **A. Same D1, default names** (default) | low       | native SQL joins   | sites that join user↔content (customer↔order, `squareCustomerId`)—one owner, one stream |
+| **B. Same D1, `auth_` prefix**          | medium    | still native joins | a visible auth boundary in one database, without a second DB                            |
 
 **Default to A.** The sites have real user↔content joins, one owner, and one
 migration history; a second boundary adds friction for little gain. Choose **B**
@@ -213,6 +213,6 @@ Extends [`LouiseEnv`](/reference/security/) with the auth bindings your
 :::note
 Sessions default to **D1**. The KV cache (`sessionCacheKv`) is opt-in: it keeps
 D1 authoritative (`storeSessionInDatabase: true`) so a KV TTL lapse recovers
-instead of logging users out — worth it at multi-tenant scale, unnecessary for a
+instead of logging users out—worth it at multi-tenant scale, unnecessary for a
 single editor.
 :::

@@ -5,8 +5,7 @@ sidebar:
   order: 4
 ---
 
-Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid) —
-`louise-toolkit/client`'s `RichText` — used identically by inline fields and
+Louise's rich-text editor is [ProseKit](https://prosekit.dev) (Solid)—`louise-toolkit/client`'s `RichText`—used identically by inline fields and
 by any Settings form a host app builds.
 
 ## HTML in, HTML out
@@ -17,10 +16,10 @@ ProseMirror runs on the Worker. On load, the editor re-parses the stored HTML.
 
 Two rendering rules follow from this:
 
-- Rich fields render as **`<div>`, never `<p>`** — the editor's wrapper is a
+- Rich fields render as **`<div>`, never `<p>`**—the editor's wrapper is a
   block element, and a `<div>` inside a `<p>` is invalid HTML.
 - ProseKit's `htmlFromNode` wraps every payload in a `<div>`. Your sanitizer's
-  allowlist **must include that wrapper** — a parser-based sanitizer drops
+  allowlist **must include that wrapper**—a parser-based sanitizer drops
   disallowed elements _with their children_, so omitting `div` silently wipes
   every save.
 
@@ -34,7 +33,7 @@ boundary. Sanitize with a **parser-based allowlist**, not a regex stripper
 - `href`/`src` are scrubbed of `javascript:` / `data:`; inline `style` is
   limited to a single `color:` declaration (so the editor's text-color mark can
   round-trip).
-- `<img>` is allowed with `width`/`height`. **SVG is not** — a public media
+- `<img>` is allowed with `width`/`height`. **SVG is not**—a public media
   domain rendering arbitrary SVG/HTML is a hosted-content risk.
 - Block containers (`section`/`figure`/`figcaption`/`hr`, plus `div`/
   `blockquote` with a filtered `class` allowlist) are permitted for the
@@ -43,7 +42,7 @@ boundary. Sanitize with a **parser-based allowlist**, not a regex stripper
 ## The toolbar
 
 The toolbar is a **selection-based floating popover** (ProseKit's
-`InlinePopover`, hoisted into the top layer) — it appears over selected text
+`InlinePopover`, hoisted into the top layer)—it appears over selected text
 rather than always showing. It offers bold / italic / underline / strike,
 H2 / H3, bullet & numbered lists, quote, image, and brand text colors. Icons are
 Phosphor SVGs inlined raw, so they're CSP-safe (no external requests, no inline
@@ -51,8 +50,7 @@ Phosphor SVGs inlined raw, so they're CSP-safe (no external requests, no inline
 
 ## Images
 
-Paste, drop, or the toolbar button upload to your media endpoint (typically R2 —
-see [Media](/guide/media/)) and insert an `<img>`. A
+Paste, drop, or the toolbar button upload to your media endpoint (typically R2—see [Media](/guide/media/)) and insert an `<img>`. A
 resizable node view lets an editor drag the corner; the size persists as
 `width`/`height` attributes. A block drag handle reorders blocks.
 
@@ -68,6 +66,5 @@ import { RichText } from "louise-toolkit/client";
 />;
 ```
 
-For inline `[data-louise-field]` markers you don't call `RichText` yourself —
-[`mountLouise`](/guide/inline-editing/) mounts it for you. `RichText` is
+For inline `[data-louise-field]` markers you don't call `RichText` yourself—[`mountLouise`](/guide/inline-editing/) mounts it for you. `RichText` is
 exported for the structured forms a host app builds in its Settings.

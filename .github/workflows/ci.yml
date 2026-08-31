@@ -80,6 +80,15 @@ jobs:
       - name: Architectural rules (ast-grep)
         run: corepack pnpm run lint:arch
 
+      # Prose style for the published docs, against the Google developer
+      # documentation style guide. `vale sync` fetches the style package into a
+      # gitignored .vale/ — pinned, reproducible, not vendored, the same shape as
+      # the `lint:solid` dlx fetch above.
+      - name: Documentation style (Vale + Google)
+        run: |
+          corepack pnpm --package=@vvago/vale@3.17.1 dlx vale sync
+          corepack pnpm run lint:docs
+
       # Dead-code check: unused files and exports across the workspace. Runs on
       # source (entry points mapped in knip.jsonc), so no build is needed.
       - name: Dead-code check (Knip)

@@ -1,6 +1,6 @@
 ---
 title: browser
-description: "louise-toolkit/browser — per-page OG images behind one renderer contract, a content-hashed cache, and a scheduled link checker."
+description: "louise-toolkit/browser—per-page OG images behind one renderer contract, a content-hashed cache, and a scheduled link checker."
 sidebar:
   order: 14
 ---
@@ -16,7 +16,7 @@ import {
 ```
 
 Edge rendering: per-page Open Graph cards and a scheduled link check. Binding:
-`BROWSER` (Browser Rendering) — **only** for the Puppeteer renderer and only when
+`BROWSER` (Browser Rendering)—**only** for the Puppeteer renderer and only when
 it actually runs. Optional peers: `@resvg/resvg-wasm`, `@cloudflare/puppeteer`.
 
 ## Two renderers, one contract
@@ -26,13 +26,13 @@ type OgRenderer = (html: string) => Promise<Uint8Array>;
 ```
 
 Everything that rasterizes a card satisfies that one type, which is what lets the
-caching layer stay ignorant of how bytes get made — and lets a test inject a stub
+caching layer stay ignorant of how bytes get made—and lets a test inject a stub
 instead of a browser.
 
-|                                                  |                                                                                                                                                                                                    |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`createResvgRenderer(options)`**               | The default hot path. Rasterizes an **SVG** string via resvg/WASM — a static card is text on a field, so this is pure SVG→PNG, roughly 100× cheaper than a browser session and with no cold start. |
-| **`createPuppeteerRenderer(browser, options?)`** | Drives Browser Rendering and screenshots **HTML**. Keep it for genuine full-page work — live previews, anything needing real layout or web fonts.                                                  |
+|                                                  |                                                                                                                                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`createResvgRenderer(options)`**               | The default hot path. Rasterizes an **SVG** string via resvg/WASM—a static card is text on a field, so this is pure SVG→PNG, roughly 100× cheaper than a browser session and with no cold start. |
+| **`createPuppeteerRenderer(browser, options?)`** | Drives Browser Rendering and screenshots **HTML**. Keep it for genuine full-page work—live previews, anything needing real layout or web fonts.                                                  |
 
 Note the input differs: resvg takes SVG, Puppeteer takes HTML. `ogCardSvg`
 produces the former.
@@ -52,7 +52,7 @@ const render = createResvgRenderer({
 });
 ```
 
-**Without a font, text does not render** — the card comes back as a background
+**Without a font, text does not render**—the card comes back as a background
 with nothing on it, and nothing errors. Set `defaultFontFamily` to the family you
 actually pass, so a single supplied font is used no matter what the SVG asks for.
 WASM init is global to the isolate and initializing twice throws; the renderer
@@ -68,12 +68,12 @@ function ogImage(opts: OgImageOptions): Promise<{ bytes: Uint8Array; cached: boo
 An OG card is deterministic for a given page plus its content, so the key is
 `<prefix>/<safe-slug>-<contentHash>.<ext>` and `ogImage` **renders only on a
 miss**. On a hit the stored bytes come back with `cached: true` and the renderer
-is never called — no browser session, no WASM init.
+is never called—no browser session, no WASM init.
 
 Editing a page mints a new key and the old card falls out naturally; an unchanged
 page always resolves to the same one. There is no invalidation step to forget.
 
-`OgImageCache` is declared structurally — `get`/`put` — so an R2 bucket or a KV
+`OgImageCache` is declared structurally—`get`/`put`—so an R2 bucket or a KV
 namespace both satisfy it without the module depending on either. Omit `cache`
 and every call renders.
 
@@ -99,7 +99,7 @@ function checkLinks(opts: CheckLinksOptions): Promise<BrokenLink[]>;
 ```
 
 Crawls `paths`, collects their links, and returns the ones that don't resolve.
-**No browser session** — reading anchors is a regex over HTML, so this is plain
+**No browser session**—reading anchors is a regex over HTML, so this is plain
 `fetch` and cheap enough for a daily cron. Each distinct target is checked once,
 and a page that itself fails to load is reported too.
 

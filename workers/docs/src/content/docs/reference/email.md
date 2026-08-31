@@ -1,6 +1,6 @@
 ---
 title: email
-description: "louise-toolkit/email — Cloudflare Email Sending."
+description: "louise-toolkit/email—Cloudflare Email Sending."
 sidebar:
   order: 5
 ---
@@ -16,7 +16,7 @@ A tiny wrapper over the modern **Cloudflare Email Sending** binding
 This uses the object-form Email Sending API, **not** the legacy
 `cloudflare:email` / mimetext path (which routes through Email Routing and can
 only deliver to _verified_ destinations). Email Sending delivers to any recipient
-once the `from` domain is onboarded — `wrangler email sending enable <domain>`.
+once the `from` domain is onboarded—`wrangler email sending enable <domain>`.
 :::
 
 ## `sendEmail(binding, input)`
@@ -53,7 +53,7 @@ await sendEmail(env.EMAIL, {
 
 The binding shape Louise expects, kept local so the module doesn't pin a specific
 `@cloudflare/workers-types` version. Any object with a matching `send` method
-works — which is exactly what makes `sendEmail` trivial to unit-test with a fake.
+works—which is exactly what makes `sendEmail` trivial to unit-test with a fake.
 
 ```ts
 const fake: EmailSender = { send: async () => ({ messageId: "test" }) };

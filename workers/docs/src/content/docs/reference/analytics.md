@@ -1,6 +1,6 @@
 ---
 title: analytics
-description: "louise-toolkit/analytics — cookieless Core Web Vitals from real visitors, on Cloudflare Analytics Engine."
+description: "louise-toolkit/analytics—cookieless Core Web Vitals from real visitors, on Cloudflare Analytics Engine."
 sidebar:
   order: 14.5
 ---
@@ -37,7 +37,7 @@ CwvSummary  →  folded into the HealthSummary the dashboard reads
 ```
 
 **Every step degrades gracefully.** With no dataset binding the route
-accepts-and-drops and the badge reads "not measured yet" — the beacon never
+accepts-and-drops and the badge reads "not measured yet"—the beacon never
 becomes an error the visitor can see.
 
 ### 1. The beacon
@@ -48,7 +48,7 @@ function cwvBeaconScript(opts?: { endpoint?: string; sampleRate?: number }): str
 
 Returns the script source to inline in a `<script>` on **public** pages. It
 observes the three metrics via `PerformanceObserver` and reports each once, on the
-first `visibilitychange` to hidden, via `sendBeacon` — so it never delays
+first `visibilitychange` to hidden, via `sendBeacon`—so it never delays
 navigation. Self-contained with no dependency, which is what lets it inline
 CSP-safely.
 
@@ -56,7 +56,7 @@ CSP-safely.
 owner-facing "fast / slow" badge and is not a lab-grade number; don't report it as
 one.
 
-Inline it only when not in edit mode — the editor's own interactions aren't
+Inline it only when not in edit mode—the editor's own interactions aren't
 visitor data.
 
 ### 2. The route
@@ -65,7 +65,7 @@ visitor data.
 function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<Env>;
 ```
 
-Mounts `POST /api/louise/vitals`. **Unauthenticated but same-origin only** — it
+Mounts `POST /api/louise/vitals`. **Unauthenticated but same-origin only**—it
 has to accept anonymous visitor beacons, so a cross-origin `Origin` is refused
 rather than letting anyone spam your dataset from elsewhere.
 
@@ -81,13 +81,13 @@ function parseCwvRows(rows): { lcp?; inp?; cls?; sampleSize };
 function summarizeCwv(input): CwvSummary;
 ```
 
-`cwvSqlQuery` asks for the **p75** of each metric — the standard CWV statistic,
+`cwvSqlQuery` asks for the **p75** of each metric—the standard CWV statistic,
 not the mean. It uses `quantileWeighted` with `_sample_interval` because Analytics
 Engine samples adaptively under load: ignoring that weight silently biases the
 result on exactly the busy days you most want to measure.
 
 `summarizeCwv` rates the overall result as **the worst metric present**, matching
-how Core Web Vitals are assessed — a page is not "good" because two of three are.
+how Core Web Vitals are assessed—a page is not "good" because two of three are.
 With no sample it returns `rating: "none"` rather than a misleading "good".
 
 ## Rendering your own badge

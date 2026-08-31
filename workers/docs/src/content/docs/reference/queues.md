@@ -1,6 +1,6 @@
 ---
 title: queues
-description: "louise-toolkit/queues — Cloudflare Queues producer and batch consumer."
+description: "louise-toolkit/queues—Cloudflare Queues producer and batch consumer."
 sidebar:
   order: 6
 ---
@@ -33,7 +33,7 @@ type QueueMessageHandler<T> = (message: T, context: { attempts: number }) => voi
 ```
 
 Drains a batch, running `handler` once per message. Each message is **acked or
-retried independently** — one failing message doesn't block the rest from
+retried independently**—one failing message doesn't block the rest from
 acking. `processBatch` never throws: a handler's own error is caught and turned
 into a `retry()`, so a Worker's `queue()` export can be the whole body.
 
@@ -50,7 +50,7 @@ export default {
 
 :::note[Cloudflare owns redelivery]
 Backoff, `max_retries`, and dead-letter routing are configured in
-`wrangler.jsonc`, not here — once a message exceeds `max_retries`, Cloudflare
+`wrangler.jsonc`, not here—once a message exceeds `max_retries`, Cloudflare
 routes it to that queue's `dead_letter_queue` automatically. `context.attempts`
 is the 1-indexed delivery count so your handler can behave differently on the
 final try.

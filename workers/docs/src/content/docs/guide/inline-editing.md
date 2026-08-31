@@ -21,7 +21,7 @@ An editable region carries a `data-louise-field` marker whose value is
 
 - **Plain text** (no `data-louise-type`) becomes a single-line
   `contenteditable="plaintext-only"` region.
-- **Rich text** (`data-louise-type="richtext"`) mounts the ProseKit editor — see
+- **Rich text** (`data-louise-type="richtext"`) mounts the ProseKit editor—see
   [Rich text](/guide/rich-text/).
 
 List items are patched by index with a dotted field: `aboutParagraphs.2`.
@@ -53,11 +53,11 @@ See the [client reference](/reference/client/) for the full export list.
 ## The save contract
 
 When a save runs, the client sends **one `PATCH` per changed field** to your save
-endpoint (e.g. `POST /api/louise/save`). Unchanged fields are never sent.
+endpoint (for example, `POST /api/louise/save`). Unchanged fields are never sent.
 
 Your endpoint owns two responsibilities Louise cannot do for you:
 
-1. **Authorize the write** from the session — _not_ from the page's edit mode.
+1. **Authorize the write** from the session—_not_ from the page's edit mode.
 2. **Allowlist every writable field.** A forged request must not reach a column
    you didn't list.
 
@@ -78,7 +78,7 @@ export async function POST({ request, locals, env }) {
 
 ## Auto-save
 
-Edits persist **automatically**, on a short idle debounce — there is no Save
+Edits persist **automatically**, on a short idle debounce—there is no Save
 button to remember. It's on by default:
 
 ```ts
@@ -88,8 +88,7 @@ mountLouise({ autoSave: false }); // opt out → a manual Save button returns
 ```
 
 - Auto-save reuses the **same save** as a manual click: a live field write, or a
-  **draft** on a [versioned page](/guide/drafts/). It **never publishes** —
-  Publish stays an explicit action.
+  **draft** on a [versioned page](/guide/drafts/). It **never publishes**—Publish stays an explicit action.
 - Pending edits are flushed when you tab out of a field, hide the tab, or navigate
   away (the save `fetch` uses `keepalive` so it survives the unload), and the
   browser warns if you try to leave with a save still in flight.
@@ -107,5 +106,5 @@ The pattern, generalised:
 2. Render it with the marker (plain or `data-louise-type="richtext"`).
 3. Allowlist it in the save endpoint (and in your rich-field set if it's HTML).
 
-That's the whole loop — no schema migration on the content side, because the schema
+That's the whole loop—no schema migration on the content side, because the schema
 is yours.
