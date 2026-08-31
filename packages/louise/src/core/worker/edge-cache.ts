@@ -5,9 +5,9 @@
 // Why not just `Cloudflare-CDN-Cache-Control`? That header drives Cloudflare's
 // AUTOMATIC edge cache, which is keyed by URL and runs BEFORE the Worker — so it
 // is blind to cookies. A page cached for an anonymous visitor is then served to
-// a logged-in editor straight from the edge, without the Worker (or Astro's
-// `Astro.cache.set(false)`) ever running. There is no way to make that automatic
-// cache cookie-aware from inside a Worker.
+// a logged-in editor straight from the edge, without the Worker (or the route's
+// own "don't cache this" decision) ever running. There is no way to make that
+// automatic cache cookie-aware from inside a Worker.
 //
 // So this wraps the SSR handler and caches in the Worker-controlled Cache API
 // (`caches.default`) instead: the Worker runs on every request, inspects it, and
@@ -24,13 +24,15 @@
 // Both were the failure mode behind the #163/#165 reverts (a shared cache served
 // editors). Editor requests are excluded by construction (the `bypass` predicate).
 //
-// The route still decides cacheability the same way (`Astro.cache.set(...)` →
-// the provider emits `Cloudflare-CDN-Cache-Control`); this wrapper just consumes
-// that header as the "cache me" signal rather than letting Cloudflare act on it.
+// The route still decides cacheability however its framework expresses that; the
+// decision reaches this layer as a response header, which the wrapper consumes as
+// the "cache me" signal rather than letting Cloudflare act on it.
 
-/** The response header the Astro Cloudflare cache provider emits from
- *  `Astro.cache.set(...)`. Consumed here as the route's cacheability signal, then
- *  stripped so Cloudflare's automatic (cookie-blind) edge cache never sees it. */
+/** Default cacheability-signal header: Cloudflare's own CDN-Cache-Control, which
+ *  is what a Cloudflare-targeting SSR adapter emits for a cacheable response.
+ *  Consumed here as the route's signal, then stripped so Cloudflare's automatic
+ *  (cookie-blind) edge cache never sees it. Override with
+ *  {@link EdgeCacheConfig.signalHeader} when a host signals some other way. */
 export const CDN_CACHE_CONTROL = "cloudflare-cdn-cache-control";
 
 /**
@@ -58,14 +60,25 @@ export interface EdgeCacheConfig {
   bypass?: (request: Request) => boolean;
   /** The `Cache` to use. Defaults to `caches.default`. Injectable for tests. */
   cache?: () => Cache;
+  /**
+   * The response header carrying the route's cacheability decision. Defaults to
+   * {@link CDN_CACHE_CONTROL}.
+   *
+   * Configurable rather than hard-coded because WHICH header a route uses to say
+   * "cache me" is the host's convention, not this layer's: a Cloudflare-targeting
+   * SSR adapter emits `Cloudflare-CDN-Cache-Control`, and a host that signals
+   * differently should not have to adopt that name to use this cache.
+   */
+  signalHeader?: string;
 }
 
 /**
  * Wrap an SSR `fetch` handler with the cookie-aware Worker Cache API layer
  * described above. Public GETs are served from / stored in the cache keyed by
  * URL; bypassed requests and non-GETs always run `handler`. A response is stored
- * only when it carries a cacheable {@link CDN_CACHE_CONTROL} directive; that
- * header is always stripped from the returned response.
+ * only when it carries a cacheable directive in the signal header (see
+ * {@link EdgeCacheConfig.signalHeader}); that header is always stripped from the
+ * returned response.
  *
  * Freshness is bounded by the directive's `max-age` (there is no global
  * tag-purge for `caches.default` — a purge only reaches the current colo, so a
@@ -135,6 +148,9 @@ export function withEdgeCache<Env = unknown>(
   // global merge over @cloudflare/workers-types', so reach it through a cast —
   // same lib.dom clash the site's env.d.ts re-declares around.
   const getCache = config.cache ?? (() => (caches as unknown as { default: Cache }).default);
+  // Lower-cased once: `Headers` lookups are case-insensitive, but `sealed()` below
+  // is a free function and takes the resolved name rather than re-deriving it.
+  const signal = (config.signalHeader ?? CDN_CACHE_CONTROL).toLowerCase();
 
   return async (request, env, ctx) => {
     const useCache = request.method === "GET" && !(config.bypass?.(request) ?? false);
@@ -149,16 +165,16 @@ export function withEdgeCache<Env = unknown>(
       // Serve the stored render, but re-assert the wire headers (a `cache.match`
       // response has immutable headers, so reconstruct): this Worker cache is the
       // ONLY shared cache, so the HTML goes out `no-store` — see the store path.
-      if (hit) return sealed(hit);
+      if (hit) return sealed(hit, signal);
     }
 
     const response = await handler(request, env, ctx);
-    const directive = response.headers.get(CDN_CACHE_CONTROL);
+    const directive = response.headers.get(signal);
 
     // Strip the signal on EVERY response so Cloudflare's automatic, cookie-blind
     // edge cache never engages — this Worker cache is cookie-aware and the only
     // cache in play.
-    if (directive !== null) response.headers.delete(CDN_CACHE_CONTROL);
+    if (directive !== null) response.headers.delete(signal);
 
     if (key && isCacheableDirective(directive)) {
       const toCache = response.clone();
@@ -189,9 +205,9 @@ export function withEdgeCache<Env = unknown>(
  * cache entry's own TTL still governs eviction from `caches.default`). Keeps the
  * Worker cache the single source of the shared entry.
  */
-function sealed(hit: Response): Response {
+function sealed(hit: Response, signalHeader: string): Response {
   const out = new Response(hit.body, hit);
   out.headers.set("cache-control", "no-store");
-  out.headers.delete(CDN_CACHE_CONTROL);
+  out.headers.delete(signalHeader);
   return out;
 }

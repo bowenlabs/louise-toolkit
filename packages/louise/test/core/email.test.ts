@@ -104,3 +104,51 @@ describe("sendEmail with no binding", () => {
     ).rejects.toThrow(/simulateWhenUnconfigured/);
   });
 });
+
+describe("dev — the host says, rather than the bundler", () => {
+  const input = { from: { email: "a@x.test" }, to: "b@x.test", subject: "s", html: "<p>magic</p>" };
+
+  it("simulates instead of throwing when the host says dev", async () => {
+    const log = vi.fn();
+    expect(await sendEmail(null, input, { dev: true, log })).toEqual({ simulated: true });
+    // The body IS the point in dev — it carries the sign-in link.
+    expect(log.mock.calls[0]?.[0]).toContain("magic");
+  });
+
+  it("throws on an unconfigured send when the host says production", async () => {
+    // A production send with no binding is a misconfiguration, not a convenience.
+    await expect(sendEmail(null, input, { dev: false })).rejects.toThrow(/No email binding/);
+  });
+
+  it("withholds the body when the host says production but simulation is forced", async () => {
+    const log = vi.fn();
+    await sendEmail(null, input, { dev: false, simulateWhenUnconfigured: true, log });
+    const line = log.mock.calls[0]?.[0] as string;
+    expect(line).toContain("body withheld");
+    expect(line).not.toContain("magic");
+  });
+
+  it("`dev` beats the NODE_ENV fallback in both directions", async () => {
+    // The fallback reads NODE_ENV, which vitest sets to "test" — so without an
+    // explicit flag this suite would look like development. The host's answer wins.
+    const log = vi.fn();
+    await sendEmail(null, input, { dev: false, simulateWhenUnconfigured: true, log });
+    expect(log.mock.calls[0]?.[0]).toContain("body withheld");
+    log.mockClear();
+    await sendEmail(null, input, { dev: true, log });
+    expect(log.mock.calls[0]?.[0]).toContain("magic");
+  });
+
+  it("falls back to NODE_ENV when the host says nothing", async () => {
+    // Absent NODE_ENV must read as PRODUCTION, so forgetting the flag is safe
+    // rather than leaking a credential-bearing body.
+    const proc = (globalThis as { process?: { env: Record<string, string | undefined> } }).process;
+    const prev = proc?.env.NODE_ENV;
+    if (proc) delete proc.env.NODE_ENV;
+    try {
+      await expect(sendEmail(null, input, {})).rejects.toThrow(/No email binding/);
+    } finally {
+      if (proc && prev !== undefined) proc.env.NODE_ENV = prev;
+    }
+  });
+});
