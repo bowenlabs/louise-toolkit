@@ -41,14 +41,19 @@ clean_room_init() {
 }
 
 # The `overrides:` entries pointing at the packed tarballs, indented as children
-# of an existing `overrides:` key. Every first-party package the scaffold declares
+# of an existing `overrides:` key.
+#
+# Note `louise-toolkit-[0-9]*` rather than `louise-toolkit-*`: the adapter packs
+# as `louise-toolkit-astro-0.0.0.tgz`, which the looser glob also matches, so `ls`
+# returned BOTH paths and pnpm was handed one filename with a space in it. Anchor
+# on the version digit that follows the package name. Every first-party package the scaffold declares
 # needs one: without it pnpm goes to the registry for a version that does not
 # exist there yet, which is how the Astro adapter first broke this job.
 clean_room_tarball_pins() {
   local pack="$1"
   printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n  "@louise-toolkit/astro": "file:%s"\n' \
     "$(ls "$pack"/astroidjs-*.tgz)" \
-    "$(ls "$pack"/louise-toolkit-*.tgz)" \
+    "$(ls "$pack"/louise-toolkit-[0-9]*.tgz)" \
     "$(ls "$pack"/louise-toolkit-astro-*.tgz)"
 }
 
