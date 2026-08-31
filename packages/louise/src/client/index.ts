@@ -26,6 +26,7 @@ import {
 import { NODE_MARKER_ATTR } from "./node.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
+import { onLouiseNavigate } from "./lifecycle.js";
 
 // Re-exported so the Settings artwork form reuses the exact same ProseKit
 // rich-text editor as slice-1 inline editing (same ProseMirror JSON storage).
@@ -347,8 +348,8 @@ export interface MountLouiseOptions {
 /**
  * The currently-mounted inline editor's leave hooks, so the shared handlers below
  * can flush + guard whichever page is active. A soft (view-transition) navigation
- * replaces `<body>` — and this editor with it — so it's cleared on `astro:after-swap`
- * and re-set by the next page's `mountLouise`.
+ * replaces `<body>` — and this editor with it — so it's cleared on the host's
+ * `after-swap` signal and re-set by the next page's `mountLouise`.
  */
 interface ActiveInline {
   /** Flush pending auto-saved edits (routes through the raw keepalive fetch). */
@@ -372,15 +373,17 @@ let leaveHandlersWired = false;
  *
  * - `visibilitychange → hidden` / `pagehide` / `beforeunload` — hard navigations and
  *   tab-hide. The keepalive fetches let a flush fired here still reach the Worker.
- * - `astro:before-swap` — Astro **soft** navigations, which fire none of the above;
- *   without this a view-transition nav would drop pending edits. Flushes before the
- *   DOM (and the current editor) is swapped away (#74).
- * - `astro:after-swap` — clears the mount guard (a runtime `<html>` attribute that
- *   survives the swap) and drops the now-defunct editor, so the next page re-mounts
- *   cleanly on `astro:page-load`.
+ * - `louiseNavigation.beforeSwap()` — **soft** navigations, which fire none of the
+ *   above; without this a router-driven nav would drop pending edits. Flushes before
+ *   the DOM (and the current editor) is swapped away (#74).
+ * - `louiseNavigation.afterSwap()` — clears the mount guard (a runtime `<html>`
+ *   attribute that survives the swap) and drops the now-defunct editor, so the next
+ *   page re-mounts cleanly.
  *
- * `astro:*` are plain DOM events; in a non-Astro host they simply never fire, so this
- * stays framework-agnostic.
+ * Those two are reported by the HOST (see `./lifecycle`), not observed here: a
+ * library that names one framework's events is not framework-agnostic. A host with
+ * no soft navigation calls neither and loses nothing — hard navigations are covered
+ * by the browser events above.
  */
 function ensureLeaveHandlers(): void {
   if (leaveHandlersWired) return;
@@ -401,8 +404,8 @@ function ensureLeaveHandlers(): void {
       e.returnValue = "";
     }
   });
-  document.addEventListener("astro:before-swap", leave);
-  document.addEventListener("astro:after-swap", () => {
+  onLouiseNavigate("before-swap", leave);
+  onLouiseNavigate("after-swap", () => {
     delete document.documentElement.dataset.louiseMounted;
     activeInline = null;
     // Tear down the realtime socket for the page being navigated away from; the
@@ -478,7 +481,7 @@ const LOUISE_CHROME_SELECTOR =
   ".louise-bar,#louise-drawer-root,.louise-inspector,.louise-chrome-toolbar,.louise-format-bubble,.louise-banner,.louise-grammar-popover,.louise-rt";
 
 export function mountLouise(opts: MountLouiseOptions): void {
-  // Idempotent within a page render; cleared on `astro:after-swap` so a soft
+  // Idempotent within a page render; cleared on the host's `after-swap` so a soft
   // navigation re-mounts the (replaced) body's editor. See {@link ensureLeaveHandlers}.
   if (document.documentElement.dataset.louiseMounted === "1") return;
   document.documentElement.dataset.louiseMounted = "1";
@@ -840,6 +843,10 @@ export function mountLouise(opts: MountLouiseOptions): void {
     };
   }
   // Always wire the shared handlers: even a no-fields editor page needs the
-  // `astro:after-swap` guard-reset so navigating to the next page re-mounts it.
+  // `after-swap` guard-reset so navigating to the next page re-mounts it.
   ensureLeaveHandlers();
 }
+
+// The page-lifecycle seam a HOST wires to its router (#327). Re-exported here so a
+// site imports it from the same entry point as `mountLouise`.
+export { type LouiseNavigationPhase, louiseNavigation, onLouiseNavigate } from "./lifecycle.js";

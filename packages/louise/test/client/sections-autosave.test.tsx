@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
 import { mountSections } from "../../src/client/sections.jsx";
+import { louiseNavigation } from "../../src/client/lifecycle.js";
 
 const CATALOG: SectionCatalog = {
   // `textarea` is the declaration that a field holds more than one line — the
@@ -109,7 +110,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
     expect(calls.some((c) => c.url.endsWith("/publish"))).toBe(false);
   });
 
-  it("flushes a pending draft on astro:before-swap — view-transition nav (#74)", async () => {
+  it("flushes a pending draft on before-swap — view-transition nav (#74)", async () => {
     const { calls } = stubFetch();
     const el = host();
     dispose = mountSections(el, {
@@ -122,9 +123,9 @@ describe("mountSections — auto-save (sections drafts)", () => {
     const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "Swept heading");
-    // A soft nav fires astro:before-swap (not pagehide) — the dock must flush the
+    // A soft nav fires before-swap (not pagehide) — the dock must flush the
     // pending draft before its DOM is swapped away, or the in-flight edit is lost.
-    document.dispatchEvent(new Event("astro:before-swap"));
+    louiseNavigation.beforeSwap();
     await vi.advanceTimersByTimeAsync(0);
 
     const drafts = calls.filter(
@@ -149,13 +150,13 @@ describe("mountSections — auto-save (sections drafts)", () => {
     const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "torn down");
-    // The astro:page-load bootstrap tears the old dock down before re-mounting the
+    // The page-load bootstrap tears the old dock down before re-mounting the
     // next page's — its listeners (incl. before-swap) must go with it.
     teardown();
     dispose = undefined;
 
     calls.length = 0;
-    document.dispatchEvent(new Event("astro:before-swap"));
+    louiseNavigation.beforeSwap();
     await vi.advanceTimersByTimeAsync(0);
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
