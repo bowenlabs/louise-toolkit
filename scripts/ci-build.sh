@@ -20,6 +20,12 @@ fi
 # leaving the site build unable to resolve the `louise-toolkit/*` subpaths.
 (cd packages/louise && NODE_PATH=node_modules vp pack)
 
+# The Astro adapter, for the same reason: the site imports `@louise-toolkit/astro`
+# and its `exports` point at dist/, so the workspace link resolves to nothing
+# until this runs. Missing it fails the site build with "Failed to resolve entry
+# for package", which is not an obvious symptom of an unbuilt sibling.
+(cd packages/louise-astro && corepack pnpm run build)
+
 # Build the standalone static docs app (workers/docs) and fold its output into
 # the marketing Worker's static assets at public/_docs. Astro copies public/
 # verbatim into the build, so the one Worker serves docs.louisetoolkit.com from
