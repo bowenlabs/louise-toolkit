@@ -1,0 +1,25 @@
+id: no-value-import-cloudflare-workers
+language: TypeScript
+severity: error
+message: "`cloudflare:workers` must not be imported as a value in the library."
+note: |
+  The library provides the LOGIC a Durable Object / Workflow subclass delegates
+  to; the SITE owns the subclass and the wrangler binding, and only the site
+  imports `cloudflare:workers`. See the headers of core/realtime, core/workflows
+  and core/security/rate-limit-do — three files that state this in a comment,
+  which is exactly why it is worth enforcing.
+
+  A TYPE-only import is fine and is not matched here: `import type { ... }` is
+  erased at compile time and creates no runtime dependency on the module.
+  core/workflows/index.ts relies on that.
+
+  If you need the runtime value, the code belongs in the site, not the library.
+files:
+  - "packages/louise/src/**/*.ts"
+  - "packages/louise/src/**/*.tsx"
+  - "packages/astroid/src/**/*.ts"
+rule:
+  all:
+    - pattern: import $$$IMPORTED from "cloudflare:workers"
+    - not:
+        pattern: import type $$$TYPES from "cloudflare:workers"

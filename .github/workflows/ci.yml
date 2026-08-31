@@ -71,6 +71,15 @@ jobs:
       - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
         run: corepack pnpm run lint:solid
 
+      # Architectural invariants oxlint cannot express, because they are about
+      # the SHAPE of a statement rather than a name: a value import of
+      # `cloudflare:workers` in the library is a violation while a type-only
+      # import of the same module is correct and load-bearing. Rules live in
+      # .ast-grep/rules; each carries a `note` explaining the invariant, since a
+      # rule nobody understands gets deleted the first time it is inconvenient.
+      - name: Architectural rules (ast-grep)
+        run: corepack pnpm run lint:arch
+
       # Dead-code check: unused files and exports across the workspace. Runs on
       # source (entry points mapped in knip.jsonc), so no build is needed.
       - name: Dead-code check (Knip)

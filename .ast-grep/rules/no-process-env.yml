@@ -1,0 +1,24 @@
+id: no-process-env
+language: TypeScript
+severity: error
+message: "`process.env` does not exist on Workers — read configuration from bindings."
+note: |
+  This code runs on workerd, not Node. Configuration arrives as a binding on the
+  request-scoped `env` object (or through a Secrets Store binding via
+  `readSecret`/`getSessionSecret`), never from `process.env`.
+
+  The failure mode is nasty precisely because it is not a build error: bundling
+  succeeds, and `process.env.FOO` evaluates to `undefined` at the edge. A
+  config-driven feature silently behaves as though it was never configured — the
+  same shape as the "placeholder secret = module dormant" convention, but by
+  accident rather than design.
+
+  Build scripts and CI helpers under scripts/ are Node and are not matched here.
+files:
+  - "packages/louise/src/**/*.ts"
+  - "packages/louise/src/**/*.tsx"
+  - "packages/astroid/src/**/*.ts"
+rule:
+  any:
+    - pattern: process.env.$NAME
+    - pattern: process.env[$KEY]
