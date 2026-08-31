@@ -435,13 +435,21 @@ export async function getLouiseAuth(
             return;
           }
           const mail = config.renderMagicLinkEmail({ url: link, toEmail: email });
-          await sendEmail(env.EMAIL, {
-            from: config.mailFrom,
-            to: email,
-            subject: mail.subject,
-            html: mail.html,
-            text: mail.text,
-          });
+          await sendEmail(
+            env.EMAIL,
+            {
+              from: config.mailFrom,
+              to: email,
+              subject: mail.subject,
+              html: mail.html,
+              text: mail.text,
+            },
+            // The request's own hostname, not a build-time flag: with no EMAIL
+            // binding on localhost the magic link is printed to the console, which
+            // is the only way to sign in locally. A better signal than the
+            // bundler's `import.meta.env` too — it reflects THIS request.
+            { dev: isDev },
+          );
         },
       }),
       admin(),
@@ -496,13 +504,17 @@ export async function getLouiseAuth(
                       inviterEmail: data.inviter.user.email,
                       role: data.role,
                     });
-                    await sendEmail(env.EMAIL, {
-                      from: config.mailFrom,
-                      to: data.email,
-                      subject: mail.subject,
-                      html: mail.html,
-                      text: mail.text,
-                    });
+                    await sendEmail(
+                      env.EMAIL,
+                      {
+                        from: config.mailFrom,
+                        to: data.email,
+                        subject: mail.subject,
+                        html: mail.html,
+                        text: mail.text,
+                      },
+                      { dev: isDev },
+                    );
                   }
                 : undefined,
               ...(prefix

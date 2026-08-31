@@ -63,10 +63,21 @@ export interface SendEmailOptions {
   /** Sink for the simulated-send log line. Defaults to `console.info`. */
   log?: (message: string) => void;
   /**
+   * Is this a development environment? The host knows; this library cannot
+   * reliably tell on a Worker.
+   *
+   * Drives the defaults for {@link simulateWhenUnconfigured} and {@link devLog}.
+   * Unset falls back to a `NODE_ENV` check that reads absent-as-production, so
+   * forgetting it is safe but pessimistic: an unconfigured send throws instead of
+   * simulating, and a sign-in link is withheld from the log.
+   */
+  dev?: boolean;
+  /**
    * Print the message BODY in the simulated log. The body can carry a single-use
    * sign-in or reset link, so it is included only where we can tell we're in
-   * development. Defaults to {@link looksLikeDev}; set it explicitly when the
-   * detection can't (a local `wrangler dev` against a real account, a test).
+   * development. Defaults to {@link dev}, else the `NODE_ENV` fallback; set it
+   * explicitly when neither can tell (a local `wrangler dev` against a real
+   * account, a test).
    */
   devLog?: boolean;
 }
@@ -83,20 +94,19 @@ function htmlToText(html: string): string {
 }
 
 /**
- * Best-effort "are we in development?".
+ * Best-effort "are we in development?" — the fallback when the host does not say.
  *
- * Deliberately conservative — it decides both whether an unconfigured send
+ * Deliberately conservative: it decides both whether an unconfigured send
  * simulates rather than throws AND whether a credential-bearing body is printed,
- * so an unknown environment must read as production. Workers has no `NODE_ENV`,
- * so we look at the signals that do exist. (Astroid's mailer carries its own copy
- * of this same heuristic; the dependency only runs astroid → louise, so the floor
- * can't import the ceiling.)
+ * so an unknown environment must read as production.
+ *
+ * This used to read `import.meta.env.DEV` first, which a bundler defines at build
+ * time. That made a library claiming to be framework-agnostic depend on being
+ * built by one — and on a plain Worker the read was absent anyway. The host knows
+ * the answer and should pass {@link SendEmailOptions.dev}; `NODE_ENV` remains as
+ * a fallback because it is an ordinary global rather than a bundler construct.
  */
 function looksLikeDev(): boolean {
-  // Vite/Astro define this at build time; `import.meta.env` is absent in a plain
-  // Worker, hence the guarded read.
-  const viteDev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV;
-  if (typeof viteDev === "boolean") return viteDev;
   const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
     ?.env?.NODE_ENV;
   if (typeof nodeEnv === "string") return nodeEnv !== "production";
@@ -148,7 +158,7 @@ export async function sendEmail(
   options: SendEmailOptions = {},
 ): Promise<SendEmailResult> {
   if (!binding) {
-    const dev = looksLikeDev();
+    const dev = options.dev ?? looksLikeDev();
     const simulate = options.simulateWhenUnconfigured ?? dev;
     if (!simulate) {
       // A production send with no EMAIL binding is a real misconfiguration, not a

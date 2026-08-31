@@ -256,3 +256,50 @@ describe("isEditRequest", () => {
     expect(renders).toBe(2); // the editor rendered fresh, not served the entry
   });
 });
+
+describe("signalHeader — the cacheability signal is the host's convention", () => {
+  const ok = (headers: Record<string, string>) => async () =>
+    new Response("<html>page</html>", { headers });
+
+  it("honours a custom signal header", async () => {
+    // A host that says "cache me" some other way should not have to adopt
+    // Cloudflare's header name to use this cache.
+    const { cache, puts } = fakeCache();
+    const c = ctx();
+    const wrapped = withEdgeCache(ok({ "x-cache-me": "public, max-age=60" }), {
+      cache: () => cache,
+      signalHeader: "x-cache-me",
+    });
+    const res = await wrapped(new Request("https://x.test/a"), {}, c);
+    await (c as unknown as { _drain: () => Promise<unknown> })._drain();
+
+    expect(puts).toHaveLength(1);
+    // Stripped on the way out, exactly as the default header is.
+    expect(res.headers.get("x-cache-me")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("ignores the default header once a custom one is configured", async () => {
+    // Otherwise a page could be cached off a signal the host never meant as one.
+    const { cache, puts } = fakeCache();
+    const c = ctx();
+    const wrapped = withEdgeCache(ok({ "cloudflare-cdn-cache-control": "public, max-age=60" }), {
+      cache: () => cache,
+      signalHeader: "x-cache-me",
+    });
+    await wrapped(new Request("https://x.test/b"), {}, c);
+    await (c as unknown as { _drain: () => Promise<unknown> })._drain();
+    expect(puts).toHaveLength(0);
+  });
+
+  it("still defaults to the Cloudflare header", async () => {
+    const { cache, puts } = fakeCache();
+    const c = ctx();
+    const wrapped = withEdgeCache(ok({ "cloudflare-cdn-cache-control": "public, max-age=60" }), {
+      cache: () => cache,
+    });
+    await wrapped(new Request("https://x.test/c"), {}, c);
+    await (c as unknown as { _drain: () => Promise<unknown> })._drain();
+    expect(puts).toHaveLength(1);
+  });
+});
