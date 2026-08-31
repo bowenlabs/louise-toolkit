@@ -1,6 +1,6 @@
 # ADR 0009 — Louise MCP server: agent-editable content over the Local API
 
-- **Status:** Proposed (2026-07-19) — design of record for issue #103, pending review before slice 1 lands.
+- **Status:** Accepted (2026-07-19) — design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #103 (milestone: Platform features push, epic #102)
 - **Related:** #75 / #99 (AI assists — become MCP consumers), #16 (Local API + access), #10 (editor routes / `composeWorker`), ADR 0006 (keep hand-rolled `composeWorker`, zero-dep core)
@@ -66,6 +66,50 @@ Shipped as vertical, independently reviewable slices, per the repo's PR-per-slic
 3. **Auth for headless agents** — `resolveMcpSession` bearer-token path → `EditorSession`, scoped + revocable tokens, same-origin bypass for token requests only. _(task: session/auth)_
 4. **Draft-gated write tools** — `update_field`/`add_section`/`add_block`/`create` via `applySaveDraft`; separate `publish` tool via the `publish` access fn; per-version agent provenance. _(task: write tools gated through drafts + `can()`)_
 5. **Publish + register** — `./mcp` export, Starlight docs, changeset, MCP-registry listing + manifest. _(task: publish + register)_
+
+## Amendment (2026-08-30, at slice 1)
+
+Three things had moved since this was written. None overturns the decision above;
+all three change what slices 2–4 should build against.
+
+### Cloudflare now ships a Workers-native MCP handler — and the hand-roll still wins
+
+Decision 1 declined `@modelcontextprotocol/sdk` on two grounds: it is
+Node/`node:http`-oriented, and it would be the first runtime dependency in a
+deliberately zero-dep core. **The first ground no longer holds.** Cloudflare's
+Agents SDK now offers `createMcpHandler()` — a _stateless_ Workers-native MCP
+handler that needs no Durable Object, alongside the stateful `McpAgent` that does.
+
+The second ground holds completely, and it was always the load-bearing one. The
+`agents` package is still a runtime dependency, and ADR 0006 keeps the core at
+zero. So `packages/louise` continues to hand-roll.
+
+What genuinely changes is that there is now a credible option for **astroid**,
+which already depends on `louise-toolkit` and exists to be the opinionated layer.
+A scaffolded site could mount `createMcpHandler` over the same
+`collectionTools()` output this slice produces, without the core taking the
+dependency. Worth revisiting if the hand-rolled transport in slice 2 grows past
+`initialize`/`tools/list`/`tools/call`.
+
+### Target the current spec revision, not the one this ADR was written against
+
+The MCP specification has revised to **2026-07-28**, after this ADR. Slice 2
+implements against that revision. Nothing in decision 1 depends on which revision
+is current — the point was that the surface we need is small and stable — but the
+implementation should not silently target a stale one.
+
+### `add_block` defers to the write slice
+
+Slice 1 generates `add_<slug>_section` from the `SectionCatalog`, as planned, but
+**not** `add_<slug>_block`. The reason is structural rather than schedule
+pressure: `content/blocks.ts` is a _renderer registry_ (`createBlockRegistry`,
+`renderBlocksToString`), not a catalog of insertable block types, and per ADR 0005
+blocks are a policy declared **on a section** rather than a free-standing library.
+There is therefore nothing at this layer to derive an argument schema from.
+
+Generating the tool anyway would mean inventing a block catalog to satisfy the
+slice plan, which is the wrong order. It arrives with slice 4, where the write
+path establishes what inserting a block actually means.
 
 ## Consequences
 
