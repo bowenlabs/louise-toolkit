@@ -4,7 +4,7 @@
 //
 // Every Louise site's `worker.ts` is the same shape: try a few Louise-owned
 // routes (the generic `api/louise/*` handlers, an OG-image endpoint, …), fall
-// through to the framework's SSR handler (Astro), and optionally wire a
+// through to the framework's SSR handler, and optionally wire a
 // `queue`/`scheduled` handler. `composeWorker` builds that `ExportedHandler` so
 // the entrypoint is a declaration of routes + fallback rather than hand-rolled
 // per site.
@@ -28,8 +28,8 @@ export type WorkerRoute<Env = unknown> = (
 export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
   /** Ordered route handlers; the first to return a `Response` wins. */
   routes?: WorkerRoute<Env>[];
-  /** Fallback when no route matches — typically the framework SSR handler
-   *  (e.g. `@astrojs/cloudflare`'s `handle`). */
+  /** Fallback when no route matches — typically the handler the framework's
+   *  Cloudflare adapter exposes. */
   fetch: NonNullable<ExportedHandler<Env>["fetch"]>;
   /** Optional Queue consumer, passed through unchanged. */
   queue?: NonNullable<ExportedHandler<Env, QMessage>["queue"]>;

@@ -83,6 +83,13 @@ jobs:
       - name: Architectural rules (ast-grep)
         run: corepack pnpm run lint:arch
 
+      # The framework-agnostic claim, enforced (#327). A text scan rather than an
+      # AST rule, because what leaks back in is prose: "e.g. `astro dev`" in a
+      # comment is a constant temptation, since Astro genuinely IS the clearest
+      # example to reach for. Astro belongs in @louise-toolkit/astro or astroidjs.
+      - name: No framework references in the core (louise-toolkit)
+        run: node scripts/ci/checks/no-astro-in-core.mjs
+
       # Prose style for the published docs, against the Google developer
       # documentation style guide. `vale sync` fetches the style package into a
       # gitignored .vale/ — pinned, reproducible, not vendored, the same shape as

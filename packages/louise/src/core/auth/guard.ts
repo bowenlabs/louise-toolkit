@@ -49,7 +49,7 @@ export function requireEditor(ctx: EditorRequest, mutation = true): Response | n
 
 /** The framework-`context`-shaped slice the editor guard needs: the request
  *  plus the middleware-resolved editor on `locals`. Structural on purpose, so a
- *  site passes its Astro `APIContext` straight through — no `astro` type
+ *  site passes its own request context straight through — no framework type
  *  dependency here. */
 export interface EditorContext {
   request: Request;
@@ -59,7 +59,7 @@ export interface EditorContext {
 /**
  * Context adapter over {@link requireEditor}: bridges a framework `context`
  * (`{ request, locals.editor }`) to the package's `{ request, editor }` shape,
- * so an editor-gated Astro `APIRoute` is a one-liner —
+ * so an editor-gated framework route is a one-liner —
  * `const denied = requireEditorFromContext(context); if (denied) return denied;`
  * — instead of each site re-declaring the same bridge in its own `lib/guard`.
  */

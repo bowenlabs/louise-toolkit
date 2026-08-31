@@ -129,7 +129,7 @@ export interface StudioMountOptions extends StudioConfig {
  * Mount the full-page studio.
  *
  * Idempotent per target, like `mountSettings` — a client-side route change or an
- * Astro view transition can re-run this without stacking two apps. Returns a
+ * soft navigation can re-run this without stacking two apps. Returns a
  * disposer for the cases that need one (a router unmounting the island).
  */
 export function mountStudio(config: StudioMountOptions = {}): () => void {
