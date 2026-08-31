@@ -13,6 +13,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.5",
     "@astrojs/solid-js": "^7.0.2",
+    "@louise-toolkit/astro": "workspace:*",
     "@phosphor-icons/core": "^2.1.1",
     "@prosekit/pm": "^0.1.19",
     "@resvg/resvg-wasm": "^2.6.2",

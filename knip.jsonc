@@ -33,7 +33,6 @@
     // traces the real module graph instead of flagging the whole public API.
     "packages/louise": {
       "entry": [
-        "src/astro/index.ts",
         "src/client/index.ts",
         "src/client/settings/index.ts",
         "src/client/studio/index.ts",
@@ -71,6 +70,25 @@
         "test/**/*.test.ts",
       ],
       "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs", "assets/**/*.mjs"],
+    },
+
+    "packages/create-astroid": {
+      // `@louise-toolkit/astro` is a real dependency that is never imported: the
+      // scaffold only RESOLVES it, through `req.resolve(`${name}/package.json`)`
+      // in `toolkitRanges()`, to derive the version range written into a new
+      // project. The specifier is a template string, so knip cannot see it.
+      //
+      // It has to stay a declared dependency for that resolution to work at all,
+      // and because `pnpm pack` is what rewrites `workspace:*` into the concrete
+      // version the derivation depends on. `astroidjs` and `louise-toolkit` avoid
+      // this only because they happen to also be imported for other reasons.
+      "ignoreDependencies": ["@louise-toolkit/astro"],
+    },
+
+    // The Astro adapter: one public entry, and its tests.
+    "packages/louise-astro": {
+      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
     },
 
     // Same story as the library: the `exports` map points at ./dist/*, so map

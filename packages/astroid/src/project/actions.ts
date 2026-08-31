@@ -4,7 +4,7 @@
 // layer 2), beside the framework-agnostic `/api/louise/*` routes.
 //
 // Astroid generated only the route half. That is not a missing convenience: the
-// two entrypoints write the SAME rows, and the whole reason `louise-toolkit/astro`
+// two entrypoints write the SAME rows, and the whole reason `@louise-toolkit/astro`
 // exposes these factories is that each one shares the raw route's store path —
 // `applyFieldSave`, `applySettingsPatch`, `applySaveDraft`. A project that wired
 // its own Actions by hand would get a second write path, and a second write path
@@ -55,7 +55,7 @@ export function generateAstroidActions(config: AstroidConfig): string {
     "  louiseSaveAction,",
     "  louiseSaveDraftAction,",
     "  louiseSettingsAction,",
-    '} from "louise-toolkit/astro";',
+    '} from "@louise-toolkit/astro";',
     "import {",
     "  ASTROID_SETTINGS_COLUMNS,",
     "  ASTROID_SETTINGS_IMAGE_KEYS,",

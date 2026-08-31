@@ -21,7 +21,7 @@
 
 import type { Loader } from "astro/loaders";
 import { z } from "astro/zod";
-import type { CollectionConfig, FieldConfig } from "../core/content/types.js";
+import type { CollectionConfig, FieldConfig } from "louise-toolkit/content";
 
 /** A published row as read from D1 — a document in the collection's field shape. */
 export type LouiseRow = Record<string, unknown>;

@@ -1,7 +1,7 @@
 import type { LoaderContext } from "astro/loaders";
 import { describe, expect, it, vi } from "vitest";
-import { collectionToAstroSchema, louiseLoader } from "../../src/astro/content-loader.js";
-import { defineCollection } from "../../src/core/content/index.js";
+import { collectionToAstroSchema, louiseLoader } from "../src/content-loader.js";
+import { defineCollection } from "louise-toolkit/content";
 
 const collection = defineCollection({
   slug: "pages",
