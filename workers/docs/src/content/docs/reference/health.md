@@ -1,6 +1,6 @@
 ---
 title: health
-description: "louise-toolkit/health — the site-health snapshot: broken links, missing alt text, SEO gaps, and Core Web Vitals, persisted to KV."
+description: "louise-toolkit/health—the site-health snapshot: broken links, missing alt text, SEO gaps, and Core Web Vitals, persisted to KV."
 sidebar:
   order: 14.75
 ---
@@ -20,7 +20,7 @@ primitives the toolkit already has. Binding: a KV namespace. No required peers.
 :::caution[The card stays hidden until the first scan]
 `readHealthSummary` returns `null` until something has written one, and both the
 Health card and `overview.health` treat absent as "nothing to show". Wire this up,
-load the dashboard, and see nothing — that is the expected state, not a broken
+load the dashboard, and see nothing—that is the expected state, not a broken
 integration. Run the scan once and it appears.
 :::
 
@@ -28,7 +28,7 @@ integration. Run the scan once and it appears.
 
 The three inputs have very different costs, and the split follows from that:
 
-- **Broken links** come from a crawl — network, seconds, driven by a Cron
+- **Broken links** come from a crawl—network, seconds, driven by a Cron
   Trigger. Far too slow for a dashboard request.
 - **Missing alt** and **SEO gaps** are cheap `COUNT`s the site computes at scan
   time.
@@ -57,7 +57,7 @@ await writeHealthSummary(
 Counts are guarded to non-negative integers, so a bad input can't skew the traffic
 light. `now` is injectable for deterministic tests.
 
-`brokenLinkDetails` is capped at `MAX_BROKEN_LINK_DETAILS` (50) — **the counts
+`brokenLinkDetails` is capped at `MAX_BROKEN_LINK_DETAILS` (50)—**the counts
 stay exact**, the details are a sample for a list view, so one badly broken deploy
 can't bloat the stored blob.
 
@@ -66,13 +66,13 @@ snapshot is more useful than none, and `checkedAt` tells the dashboard how old i
 is.
 
 `readHealthSummary` returns `null` for both "nothing stored" and "stored blob is
-unparseable" — a corrupt value degrades to no-data rather than throwing inside a
+unparseable"—a corrupt value degrades to no-data rather than throwing inside a
 dashboard request.
 
 ## Folding in Core Web Vitals
 
 `HealthSummary.cwv` holds a [`CwvSummary`](/reference/analytics/) once a scan adds
-one. Absent means "not measured yet" and the panel says so — distinct from
+one. Absent means "not measured yet" and the panel says so—distinct from
 measured-and-poor, which is a real result.
 
 ## Reading it
@@ -82,7 +82,7 @@ function healthIssueCount(summary: HealthSummary): number;
 ```
 
 The "N things need attention" number: broken links + missing alt + SEO gaps. CWV
-is deliberately **not** in it — a slow LCP is not a countable defect the way a
+is deliberately **not** in it—a slow LCP is not a countable defect the way a
 404 is, and adding it would make the number jump for something you can't fix by
 editing one page.
 
@@ -95,5 +95,5 @@ rather than re-mapping it.
 `HealthSummary`, `HealthInput`, `HealthKV`. Constants: `HEALTH_KV_KEY`
 (`"louise:health:summary"`), `MAX_BROKEN_LINK_DETAILS`.
 
-`HealthKV` is structural — `get`/`put` — so a real `KVNamespace` satisfies it
+`HealthKV` is structural—`get`/`put`—so a real `KVNamespace` satisfies it
 without this module importing Workers types.

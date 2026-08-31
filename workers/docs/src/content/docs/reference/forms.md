@@ -1,6 +1,6 @@
 ---
 title: forms
-description: "louise-toolkit/forms — declarative form definitions: derive the table, capture route, validation, and review columns from one definition."
+description: "louise-toolkit/forms—declarative form definitions: derive the table, capture route, validation, and review columns from one definition."
 sidebar:
   order: 12
 ---
@@ -13,7 +13,7 @@ Define a form's fields **once**; derive the submission table, the public capture
 route ([`formRoute`](/reference/editor/)), server + client validation, and the
 review columns from that single definition. `inquiries` is the built-in default
 form ([`louise-toolkit/db`](/reference/db/)). Validation reuses the shared `Rule`
-engine ([`content`](/reference/content/#validation)) — one definition, both sides. Peer:
+engine ([`content`](/reference/content/#validation))—one definition, both sides. Peer:
 `drizzle-orm`. See the [forms guide](/guide/forms/) for the full walk-through.
 
 ## `defineForm(config)`
@@ -22,7 +22,7 @@ engine ([`content`](/reference/content/#validation)) — one definition, both si
 function defineForm(config: FormConfig): FormDefinition;
 ```
 
-Returns the config plus everything derived from it — the Drizzle `columns`/
+Returns the config plus everything derived from it—the Drizzle `columns`/
 `table` and the `reviewColumns` Louise Settings renders.
 
 ### `FormConfig` / `FormField`
@@ -32,7 +32,7 @@ Returns the config plus everything derived from it — the Drizzle `columns`/
 | `name`         | form + table name (a bare SQL identifier, `^[A-Za-z_][A-Za-z0-9_]*$`) |
 | `fields`       | `Record<string, FormField>`                                           |
 | `spam?`        | opt-in anti-spam (below)                                              |
-| `notify?`      | `{ webhook?, email? }` — where a submission is announced              |
+| `notify?`      | `{ webhook?, email? }`—where a submission is announced                |
 | `submitLabel?` | button label for the render helper (default `"Send"`)                 |
 
 A `FormField` is `{ type, label, required?, options?, placeholder?, help?,
@@ -68,7 +68,7 @@ blank → `null`).
 
 `spam` on the form declares intent; `formRoute` enforces it with the bindings you
 pass. `rateLimit` (KV fixed-window), `turnstile` (verified with
-`verifyTurnstileToken`, fails closed), and two **silent** heuristics — `honeypot`
+`verifyTurnstileToken`, fails closed), and two **silent** heuristics—`honeypot`
 (a decoy field) and `minSeconds` (a too-fast-submit check vs the render helper's
 `louise_ts`). `looksLikeSpam(config, body)` evaluates the silent pair.
 
@@ -102,12 +102,12 @@ function tanstackFieldValidator(
 ```
 
 Dependency-free validators in `@tanstack/solid-form`'s shape, backed by the same
-`Rule` engine — so a complex hand-built form keeps one validation definition. The
+`Rule` engine—so a complex hand-built form keeps one validation definition. The
 consumer brings the peer.
 
 **Wire them to `onChangeAsync`** (or `onBlurAsync` / `onSubmitAsync`), never
 `onChange`. They are async by contract, and a promise-returning function in a sync
-slot is stored as the promise — `meta.errors` then holds a pending `Promise`
+slot is stored as the promise—`meta.errors` then holds a pending `Promise`
 instead of a string, so the message never renders and submit never disables. See
 the [forms guide](/guide/forms/#complex-forms-tanstack-form).
 
@@ -115,4 +115,4 @@ the [forms guide](/guide/forms/#complex-forms-tanstack-form).
 
 For one-off forms (RSVP/waitlist/booking), store into the shared `submissions`
 table ([`louise-toolkit/db`](/reference/db/)) via `formRoute`'s `genericTable` and
-review each with [`submissionsRoute`](/reference/editor/) — no migration per form.
+review each with [`submissionsRoute`](/reference/editor/)—no migration per form.

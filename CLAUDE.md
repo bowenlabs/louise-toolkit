@@ -92,6 +92,25 @@ Every rule carries a `note` explaining the invariant, because a rule nobody
 understands gets deleted the first time it is inconvenient. Keep the set small:
 anything expressible as an ordinary lint rule belongs in oxlint instead.
 
+## Documentation style
+
+`corepack pnpm run lint:docs` runs [Vale](https://vale.sh) against the **Google
+developer documentation style guide** over the published Starlight docs — the
+surface a reader actually meets, covering both louise-toolkit and astroidjs.
+Source comments are out of scope: they are written for maintainers, and the
+Google guide is a guide for user-facing prose.
+
+Adopting a guide is not the same as surrendering to it. Two rules are off, each
+with its reason in `.vale.ini`: `LyHyphens` (it assumes any `ly`-ending word is
+an adverb, so "**supply**-chain" trips it) and `Quotes` (it wants the period
+inside `says "editor."`, which in a technical doc implies the period is part of
+the literal value). Everything else is on, including `EmDash` — the house
+spaced-em-dash style was converted in the docs to meet it.
+
+Note the resulting split: **docs use `word—word`, source comments still use
+`word — word`**. Vale only lints the docs, so nothing enforces the comment style
+either way.
+
 ## Decisions get an ADR
 
 `docs/adr/`. And an ADR that has stopped being true gets **amended**, not quietly

@@ -17,7 +17,7 @@ Stripe, Square, and Fourthwall with raw `fetch` and HMAC-verify webhooks with
 `crypto.subtle` rather than pulling an SDK that assumes Node.
 
 The one deliberately non-standard touch is `Error.captureStackTrace` in
-[`errors`](/reference/errors/) — a real V8 engine feature that Louise
+[`errors`](/reference/errors/)—a real V8 engine feature that Louise
 feature-detects (`if (Error.captureStackTrace)`) so it degrades cleanly
 anywhere.
 
@@ -34,11 +34,11 @@ sendEmail(env.EMAIL, input);
 
 This keeps every primitive:
 
-- **Framework-agnostic** — Astro, Hono, or a bare Worker all call the same
+- **Framework-agnostic**—Astro, Hono, or a bare Worker all call the same
   functions.
-- **Testable** — pass a fake `Queue`/`EmailSender`/D1 and assert, no runtime
+- **Testable**—pass a fake `Queue`/`EmailSender`/D1 and assert, no runtime
   mocking. (See the package's own `test/` suite.)
-- **Schema-neutral** — `db()` hands you a Drizzle instance over _your_ schema.
+- **Schema-neutral**—`db()` hands you a Drizzle instance over _your_ schema.
   Louise ships exactly one opinionated table, `site_settings`, and it's opt-in.
 
 ## 3. Rich text is HTML, not JSON
@@ -49,8 +49,8 @@ runs on the Worker; on load the editor re-parses the stored HTML.
 
 The trade Louise makes is deliberate: HTML is trivially renderable server-side
 with zero client JS, at the cost of needing a **parser-based sanitizer** on the
-write path. Louise treats the sanitizer as the security boundary — a strict
-per-tag attribute allowlist, `href`/`src`/`style` scrubbed — because stored HTML
+write path. Louise treats the sanitizer as the security boundary—a strict
+per-tag attribute allowlist, `href`/`src`/`style` scrubbed—because stored HTML
 is rendered verbatim.
 
 ## Edit mode
@@ -60,7 +60,7 @@ Editing is gated by **edit mode**, which a host app resolves per request
 Two facts matter:
 
 - The page's edit mode controls whether _edit affordances render_.
-- A separate, session-derived signal (e.g. `locals.editor`) controls whether
+- A separate, session-derived signal (for example, `locals.editor`) controls whether
   _writes are trusted_. Never authorize a save on the page's edit mode alone.
 
 Louise gives you the client and the field contract; **you own the auth**. The

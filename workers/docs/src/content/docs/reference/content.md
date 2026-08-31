@@ -1,6 +1,6 @@
 ---
 title: content
-description: "louise-toolkit/content — collections, codegen, the Local API, validation, patches, webhooks."
+description: "louise-toolkit/content—collections, codegen, the Local API, validation, patches, webhooks."
 sidebar:
   order: 2
 ---
@@ -38,10 +38,10 @@ export const content = defineContentConfig({ collections: { artworks } });
 ```
 
 `defineCollection` / `defineContentConfig` are identity helpers (Sanity's
-`defineType` analogue) — they return the config unchanged but give you
+`defineType` analogue)—they return the config unchanged but give you
 autocomplete and a single greppable call site.
 
-## Codegen — schema from config
+## Codegen—schema from config
 
 ```ts
 import { contentConfigToSchema, generateSchemaSource } from "louise-toolkit/content";
@@ -70,7 +70,7 @@ await api.update(id, patch, context);
 Every method takes a `context` and runs the matching **access** function
 (`read` for `find`/`findByID`, `create` for `create`, …) before touching the
 database, and validates writes with the collection's
-[rules](#validation) — throwing `LouiseAccessDeniedError` (→ 403) or
+[rules](#validation)—throwing `LouiseAccessDeniedError` (→ 403) or
 `LouiseValidationError` (→ 422) so a routing layer can branch by `instanceof`.
 `createVersionedLocalApi` adds draft/version history for collections that opt in
 with `versions`. `can(...)` evaluates access without performing the operation.
@@ -96,22 +96,22 @@ while returning warnings.
 
 ## Patches & rich text
 
-- `diffDocuments` / `computePatch` / `applyPatch` — structural document diffs for
+- `diffDocuments` / `computePatch` / `applyPatch`—structural document diffs for
   optimistic updates and version history.
-- `renderRichText(content)` — render stored rich-text content to HTML (the
+- `renderRichText(content)`—render stored rich-text content to HTML (the
   server never runs ProseMirror; see [Rich text](/guide/rich-text/)).
 
 ## Webhooks, migrations, visual editing
 
-- `createWebhookHook` / `deliverWebhookMessage` — afterChange-style outbound
+- `createWebhookHook` / `deliverWebhookMessage`—afterChange-style outbound
   webhooks.
-- `defineMigration` / `runMigration` — content migrations over collections.
-- `buildEditorStructure`, `getCollectionsMeta` — drive the Louise Editor UI.
-- `mountVisualEditing` / `mountPreviewSync` / `editAttr` — live preview and
+- `defineMigration` / `runMigration`—content migrations over collections.
+- `buildEditorStructure`, `getCollectionsMeta`—drive the Louise Editor UI.
+- `mountVisualEditing` / `mountPreviewSync` / `editAttr`—live preview and
   click-to-edit references.
 
 :::note
-`content` is a large surface — this page is a map, not an exhaustive signature list.
+`content` is a large surface—this page is a map, not an exhaustive signature list.
 Every symbol is fully typed; lean on your editor's autocomplete against the
 `louise-toolkit/content` types.
 :::

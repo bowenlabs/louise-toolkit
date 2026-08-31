@@ -1,6 +1,6 @@
 ---
 title: media
-description: "louise-toolkit/media — verified R2 uploads, an asset registry with alt/caption/dimensions, and Image-Resizing URL transforms."
+description: "louise-toolkit/media—verified R2 uploads, an asset registry with alt/caption/dimensions, and Image-Resizing URL transforms."
 sidebar:
   order: 13
 ---
@@ -25,7 +25,7 @@ function putMedia(bucket: R2Bucket, file: File, opts?): Promise<PutMediaResult>;
 Verifies the image from its **magic bytes** (never the client `Content-Type`),
 enforces a size cap (default 10 MB), stores it with the _verified_ type + an
 immutable cache header, and reads intrinsic `width`/`height` from the header
-(`imageDimensions` — PNG/GIF/JPEG/WebP). Rejects oversize (413) / non-images
+(`imageDimensions`—PNG/GIF/JPEG/WebP). Rejects oversize (413) / non-images
 (415) without writing. `sniffImageType` and `imageDimensions` are exported.
 
 ## Listing & metadata
@@ -41,7 +41,7 @@ default when no per-usage override is set. **Pass `urls`** (the images a page
 actually needs) to scope the query to a bounded `IN (…)` lookup instead of a
 full-table scan.
 
-### Threading `mediaMeta` — a correctness footgun, not just a perf one
+### Threading `mediaMeta`—a correctness footgun, not just a perf one
 
 A section stores an image as a bare URL. The `alt` and `caption` an editor typed
 live on the media **asset**, so rendering a page's images correctly means joining
@@ -49,8 +49,7 @@ every image field back to the registry.
 
 `<Sections>` does that in **one bounded lookup for the whole page** and threads the
 result down as `mediaMeta`. Render a `<MediaSlot>` outside that flow without
-passing it and the image silently loses its editor-authored `alt` and `caption` —
-nothing errors, the image just renders bare, and the editor's work appears not to
+passing it and the image silently loses its editor-authored `alt` and `caption`—nothing errors, the image just renders bare, and the editor's work appears not to
 have saved.
 
 The collection step is **schema-driven**: it walks the catalog for fields of
@@ -88,7 +87,7 @@ new cost, no server processing). `cropStyle` maps a per-usage `{ x, y, scale }`
 `Crop` to CSS. `isMediaUrl(base, value)` is the one definition of "media-backed"
 the sanitizer, the sections validator, and the settings route enforce with.
 
-### `cfImageSrcset(url, opts)` — the load-bearing one
+### `cfImageSrcset(url, opts)`—the load-bearing one
 
 ```ts
 cfImageSrcset(url, { width, ratio?, steps?, fit?, gravity?, quality? });
@@ -98,23 +97,23 @@ Builds a width-descriptor `srcset` plus a default `src`, so the browser picks th
 smallest derivative that covers the rendered width at the device's DPR. Reach for
 this rather than hand-rolling `srcset` math over `cfImage`.
 
-- **`steps`** defaults to `[0.5, 0.75, 1, 1.5, 2]` — multipliers of `width`,
+- **`steps`** defaults to `[0.5, 0.75, 1, 1.5, 2]`—multipliers of `width`,
   deduped and sorted, so one call covers half-size through retina.
 - **`ratio`** (`"16/9"`) derives each derivative's height, so the CDN crop matches
   what `object-fit` shows instead of shipping pixels the layout throws away.
 - **The returned `srcset` is meaningless without a `sizes` attribute** beside it.
   With no `sizes` the browser assumes `100vw` and over-fetches on every
-  multi-column layout — which is the single most common way a "responsive" image
+  multi-column layout—which is the single most common way a "responsive" image
   ends up slower than a fixed one.
 
-### `transformImage(images, input, opts?)` — when you need the bytes
+### `transformImage(images, input, opts?)`—when you need the bytes
 
 Re-encodes through the Cloudflare **Images binding** and returns a `Response`
 whose body is the encoded image.
 
 **This one produces bytes and bills accordingly**, unlike the URL rewriting above.
-Use it when the derivative must be materialized — persisted back to R2, handed to
-an OG renderer — and prefer `cfImage`/`cfImageSrcset` for anything public and
+Use it when the derivative must be materialized—persisted back to R2, handed to
+an OG renderer—and prefer `cfImage`/`cfImageSrcset` for anything public and
 on-the-fly.
 
 Its `format` is a **concrete encode defaulting to `avif`**, not the `auto` that URL
@@ -157,7 +156,7 @@ The fixed `384px` in the last `sizes` clause is deliberate: above 1024px the til
 stops growing, so `33vw` would over-fetch on a 2560px monitor. **`sizes` describes
 the rendered box, not the breakpoint.**
 
-Doing this with `cfImage` alone would mean building the same ladder by hand — the
+Doing this with `cfImage` alone would mean building the same ladder by hand—the
 thing `cfImageSrcset` exists to stop.
 
 ## Types

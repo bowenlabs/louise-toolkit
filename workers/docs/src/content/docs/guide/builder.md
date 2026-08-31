@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-The rich-text editor has an optional **blocks** mode — the `blocks` prop on
+The rich-text editor has an optional **blocks** mode—the `blocks` prop on
 `RichText`, on for freeform content pages and off for inline prose fields.
 `louise-toolkit/client`'s `blocks` module holds the framework.
 
@@ -18,7 +18,7 @@ rich field:
 - `toDOM` emits `<tag data-block="…" class="pb-…">`.
 - `parseDOM` reconstructs the node from that markup on load.
 
-So a block-built page is just HTML — there's no separate block JSON to store or
+So a block-built page is just HTML—there's no separate block JSON to store or
 migrate.
 
 ## The slash menu
@@ -52,4 +52,4 @@ export const callout = defineBlock({
 Public styles are `pb-*` classes you own in your site stylesheet; block-built
 pages typically render at full width while prose pages keep a readable measure.
 The sanitizer allows `class` **only** on block containers and **only** `pb-*`
-tokens — so editor HTML can never borrow arbitrary site classes.
+tokens—so editor HTML can never borrow arbitrary site classes.

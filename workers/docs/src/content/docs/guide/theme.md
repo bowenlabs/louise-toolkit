@@ -5,7 +5,7 @@ sidebar:
   order: 12
 ---
 
-Louise's editor chrome — Louise Settings, inline-edit affordances, panels — is styled
+Louise's editor chrome—Louise Settings, inline-edit affordances, panels—is styled
 by the **louise** [daisyUI](https://daisyui.com) theme, built from the BowenLabs
 brand system with blue `#1481ef` as primary. It styles _editor surfaces only_;
 your public site keeps its own theme.
@@ -47,12 +47,12 @@ so the chrome never inherits the site theme. Chrome-specific variables
 
 **Hepta Slab** for headers (weight 900 headings, 500 subheadings) and **Roboto
 Flex** for body, per the brand system. The client loads them via a `<link>`
-injected in edit mode only — so the public site ships no editor fonts — and
+injected in edit mode only—so the public site ships no editor fonts—and
 applies them through the `--louise-font-head` / `--louise-font-body` tokens.
 `fonts.css` mirrors the same split as a `.louise-type` contract for markup that
 opts in.
 
 ## Preview
 
-The package ships a standalone `preview/index.html` — a CDN mirror of both themes
+The package ships a standalone `preview/index.html`—a CDN mirror of both themes
 that needs no build. Open it directly to see the palette and type scale.

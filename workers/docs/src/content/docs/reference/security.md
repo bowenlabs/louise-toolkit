@@ -1,6 +1,6 @@
 ---
 title: security
-description: "louise-toolkit/security — editor-HTML sanitizer, KV rate limiter, session-secret helper, and security headers."
+description: "louise-toolkit/security—editor-HTML sanitizer, KV rate limiter, session-secret helper, and security headers."
 sidebar:
   order: 10
 ---
@@ -16,7 +16,7 @@ import {
 } from "louise-toolkit/security";
 ```
 
-The security-critical primitives every Louise site shares — so a fix lands once
+The security-critical primitives every Louise site shares—so a fix lands once
 and protects every site. Each helper takes its binding explicitly, so a site
 stays free to name bindings however it likes. No required peers (`ultrahtml` is
 bundled).
@@ -31,14 +31,14 @@ Parser-based **allowlist** sanitizer for editor-authored rich text. Parses with
 ultrahtml and rebuilds against a strict element + per-tag attribute allowlist,
 scrubs `href`/`src` schemes and inline `style`, and strips any stray dangerous
 token. The allowlist matches exactly what the [`client`](/reference/client/)
-ProseKit editor emits — run it on **write and render**.
+ProseKit editor emits—run it on **write and render**.
 
 ```ts
 const safe = sanitizeRichHtml(untrustedEditorHtml); // <script>, on*, javascript: … removed
 ```
 
 Pass **`mediaBase`** (your `MEDIA_URL`) to additionally drop any `<img>` whose
-`src` isn't served from that base — a pasted external hotlink is removed, while
+`src` isn't served from that base—a pasted external hotlink is removed, while
 media-hosted images are kept. Omit it to keep any safe `http(s)`/relative `src`
 (the default). See [strict media](/guide/media/#strict-media-every-image-from-the-library).
 
@@ -56,7 +56,7 @@ function rateLimit(
 ```
 
 A lightweight KV-backed **fixed-window** limiter for public POST surfaces. It
-**fails open** — any KV error returns `ok: true`, so a limiter outage never takes
+**fails open**—any KV error returns `ok: true`, so a limiter outage never takes
 down sign-in. `windowSec` must be ≥ 60 (KV's minimum TTL). The _rules_ are your
 policy: define a `RateRule[]` and pass it to `matchRateRule`.
 
@@ -94,8 +94,8 @@ binding is absent, the Secrets Store isn't provisioned (a declared-but-unset
 binding **throws** on `.get()`), the value is empty, or it still holds a
 placeholder sentinel you name. Values are trimmed before the sentinel compare.
 
-The point is that callers can **degrade** — skip the integration, run a
-simulated path, leave a captcha off — instead of throwing or calling an upstream
+The point is that callers can **degrade**—skip the integration, run a
+simulated path, leave a captcha off—instead of throwing or calling an upstream
 API with a dummy credential:
 
 ```ts
@@ -104,8 +104,7 @@ if (!token) return simulatedCheckout(); // the feature is dormant, not broken
 ```
 
 There is no built-in sentinel: the placeholder is the caller's convention, not
-the package's. (Astroid layers its own `DUMMY_REPLACE_ME` convention on top —
-see `astroidjs`' `resolveModuleSecrets`.)
+the package's. (Astroid layers its own `DUMMY_REPLACE_ME` convention on top—see `astroidjs`' `resolveModuleSecrets`.)
 
 ## `getSessionSecret(secret, url, devSecret?, options?)`
 
@@ -118,19 +117,18 @@ function getSessionSecret(
 ): Promise<string>;
 ```
 
-Reads the session-signing secret — from a Cloudflare Secrets Store binding or
+Reads the session-signing secret—from a Cloudflare Secrets Store binding or
 the plain string a `wrangler secret put` produces. On `localhost` it returns
 `devSecret` (default `"louise-dev-secret"`) so the sign-in → session loop works
 locally; any deployed hostname **fails closed**.
 
 Unlike `readSecret`, a missing session secret is an error, not a feature to
-switch off. Pass `placeholder` if your scaffold seeds secrets with a sentinel —
-otherwise a placeholder that reached production would be treated as a valid
+switch off. Pass `placeholder` if your scaffold seeds secrets with a sentinel—otherwise a placeholder that reached production would be treated as a valid
 signing key.
 
 :::caution[Deployment assumption]
 The `localhost` dev fallback keys off `url.hostname`. On a routed Cloudflare
-Worker this is safe — Cloudflare routes by the real hostname, so `url.hostname`
+Worker this is safe—Cloudflare routes by the real hostname, so `url.hostname`
 is never attacker-controlled and is `localhost`/`127.0.0.1` only under
 `wrangler dev`. If you run Louise **behind a proxy that forwards a client-set
 `Host`**, don't rely on this: provision a real `SESSION_SECRET` for every
@@ -141,7 +139,7 @@ missing/empty _and_ the hostname is local), or wire your own dev gate.
 ## `louiseSecurityHeaders(response, opts)` · `rewriteCspStyleSrc(response, styleSrc)`
 
 Applies the baseline transport/scope headers (HSTS, `X-Content-Type-Options`,
-`Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`, COOP) — a no-op on
+`Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`, COOP)—a no-op on
 `localhost`. `rewriteCspStyleSrc` rewrites only the `style-src` directive of an
 existing CSP header (for Astro's inline island styles), leaving script hashes
 intact.
@@ -153,6 +151,6 @@ louiseSecurityHeaders(res, { hostname: url.hostname });
 
 ## Types
 
-- `KVLike` — the `get`/`put` shape the limiter needs (a real `KVNamespace` satisfies it).
-- `SecretBinding` — the `{ get(): Promise<string> }` Secrets-Store shape.
-- `LouiseEnv` — the base binding contract (`SESSION_SECRET`) that [`auth`](/reference/auth/)'s `LouiseAuthEnv` extends.
+- `KVLike`—the `get`/`put` shape the limiter needs (a real `KVNamespace` satisfies it).
+- `SecretBinding`—the `{ get(): Promise<string> }` Secrets-Store shape.
+- `LouiseEnv`—the base binding contract (`SESSION_SECRET`) that [`auth`](/reference/auth/)'s `LouiseAuthEnv` extends.

@@ -1,6 +1,6 @@
 ---
 title: workflows
-description: "louise-toolkit/workflows — durable multi-step pipelines over Cloudflare Workflows."
+description: "louise-toolkit/workflows—durable multi-step pipelines over Cloudflare Workflows."
 sidebar:
   order: 6.5
 ---
@@ -9,15 +9,14 @@ sidebar:
 import { startWorkflow, defineWorkflow, type WorkflowPipelineStep } from "louise-toolkit/workflows";
 ```
 
-A thin wrapper over [Cloudflare Workflows](https://developers.cloudflare.com/workflows/) — the
+A thin wrapper over [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)—the
 **durable, multi-step** sibling of [`queues`](/reference/queues/). Each step's result is persisted and
 its retries/backoff are owned per-step, so a flow resumes mid-way after a failure instead of replaying
 from the top.
 
 :::tip[Queues vs Workflows]
 Reach for **Queues** when the deferred work is a single fire-and-forget side-effect (the FTS reindex on
-publish). Reach for **Workflows** when a job is inherently several steps that must each survive —
-publish (OG → warm cache → reindex → notify webhook), or commerce fulfillment (verified webhook →
+publish). Reach for **Workflows** when a job is inherently several steps that must each survive—publish (OG → warm cache → reindex → notify webhook), or commerce fulfillment (verified webhook →
 email → inventory write). Queues replays the whole message on retry; Workflows skips already-completed
 steps.
 :::
@@ -33,7 +32,7 @@ function startWorkflow<P>(
 ```
 
 Starts a new Workflow instance (the producer, mirroring `enqueue`). A `create` failure is wrapped in
-[`LouiseWorkflowError`](/reference/errors/) (original as `cause`). Pass `id` for idempotency — creating
+[`LouiseWorkflowError`](/reference/errors/) (original as `cause`). Pass `id` for idempotency—creating
 with an existing id throws, so a stable key coalesces a double-trigger:
 
 ```ts
@@ -64,14 +63,14 @@ interface WorkflowPipelineStep<Env, Params, State extends object> {
 ```
 
 Turns an ordered list of named steps into a `WorkflowEntrypoint.run` body (mirroring `processBatch`).
-Each step runs inside `step.do` — durable, retried per its `config` — and returns a patch merged into a
+Each step runs inside `step.do`—durable, retried per its `config`—and returns a patch merged into a
 shared `State` that later steps read and the run resolves to. Because the patch **is** the value
 `step.do` persists, a retry/resume reuses it rather than re-running the step.
 
 ## The publish pipeline as a Workflow
 
 The site owns the `WorkflowEntrypoint` subclass and the wrangler binding (it imports
-`cloudflare:workers`), exactly as it owns the Queues `queue()` export — `louise-toolkit/workflows` stays
+`cloudflare:workers`), exactly as it owns the Queues `queue()` export—`louise-toolkit/workflows` stays
 runtime glue.
 
 ```ts
@@ -132,7 +131,7 @@ bind it in `wrangler.jsonc`:
 ```
 
 :::note[Cloudflare owns durability]
-Retry limits, backoff, and step persistence are Workflows' job — configure retries per step via
+Retry limits, backoff, and step persistence are Workflows' job—configure retries per step via
 `config.retries`. A step's own throw surfaces as-is so Workflows can retry it; only failing to _start_
 an instance raises `LouiseWorkflowError`.
 :::

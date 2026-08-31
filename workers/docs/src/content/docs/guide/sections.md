@@ -1,6 +1,6 @@
 ---
 title: Louise Sections
-description: Component-rendered pages under editor control — the preconfigured-blocks model.
+description: Component-rendered pages under editor control—the preconfigured-blocks model.
 sidebar:
   order: 6
 ---
@@ -14,7 +14,7 @@ pixel-perfect while editors still add, reorder, and edit it. Where the
 
 ## The shape
 
-A page carries a `sections` array — ordered items, each a `_type` discriminant
+A page carries a `sections` array—ordered items, each a `_type` discriminant
 plus its field values:
 
 ```json
@@ -30,7 +30,7 @@ drift.
 
 ## The catalog
 
-A `SectionCatalog` describes each type's editable fields — schema only, no
+A `SectionCatalog` describes each type's editable fields—schema only, no
 markup:
 
 ```ts
@@ -64,19 +64,19 @@ Field types are `text`, `textarea`, `array` (repeatable, with `itemFields`), and
 `image`. Plain text is edited in place; `array` and `image` are edited in the
 inspector (an `image` gets **Upload** + **Choose from media** + clear controls, so
 it always resolves to a [media asset](/guide/media/#strict-media-every-image-from-the-library),
-never a pasted URL), as is any field you mark `inline: false` (e.g. a link URL
+never a pasted URL), as is any field you mark `inline: false` (for example, a link URL
 with no visible text). Pass `mediaBase` to `assertValidSections` and a section
 image that isn't media-hosted is rejected on write (`422`).
 
 ## Rendering + edit markers
 
 Map each item's `_type` to its component. In edit mode a render stamps **two**
-kinds of marker, and they do different jobs — a site that stamps only one gets
+kinds of marker, and they do different jobs—a site that stamps only one gets
 half an editor.
 
 ### The boundary: `data-louise-node`
 
-One attribute marks every editable **node** — the thing the on-canvas chrome
+One attribute marks every editable **node**—the thing the on-canvas chrome
 rings and hangs a toolbar on. Its value is that node's path into the `sections`
 array, and nothing else:
 
@@ -93,15 +93,15 @@ array, and nothing else:
 
 Three shapes, one grammar:
 
-- `"0"` — a **section**. It has a position in the page's list, so its toolbar
+- `"0"`—a **section**. It has a position in the page's list, so its toolbar
   gets move up / down, delete, and a `+` to add a sibling after it.
-- `"0.blocks.1"` — a **block**: block `1` of section `0`, ordered within its
+- `"0.blocks.1"`—a **block**: block `1` of section `0`, ordered within its
   section. `blocks` is the reserved structural key.
-- `"0.ctaHref"` — a **value**: a node with no position and no children, so its
+- `"0.ctaHref"`—a **value**: a node with no position and no children, so its
   toolbar is a wrench only. That wrench opens an inspector **scoped to that
   field**, rather than its section's whole panel.
 
-The render never declares what a node _is_ — it says only where the node lives.
+The render never declares what a node _is_—it says only where the node lives.
 The editor resolves the path against your catalog and the chrome draws whatever
 capabilities come back: an ordered node gets move/delete, a node that holds
 children gets an add, a node with configurable fields gets a wrench (and no
@@ -109,19 +109,19 @@ wrench at all when there's nothing to configure). A section that declares
 `blocks` and currently has none draws its own **Add the first one** `+`.
 
 :::caution[A missing marker fails quietly]
-Miss a boundary and text still edits in place — but there are no rings, no
+Miss a boundary and text still edits in place—but there are no rings, no
 toolbars, and no way to add, reorder, or remove anything. The page looks editable
 while the entire structural layer is absent.
 :::
 
 Astroid's [`<Section>`](/reference/astroid/) dispatcher stamps the boundary for
-you, at every depth — a block is the same component recursing with a deeper
+you, at every depth—a block is the same component recursing with a deeper
 `base`, so a type that renders as a section renders unchanged as a block.
 
 ### Fields carry the same marker
 
 There is only one attribute. A field is marked exactly like a section or a
-block — its own path, one level deeper:
+block—its own path, one level deeper:
 
 ```astro
 <h1 data-louise-node={`${i}.heading`}>{heading}</h1>
@@ -133,7 +133,7 @@ block — its own path, one level deeper:
 
 **The catalog decides what happens to each one.** A `text`, `textarea` or
 `richText` field is edited in place, so its node becomes contenteditable and gets
-no chrome of its own — hovering it rings whatever contains it. Anything else is
+no chrome of its own—hovering it rings whatever contains it. Anything else is
 edited in the wrench, so its node rings and gets a toolbar. You don't say which;
 the field's type already did.
 
@@ -142,11 +142,10 @@ inside it is the label (typed on the page). Hovering the words walks outward to
 ring the button.
 
 Render empty fields too (in edit mode) so there's something to click into. A
-`textarea` field keeps newlines and gets browser spellcheck; a `text` one doesn't
-— again from the type, not from a stamped attribute.
+`textarea` field keeps newlines and gets browser spellcheck; a `text` one doesn't—again from the type, not from a stamped attribute.
 
 :::note[Upgrading from `data-louise-sfield`]
-Rename it to `data-louise-node` — the path value is unchanged. Then delete
+Rename it to `data-louise-node`—the path value is unchanged. Then delete
 `data-louise-type="richtext"` and `data-louise-multiline`: both are now read from
 the field's type in the catalog.
 :::
@@ -162,18 +161,18 @@ mountSections(el, { catalog: SECTIONS, pageId, initial, autoSave: false });
 ```
 
 `el` is the wrapper around the server-rendered sections. The UX is **hybrid**,
-and entirely on the canvas — there is no floating panel:
+and entirely on the canvas—there is no floating panel:
 
-- **Text is edited in place** on the live design — a marked node whose field the
+- **Text is edited in place** on the live design—a marked node whose field the
   catalog says is inline becomes `contenteditable`, writing into a shared
   fine-grained store (a keystroke updates only that leaf, so rows never tear
   down).
 - **Structure is the on-canvas toolbar.** Hovering (or tabbing to) a
   `data-louise-node` rings the tightest node under the pointer and floats its
   toolbar at the top-right: move up / down, delete, and `+` to add. Exactly one
-  node is active at a time — a value beats the block it sits in, which beats the
+  node is active at a time—a value beats the block it sits in, which beats the
   section around that.
-- **Everything you can't point at is behind the wrench** — array items, images,
+- **Everything you can't point at is behind the wrench**—array items, images,
   and any `inline: false` field, plus a section's layout and settings. On a
   value node the wrench opens just that field.
 
@@ -186,10 +185,10 @@ When the page is wired for [drafts & publishing](/guide/drafts/) (a `versions`
 collection), a save stages a **draft** version without touching the live page,
 and **Publish** promotes it.
 
-- **Text edits** stage a **draft** — no reload (the DOM already shows the change);
+- **Text edits** stage a **draft**—no reload (the DOM already shows the change);
   the live page is unchanged until you **Publish**. With auto-save on (the
   default) this happens on an idle debounce, so the edit bar shows only
-  **Publish** — no Save draft button, and no routine saved/unsaved status; a
+  **Publish**—no Save draft button, and no routine saved/unsaved status; a
   _failed_ save still surfaces. Auto-save **never publishes**.
 - **Structural changes** save a draft and then reload, so the server re-renders
   the new shape (which comes back inline-editable). In edit mode the page resumes
@@ -198,8 +197,7 @@ and **Publish** promotes it.
 Opt out with `autoSave: false` to bring back the manual **Save draft** button.
 
 Store `sections` as a JSON column on your `pages` table and add it to your
-[`pagesRoute`](/reference/editor/) `fields` allowlist (metadata/create/delete) —
-the draft/publish surface is [`versionsRoute`](/reference/editor/).
+[`pagesRoute`](/reference/editor/) `fields` allowlist (metadata/create/delete)—the draft/publish surface is [`versionsRoute`](/reference/editor/).
 
 ## Validation
 
@@ -223,12 +221,12 @@ pagesRoute({
 `validateSections` (the non-throwing form) checks that the value is an array, that
 every item's `_type` is a known catalog entry, and that each field matches its
 declared shape (text/textarea → string; array → objects whose `itemFields` are
-validated in turn). A field can also carry a `validation` chain — the same
-[`Rule`](/reference/content/) builder collection fields use, e.g.
+validated in turn). A field can also carry a `validation` chain—the same
+[`Rule`](/reference/content/) builder collection fields use, for example,
 `heading: { type: "text", validation: (r) => r.required().max(80) }`.
 
 `assertValidSections` throws `LouiseValidationError` on any error-severity
-violation, which `pagesRoute` turns into a `422 { error, violations }` — the edit
+violation, which `pagesRoute` turns into a `422 { error, violations }`—the edit
 bar surfaces the first violation as the save-failure reason.
 
 ## Search

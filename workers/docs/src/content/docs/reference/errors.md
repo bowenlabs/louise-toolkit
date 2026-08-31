@@ -1,6 +1,6 @@
 ---
 title: errors
-description: "louise-toolkit/errors — LouiseError and its typed subclasses."
+description: "louise-toolkit/errors—LouiseError and its typed subclasses."
 sidebar:
   order: 7
 ---
@@ -9,9 +9,9 @@ sidebar:
 import { LouiseError, LouiseValidationError } from "louise-toolkit/errors";
 ```
 
-Every Louise primitive throws `LouiseError` or a typed subclass — never a raw
+Every Louise primitive throws `LouiseError` or a typed subclass—never a raw
 `Error`. No peers. (These are also re-exported from the modules that throw them,
-e.g. `LouiseEmailError` from `/email`.)
+for example, `LouiseEmailError` from `/email`.)
 
 ## `LouiseError`
 
@@ -32,7 +32,7 @@ try {
   await sendEmail(env.EMAIL, input);
 } catch (e) {
   if (e instanceof LouiseError) {
-    console.error(e.code, e.cause); // e.g. "EMAIL_ERROR"
+    console.error(e.code, e.cause); // for example, "EMAIL_ERROR"
   } else {
     throw e; // re-throw the unexpected
   }
@@ -62,7 +62,7 @@ Two content subclasses carry extra structure so a routing layer can map them by
 
 And for HTTP clients:
 
-- **`LouiseApiError`** — carries `status: number` and the parsed `body`, so
+- **`LouiseApiError`**—carries `status: number` and the parsed `body`, so
   callers branch on `status` (403 → denied, 404 → not found) instead of
   re-parsing `{ error }` bodies.
 

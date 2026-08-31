@@ -1,6 +1,6 @@
 ---
 title: schema
-description: "louise-toolkit/schema — a zero-dep Standard Schema builder and one runner that folds any validator into Louise's violation shape."
+description: "louise-toolkit/schema—a zero-dep Standard Schema builder and one runner that folds any validator into Louise's violation shape."
 sidebar:
   order: 2.5
 ---
@@ -12,10 +12,10 @@ import { s, standardValidate, type StandardSchemaV1 } from "louise-toolkit/schem
 The validation seam. Consumers bring their own validator (Zod / Valibot /
 ArkType) wherever a schema is accepted; the built-in `s.*` builder is the
 zero-dependency fallback, and both run through one runner. Anything that
-implements [Standard Schema](https://standardschema.dev) works — the core stays
+implements [Standard Schema](https://standardschema.dev) works—the core stays
 `dependencies: {}`. No peers.
 
-## `s` — the built-in builder
+## `s`—the built-in builder
 
 ```ts
 const s: {
@@ -31,8 +31,7 @@ const s: {
 };
 ```
 
-A tiny, synchronous schema builder whose every output **is** a Standard Schema —
-hand the result to [`standardValidate`](#standardvalidateschema-input-basepath)
+A tiny, synchronous schema builder whose every output **is** a Standard Schema—hand the result to [`standardValidate`](#standardvalidateschema-input-basepath)
 or set it as a field's `schema`. `object` drops unknown keys (a forged request
 can't smuggle extra fields), and `array`/`object`/`record` re-path child issues
 under their index/key (`items.2.qty`).
@@ -47,7 +46,7 @@ const OrderInput = s.object({
 ```
 
 The builders are sync, so composing an **async** schema inside `object` /
-`record` / `optional` isn't supported — run those at the top level with
+`record` / `optional` isn't supported—run those at the top level with
 `standardValidate`, which awaits.
 
 ## `standardValidate(schema, input, basePath?)`
@@ -61,7 +60,7 @@ function standardValidate<Schema extends StandardSchemaV1>(
 ```
 
 Validate `input` against any Standard Schema, awaiting an async validator.
-Returns the typed value or the violations — it never throws for a validation
+Returns the typed value or the violations—it never throws for a validation
 failure. Each violation is `{ path, message, severity: "error" }`; `basePath`
 prefixes every path, so a caller validating one field's value anchors the issues
 at that field's key.
@@ -85,7 +84,7 @@ function parseOrThrow<Schema extends StandardSchemaV1>(
 
 Same validation, but returns the value directly and throws
 [`LouiseValidationError`](/reference/errors/) (carrying the structured
-`violations`) on failure — for call sites that want the exception, sharing the
+`violations`) on failure—for call sites that want the exception, sharing the
 same `instanceof → 422` mapping the rest of the toolkit uses.
 
 ## `parseJson` / `parseModelJson`
@@ -100,14 +99,14 @@ function parseModelJson<Schema>(
 
 Parse **then** validate, so "not JSON" and "wrong shape" come back through the
 same result branch instead of a thrown `SyntaxError`. `parseJson` is for a raw
-body (e.g. a signature-verified webhook, where the HMAC proves the sender but not
+body (for example, a signature-verified webhook, where the HMAC proves the sender but not
 the payload shape). `parseModelJson` is the untrusted-LLM case: it extracts the
 first balanced object/array (`extractJson`, tolerating prose and ` ```json `
 fences) before validating, so a chatty model reply still parses. Neither throws.
 
 ## `StandardSchemaV1`
 
-The vendored [Standard Schema](https://standardschema.dev) interface — a `spec`,
+The vendored [Standard Schema](https://standardschema.dev) interface—a `spec`,
 not a runtime: a single `~standard` property any validator exposes. It's
 vendored (~40 lines) rather than depended on, keeping the core dependency-free;
 the `s.*` builder implements the same interface, so consumer validators and

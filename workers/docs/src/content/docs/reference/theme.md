@@ -1,6 +1,6 @@
 ---
 title: theme
-description: "louise-toolkit/theme — the daisyUI louise editor theme stylesheets."
+description: "louise-toolkit/theme—the daisyUI louise editor theme stylesheets."
 sidebar:
   order: 8
 ---
@@ -10,7 +10,7 @@ sidebar:
 @import "louise-toolkit/theme/fonts.css";
 ```
 
-Two CSS assets — not JS — that style Louise's editor chrome. They ship as plain
+Two CSS assets—not JS—that style Louise's editor chrome. They ship as plain
 stylesheets (no build step, no peers); the package marks them as the only
 side-effectful files, so importing JS never accidentally pulls in CSS.
 

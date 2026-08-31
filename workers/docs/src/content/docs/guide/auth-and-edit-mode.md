@@ -1,6 +1,6 @@
 ---
 title: Auth & edit mode
-description: How editing is gated — and why writes trust the session, not the page.
+description: How editing is gated—and why writes trust the session, not the page.
 sidebar:
   order: 10
 ---
@@ -20,11 +20,11 @@ query param):
 When a Site Admin is in edit mode, middleware exposes two _separate_ facts to the
 request:
 
-- **`locals.editMode`** — the page renders edit affordances (markers, the bar).
-- **`locals.editor`** — the save/media endpoints trust the write.
+- **`locals.editMode`**—the page renders edit affordances (markers, the bar).
+- **`locals.editor`**—the save/media endpoints trust the write.
 
 :::danger[The rule]
-`locals.editor` — **not** the page's edit mode — is what authorizes a write. Edit
+`locals.editor`—**not** the page's edit mode—is what authorizes a write. Edit
 mode only decides whether affordances render; a save must be re-checked against
 the session. Never authorize a write on edit mode alone.
 :::
@@ -37,7 +37,7 @@ magic-link** delivered through Cloudflare Email Sending (Louise's
 
 - **Owner-allowlisted.** The auth route rejects any email that isn't the
   configured owner **before** Better Auth runs, returning an
-  enumeration-safe response — so an anonymous caller can't relay magic links to
+  enumeration-safe response—so an anonymous caller can't relay magic links to
   third parties or mint user rows.
 - **Passkeys** for fast re-entry after a one-time, session-gated enrollment;
   magic link remains the bootstrap/fallback.
@@ -46,6 +46,6 @@ magic-link** delivered through Cloudflare Email Sending (Louise's
   request time on Workers.
 - **Rate-limited & captcha'd** public POSTs (sign-in, contact, checkout).
 
-None of this is _in_ the `louise` package — it's the host app's
+None of this is _in_ the `louise` package—it's the host app's
 wiring. Louise's contribution is the `email` primitive the magic link rides on
 and the client that only renders once your middleware says "editor".

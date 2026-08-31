@@ -5,8 +5,8 @@ sidebar:
   order: 8
 ---
 
-Inline editing covers text on the page. For structured, back-office work — lists
-you reorder, records you create, media you manage — Louise gives you **Louise
+Inline editing covers text on the page. For structured, back-office work—lists
+you reorder, records you create, media you manage—Louise gives you **Louise
 Settings**: a SolidJS overlay summoned in edit mode and rendered over the live
 site under the editor theme.
 
@@ -52,16 +52,16 @@ the site's theme), and is idempotent under Astro view-transition re-runs.
 The layout has a **first-class split**, encoded in the config type so a site
 can't collapse it:
 
-- **Top strip — fixed framework panels.** **Pages**, **Media**, and **Settings**,
+- **Top strip—fixed framework panels.** **Pages**, **Media**, and **Settings**,
   rendered as icon buttons. These are near-identical on every Louise site, so the
   shell owns them; you don't register or reorder them. They talk to the generic
   [`louise-toolkit/editor`](/reference/editor/) endpoints (`/api/louise/pages`,
   `/api/louise/media`, `/api/louise/settings`).
-- **Bottom tabs — your collections.** Everything whose shape and display vary per
+- **Bottom tabs—your collections.** Everything whose shape and display vary per
   site: your bespoke record types, registered as `CollectionTab`s via `tabs`.
 
 **Inquiries** is a Louise base table, but _how_ a submission is shown varies too
-much to fix in the shell — so it ships as a registerable tab (the default
+much to fix in the shell—so it ships as a registerable tab (the default
 `InquiriesPanel`, customizable via `renderRow`), not a fixed framework panel. Add
 it to `tabs` like any other collection.
 
@@ -69,7 +69,7 @@ it to `tabs` like any other collection.
 
 The **Settings** panel (the gear tab in the top strip) is framework-owned, but its
 _contents_ are the common base (mapped 1:1 to
-[`siteSettingsColumns`](/reference/db/) — identity, appearance, navigation,
+[`siteSettingsColumns`](/reference/db/)—identity, appearance, navigation,
 contact, SEO) **plus your additions**. Declare extra fields with
 `settingsExtension`; they render in the same panel and persist to the
 `site_settings.custom` JSON via the [`settings` handler](/reference/editor/)'s
@@ -87,7 +87,7 @@ mountSettings({
       ],
     },
   ],
-  // Escape hatch for bespoke sections that self-persist (e.g. passkey enrollment).
+  // Escape hatch for bespoke sections that self-persist (for example, passkey enrollment).
   settingsExtras: () => <PasskeySection />,
 });
 ```
@@ -95,12 +95,12 @@ mountSettings({
 Field `type` is one of `text` (default), `textarea`, `color`, `toggle`, `image`
 (with a media-library picker), or `links` (a label/href list editor); for
 anything else, give a field a `render` function. A key you didn't declare is
-ignored server-side — never written — because the handler's allowlist is
+ignored server-side—never written—because the handler's allowlist is
 authoritative.
 
 A site whose settings don't map to `siteSettingsColumns` (and keeps its own
 storage + `settings` route) can replace the framework base groups entirely with
-`settingsBaseGroups` — pass `[]` to show none, so only your `settingsExtension`
+`settingsBaseGroups`—pass `[]` to show none, so only your `settingsExtension`
 fields render:
 
 ```tsx
@@ -132,14 +132,14 @@ function ProductsPanel() {
 ```
 
 `Icon` renders the same Phosphor set as the toolbar, and `RichText` is the exact
-editor inline fields use — so a Settings form and an inline field edit prose
+editor inline fields use—so a Settings form and an inline field edit prose
 identically. See the [client reference](/reference/client/) for the full
 export list.
 
 ## Built-in pages
 
 If your site has code-defined routes (Home, About…) that aren't `pages` rows but
-belong in the Pages panel list, pass them as `builtInPages` — each gets an
+belong in the Pages panel list, pass them as `builtInPages`—each gets an
 "Edit on page" deep link into inline edit mode:
 
 ```ts
