@@ -131,6 +131,15 @@ jobs:
       - name: Build the library (dist/)
         run: corepack pnpm -C packages/louise run build
 
+      # Verify the PUBLISHED export map: every subpath in `exports` emitted, and
+      # every symbol a first-party consumer needs reachable without touching
+      # `louise-toolkit/src/...`. The whole test suite is blind to this, because
+      # vitest aliases the package to source — and the only thing exercising the
+      # real map today is the astroid typecheck below, which leaves with astroid
+      # when it moves to its own repo (#327).
+      - name: Verify the export map
+        run: node scripts/ci/checks/export-map.mjs
+
       # Type-check Astroid against the BUILT library, which is why it runs after
       # the build above and not next to the louise type-check in `test`.
       #
