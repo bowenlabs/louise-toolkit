@@ -15,6 +15,7 @@
     "fmt": "vp fmt --ignore-path .oxfmtignore",
     "lint:astro": "biome lint .",
     "lint:astro:fix": "biome lint --write .",
+    "lint:arch": "corepack pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan",
     "lint:solid": "corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
     "knip": "knip",
     "test": "vp run louise#test && vp run astroid#test",

@@ -1,0 +1,8 @@
+# ast-grep — architectural invariants that oxlint and knip cannot express.
+#
+# The rules here are all SYNTAX-shaped rather than name-shaped: they care about
+# the form of a statement (is this a value import or a type import?), which a
+# name-based linter has no way to see. Anything expressible as a lint rule
+# belongs in oxlint instead; this file is deliberately small.
+ruleDirs:
+  - .ast-grep/rules

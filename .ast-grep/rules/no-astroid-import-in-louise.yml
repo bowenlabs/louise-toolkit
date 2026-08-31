@@ -1,0 +1,25 @@
+id: no-astroid-import-in-louise
+language: TypeScript
+severity: error
+message: "`louise-toolkit` must not import from `astroidjs` — dependencies flow one way."
+note: |
+  astroidjs → louise-toolkit, never the reverse. Louise stays unopinionated; the
+  opinions live in Astroid, which depends on Louise.
+
+  This is the rule the whole two-package split rests on, and until now nothing
+  enforced it: `astroidjs` is not a dependency of `packages/louise`, so an import
+  would fail to resolve at build time — but only after someone had written it,
+  and only if the build reached that file.
+
+  If Louise needs something Astroid has, the shape is wrong: either the thing is
+  general (move it down into Louise) or the caller belongs in Astroid.
+files:
+  - "packages/louise/src/**/*.ts"
+  - "packages/louise/src/**/*.tsx"
+rule:
+  all:
+    # `kind` is required: the pattern alone is too open for ast-grep to index.
+    - kind: import_statement
+    - has:
+        kind: string
+        regex: '^["'']astroidjs(/|["''])'
