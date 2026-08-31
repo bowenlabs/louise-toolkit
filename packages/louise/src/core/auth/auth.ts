@@ -16,7 +16,12 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { admin, captcha, magicLink, organization } from "better-auth/plugins";
 import { sendEmail } from "../email/index.js";
-import { getSessionSecret, type KVLike } from "../security/index.js";
+import {
+  durableRateLimitStorage,
+  getSessionSecret,
+  type KVLike,
+  type RateLimitNamespace,
+} from "../security/index.js";
 import { defaultResolveAdmins } from "./admins.js";
 import { LOUISE_USER_FIELDS } from "./fields.js";
 import { invitationAcceptUrl } from "./org.js";
@@ -170,6 +175,26 @@ export interface LouiseAuthConfig {
    * if you have measured that read and decided it matters.
    */
   verificationStorage?: "database" | "secondary";
+  /**
+   * Durable Object namespace backing Better Auth's own rate limiter.
+   *
+   * Wire this and rate limiting stops going through KV entirely: Better Auth
+   * checks `rateLimit.customStorage` BEFORE secondary storage, so the KV
+   * `increment` is never called. That matters because a DO is the only atomic
+   * counter on Workers — it handles one request at a time, so read-decide-write
+   * inside it cannot race. The KV path can undercount under a burst, and
+   * Cloudflare's native Rate Limiting binding is documented as permissive,
+   * eventually consistent, and scoped PER LOCATION, so an attacker spread across
+   * colos gets one budget per colo. Acceptable for form spam; weak for sign-in.
+   *
+   * The site owns the `DurableObject` subclass and the wrangler binding — see
+   * `createRateLimiter` in `louise-toolkit/security` for the shape. One object
+   * per key, so no single object becomes a bottleneck.
+   *
+   * Omit to keep Better Auth's default storage (KV when `sessionCacheKv` is set,
+   * otherwise the database).
+   */
+  rateLimitDo?: RateLimitNamespace;
   /** Enable multi-editor tenancy (organization plugin). Omit for a single-editor
    *  site. Mirror this on `AuthSchemaConfig.organizations` when regenerating the
    *  migration. See {@link LouiseOrganizationsConfig}. */
@@ -205,6 +230,13 @@ const KV_MIN_TTL_SEC = 60;
  *     Note the TTL floor above interacts with Better Auth's default 10s window:
  *     the bucket key still rotates every 10s, so the limit is enforced over the
  *     intended window and only the spent bucket lingers (unread) for 60s.
+ *
+ *     **This is the fallback, not the recommendation.** Set
+ *     {@link LouiseAuthConfig.rateLimitDo} and none of the above applies: Better
+ *     Auth checks `rateLimit.customStorage` before secondary storage, so this
+ *     method is never called and the counter becomes a Durable Object, which is
+ *     genuinely atomic. This path remains for sites that have not provisioned
+ *     one.
  *
  *   - `getAndDelete` — a read followed by a delete. Better Auth requires this to
  *     be atomic so a single-use verification value (magic link, password reset)
@@ -332,6 +364,11 @@ export async function getLouiseAuth(
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv
       ? { secondaryStorage: kvSecondaryStorage(config.sessionCacheKv) }
+      : {}),
+    // Checked ahead of secondaryStorage by Better Auth, so wiring this retires
+    // the KV `increment` rather than merely documenting its limits.
+    ...(config.rateLimitDo
+      ? { rateLimit: { customStorage: durableRateLimitStorage(config.rateLimitDo) } }
       : {}),
     session: {
       expiresIn: config.session?.expiresIn ?? 60 * 60 * 24 * 45,
