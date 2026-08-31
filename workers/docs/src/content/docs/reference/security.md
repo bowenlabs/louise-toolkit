@@ -78,6 +78,56 @@ if (rule) {
 }
 ```
 
+## `createRateLimiter(ctx)` · `durableRateLimitStorage(namespace)`
+
+```ts
+function createRateLimiter(ctx: DurableObjectState): RateLimiter;
+function durableRateLimitStorage(ns: RateLimitNamespace): DurableRateLimitStorage;
+```
+
+The **atomic** limiter. A Durable Object handles one request at a time, so
+read-decide-write inside it cannot race—unlike the KV limiter above, whose
+read→write gap can undercount under a burst, and unlike Cloudflare's native Rate
+Limiting binding, which is documented as permissive, eventually consistent, and
+scoped **per location** (an attacker spread across colos gets one budget per
+colo). That trade is fine for form spam and weak for sign-in.
+
+Following the `realtime` and `workflows` pattern, your site owns the
+`DurableObject` subclass and the wrangler binding; this module is the logic it
+delegates to.
+
+```ts
+// worker.ts — your class, your binding
+import { DurableObject } from "cloudflare:workers";
+import { createRateLimiter } from "louise-toolkit/security";
+
+export class RateLimitDO extends DurableObject<Env> {
+  #rl = createRateLimiter(this.ctx);
+  fetch(request: Request) {
+    return this.#rl.fetch(request);
+  }
+  alarm() {
+    return this.#rl.alarm();
+  }
+}
+```
+
+One object per key, so no single object becomes a bottleneck—a DO sustains
+roughly 500–1,000 simple operations per second, which is a per-key ceiling rather
+than a per-site one.
+
+Fixed window, like the KV limiter: a client can reach up to ~2x the budget across
+a boundary, the accepted cost of storing one number instead of a list of
+timestamps. The window is never extended while blocking, or a client under
+sustained load would never be let back in. An alarm reaps the counter once its
+window passes, so a per-IP key does not hold storage forever.
+
+**Fails open**, like the KV limiter: an unreachable object allows the request. A
+limiter outage must never lock every editor out of their own site.
+
+To put Better Auth's own rate limiting on it, pass the namespace as
+[`rateLimitDo`](/reference/auth/) rather than wiring `consume` yourself.
+
 ## `readSecret(source, options?)`
 
 ```ts

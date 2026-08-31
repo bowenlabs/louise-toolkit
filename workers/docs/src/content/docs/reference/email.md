@@ -19,10 +19,14 @@ only deliver to _verified_ destinations). Email Sending delivers to any recipien
 once the `from` domain is onboarded—`wrangler email sending enable <domain>`.
 :::
 
-## `sendEmail(binding, input)`
+## `sendEmail(binding, input, options?)`
 
 ```ts
-function sendEmail(binding: EmailSender, input: SendEmailInput): Promise<{ messageId: string }>;
+function sendEmail(
+  binding: EmailSender | null | undefined,
+  input: SendEmailInput,
+  options?: SendEmailOptions,
+): Promise<SendEmailResult>;
 
 interface SendEmailInput {
   from: string | { email: string; name?: string };
@@ -32,11 +36,46 @@ interface SendEmailInput {
   text?: string; // derived from `html` when omitted (spam-score hygiene)
   replyTo?: string;
 }
+
+interface SendEmailOptions {
+  dev?: boolean; // is this a development environment? see below
+  simulateWhenUnconfigured?: boolean; // log instead of throwing when no binding
+  devLog?: boolean; // print the message BODY in the simulated log
+  log?: (message: string) => void; // defaults to console.info
+}
+
+interface SendEmailResult {
+  messageId?: string; // present only on a real send
+  simulated?: boolean; // true when logged rather than delivered
+}
 ```
 
 Sends a transactional email and returns the provider `messageId`. If you omit
 `text`, Louise derives a plain-text alternative from `html`. A failure is wrapped
 in [`LouiseEmailError`](/reference/errors/) with the original as `cause`.
+
+### No binding: `dev` decides what happens
+
+With no `EMAIL` binding provisioned, a send either **simulates**—logging the
+message instead of delivering it—or **throws**. Which one is the point of `dev`.
+
+Pass it. This library runs on Workers, where there is no reliable way to tell a
+development environment from production, and it decides two things that matter:
+whether an unconfigured send is a convenience or a misconfiguration, and whether
+a **credential-bearing body** is printed. A magic-link email _is_ the credential.
+
+If you omit `dev`, the fallback reads `NODE_ENV` and treats absent as
+**production**. Forgetting it is therefore safe but pessimistic: an unconfigured
+send throws, and the body is withheld from the log.
+
+`getLouiseAuth` passes this for you, derived from the request's own hostname—so
+with no `EMAIL` binding on localhost the magic link still prints to the console,
+which is the only way to sign in locally.
+
+```ts
+// A hand-rolled contact route that should simulate in local dev:
+await sendEmail(env.EMAIL, mail, { dev: url.hostname === "localhost" });
+```
 
 ```ts
 import { sendEmail } from "louise-toolkit/email";

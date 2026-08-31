@@ -52,15 +52,25 @@ function withEdgeCache<Env>(
 interface EdgeCacheConfig {
   bypass?: (request: Request) => boolean; // skip cache, always run fresh
   cache?: () => Cache; // defaults to caches.default; injectable for tests
+  signalHeader?: string; // defaults to cloudflare-cdn-cache-control
 }
 ```
 
 A **cookie-aware** edge cache for the SSR fallback. It caches public GETs in the
 Worker-controlled Cache API (`caches.default`), keyed by URL, and stores a
-response only when it carries a cacheable [`CDN_CACHE_CONTROL`](#helpers)
-directive—the header the Astro Cloudflare cache provider emits from
-`Astro.cache.set(...)`. Bypassed requests (for example, an authenticated editor) and
-non-GETs always run the handler. Drop-in for `composeWorker`'s `fetch`.
+response only when it carries a cacheable directive in the **signal header**.
+Bypassed requests (for example, an authenticated editor) and non-GETs always run
+the handler. Drop-in for `composeWorker`'s `fetch`.
+
+Which header carries that decision is your host's convention, not this layer's,
+so `signalHeader` is configurable. It defaults to
+[`CDN_CACHE_CONTROL`](#helpers) (`cloudflare-cdn-cache-control`), which is what a
+Cloudflare-targeting SSR adapter emits for a cacheable response—so most sites
+never set it. A host that signals some other way sets its own name and is not
+obliged to adopt Cloudflare's.
+
+The signal header is always **stripped** from the response, whichever one you
+use, for the reason in the caution below.
 
 ```ts
 export default composeWorker<Env>({
