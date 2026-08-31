@@ -14,8 +14,8 @@
 // — one call carrying its own editor component. That cannot survive the boundary
 // this module sits on. `core/content` is deliberately server-safe: `sections.ts`
 // won't even import the `./validation.js` barrel, because that half pulls in
-// `drizzle-orm` and would drag an optional peer into every consumer. Astroid
-// imports this graph from `schema/collections.ts`, inside a Worker.
+// `drizzle-orm` and would drag an optional peer into every consumer. The layer
+// above imports this graph from its own schema module, inside a Worker.
 //
 // A Solid component in these objects would put the client framework in that
 // bundle. So the split is by what each side can actually hold:

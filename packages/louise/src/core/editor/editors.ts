@@ -61,7 +61,7 @@ interface EditorRow {
  * path so `composeWorker` falls through to the next route / SSR.
  *
  * ```ts
- * // Astro: the session is already on locals; hand it back via resolveEditor.
+ * // The session is already resolved by the host; hand it back via resolveEditor.
  * export const ALL: APIRoute = (ctx) =>
  *   runEditorRoute(
  *     editorsRoute({ table: "louise_user", resolveEditor: () => ctx.locals.editor }),

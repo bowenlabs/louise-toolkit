@@ -2,7 +2,7 @@
 // bespoke, component-rendered pages (the Sanity-style preconfigured-blocks model).
 //
 // A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`.
-// The SITE owns rendering (bespoke Astro components, any design); this owns
+// The SITE owns rendering (its own components, any design); this owns
 // EDITING only, and saves the array back to `sections` (PATCH /api/louise/pages/:id).
 // No HTML/markup is ever authored here, so the design stays 100% site-owned.
 //
@@ -1257,7 +1257,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // POST one section item to the fragment-render route and return its
-  // server-rendered HTML (an Astro partial — the same `<Sections>` markup the
+  // server-rendered HTML (a server-rendered partial — the same markup the
   // page uses), or null on any failure so the caller can fall back to reload.
   const renderSectionFragment = async (item: SectionItem): Promise<string | null> => {
     try {

@@ -114,7 +114,7 @@ export function edgeCacheKeyUrl(url: string): string {
  * a visitor enters edit mode.
  *
  * Exported so the cookie and the predicate that looks for it are declared in one
- * place. A site (or Astroid) writing its own `"louise_edit"` literal would keep
+ * place. Anything writing its own `"louise_edit"` literal would keep
  * working right up until the middleware default moved, and then fail by serving
  * an editor a cached public page — which is the exact bug this whole layer
  * exists to prevent, and the one that is hardest to notice.
@@ -191,7 +191,7 @@ export function withEdgeCache<Env = unknown>(
       // cookie-blind (the #163/#165 failure mode). `no-store` on the wire also
       // avoids a browser serving its cached PUBLIC copy after the visitor enters
       // edit mode. Only reached for a route that opted a public render in via
-      // `Astro.cache.set` — assets and edit-mode (`set(false)`) renders keep their
+      // the route's own cache decision — assets and edit-mode renders keep their
       // own Cache-Control untouched.
       response.headers.set("cache-control", "no-store");
     }

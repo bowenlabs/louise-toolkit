@@ -50,12 +50,12 @@ export interface SendEmailOptions {
    *
    * `true` → log a simulated send and return `{ simulated: true }` instead of
    * throwing. `false` → throw {@link LouiseEmailError}. Defaults to
-   * {@link looksLikeDev}: on under `wrangler dev`/`astro dev` (no EMAIL binding
+   * {@link looksLikeDev}: on under a local dev server (no EMAIL binding
    * is the normal local case, and "click the magic link from the console" is the
    * whole dev loop), OFF in production — where a missing binding is a real
    * misconfiguration that should fail loudly rather than drop mail in silence.
    *
-   * Astroid's mailer sets this itself; a direct caller (a hand-rolled contact
+   * An opinionated mailer above this one sets it itself; a direct caller (a contact
    * route) gets the dev-safe default for free and can opt into simulating in
    * production explicitly.
    */
@@ -166,7 +166,7 @@ export async function sendEmail(
       throw new LouiseEmailError(
         `No email binding configured — cannot send to "${input.to}". Provision the ` +
           "EMAIL binding, or pass `simulateWhenUnconfigured: true` to log a simulated " +
-          "send instead (astroid's mailer does this for you).",
+          "send instead (an opinionated mailer above this one does it for you).",
       );
     }
     const log = options.log ?? ((message: string) => console.info(message));

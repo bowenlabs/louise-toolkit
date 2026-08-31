@@ -365,7 +365,7 @@ const STEGA_GUARD_FLAG = "louiseStegaGuard";
  * that rewrites the copied `text/plain` (+ `text/html`) through {@link stegaClean}
  * — but only when a stega payload is present, so a normal copy is untouched.
  *
- * Idempotent: installs a single listener per document (which survives Astro soft
+ * Idempotent: installs a single listener per document (which survives soft
  * navigation, since the document persists), so it's safe to call on every mount.
  * References `document` lazily, so importing it server-side is harmless. Returns
  * a cleanup function. The edit client mounts this automatically; call it yourself

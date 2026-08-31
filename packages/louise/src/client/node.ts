@@ -17,7 +17,7 @@
 // This replaces `data-louise-section` / `data-louise-block` / `data-louise-link`,
 // which were three attributes over four grammars with two hand-written parsers —
 // and which forced the render side to string-sniff a path to decide which
-// attribute to stamp (astroid `Section.astro`, pre-0010).
+// attribute to stamp (a section component in the layer above, pre-0010).
 //
 // The chrome deliberately owns **no policy**. It cannot tell a section from a
 // block from a link, and does not try: it hands a parsed path to a `resolve`

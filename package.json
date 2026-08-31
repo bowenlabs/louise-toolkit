@@ -16,6 +16,7 @@
     "lint:astro": "biome lint .",
     "lint:astro:fix": "biome lint --write .",
     "lint:docs": "corepack pnpm --package=@vvago/vale@3.17.1 dlx vale workers/docs/src/content/docs",
+    "lint:core": "node scripts/ci/checks/no-astro-in-core.mjs",
     "lint:arch": "corepack pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan",
     "lint:solid": "corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.14.5 oxlint packages/louise/src/client",
     "knip": "knip",
