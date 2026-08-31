@@ -22,8 +22,14 @@ export { type HealthRouteConfig, healthRoute } from "./health.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
+  // `applySettingsPatch` + its config are the route-free core of a settings write.
+  // Public because a host that mounts its own endpoint — an Astro Action rather
+  // than `settingsRoute`'s WorkerRoute — needs the same write path, and reaching
+  // into `louise-toolkit/src/...` for it breaks on a published tarball (#327).
+  applySettingsPatch,
   partitionSettingsPatch,
   type SettingsPartition,
+  type SettingsPatchConfig,
   type SettingsRouteConfig,
   settingsRoute,
   validateSettingsImages,
@@ -36,6 +42,9 @@ export {
   mergeBlobPatch,
 } from "./settings-blob.js";
 export {
+  // Same reasoning: the route-free field write, so a host can mount it on its own
+  // transport. `applySaveDraft` was already public; these two were the gap.
+  applyFieldSave,
   type ResolvedField,
   resolveFieldValue,
   type SaveCollectionConfig,
