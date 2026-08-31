@@ -40,13 +40,16 @@ clean_room_init() {
   corepack pnpm add "$pack"/*.tgz
 }
 
-# The two `overrides:` entries pointing at the packed tarballs, indented as
-# children of an existing `overrides:` key.
+# The `overrides:` entries pointing at the packed tarballs, indented as children
+# of an existing `overrides:` key. Every first-party package the scaffold declares
+# needs one: without it pnpm goes to the registry for a version that does not
+# exist there yet, which is how the Astro adapter first broke this job.
 clean_room_tarball_pins() {
   local pack="$1"
-  printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n' \
+  printf '  astroidjs: "file:%s"\n  louise-toolkit: "file:%s"\n  "@louise-toolkit/astro": "file:%s"\n' \
     "$(ls "$pack"/astroidjs-*.tgz)" \
-    "$(ls "$pack"/louise-toolkit-*.tgz)"
+    "$(ls "$pack"/louise-toolkit-*.tgz)" \
+    "$(ls "$pack"/louise-toolkit-astro-*.tgz)"
 }
 
 # Install + type-check + build a scaffold the way a user would. This is the only
@@ -63,8 +66,8 @@ clean_room_build_scaffold() {
   # approvals, which meant CI proved the scaffold installs *for CI* and never
   # for a user — it shipped a scaffold whose first documented command errored.
   #
-  # `overrides:` is the LAST key in that file, so appending two indented lines
-  # extends it and pins astroidjs/louise-toolkit to THESE tarballs.
+  # `overrides:` is the LAST key in that file, so appending the indented lines
+  # extends it and pins every first-party package to THESE tarballs.
   clean_room_tarball_pins "$pack" >> pnpm-workspace.yaml
 
   corepack pnpm install

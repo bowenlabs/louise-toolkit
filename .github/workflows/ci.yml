@@ -195,6 +195,13 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: louise-astro-dist
+          path: packages/louise-astro/dist
+          retention-days: 1
+          if-no-files-found: error
+
   # ---------------------------------------------------------------------------
   # Three consumers of the packed output, in parallel. The two scaffold jobs were
   # sequential steps sharing one clean room; they now share a warm pnpm store via
@@ -263,12 +270,19 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
-      # The site resolves `louise-toolkit/*` through the workspace link, which
-      # points at dist/. Restore the packed build rather than rebuilding it.
+      # The site resolves `louise-toolkit/*` AND `@louise-toolkit/astro` through
+      # workspace links, both of which point at a `dist/`. Restore both packed
+      # builds rather than rebuilding them — missing the adapter's is what made
+      # this job fail with "Failed to resolve entry for package".
       - uses: actions/download-artifact@v8
         with:
           name: louise-dist
           path: packages/louise/dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: louise-astro-dist
+          path: packages/louise-astro/dist
 
       - name: Build the site
         run: corepack pnpm run build:site
