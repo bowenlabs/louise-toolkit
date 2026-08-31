@@ -48,6 +48,48 @@ so it's safe to lazy-import and call on any page. See
   live status line (**Publish** stays). Pass `false` to opt out, or
   `{ debounceMs }` to tune the delay. Auto-save **never publishes**.
 
+## `louiseNavigation` · `onLouiseNavigate(phase, handler)`
+
+```ts
+const louiseNavigation: { beforeSwap(): void; afterSwap(): void };
+function onLouiseNavigate(phase: "before-swap" | "after-swap", handler: () => void): () => void; // returns an unsubscribe
+```
+
+The page-lifecycle seam. If your site uses **soft navigation**—a router that
+swaps the DOM without a page load—wire these two calls, or pending edits are
+silently dropped on every navigation.
+
+```ts
+// Astro, with view transitions:
+import { louiseNavigation } from "louise-toolkit/client";
+
+document.addEventListener("astro:before-swap", louiseNavigation.beforeSwap);
+document.addEventListener("astro:after-swap", louiseNavigation.afterSwap);
+```
+
+:::caution[Nothing errors if you forget]
+A soft navigation fires none of `pagehide`, `beforeunload` or
+`visibilitychange`, so without `beforeSwap` the last edit before a navigation is
+lost. There is no warning—the editor simply stops saving on soft navs. Hard
+navigations are unaffected; Louise wires those browser events itself.
+:::
+
+`beforeSwap` flushes pending auto-saved edits from the page editor and the
+section dock, and disposes the settings drawer before its DOM is replaced.
+`afterSwap` drops the now-defunct editor, clears the mount guard so the next page
+mounts cleanly, and closes the realtime socket so it cannot leak across the
+navigation.
+
+Both are safe to call when nothing is mounted and safe to call repeatedly, so
+wire them once for the document's lifetime. A site with no soft navigation calls
+neither and loses nothing.
+
+**Why you wire it rather than Louise.** The client used to listen for
+`astro:before-swap` directly, which put one framework's event names inside a
+library that is meant to work anywhere—and meant the editor could only ever
+integrate with that framework's router. `onLouiseNavigate` is the same seam from
+the inside, for code that needs the signal without knowing what produced it.
+
 ## `RichText` / `mountRichText`
 
 The ProseKit (Solid) editor used identically by inline fields and by any

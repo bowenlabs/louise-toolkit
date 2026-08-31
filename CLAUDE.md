@@ -40,6 +40,12 @@ Both times the suite reported success while the run failed. Grepping the vitest
 summary for `Tests` hides it — **check the exit code**, and read the `Errors`
 line if there is one.
 
+One more the suite cannot replace: `node scripts/ci/checks/export-map.mjs`, run
+after a build. Vitest aliases `louise-toolkit/*` to source, so every test in the
+workspace is blind to a symbol that exists in `src/` and was never re-exported —
+the bug that only bites someone installing the package. Three such symbols were
+found this way while extracting the Astro adapter.
+
 The full set, roughly in the order CI runs it:
 
 ```sh
@@ -54,8 +60,8 @@ corepack pnpm run lint:solid
 corepack pnpm run knip                         # dead code
 ```
 
-Then the builds, which catch what nothing above can — an export map that omits a
-new subpath, or a `dist/` that never emitted it.
+Then the builds plus the export-map check, which catch what nothing above can —
+an export map that omits a new subpath, or a `dist/` that never emitted it.
 
 ## `packages/create-astroid/template/` is not source
 

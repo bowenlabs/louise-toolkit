@@ -212,3 +212,20 @@ reuse or unit-test:
 
 Also exported: `runEditorRoute`, `guardEditor`, `json`, `matchPath`, `ident`,
 `tableMeta`, and the `EditorRouteEnv` / `ResolveEditor` types.
+
+### Mounting a write on your own transport
+
+Three helpers are the route-free cores of the write paths, for a host that mounts
+its own endpoint rather than using the `WorkerRoute`s above—an Astro Action, say:
+
+- `applyFieldSave(env, config, session, input)`—one inline field write, the body
+  of `saveRoute`.
+- `applySaveDraft(env, deps, session, id, snapshot)`—a versioned draft write, the
+  body of the draft route. This is also what the realtime Durable Object calls, so
+  there is exactly one write path rather than two that can drift.
+- `applySettingsPatch(env, config, session, patch)`—a settings write, the body of
+  `settingsRoute`.
+
+They run the same validation, sanitization and access checks the routes do; the
+route is only the transport. Reach for these when the transport is yours and the
+behaviour should not be.

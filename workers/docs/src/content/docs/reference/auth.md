@@ -59,6 +59,8 @@ passed straight to `database` (no adapter).
 | `tablePrefix?`         | namespace the auth tables in the same D1 (for example, `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
 | `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                          |
 | `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                              |
+| `verificationStorage?` | where single-use values (magic links, resets) are consumed from; defaults to `"database"`                                                                                           |
+| `rateLimitDo?`         | Durable Object namespace backing Better Auth's rate limiter                                                                                                                         |
 | `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                      |
 
 ```ts
@@ -109,6 +111,45 @@ not a shared login. The combination that makes this safe:
 `rpID` must be the origin's own domain or a parent of it—a browser rejects a
 registration whose rpID is neither, so a typo fails at enrolment rather than
 silently. It is a bare domain: no scheme, no port.
+
+### Single-use values stay on D1
+
+`verificationStorage` decides where a magic link or password-reset token is
+stored and consumed. It only matters alongside `sessionCacheKv`; without a
+secondary storage these always live in D1 anyway.
+
+It defaults to `"database"`, and that default is a security one. Better Auth
+requires the storage's `getAndDelete` to be **atomic**, so one of these values
+cannot be consumed twice. Cloudflare KV has no atomic primitive, and its
+cross-colo convergence widens the window further—two requests racing the same
+magic link could both succeed. D1 is strongly consistent and deletes atomically,
+so consuming from there closes it, and KV stays what it is good at here: a global
+session read cache.
+
+Pass `"secondary"` to restore the older behaviour. Take it only if you have
+measured the extra D1 read on the verification path and decided it matters.
+
+### Rate limiting on a Durable Object
+
+Better Auth checks `rateLimit.customStorage` **before** secondary storage, so
+setting `rateLimitDo` means its rate limiting stops going through KV entirely.
+
+```ts
+getLouiseAuth(env, baseURL, {
+  // …
+  sessionCacheKv: env.SESSIONS,
+  rateLimitDo: env.RATE_LIMIT_DO,
+});
+```
+
+A Durable Object is the only atomic counter on Workers. The KV counter has a
+read→write gap that undercounts under a burst, and Cloudflare's native Rate
+Limiting binding is permissive, eventually consistent and scoped **per
+location**—so an attacker spread across colos gets one budget per colo. Fine for
+form spam, weak for sign-in.
+
+Your site owns the `DurableObject` subclass and the wrangler binding; see
+[`createRateLimiter`](/reference/security/) for the shape.
 
 ## `resolveEditorSession(auth, request, editorRole?)`
 
