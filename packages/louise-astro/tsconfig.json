@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Same as `packages/louise`: the base config sets `types: []`, and the
+    // middleware/Actions surface reaches D1 and the Worker globals.
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src", "test"]
+}

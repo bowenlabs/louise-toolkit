@@ -2,7 +2,7 @@
 //
 // The catalog read, and the Live Content Collection loader over it.
 //
-// `defineCatalogLoader` (louise-toolkit/astro) already owns the Astro-facing
+// `defineCatalogLoader` (@louise-toolkit/astro) already owns the Astro-facing
 // plumbing. What each site then hand-wrote was the layer underneath — "read my
 // catalog out of D1" — and because that layer was per-site, so was the drift.
 // It doesn't need to be: once the mirror table's shape is fixed (see mirror.ts),
@@ -115,7 +115,7 @@ export async function readCatalogItem(
  *
  * ```ts
  * // src/loaders/catalog.ts
- * import { defineCatalogLoader } from "louise-toolkit/astro";
+ * import { defineCatalogLoader } from "@louise-toolkit/astro";
  * import { astroidCatalogLoaderConfig } from "astroidjs";
  *
  * export const catalogLoader = defineCatalogLoader(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pack the three published packages the way `pnpm publish` would, into $1.
+# Pack the four published packages the way `pnpm publish` would, into $1.
 #
 # Two details this depends on, neither incidental:
 #   - `pnpm pack` (not `npm pack`) — only pnpm rewrites `workspace:*` into the
@@ -13,7 +13,10 @@ DEST="${1:?usage: pack-tarballs.sh <dest-dir>}"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 
-for pkg in louise astroid create-astroid; do
+# Order matters only for readability — `pnpm pack` does not resolve between
+# them — but it mirrors the dependency direction: core, its Astro adapter, the
+# opinionated layer, the scaffold.
+for pkg in louise louise-astro astroid create-astroid; do
   (cd "packages/$pkg" && corepack pnpm pack --pack-destination "$DEST")
 done
 

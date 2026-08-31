@@ -20,7 +20,7 @@
 // core never takes a Zod dependency.
 
 import { z } from "astro/zod";
-import type { FormConfig, FormField } from "../core/forms/types.js";
+import type { FormConfig, FormField } from "louise-toolkit/forms";
 
 /** Map one form field to its Zod type, including the type's built-in format
  *  check (email/url) and coercion (number/date/checkbox). */

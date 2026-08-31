@@ -10,7 +10,7 @@
 // binding for instant edits. Use this snapshot collection for cacheable,
 // build-time listings (indexes, sitemaps, static exports).
 import { defineCollection } from "astro:content";
-import { louiseLoader } from "louise-toolkit/astro";
+import { louiseLoader } from "@louise-toolkit/astro";
 import { readPublishedPages } from "./lib/louise/published-pages.js";
 import { pagesCollection } from "./pages-collection.js";
 

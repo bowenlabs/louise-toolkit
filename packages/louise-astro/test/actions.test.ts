@@ -5,9 +5,9 @@ import {
   louiseSaveAction,
   louiseSaveDraftAction,
   louiseSettingsAction,
-} from "../../src/astro/actions.js";
-import { collectionVersionsTable, defineCollection } from "../../src/core/content/index.js";
-import { pages, siteSettings } from "../../src/core/db/index.js";
+} from "../src/actions.js";
+import { collectionVersionsTable, defineCollection } from "louise-toolkit/content";
+import { pages, siteSettings } from "louise-toolkit/db";
 
 // Fake D1 mirroring test/core/editor.test.ts's makeD1, plus `.raw()`: drizzle's
 // `update().set().where().returning()` reads its rows via `stmt.bind(...).raw()`

@@ -108,7 +108,7 @@ function toolkitRanges() {
   const req = createRequire(import.meta.url);
   const self = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
   const ranges = {};
-  for (const name of ["astroidjs", "louise-toolkit"]) {
+  for (const name of ["astroidjs", "louise-toolkit", "@louise-toolkit/astro"]) {
     const declared = self.dependencies?.[name];
     let version = declared && !declared.startsWith("workspace:") ? declared : undefined;
     if (!version) {

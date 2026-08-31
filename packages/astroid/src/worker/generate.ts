@@ -512,7 +512,7 @@ export function generateAstroidMiddleware(config: AstroidConfig): string {
     "// the CSP header Astro's security.csp emits so Louise's data-driven inline",
     "// styles + inlined data: brand font are allowed.",
     'import { env } from "cloudflare:workers";',
-    'import { createLouiseMiddleware } from "louise-toolkit/astro";',
+    'import { createLouiseMiddleware } from "@louise-toolkit/astro";',
     // One `astroidjs` import, composed from what this config actually uses —
     // two import statements for the same module is legal and reads as an
     // oversight in a file nobody is supposed to hand-edit.

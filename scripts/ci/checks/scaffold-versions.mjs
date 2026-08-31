@@ -25,7 +25,7 @@ if (!scaffold) {
 const pkg = JSON.parse(fs.readFileSync(`${scaffold}/package.json`, "utf8"));
 let bad = 0;
 
-for (const name of ["astroidjs", "louise-toolkit"]) {
+for (const name of ["astroidjs", "louise-toolkit", "@louise-toolkit/astro"]) {
   const packed = JSON.parse(fs.readFileSync(`node_modules/${name}/package.json`, "utf8")).version;
   const declared = pkg.dependencies[name];
   const expected = `^${packed}`;

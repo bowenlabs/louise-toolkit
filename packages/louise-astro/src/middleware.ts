@@ -28,8 +28,8 @@ import {
   type RateRule,
   rateLimit,
   rewriteCspStyleSrc,
-} from "../core/security/index.js";
-import { LOUISE_EDIT_COOKIE } from "../core/worker/edge-cache.js";
+} from "louise-toolkit/security";
+import { LOUISE_EDIT_COOKIE } from "louise-toolkit/worker";
 
 /** The locals this middleware writes. A site's `App.Locals` should declare at
  *  least these (plus anything it sets via {@link LouiseMiddlewareConfig.extend},

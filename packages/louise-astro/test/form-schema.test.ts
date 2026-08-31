@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formToAstroSchema } from "../../src/astro/form-schema.js";
-import type { FormConfig } from "../../src/core/forms/types.js";
+import { formToAstroSchema } from "../src/form-schema.js";
+import type { FormConfig } from "louise-toolkit/forms";
 
 const form: FormConfig = {
   name: "inquiries",

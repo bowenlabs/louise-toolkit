@@ -6,7 +6,7 @@
 // build / CI without secrets) it returns [] so the build still succeeds with an
 // empty collection.
 import { CF_ACCOUNT_ID, CF_API_TOKEN, CF_D1_DATABASE_ID } from "astro:env/server";
-import type { LouiseRow } from "louise-toolkit/astro";
+import type { LouiseRow } from "@louise-toolkit/astro";
 
 // Published-page columns, aliased to the `pagesCollection` field keys: the D1
 // columns are snake_case, but the collection — and so the loader's schema — is

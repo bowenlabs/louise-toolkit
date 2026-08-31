@@ -37,6 +37,9 @@ jobs:
       - name: Lint & format — astroid (Oxlint + Oxfmt)
         run: corepack pnpm -C packages/astroid run check
 
+      - name: Lint & format — the Astro adapter (Oxlint + Oxfmt)
+        run: corepack pnpm -C packages/louise-astro run check
+
       # Everything the two package checks don't reach: create-astroid, docs/,
       # workers/, scripts/, and the repo root.
       #
@@ -113,6 +116,11 @@ jobs:
       - name: Test (Astroid)
         run: corepack pnpm -C packages/astroid run test
 
+      # The adapter aliases `louise-toolkit/*` to source (vitest.config.ts), so it
+      # needs no build — same arrangement as astroid's suite.
+      - name: Test (Astro adapter)
+        run: corepack pnpm -C packages/louise-astro run test
+
   # ---------------------------------------------------------------------------
   # The build fan-out point. Everything below consumes its artifacts rather than
   # rebuilding, so the library is packed exactly once per run.
@@ -157,6 +165,16 @@ jobs:
 
       # Build the Astroid CLI (tsgo → dist/) so its generators + bin are
       # runnable.
+      # Type-check + build the adapter against the BUILT library, for the same
+      # reason astroid is: its imports resolve through the export map here, not
+      # through the vitest alias, so a subpath that is not actually exported fails
+      # in CI rather than in someone's install.
+      - name: Type-check the Astro adapter (against the built library)
+        run: corepack pnpm -C packages/louise-astro run typecheck
+
+      - name: Build the Astro adapter (dist/)
+        run: corepack pnpm -C packages/louise-astro run build
+
       - name: Build the Astroid CLI (dist/)
         run: corepack pnpm -C packages/astroid run build
 

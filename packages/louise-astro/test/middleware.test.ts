@@ -1,7 +1,7 @@
 import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
 import { describe, expect, it } from "vitest";
-import { createLouiseMiddleware } from "../../src/astro/middleware.js";
-import type { KVLike, RateRule } from "../../src/core/security/index.js";
+import { createLouiseMiddleware } from "../src/middleware.js";
+import type { KVLike, RateRule } from "louise-toolkit/security";
 
 /** In-memory KV counter — the same fake the security tests use. */
 function makeKv(): KVLike {

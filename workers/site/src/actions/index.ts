@@ -8,7 +8,7 @@
 // inferred on the client. This is the pattern the sites' existing actions
 // (e.g. themidwestartist's `inquiry`) should migrate toward.
 import { ActionError, defineAction } from "astro:actions";
-import { louiseSaveAction, louiseSaveDraftAction } from "louise-toolkit/astro";
+import { louiseSaveAction, louiseSaveDraftAction } from "@louise-toolkit/astro";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { db } from "louise-toolkit/db";
