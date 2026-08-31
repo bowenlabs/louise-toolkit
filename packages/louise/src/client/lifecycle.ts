@@ -12,16 +12,19 @@
 //   • after the swap — drop the now-defunct editor, clear the mount guard, and
 //     close the realtime socket, so the next page mounts cleanly.
 //
-// This module used to get both by listening for `astro:before-swap` and
-// `astro:after-swap` directly. That worked, and it put the name of one specific
-// framework's events inside a library that claims to be framework-agnostic. The
-// events are now the HOST's to observe: it calls {@link louiseNavigation}, and
-// Louise never knows what produced the signal.
+// This module used to get both by listening for one specific framework's
+// navigation events directly. That worked, and it put that framework's name
+// inside a library claiming to be framework-agnostic. The events are now the
+// HOST's to observe: it calls {@link louiseNavigation}, and Louise never knows
+// what produced the signal.
 //
-//   // an Astro host:
 //   import { louiseNavigation } from "louise-toolkit/client";
-//   document.addEventListener("astro:before-swap", louiseNavigation.beforeSwap);
-//   document.addEventListener("astro:after-swap", louiseNavigation.afterSwap);
+//   document.addEventListener(<your router's before-swap event>, louiseNavigation.beforeSwap);
+//   document.addEventListener(<your router's after-swap event>, louiseNavigation.afterSwap);
+//
+// A worked example naming a real router's events is in the published reference
+// (guide: `reference/client`), which is the right place for it — a host-specific
+// integration snippet is documentation, not library source.
 //
 // A host with no soft navigation calls neither, and everything still works: hard
 // navigations are covered by the browser events Louise wires itself.

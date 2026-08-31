@@ -79,7 +79,7 @@ export function tableMeta(table: SQLiteTable): { name: string; pk: string } {
 }
 
 /** A no-op `ExecutionContext` for calling editor routes outside a Worker fetch
- *  handler (e.g. an Astro `APIRoute`). The editor routes don't use `ctx`; it's
+ *  handler (e.g. a framework route). The editor routes don't use `ctx`; it's
  *  only part of the `WorkerRoute`/composeWorker contract. */
 const NOOP_CTX = {
   waitUntil() {},
@@ -87,14 +87,14 @@ const NOOP_CTX = {
 } as unknown as ExecutionContext;
 
 /**
- * Run an editor {@link WorkerRoute} from a non-Worker context — an Astro
+ * Run an editor {@link WorkerRoute} from a non-Worker context — a framework
  * `APIRoute`, a Nitro/Nuxt handler, etc. — where you already have the resolved
  * editor session (e.g. from middleware) and the bindings, but no
  * `ExecutionContext`. Supplies a no-op `ctx` and turns a path fall-through
  * (`undefined`) into a 404, so a consuming route is a one-liner:
  *
  * ```ts
- * // Astro: the session is already on locals; hand it back via resolveEditor.
+ * // The session is already resolved by the host; hand it back via resolveEditor.
  * export const ALL: APIRoute = (ctx) =>
  *   runEditorRoute(
  *     inquiriesRoute({ table: inquiries, resolveEditor: () => ctx.locals.editor }),

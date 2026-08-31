@@ -219,7 +219,7 @@ export interface SectionDef {
   /**
    * Site-settings keys this section READS when it renders — e.g.
    * `["addressStreet", "hours"]` for a location panel. The coupling is
-   * otherwise invisible (it lives inside the site's Astro component), and it
+   * otherwise invisible (it lives inside the site's own component), and it
    * is what the shared-value editor counts to say "used in N surfaces"
    * before a green-ring edit changes every one of them.
    */
@@ -618,7 +618,7 @@ export async function assertValidSections(
  *
  *  Recurses into `array` fields via their `itemFields`. That is not a nicety:
  *  `SectionField` lets an `array` declare a `richText` item field, and a catalog
- *  promptly did — Astroid's `faq.items[].answer` is richText and is rendered with
+ *  promptly did — a shipped `faq.items[].answer` is richText and is rendered with
  *  `set:html`. One level of walking meant it was stored exactly as typed, so the
  *  "never store raw HTML" invariant held everywhere except the one place a
  *  catalog author would naturally reach for it, with CSP as the only remaining

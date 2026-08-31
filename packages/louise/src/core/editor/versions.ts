@@ -40,7 +40,7 @@ const DISCARD_BODY = s.object({ versionId: s.number({ int: true }) });
 
 /** The store-side deps a versioned draft save needs — the subset of
  *  {@link VersionsRouteConfig} that {@link applySaveDraft} uses (no transport/auth
- *  concern), shared with the Astro `saveDraft` Action so the raw route and the
+ *  concern), shared with the host's `saveDraft` endpoint so the raw route and the
  *  Action build the same versioned local API and buffer. */
 export interface SaveDraftDeps<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** The main content table (e.g. the composed `pages`). */
@@ -101,7 +101,7 @@ export type SaveDraftResult =
  * pending draft's snapshot, else the live row (see {@link latestPendingDraft}) —
  * optionally run the site's `validate`, then either absorb the write into the KV
  * buffer (#70) or write a new draft version to D1. Carries no transport/parse
- * concern — the raw {@link versionsRoute} (POST `/:id/versions`) and the Astro
+ * concern — the raw {@link versionsRoute} (POST `/:id/versions`) and the host's
  * `saveDraft` Action each validate their own input, then converge here.
  */
 export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv>(
