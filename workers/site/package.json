@@ -18,7 +18,6 @@
     "@resvg/resvg-wasm": "^2.6.2",
     "@tanstack/solid-query": "^5.102.8",
     "astro": "^7.2.9",
-    "astroidjs": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "louise-toolkit": "workspace:*",
     "prosekit": "^0.21.4",
