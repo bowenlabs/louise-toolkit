@@ -76,7 +76,7 @@ export function resolveFieldValue(
  * Apply an already-validated field save: look up the collection, allowlist-check
  * + sanitize the field ({@link resolveFieldValue}), then write it to the row's
  * primary key. Carries no transport/parse concern — the raw {@link saveRoute} and
- * the Astro `save` Action each validate their own input, then converge here, so
+ * a host's `save` endpoint each validate their own input, then converge here, so
  * the store logic (and the #96 body-validation contract about where parsing
  * happens) lives in exactly one place rather than being duplicated per adapter.
  */

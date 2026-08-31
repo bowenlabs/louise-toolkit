@@ -23,7 +23,7 @@ export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
   // `applySettingsPatch` + its config are the route-free core of a settings write.
-  // Public because a host that mounts its own endpoint — an Astro Action rather
+  // Public because a host that mounts its own endpoint — a framework action rather
   // than `settingsRoute`'s WorkerRoute — needs the same write path, and reaching
   // into `louise-toolkit/src/...` for it breaks on a published tarball (#327).
   applySettingsPatch,

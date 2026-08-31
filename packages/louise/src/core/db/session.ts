@@ -55,8 +55,8 @@ export function d1Bookmark(client: D1Client): D1SessionBookmark | null {
 }
 
 /** Read the persisted D1 bookmark from a request's `Cookie` header (the value a
- *  resume read anchors at), or `null` when absent. Framework-agnostic; an Astro
- *  page can equivalently read `Astro.cookies.get(D1_BOOKMARK_COOKIE)`. */
+ *  resume read anchors at), or `null` when absent. Framework-agnostic; a page
+ *  can equivalently read the cookie through its own framework's API. */
 export function readD1Bookmark(request: Request): D1SessionBookmark | null {
   const raw = request.headers.get("cookie");
   if (!raw) return null;

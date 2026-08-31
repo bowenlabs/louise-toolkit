@@ -11,8 +11,8 @@
 // eager: a caller that only wanted `defineCollection` still had to resolve
 // drizzle-orm at import time. Since drizzle-orm is an *optional* peer, that
 // silently required consumers to install a package they never asked for — it
-// shipped a broken `create-astroid` to the registry once, because Astroid's config
-// generators call `defineCollection` and nothing else.
+// shipped a broken scaffold to the registry once, because the config generators
+// in the layer above call `defineCollection` and nothing else.
 //
 // So: import from here when you're describing content (config, codegen tools,
 // meta-frameworks); import from `louise-toolkit/content` when you're also

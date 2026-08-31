@@ -88,6 +88,15 @@ rather than name-shaped, which is precisely what oxlint and knip cannot see:
   `undefined` rather than failing, so a configured feature quietly acts
   unconfigured.
 
+Alongside it, `corepack pnpm run lint:core` enforces the framework-agnostic
+claim: **`packages/louise/src` must not mention Astro at all**, in code or in
+prose. A text scan rather than an AST rule, because what leaks back in is
+comments — "e.g. `astro dev`" is a constant temptation, since Astro genuinely is
+the clearest example to reach for. It also catches "Astroid", which in library
+source is the dependency direction backwards: the floor naming the ceiling.
+Astro-specific code belongs in `@louise-toolkit/astro`; opinions belong in
+`astroidjs`.
+
 Every rule carries a `note` explaining the invariant, because a rule nobody
 understands gets deleted the first time it is inconvenient. Keep the set small:
 anything expressible as an ordinary lint rule belongs in oxlint instead.

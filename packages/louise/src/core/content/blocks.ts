@@ -10,7 +10,7 @@
  *
  * Framework-agnostic on purpose: `TRenderer` is whatever a host wants a
  * block's renderer to be — a string-producing function (SSR/preview HTML),
- * an Astro component, a Solid component, etc. The registry only does lookup,
+ * a server component, a Solid component, etc. The registry only does lookup,
  * fallback, and introspection; it never assumes a rendering technology.
  */
 

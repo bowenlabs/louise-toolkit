@@ -174,7 +174,7 @@ export type SettingsPatchResult =
  * Apply an already-validated settings patch to the singleton row: enforce
  * media-strictness on image keys, split the patch into base-column vs `custom`
  * updates ({@link partitionSettingsPatch}), and write. Carries no transport/parse
- * concern — the raw {@link settingsRoute} (POST/PATCH) and the Astro `settings`
+ * concern — the raw {@link settingsRoute} (POST/PATCH) and a host's `settings`
  * Action each validate their own input, then converge here, so the merge + write
  * lives in exactly one place rather than being duplicated per adapter.
  */

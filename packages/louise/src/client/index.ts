@@ -321,14 +321,14 @@ export interface MountLouiseOptions {
    *  the outbound change rate. */
   realtime?: RealtimeOption;
   /**
-   * Typed Astro Action callables for the **normal** (debounced) auto-save path
+   * Typed action callables for the **normal** (debounced) auto-save path
    * (#138). The site injects `actions.louise.save` / `actions.louise.saveDraft`
-   * — which it can import from `astro:actions`; this framework-agnostic client
+   * — which the host imports from its own framework; this framework-agnostic client
    * can't. Each must **resolve on success and reject on failure** (the site wraps
    * the action's `{ data, error }` accordingly).
    *
    * The **unload** flush (tab-hide / page-hide / `beforeunload`) always uses the
-   * raw `keepalive` fetch instead — Astro's action client can't set `keepalive`,
+   * raw `keepalive` fetch instead — a framework action client can't set `keepalive`,
    * so a save fired while navigating away would be dropped. Omit `actions` to keep
    * every save on the raw `/api/louise/*` routes (unchanged).
    */
@@ -523,7 +523,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // coalesced flush might not have fired yet). Populated in the field loop.
   const fieldGetters = new Map<string, ValueGetter>();
   // True while the page is hiding/unloading (set by the leave handlers below).
-  // The save fns fall back to a raw `keepalive` fetch then — an Astro Action
+  // The save fns fall back to a raw `keepalive` fetch then — a framework action
   // can't keepalive, so its request would be aborted mid-navigation (#138).
   let unloading = false;
 
@@ -829,7 +829,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   }
 
   // Point the shared leave/flush handlers (wired once, below) at this mount, so a
-  // tab-hide, hard nav, or Astro soft nav flushes THIS page's pending edits and
+  // tab-hide, hard nav, or soft nav flushes THIS page's pending edits and
   // routes them through the raw `keepalive` fetch (#138). Only when this page owns
   // inline fields with auto-save — otherwise there's nothing to flush (a sections
   // page guards its own edits in the dock).

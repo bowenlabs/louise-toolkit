@@ -2,7 +2,7 @@
 
 // Transport/scope security headers + an optional CSP style-src rewrite, shared
 // by every Louise site's middleware. Composed as small functions the site's
-// Astro middleware calls on the outgoing `Response`, so a site keeps ownership
+// a site's middleware calls on the outgoing `Response`, so it keeps ownership
 // of the rest of its policy (img-src, connect-src, script hashes, …).
 
 export interface SecurityHeaderOptions {
@@ -33,11 +33,11 @@ export function louiseSecurityHeaders(response: Response, opts: SecurityHeaderOp
 
 /**
  * Rewrite only the `style-src` directive of an existing `Content-Security-Policy`
- * header, leaving every other directive (script hashes, etc.) verbatim. Astro's
+ * header, leaving every other directive (script hashes, etc.) verbatim. A host's
  * `security.csp` hashes its own inline island `<style>`, and a hash in style-src
  * voids `'unsafe-inline'` — which data-driven `style=""` attributes need. Call
  * this with the site's desired style-src to restore inline styles. No-op when no
- * CSP header is present (e.g. `astro dev`).
+ * CSP header is present (e.g. a dev server).
  */
 export function rewriteCspStyleSrc(response: Response, styleSrc: string): Response {
   const csp = response.headers.get("content-security-policy");
@@ -66,7 +66,7 @@ function allowsDataScheme(directive: string): boolean {
  * Adds `data:` to an existing `font-src`; if the policy has no `font-src` but a
  * `default-src` (which fonts fall back to), it appends a `font-src` derived from
  * `default-src` + `data:` so nothing else is loosened. No-op when there is no CSP
- * header (e.g. `astro dev`) or when fonts are already unrestricted (neither
+ * header (e.g. a dev server) or when fonts are already unrestricted (neither
  * directive present). Idempotent.
  */
 export function allowCspDataFonts(response: Response): Response {

@@ -196,7 +196,7 @@ export function Settings(props: SettingsConfig) {
 /**
  * Mount the Louise Settings shell: inject the Louise stylesheet, create the shared
  * QueryClient, and render into a body-appended root. Idempotent — a second call
- * is a no-op (Astro view-transition re-runs). Returns nothing; Louise Settings opens
+ * is a no-op (soft-navigation re-runs). Returns nothing; Louise Settings opens
  * on the {@link OPEN_SETTINGS_EVENT}.
  */
 export function mountSettings(config: SettingsConfig): void {
@@ -219,7 +219,7 @@ export function mountSettings(config: SettingsConfig): void {
   // sections side also checks for #louise-drawer-root directly, covering the case
   // where Settings got there first (coracle.coffee#36).
   window.dispatchEvent(new CustomEvent(SETTINGS_READY_EVENT));
-  // Astro view transitions (#74) replace <body>, orphaning this drawer while its
+  // A soft navigation (#74) replaces <body>, orphaning this drawer while its
   // window listeners (e.g. the OPEN_SETTINGS_EVENT handler) live on — so a Settings
   // click after a nav would fire a stale handler. Dispose the Solid root before the
   // swap; the bootstrap re-mounts a fresh drawer on the next page. A host that
