@@ -14,12 +14,6 @@
       // under scripts/ci/checks/ are invoked from those shell scripts by path.
       // Neither link is traceable, so both are entries.
       "entry": ["scripts/**/*.sh", "scripts/ci/checks/*.mjs"],
-      // eslint-plugin-solid is loaded by oxlint through .oxlintrc.json's
-      // `jsPlugins`, which knip doesn't parse. The `lint:solid` script names it
-      // too, but behind `corepack pnpm dlx` — which knip doesn't recognize as a
-      // package reference the way it does a bare `pnpm dlx`. Either way it's a
-      // real dependency: oxlint resolves the plugin from node_modules.
-      "ignoreDependencies": ["eslint-plugin-solid"],
     },
 
     // The library's package.json `exports` map points at ./dist/*, which only
@@ -49,6 +43,7 @@
         "src/core/forms/index.ts",
         "src/core/health/index.ts",
         "src/core/media/index.ts",
+        "src/core/mcp/index.ts",
         "src/core/queues/index.ts",
         // Public subpath `louise-toolkit/qr`. Nothing imports it inside the
         // package — a QR encoder has no internal consumer — so knip reads it as
@@ -69,7 +64,10 @@
     // The Astro adapter: one public entry, and its tests.
     "packages/louise-astro": {
       "entry": ["src/index.ts", "test/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
+      // `.astro` is in `project` so knip follows imports THROUGH the components
+      // instead of treating them as an opaque boundary — knip 6 reports the
+      // exclusion as a hint because that silently loses the edge.
+      "project": ["src/**/*.{ts,astro}"],
     },
 
     "workers/docs": {

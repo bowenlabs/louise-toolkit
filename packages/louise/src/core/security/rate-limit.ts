@@ -24,7 +24,7 @@
 
 import type { KVLike, RateLimitBackend, RateLimiterBinding } from "./types";
 
-export type { KVLike, RateLimitBackend, RateLimiterBinding };
+export type { RateLimitBackend };
 
 /** True for the native Rate Limiting binding (has `limit()`); false for KV. */
 function isNativeLimiter(backend: RateLimitBackend): backend is RateLimiterBinding {

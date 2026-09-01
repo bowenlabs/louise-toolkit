@@ -101,6 +101,36 @@ for (const [subpath, symbols] of Object.entries(required)) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 3. Every public-looking module IS exported.
+//
+// Checks 1 and 2 both start from the `exports` map, so neither can see the one
+// failure mode that produced them: a module written, tested, changelogged — and
+// never declared. `src/core/mcp/` shipped exactly that way in 0.27.0. Its own
+// header comment called it `louise-toolkit/mcp`, it had a passing test file, the
+// release notes announced it, and it reached npm in neither `exports` nor
+// `dist/`, because adding the subpath is a separate step from writing the module
+// and nothing connected the two.
+//
+// A `src/core/<name>/index.ts` is the shape every public subpath here takes, so
+// one that no `exports` target mentions is either a missed export or a module
+// that should not be named `index.ts`. Both are worth a failed build.
+// ---------------------------------------------------------------------------
+const targetsBlob = targets.map((t) => t.target).join("\n");
+const coreDir = path.join(pkgDir, "src/core");
+for (const name of fs.readdirSync(coreDir)) {
+  const index = path.join(coreDir, name, "index.ts");
+  if (!fs.existsSync(index)) continue;
+  // The built target a subpath for this module would point at.
+  if (!targetsBlob.includes(`dist/core/${name}/index.`)) {
+    fail(
+      `src/core/${name}/index.ts is not reachable from any \`exports\` subpath — ` +
+        "it would ship to nobody. Add it to `exports` and to vite.config.ts's entry list, " +
+        "or rename it if it is genuinely internal.",
+    );
+  }
+}
+
 if (failures > 0) {
   console.error(`\n${failures} export-map problem(s). These are invisible to the test suite.`);
   process.exit(1);

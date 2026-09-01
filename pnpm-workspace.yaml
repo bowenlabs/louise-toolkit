@@ -73,3 +73,12 @@ allowBuilds:
   esbuild: true
   sharp: false
   workerd: true
+
+# pnpm 11 refuses packages published inside its `minimumReleaseAge` window — a
+# supply-chain guard against a freshly-compromised release, and one worth keeping.
+# knip 6 landed inside that window while this bump was being made.
+#
+# Pinned to the exact version rather than the package name, so it expires on its
+# own: the next knip release is gated again and this line becomes inert.
+minimumReleaseAgeExclude:
+  - knip@6.34.0

@@ -77,13 +77,12 @@ import {
   type SectionCatalog,
   type SectionDef,
   type SectionField,
-  type SectionFieldType,
   type RichTextFieldOptions,
   type SectionItem,
 } from "../core/content/sections.js";
 import { onLouiseNavigate } from "./lifecycle.js";
 import { apiGet, apiSend } from "./settings/query.js";
-export type { SectionCatalog, SectionDef, SectionField, SectionFieldType, SectionItem };
+export type { SectionCatalog, SectionDef, SectionField, SectionItem };
 
 /**
  * One shared site-settings value the editor may edit on-canvas (Phase B /
