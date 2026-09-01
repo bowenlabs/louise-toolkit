@@ -116,6 +116,7 @@ export default {
       "src/core/worker/index.ts",
       "src/core/workflows/index.ts",
       "src/core/editor/index.ts",
+      "src/core/mcp/index.ts",
       "src/core/errors.ts",
     ],
     format: ["esm"],

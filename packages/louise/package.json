@@ -146,6 +146,11 @@
       "import": "./dist/core/media/index.js",
       "default": "./dist/core/media/index.js"
     },
+    "./mcp": {
+      "types": "./dist/core/mcp/index.d.ts",
+      "import": "./dist/core/mcp/index.js",
+      "default": "./dist/core/mcp/index.js"
+    },
     "./qr": {
       "types": "./dist/core/qr/index.d.ts",
       "import": "./dist/core/qr/index.js",
