@@ -16,7 +16,18 @@ export default defineConfig({
   // native dep entirely (#84).
   image: { service: passthroughImageService() },
   // The docs home is the Getting started guide (there's no separate splash).
-  redirects: { "/": "/guide/getting-started/" },
+  //
+  // The two `/astroid/` entries are gone-but-not-forgotten: those pages moved to
+  // docs.astroidjs.org when Astroid split into its own repo, and these URLs are
+  // published — linked from the README, from npm, and from wherever readers
+  // bookmarked them. A 404 is a worse answer than a hop. The reference page became
+  // fifteen pages there, so `/reference/astroid/` lands on the config page, which
+  // is what its first section was.
+  redirects: {
+    "/": "/guide/getting-started/",
+    "/guide/astroid/": "https://docs.astroidjs.org/guide/getting-started/",
+    "/reference/astroid/": "https://docs.astroidjs.org/reference/config/",
+  },
   integrations: [
     starlight({
       title: "Louise Toolkit",

@@ -361,7 +361,7 @@ router can unmount the island cleanly.
 **The shell renders no data and no session-specific markup.** Every panel fetches
 through `/api/*` on mount, so the HTML is identical for every editor and for a
 signed-out visitor—which is what makes it precacheable by a service worker
-(pair with [`PwaConfig.offlineFallback`](/reference/astroid/#pwa)). Baking a name
+(pair with [`PwaConfig.offlineFallback`](https://docs.astroidjs.org/reference/pwa/)). Baking a name
 or a row count into the shell either stops it being cacheable or, worse, gets it
 cached and served to the next person. That's why `title` is a site name.
 

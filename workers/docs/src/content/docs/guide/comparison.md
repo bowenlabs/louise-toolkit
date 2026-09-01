@@ -89,7 +89,7 @@ middleware, schema, and theme a site would otherwise hand-write, and
 Both are published and both are pre-1.0. The rule of thumb: **adding editing to an
 app you already have → Louise; starting a new site on Cloudflare → Astroid.**
 Astroid lives in the same workspace so its opinions co-evolve with the toolkit.
-See the [Astroid guide](/guide/astroid/).
+See the [Astroid guide](https://docs.astroidjs.org/guide/getting-started/).
 
 ## Credibility
 

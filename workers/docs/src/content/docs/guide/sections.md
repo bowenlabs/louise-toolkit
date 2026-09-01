@@ -114,7 +114,7 @@ toolbars, and no way to add, reorder, or remove anything. The page looks editabl
 while the entire structural layer is absent.
 :::
 
-Astroid's [`<Section>`](/reference/astroid/) dispatcher stamps the boundary for
+Astroid's [`<Section>`](https://docs.astroidjs.org/reference/config/) dispatcher stamps the boundary for
 you, at every depth—a block is the same component recursing with a deeper
 `base`, so a type that renders as a section renders unchanged as a block.
 
