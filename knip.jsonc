@@ -1,12 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
 
-  // `create-astroid/template/` is scaffold PAYLOAD — copied verbatim into a new
-  // project, not part of this repo's module graph (its deps aren't installed here,
-  // its files carry `__TOKEN__` placeholders). Exclude it from the dead-code scan;
-  // the scaffold bin (`index.mjs`) is still analyzed as create-astroid's entry.
-  "ignore": ["packages/create-astroid/template/**"],
-
   // The published library deliberately exports config constants and shared types
   // that are only referenced within their own module (e.g. RRF_K, KVLike,
   // SecretBinding, DEFAULT_ALT_FIX_BATCH) — that's intentional public surface,
@@ -72,34 +66,10 @@
       "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs", "assets/**/*.mjs"],
     },
 
-    "packages/create-astroid": {
-      // `@louise-toolkit/astro` is a real dependency that is never imported: the
-      // scaffold only RESOLVES it, through `req.resolve(`${name}/package.json`)`
-      // in `toolkitRanges()`, to derive the version range written into a new
-      // project. The specifier is a template string, so knip cannot see it.
-      //
-      // It has to stay a declared dependency for that resolution to work at all,
-      // and because `pnpm pack` is what rewrites `workspace:*` into the concrete
-      // version the derivation depends on. `astroidjs` and `louise-toolkit` avoid
-      // this only because they happen to also be imported for other reasons.
-      "ignoreDependencies": ["@louise-toolkit/astro"],
-    },
-
     // The Astro adapter: one public entry, and its tests.
     "packages/louise-astro": {
       "entry": ["src/index.ts", "test/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-    },
-
-    // Same story as the library: the `exports` map points at ./dist/*, so map
-    // the public entry to source. The `.astro` section library ships as source
-    // under a wildcard export and is only reachable from a scaffolded project.
-    "packages/astroid": {
-      // `src/astro/index.ts` is the `astroidjs/astro` subpath — build-time code
-      // imported from a scaffolded project's astro.config.mjs, never from
-      // anything in this repo.
-      "entry": ["src/index.ts", "src/astro/index.ts", "test/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "bin/**/*.mjs"],
     },
 
     "workers/docs": {

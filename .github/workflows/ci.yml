@@ -28,30 +28,19 @@ jobs:
 
       # `vp check` is per-package: it reads its config from that package's
       # vite.config.ts, so it must be run from inside each one. Only `louise` has
-      # a config (type-aware lint + typeCheck); `astroid` uses vp's defaults.
+      # a config (type-aware lint + typeCheck).
       - name: Lint & format — louise (Oxlint + Oxfmt)
         run: corepack pnpm -C packages/louise run check
-
-      # astroid was outside the gate entirely until #320, which is exactly why it
-      # accumulated formatting drift nobody saw: `vp check` had never run on it.
-      - name: Lint & format — astroid (Oxlint + Oxfmt)
-        run: corepack pnpm -C packages/astroid run check
 
       - name: Lint & format — the Astro adapter (Oxlint + Oxfmt)
         run: corepack pnpm -C packages/louise-astro run check
 
-      # Everything the two package checks don't reach: create-astroid, docs/,
-      # workers/, scripts/, and the repo root.
+      # Everything the two package checks don't reach: docs/, workers/,
+      # scripts/, and the repo root.
       #
-      # Formatting only, and via `vp fmt` rather than `vp check`, for two
-      # reasons. First, `vp check` from the repo root finds no config and would
-      # silently apply vp's defaults as if they were this repo's style. Second,
-      # `create-astroid/template/` MUST NOT be formatted — its files carry
-      # `__ASTROID_*__` placeholders and are not valid TypeScript standalone, so
-      # formatting them breaks every scaffolded project (see .oxfmtignore).
-      # `vp check` cannot be told to skip them: neither `format.ignorePatterns`
-      # in vite.config.ts nor a package-level .oxfmtrc.json is honoured — the
-      # explicit `--ignore-path` flag is the only mechanism that works.
+      # Formatting only, and via `vp fmt` rather than `vp check`: `vp check` from
+      # the repo root finds no config and would silently apply vp's defaults as if
+      # they were this repo's style.
       - name: Format — everything else (Oxfmt)
         run: corepack pnpm run fmt:check
 
@@ -127,14 +116,8 @@ jobs:
       - name: Test
         run: corepack pnpm -C packages/louise run test
 
-      # Astroid's own suite (config validation, the generators, the secret
-      # convention). It aliases `louise-toolkit/*` to source in its vitest
-      # config, so it needs no build and can run alongside the library's.
-      - name: Test (Astroid)
-        run: corepack pnpm -C packages/astroid run test
-
       # The adapter aliases `louise-toolkit/*` to source (vitest.config.ts), so it
-      # needs no build — same arrangement as astroid's suite.
+      # needs no build.
       - name: Test (Astro adapter)
         run: corepack pnpm -C packages/louise-astro run test
 
@@ -159,51 +142,30 @@ jobs:
       # Verify the PUBLISHED export map: every subpath in `exports` emitted, and
       # every symbol a first-party consumer needs reachable without touching
       # `louise-toolkit/src/...`. The whole test suite is blind to this, because
-      # vitest aliases the package to source — and the only thing exercising the
-      # real map today is the astroid typecheck below, which leaves with astroid
-      # when it moves to its own repo (#327).
+      # vitest aliases the package to source. With astroid gone to its own repo
+      # (#327), the adapter type-check below is the only remaining consumer that
+      # resolves through the real export map, which is why this explicit check
+      # matters more now, not less.
       - name: Verify the export map
         run: node scripts/ci/checks/export-map.mjs
 
-      # Type-check Astroid against the BUILT library, which is why it runs after
-      # the build above and not next to the louise type-check in `test`.
+      # Type-check the adapter against the BUILT library, which is why it runs
+      # after the build above and not next to the louise type-check in `test`.
       #
-      # Astroid's vitest aliases `louise-toolkit/*` to source, so the test suite
-      # resolves imports that the published package may not actually expose — it
-      # cannot see an export-map problem. This resolves through node_modules like
-      # a real consumer, so a subpath that isn't exported (or isn't emitted by
-      # the build) fails here instead of in someone's install.
+      # The adapter's vitest aliases `louise-toolkit/*` to source, so its suite
+      # resolves imports the published package may not actually expose — it cannot
+      # see an export-map problem. This resolves through node_modules like a real
+      # consumer, so a subpath that isn't exported (or isn't emitted by the build)
+      # fails here instead of in someone's install.
       #
       # The gap this closes: `louise-toolkit/content/sections` was added as a new
       # export, and nothing in CI would have caught it being missing from the
       # export map or the build output.
-      - name: Type-check Astroid (against the built library)
-        run: corepack pnpm -C packages/astroid run typecheck
-
-      # Build the Astroid CLI (tsgo → dist/) so its generators + bin are
-      # runnable.
-      # Type-check + build the adapter against the BUILT library, for the same
-      # reason astroid is: its imports resolve through the export map here, not
-      # through the vitest alias, so a subpath that is not actually exported fails
-      # in CI rather than in someone's install.
       - name: Type-check the Astro adapter (against the built library)
         run: corepack pnpm -C packages/louise-astro run typecheck
 
       - name: Build the Astro adapter (dist/)
         run: corepack pnpm -C packages/louise-astro run build
-
-      - name: Build the Astroid CLI (dist/)
-        run: corepack pnpm -C packages/astroid run build
-
-      - name: Pack the three published packages
-        run: scripts/ci/pack-tarballs.sh "$RUNNER_TEMP/louise-pack"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: tarballs
-          path: ${{ runner.temp }}/louise-pack/*.tgz
-          retention-days: 1
-          if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         with:
@@ -224,60 +186,6 @@ jobs:
   # sequential steps sharing one clean room; they now share a warm pnpm store via
   # the setup action's cache instead, which is what made splitting them cheap.
   # ---------------------------------------------------------------------------
-
-  smoke-storefront:
-    name: Scaffold smoke — storefront (+ live)
-    runs-on: ubuntu-latest
-    needs: pack
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-        with:
-          cache-suffix: scaffold-storefront
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: tarballs
-          path: ${{ runner.temp }}/louise-pack
-
-      - name: Scaffold, verify, and build (clean-room install from tarballs)
-        run: |
-          scripts/ci/smoke-storefront.sh \
-            "$RUNNER_TEMP/louise-pack" "$RUNNER_TEMP/louise-clean-room"
-
-      - name: Live smoke (serve the built worker, exercise it over HTTP)
-        run: scripts/ci/live-smoke.sh "$RUNNER_TEMP/louise-clean-room/smoke"
-
-      # The worker log is the only way to read a live-smoke failure after the
-      # fact; the script tails it, but the full file is worth keeping.
-      - name: Upload the wrangler dev log
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: live-smoke-dev-log
-          path: ${{ runner.temp }}/louise-clean-room/smoke/dev.log
-          retention-days: 3
-          if-no-files-found: ignore
-
-  smoke-portfolio:
-    name: Scaffold smoke — portfolio
-    runs-on: ubuntu-latest
-    needs: pack
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-        with:
-          cache-suffix: scaffold-portfolio
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: tarballs
-          path: ${{ runner.temp }}/louise-pack
-
-      - name: Scaffold, verify, and build (clean-room install from tarballs)
-        run: |
-          scripts/ci/smoke-portfolio.sh \
-            "$RUNNER_TEMP/louise-pack" "$RUNNER_TEMP/louise-folio-room"
 
   site:
     name: Build the site
@@ -310,7 +218,7 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, pack, smoke-storefront, smoke-portfolio, site]
+    needs: [lint, test, pack, site]
     steps:
       - name: Fail if any job did not succeed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

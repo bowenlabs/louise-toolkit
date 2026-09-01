@@ -1,5 +1,12 @@
 # ADR 0003 — Astroid component-primitive DX: typed `.astro` props
 
+> **Amendment (2026-09-01).** The code this ADR governs left the repository:
+> `packages/astroid` moved to
+> [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) (#327). The
+> decision still holds and the primitives still work as described — only the
+> address changed. Kept here because it records why the conventions are what they
+> are, and that reasoning predates the move.
+
 - **Status:** Proposed (2026-07-17)
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0001 (opinionated Astro-on-Cloudflare, fully typed); astroid

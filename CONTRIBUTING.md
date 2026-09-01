@@ -21,9 +21,9 @@ This is a [pnpm](https://pnpm.io) workspace driven by [Vite+](https://viteplus.d
 
 - `packages/louise` — `louise-toolkit`, the published library (core primitives,
   the SolidJS + ProseKit inline client, the editor theme).
-- `packages/astroid` — `astroidjs`, the opinionated meta-framework over Louise +
-  Astro. **Dependencies flow one way: `astroidjs → louise-toolkit`, never the
-  reverse** — nothing opinionated is allowed into Louise's exports.
+- `packages/louise-astro` — `@louise-toolkit/astro`, the optional Astro adapter:
+  middleware, Actions, content-layer loaders, the forms bridge. Everything that
+  imports Astro's types lives here so the core stays framework-agnostic.
 - `workers/site`, `workers/docs` — the marketing site and docs, both deployed by
   one Worker.
 
@@ -76,7 +76,7 @@ plugins and has no Solid rules), so the split stays.
 
 ## Changesets
 
-Any change to `louise-toolkit` (or `astroidjs`) that users would notice needs a
+Any change to `louise-toolkit` (or `@louise-toolkit/astro`) that users would notice needs a
 changeset — it drives the version bump and changelog:
 
 ```sh

@@ -3,7 +3,7 @@
   "description": [
     "Shared Renovate preset for every site built on louise-toolkit.",
     "Consume it with { \"extends\": [\"github>bowenlabs/louise-toolkit\"] } — that bare form resolves to THIS file (Renovate looks for default.json), and it is fetched from this repo's default branch, so a change here reaches every site on its next run.",
-    "Deliberately NOT the same file as this repo's own renovate.json5. That one carries library-specific rules a consuming site has no use for — the create-astroid template ignore, the vite-plus pin. The overlap between the two is intentional and small; a site should not inherit the library's plumbing.",
+    "Deliberately NOT the same file as this repo's own renovate.json5. That one carries library-specific rules a consuming site has no use for — the vite-plus pin. The overlap between the two is intentional and small; a site should not inherit the library's plumbing.",
     "Plain JSON rather than JSON5 because the bare github>owner/repo lookup only checks .json. Reasoning lives in `description` fields instead of comments, which is Renovate's own convention."
   ],
 
@@ -32,7 +32,12 @@
 
   "packageRules": [
     {
-      "matchPackageNames": ["louise-toolkit", "astroidjs", "create-astroid"],
+      "matchPackageNames": [
+        "louise-toolkit",
+        "@louise-toolkit/astro",
+        "astroidjs",
+        "create-astroid"
+      ],
       "groupName": "the toolkit",
       "labels": ["dependencies", "toolkit"],
       "schedule": ["at any time"],
