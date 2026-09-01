@@ -1,5 +1,345 @@
 # louise-toolkit
 
+## 0.27.0
+
+### Minor Changes
+
+- 76e38bc: client: a framework-neutral page-lifecycle seam, replacing the Astro event listeners
+
+  **Breaking for hosts with soft navigation.** The client no longer listens for
+  `astro:before-swap` / `astro:after-swap` itself. Those names are the host's now:
+  it calls `louiseNavigation.beforeSwap()` and `.afterSwap()`, and Louise never
+  learns what produced the signal.
+
+  ```ts
+  import { louiseNavigation } from "louise-toolkit/client";
+
+  document.addEventListener("astro:before-swap", louiseNavigation.beforeSwap);
+  document.addEventListener("astro:after-swap", louiseNavigation.afterSwap);
+  ```
+
+  **Wire this if your site uses view transitions, or a soft navigation will silently
+  drop pending edits.** That is the whole reason the listeners existed (#74): a
+  router-driven nav fires none of `pagehide`, `beforeunload` or `visibilitychange`,
+  so without a flush hung off the swap the last edit is lost. Nothing errors if you
+  forget — it just stops saving on soft navs, which is why it is called out here
+  rather than left to a type error. Hard navigations are unaffected; Louise still
+  wires those browser events itself.
+
+  Sites with no soft navigation need no change at all.
+
+  **Why.** `louise-toolkit` is described as framework-agnostic and shipped the name
+  of one specific framework's events in its client (#327 Phase 1). It also meant the
+  editor could only ever integrate with Astro's router: any other host had the same
+  need and no way to express it. The seam is the smaller and more honest surface —
+  two functions a host calls, and a `onLouiseNavigate(phase, handler)` subscription
+  the client's own modules use internally.
+
+  Behaviour is otherwise unchanged: the page editor still flushes and guards, the
+  section dock still flushes its pending draft, the settings drawer still disposes
+  before the DOM is replaced, and the realtime socket still closes so it cannot leak
+  across a navigation. An `ast-grep` rule now fails the build if an `astro:` event
+  name reappears under `src/client`.
+
+- 4467706: worker/email: the cacheability signal and the dev flag come from the host
+
+  Two more places where the "framework-agnostic" library knew about one specific
+  framework (#327 Phase 1).
+
+  **`withEdgeCache` takes a `signalHeader`.** Which response header a route uses to
+  say "cache me" is the host's convention, not this layer's. The default is
+  unchanged — `cloudflare-cdn-cache-control`, what a Cloudflare-targeting SSR
+  adapter emits — so no site needs to do anything. What changed is that the header
+  is now configurable and the surrounding prose no longer claims it comes from
+  `Astro.cache.set(...)`. Worth noting the header itself was never Astro's; it is
+  Cloudflare's, and only the explanation was framework-bound.
+
+  **`sendEmail` takes a `dev` flag.** It used to read `import.meta.env.DEV` first —
+  a value a bundler defines at build time, which made a library claiming
+  independence depend on being built by one, and which is absent on a plain Worker
+  anyway. The host knows the answer.
+
+  The important part is that this is **not** a behaviour regression for the path
+  that mattered. `getLouiseAuth` already computes `isDev` from the request's own
+  hostname, and now passes it: with no EMAIL binding on localhost the magic link is
+  still printed to the console, which is the only way to sign in locally. That
+  signal is strictly better than the old one, because it reflects _this request_
+  rather than how the bundle was built.
+
+  For a direct `sendEmail` caller the fallback is now `NODE_ENV` alone, which reads
+  absent-as-production. Forgetting `dev` is therefore safe but pessimistic: an
+  unconfigured send throws instead of simulating, and a sign-in link is withheld
+  from the log. Pass `dev` if you want the dev behaviour.
+
+  Astroid keeps its own `import.meta.env` read, which is correct — it _is_ the
+  Vite/Astro layer, and the dependency only runs astroid → louise.
+
+- afdddf7: security: a Durable-Object rate limiter, and Better Auth wired to use it
+
+  New `createRateLimiter` / `durableRateLimitStorage` in `louise-toolkit/security`,
+  and a `rateLimitDo` option on `getLouiseAuth`. Set it and Better Auth's rate
+  limiting stops going through KV entirely.
+
+  **Why a Durable Object.** It is the only atomic counter on Workers. A DO handles
+  one request at a time, so read-decide-write inside it cannot race. The two
+  alternatives both trade that away: the KV counter has a read→write gap that
+  undercounts under a burst, and Cloudflare documents the native Rate Limiting
+  binding as permissive, eventually consistent, and scoped **per location** — so an
+  attacker spreading across colos receives one budget per colo. That is a fine
+  trade for blunting form spam. It is a weak one for sign-in, which is what this
+  addresses.
+
+  Better Auth checks `rateLimit.customStorage` **before** secondary storage, so
+  wiring `rateLimitDo` means the KV `increment` added in 0.27 is never called. It
+  stays in place for sites that have not provisioned a DO, but it is now explicitly
+  the fallback rather than the recommendation.
+
+  Following the `realtime` and `workflows` pattern, the site owns the
+  `DurableObject` subclass and the wrangler binding; the library provides the logic
+  it delegates to:
+
+  ```ts
+  export class RateLimitDO extends DurableObject<Env> {
+    #rl = createRateLimiter(this.ctx);
+    fetch(request: Request) {
+      return this.#rl.fetch(request);
+    }
+    alarm() {
+      return this.#rl.alarm();
+    }
+  }
+  ```
+
+  One object per key, so no single object is a bottleneck (a DO sustains roughly
+  500–1,000 simple ops/sec, a per-key ceiling rather than a per-site one). Fixed
+  window, matching `security/rate-limit` — a client can reach ~2x the budget across
+  a boundary, the accepted cost of one number instead of a list of timestamps. The
+  window is never extended while blocking, or a client under sustained load would
+  never be let back in. An alarm reaps the counter once its window passes, so a
+  per-IP key does not occupy storage forever.
+
+  **Fails open**, like the KV limiter: an unreachable object allows the request. A
+  limiter outage must never lock every editor out of their own site.
+
+- 2227153: Astro support moves to `@louise-toolkit/astro`
+
+  **Breaking.** The `louise-toolkit/astro` subpath is gone. Its contents —
+  `createLouiseMiddleware`, the Action factories, `louiseLoader`,
+  `defineCatalogLoader`, `formToAstroSchema` — now live in a new package, and
+  `louise-toolkit` no longer declares Astro at all: no peer, no devDependency, no
+  export, no keyword.
+
+  ```diff
+  -import { louiseLoader } from "louise-toolkit/astro";
+  +import { louiseLoader } from "@louise-toolkit/astro";
+  ```
+
+  ```sh
+  pnpm add @louise-toolkit/astro
+  ```
+
+  Nothing else changes: same functions, same signatures, same behaviour. A
+  scaffolded project gets the new dependency automatically — `create-astroid`
+  derives its version the same way it derives the other two, and the generated
+  worker and Actions import from the new specifier.
+
+  **Why.** `louise-toolkit` is described as framework-agnostic and shipped an
+  `astro` peer dependency with an `./astro` export (#327). That claim should be
+  true rather than aspirational, and the practical cost was real: the toolkit could
+  not be published, versioned or reasoned about without Astro in the picture, and
+  Astro's own release cadence dragged the whole workspace.
+
+  Keeping the adapter as its own package rather than folding it into `astroidjs`
+  preserves the naming slot for a future host — a `/remix`, `/nuxt` or plain-Hono
+  adapter has somewhere obvious to go — and keeps the opinionated layer separate
+  from the thin binding.
+
+  The adapter versions independently of both core and `astroidjs`. It depends on
+  `louise-toolkit` through the public export map only, which is what
+  `scripts/ci/checks/export-map.mjs` now guards: the three symbols it needed that
+  were reachable only from `src/` were promoted to public in the preceding release.
+
+- 7b71572: mcp: tool generation from `CollectionConfig` (ADR 0009, slice 1 of #103)
+
+  New `collectionTools(collection, { sections })` and `contentTools(config)` derive
+  the MCP tool definitions a site exposes to an agent. Pure data in / data out,
+  like `content/structure.ts` — no transport, no Local API, no session. Those are
+  slices 2–4.
+
+  The point of the feature is that humans edit in place and agents edit over the
+  **same** typed primitives, so a tool's arguments are derived from the very
+  `FieldConfig` map that drives codegen, the schema layer and the editor, never
+  hand-written. Groups flatten through `flattenFields`, exactly as every other
+  layer canonicalizes them, so an agent cannot send a shape the write path rejects.
+
+  Two existing `admin` hints decide the surface, rather than an MCP-specific
+  visibility flag: `admin.hidden` yields **no tools at all** (a system table a
+  human never browses is not one an agent should browse), and `admin.readOnly`
+  yields read tools only. `search_<slug>` appears only where the collection
+  actually has an FTS index. Edit and publish tools require `versions.drafts` —
+  every agent edit lands as a draft, and a collection with no version history has
+  nowhere safe to put one — and `publish_<slug>` is generated separately from the
+  write tools so a token can be scoped to draft-only.
+
+  `add_<slug>_section` is generated from the site's `SectionCatalog` when one is
+  supplied, with `section` constrained to the catalog's names, so an agent cannot
+  insert a section the site does not render.
+
+  Not included: `add_<slug>_block`. `content/blocks.ts` is a renderer registry, not
+  a catalog of insertable types, and per ADR 0005 blocks are a policy declared _on_
+  a section — so there is nothing at this layer to derive an argument schema from.
+  It arrives with slice 4, where the write path establishes what inserting a block
+  means. ADR 0009 is amended with this and two other findings, including that
+  Cloudflare's new Workers-native `createMcpHandler()` removes one of the two
+  reasons the transport is hand-rolled (the other, zero runtime dependencies in
+  core, still stands).
+
+  No `./mcp` subpath export yet — publishing is slice 5, so nothing here is public
+  API.
+
+- ca92147: editor: `applyFieldSave`, `applySettingsPatch` and `SettingsPatchConfig` are public
+
+  The route-free cores of a field write and a settings write. `applySaveDraft` was
+  already exported; these were the gap.
+
+  They matter to any host that mounts its own endpoint rather than using
+  `saveRoute` / `settingsRoute` — an Astro Action, say — and until now the only way
+  to reach them was `louise-toolkit/src/core/editor/...`, which resolves inside this
+  workspace and breaks the moment the package is consumed as a published tarball.
+
+  Found while extracting the Astro adapter (#327): three of the symbols it imports
+  were reachable from `src/` and from nowhere a consumer could see.
+
+  Also adds `scripts/ci/checks/export-map.mjs`, run in CI after the build. It
+  asserts every subpath in `exports` was actually emitted, and that the symbols a
+  first-party consumer needs are reachable from a public entry point. **The test
+  suite is structurally blind to this class of bug**, because vitest aliases
+  `louise-toolkit/*` to source — the only thing currently exercising the real export
+  map is astroid typechecking against the built library, and that gate leaves with
+  astroid when it moves to its own repo.
+
+- 4aa52e9: auth: single-use verification values stay on D1 by default
+
+  Sites that set `sessionCacheKv` now consume magic links and password resets from
+  D1 rather than from KV. New `verificationStorage` option, defaulting to
+  `"database"`; pass `"secondary"` to restore the previous behaviour.
+
+  **Why this is a security default and not a preference.** Better Auth 1.7 made
+  `SecondaryStorage.getAndDelete` required, and specified it as atomic, precisely
+  so a single-use verification value cannot be consumed twice — its own comment
+  says the point is that these are "not read and deleted as separate operations."
+  Cloudflare KV has no atomic primitive, so `kvSecondaryStorage` cannot honour
+  that; worse, KV is eventually consistent across colos, so a value deleted in one
+  location can still read as live in another for some window. Two requests racing
+  the same magic link could therefore both succeed.
+
+  This was not introduced by the 1.7 upgrade — 1.6 consumed the same values
+  through separate `get` and `delete` calls on the same storage, so the race
+  predates it. 1.7 is simply what named it. D1 is strongly consistent and deletes
+  atomically, so consuming from there closes the window, and KV goes back to being
+  what it is actually good at here: a global session read cache. That division is
+  what `sessionCacheKv` was always described as doing — "D1 stays the source of
+  truth, KV is the global read cache" — this just stops single-use tokens being
+  the exception.
+
+  **Upgrading.** Marked minor rather than patch because it is a behaviour change,
+  and one with a deploy-time edge: verification values already pending in KV when
+  the new code ships are not read from D1, so a magic link issued in the seconds
+  before a deploy and clicked after it will ask for a fresh one. Nothing is
+  corrupted and no session is lost — the user requests another link. Sites that
+  would rather avoid even that can deploy with `verificationStorage: "secondary"`,
+  let the in-flight values expire, and drop the option.
+
+  Sites without `sessionCacheKv` are unaffected: with no secondary storage
+  configured, these values were always consumed from D1.
+
+### Patch Changes
+
+- b643c3e: fourthwall: `getCollectionProducts` reads every page, not just the first
+
+  The Storefront API paginates its list endpoints — `page` (0-indexed) and `size`,
+  answering `{ results, paging: { hasNextPage } }`. This client sent neither
+  parameter, and its `unwrap` helper kept `results` and discarded everything
+  around it, `paging.hasNextPage` included. So a catalog read was one page of an
+  **undocumented default size**, handed back as though it were the whole
+  collection.
+
+  Nothing about that is visible from the outside. Products past the first page do
+  not error, they simply never appear, and a consumer mirroring the catalog just
+  ends up with a smaller shop. It also gets worse precisely as a store sells more,
+  so it looks like it works right up until it matters — a real store was two
+  uploads away from silently losing products.
+
+  `getCollectionProducts` now walks `page=0` upward with an explicit `size=50`
+  (Fourthwall's own documented example) until `hasNextPage` stops being true. The
+  signature is unchanged, so every caller — `listCatalog` included — gets the whole
+  collection without touching anything.
+
+  Two deliberate refusals:
+
+  - It **throws** at a 200-page backstop rather than returning what it has. A
+    truncated catalog is worse than a failed call for the thing this feeds: a
+    caller reconciling its mirror against "everything Fourthwall has" will drop or
+    unpublish whatever it did not see. Failing loudly keeps a partial read away
+    from that decision.
+  - A **bare-array** response is still treated as the only page, exactly as
+    `unwrap` has always tolerated it. Assuming the documented envelope would read a
+    bare array as an _empty_ catalog — a far worse failure than the truncation this
+    fixes, and the same reconciling caller would act on it.
+
+  Anything other than an explicit `hasNextPage: true` ends the walk, so a
+  malformed or absent envelope stops rather than loops.
+
+  Not verified against a live store: the fix follows Fourthwall's published
+  pagination contract and is covered by tests against that shape. If an endpoint
+  turns out not to send `paging` at all, the walk reads page 0 and stops — the
+  previous behaviour exactly, so there is no regression either way.
+
+- bea4d08: auth: implement Better Auth 1.7's `getAndDelete` and `increment` on the KV secondary storage
+
+  Better Auth 1.7 added two required methods to `SecondaryStorage`, both specified
+  as atomic. Cloudflare KV has no atomic primitives, so `kvSecondaryStorage` now
+  implements each as closely as KV allows and documents what that costs — the same
+  constraint `security/rate-limit` already spells out for its own KV counters.
+
+  `increment` is a fixed-window counter bucketed by `floor(now / ttl)`, matching
+  the approach in `security/rate-limit`, rather than one long-lived key. The clock
+  bucket is what makes the window actually reset: KV cannot write a value without
+  also writing a TTL, so a single key would have its expiry pushed forward on every
+  increment and a busy client would never be unblocked. The read→write gap can
+  undercount under a burst — a few extra requests get through, none are wrongly
+  blocked — and a client can reach up to ~2x the budget across a bucket boundary.
+  Both fail safe. KV's 60s TTL floor does not widen the window: the bucket key
+  still rotates on Better Auth's interval, so only the spent bucket lingers.
+
+  `getAndDelete` is a read followed by a delete, and skips the write on a miss.
+
+  One thing this does **not** fix, called out because it is easy to miss: Better
+  Auth requires `getAndDelete` to be atomic so a single-use verification value (a
+  magic link, a password reset) cannot be consumed twice. Over KV it cannot be, and
+  KV's cross-colo convergence widens that replay window past a simple race. This is
+  not a regression — 1.6 consumed the same values through separate `get` and
+  `delete` calls on this same storage — but sites that set `sessionCacheKv` and
+  rely on magic links should set `verification: { storeInDatabase: true }` so those
+  values are consumed from D1, which is strongly consistent and deletes atomically,
+  leaving KV as the session read cache it is meant to be.
+
+- 54ce5ea: Remove the last Astro references from the library's source
+
+  Comments only — no behaviour change. `packages/louise/src` now contains **zero**
+  mentions of Astro, in code or in prose, which is what closes Phase 1 of #327 and
+  makes "framework-agnostic" a fact rather than an aspiration.
+
+  Included: references to **Astroid** by name. In library source those are the
+  dependency direction backwards — the floor naming the ceiling — which the epic
+  called out separately from the Astro coupling. The facts they carried are kept;
+  only the upward name is gone.
+
+  `scripts/ci/checks/no-astro-in-core.mjs` keeps it that way, and ships the
+  substitutions that kept coming up ("a dev server" for `astro dev`, "a soft
+  navigation" for a view transition) so a failure carries a fix rather than only a
+  complaint.
+
 ## 0.26.0
 
 ### Minor Changes
