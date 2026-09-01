@@ -1,5 +1,15 @@
 # ADR 0001 — Opinionated Astro-on-Cloudflare, fully typed
 
+> **Amendment (2026-09-01).** Read the rule below, not the title. "Opinionated
+> Astro-on-Cloudflare" describes the _product_, and this repository is now the
+> framework-agnostic half of it: `packages/louise/src` may not mention Astro at
+> all, and CI fails if it does (`lint:core`). That is not a reversal of this ADR
+> — it is the rule being applied. "Framework-agnostic where it's free" turned
+> out to cover more than expected once the Astro glue was extracted to
+> `@louise-toolkit/astro`, and the expensive opinions moved to
+> [astroidjs](https://github.com/bowenlabs/astroidjs) (#327). The three typed
+> layers and the Zod-first foundation are unchanged.
+
 - **Status:** Accepted (2026-07-15)
 - **Deciders:** Baylee (solo maintainer)
 - **Supersedes:** the implicit "framework-agnostic toolkit" positioning
