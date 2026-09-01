@@ -48,6 +48,17 @@ overrides:
   # A 3.x copy is outside this advisory's range and must stay 3.x.
   js-yaml@4: "^4.3.1"
 
+  # brace-expansion — GHSA-mh99-v99m-4gvg and GHSA-rgw5-rvv9-x895, both DoS via
+  # unbounded expansion, the second bypassing the first's mitigation. Fixed in
+  # 1.1.18. Dev-only: it arrives through eslint-plugin-solid's
+  # @typescript-eslint/utils → eslint → minimatch chain, so it never reaches a
+  # published package or a Worker.
+  #
+  # Scoped to the 1.x line on purpose. The tree also resolves a 5.x copy, which is
+  # outside the advisory and would break under a bare `brace-expansion:` key —
+  # exactly the mistake the js-yaml entry above documents.
+  brace-expansion@1: "^1.1.18"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
