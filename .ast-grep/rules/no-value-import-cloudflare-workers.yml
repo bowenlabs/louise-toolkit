@@ -17,7 +17,7 @@ note: |
 files:
   - "packages/louise/src/**/*.ts"
   - "packages/louise/src/**/*.tsx"
-  - "packages/astroid/src/**/*.ts"
+  - "packages/louise-astro/src/**/*.ts"
 rule:
   all:
     - pattern: import $$$IMPORTED from "cloudflare:workers"

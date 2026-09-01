@@ -103,6 +103,16 @@ jobs:
       - name: Release tooling (changesets)
         run: corepack pnpm run lint:release
 
+      # `--prod` only, deliberately. The invariant SECURITY.md states is that the
+      # PUBLISHED dependency tree carries no known advisory; the dev tree is a
+      # different question, answered by Renovate's vulnerabilityAlerts and the
+      # Snyk PR checks, and currently carries one with no fix published upstream
+      # (extract-zip, GHSA-jmr9-qjv8-65gv). Failing every PR on an unfixable
+      # dev-only advisory teaches people to ignore this check, which is worse than
+      # not having it.
+      - name: Dependency advisories (production tree)
+        run: corepack pnpm audit --prod
+
   test:
     name: Type-check & unit tests
     runs-on: ubuntu-latest
