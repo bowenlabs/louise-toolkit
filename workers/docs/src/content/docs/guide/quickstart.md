@@ -38,7 +38,7 @@ Standing the whole app up by hand—bindings, migrations, worker wiring—is wha
 with sign-in, migrations, and the editor already wired.
 
 This page is the other path: adding Louise to an app you already have. See the
-[Astroid guide](/guide/astroid/) if you're starting fresh.
+[Astroid guide](https://docs.astroidjs.org/guide/getting-started/) if you're starting fresh.
 :::
 
 ### 1. Install
