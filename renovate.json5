@@ -49,22 +49,6 @@
   },
   osvVulnerabilityAlerts: true,
 
-  ignorePaths: [
-    // NOT source. `create-astroid/template/` is the scaffold's template set: its
-    // files carry `__ASTROID_*__` placeholders, several are not valid TypeScript
-    // standalone, and the toolkit versions in its package.json are sentinels
-    // (`0.0.0-replaced-at-scaffold`) that create-astroid DERIVES from its own
-    // resolved dependencies at pack time.
-    //
-    // `scripts/ci/checks/scaffold-versions.mjs` fails the build if those become
-    // hardcoded literals, which is precisely what a well-meaning Renovate PR
-    // would write. Nothing in this repo type-checks the template until it is
-    // scaffolded, so the clean-room smoke test is the only thing that would
-    // catch the damage — and it runs after the PR is already open. Leave it
-    // alone; the template is updated by the release, not by a bot.
-    "packages/create-astroid/template/**",
-  ],
-
   packageRules: [
     // -------------------------------------------------------------------------
     // Pinned by contract — a bot cannot update these correctly
@@ -90,11 +74,7 @@
     // -------------------------------------------------------------------------
     {
       matchDepTypes: ["peerDependencies"],
-      matchFileNames: [
-        "packages/louise/package.json",
-        "packages/astroid/package.json",
-        "packages/create-astroid/package.json",
-      ],
+      matchFileNames: ["packages/louise/package.json", "packages/louise-astro/package.json"],
       groupName: null,
       labels: ["dependencies", "published-api"],
       addLabels: ["published-api"],

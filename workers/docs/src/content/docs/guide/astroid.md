@@ -5,6 +5,13 @@ sidebar:
   order: 14
 ---
 
+:::note[Astroid now develops in its own repository]
+Astroid moved to [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs)
+and is no longer built or released from the Louise Toolkit repository. It still
+depends on Louise, and that dependency still runs one way, so what follows stays
+accurate—but for issues, source, and the changelog, go there.
+:::
+
 Louise is the unopinionated toolkit: primitives you assemble yourself. **Astroid**
 is the opinionated preset on top—a section library, a theme system, and a single
 typed config that generates the Louise wiring a site would otherwise write by hand.

@@ -1,5 +1,12 @@
 # ADR 0010 — The editable-node model: one recursive node, one field registry, one marker
 
+> **Amendment (2026-09-01).** The code this ADR governs left the repository:
+> `packages/astroid` moved to
+> [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) (#327). The
+> decision still holds and the primitives still work as described — only the
+> address changed. Kept here because it records why the conventions are what they
+> are, and that reasoning predates the move.
+
 - **Status:** **Implemented** (2026-07-31). A1 shipped in `louise-toolkit@0.21.0`
   / `astroidjs@0.5.0` (2026-07-29); A1+A2 together in `0.22.0`, which is the
   version the sites migrated onto (A3, #348); Phase B in `0.24.0` + `0.25.0`

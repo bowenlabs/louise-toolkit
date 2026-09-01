@@ -23,11 +23,15 @@ surface, not just content. Dependency-injected primitives — content, db, media
 commerce, email, queues, auth, AI, analytics, realtime, workflows — plus a SolidJS +
 ProseKit inline-edit client and the editor theme, published as one tree-shakeable
 package. The core primitives are framework-agnostic (they run in any Worker or a unit
-test); the batteries — the client, the theme, and the opinionated **Astroid** framework
-— target Astro on Cloudflare.
+test); the batteries — the client, the theme, and the Astro adapter — target Astro on
+Cloudflare.
 
-Starting a new site? `pnpm create astroid my-site` scaffolds the whole thing.
 Adding editing to an app you already have? `pnpm add louise-toolkit`.
+
+Starting a new site from scratch? Reach for **[Astroid](https://github.com/bowenlabs/astroidjs)**,
+the opinionated meta-framework built on this one: `pnpm create astroid my-site`
+scaffolds the whole thing. It lives in its own repo — Louise stays unopinionated,
+and the opinions live there.
 
 ## Why Louise
 
@@ -54,8 +58,7 @@ packages/
     src/core/      # content, db, media, forms, auth, commerce, email, queues, ai, analytics, realtime, workflows, browser, security, health, worker, editor, errors
     src/client/    # the inline edit client + ProseKit editor + Louise Settings (registry-driven settings surface)
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
-  astroid/         # astroidjs — the opinionated meta-framework over Louise + Astro (pre-1.0)
-  create-astroid/  # create-astroid — `pnpm create astroid`, the one-command scaffold (pre-1.0)
+  louise-astro/    # @louise-toolkit/astro — the optional Astro adapter (middleware, Actions, loaders)
 workers/
   site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
   docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
@@ -91,8 +94,9 @@ reference.
 
 ## Roadmap
 
-Louise is **pre-1.0** and dogfooded on 4 production sites. **Astroid** and
-`create-astroid` have shipped (both pre-1.0). The current push — Cloudflare
+Louise is **pre-1.0** and dogfooded on 4 production sites.
+[Astroid](https://github.com/bowenlabs/astroidjs) and `create-astroid` have
+shipped (both pre-1.0) and now develop in their own repo. The current push — Cloudflare
 platform depth, Astro-native APIs, and an agent-editable MCP server — is tracked
 in the open:
 

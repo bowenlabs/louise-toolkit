@@ -1,21 +1,3 @@
-# `create-astroid/template/` is NOT source — it is the scaffold's template set.
-#
-# Its files carry `__ASTROID_*__` placeholders that index.mjs substitutes at
-# scaffold time, and several are deliberately not valid TypeScript on their own.
-# The sharpest case:
-#
-#     MAIL_FROM: string;__ASTROID_ENV_BINDINGS__
-#
-# The placeholder sits on the same line with no terminator, because the value
-# substituted in starts with a newline and every line it emits already ends in
-# `;`. Format that and oxfmt splits the line and adds the "missing" semicolon,
-# which expands to `SQUARE_ENVIRONMENT: string;;` in every scaffolded project —
-# `astro check` then fails with TS1131 on a brand-new install.
-#
-# Nothing in this repo type-checks the template until it is scaffolded, so the
-# clean-room smoke test is the only thing that catches it. Leave it alone.
-packages/create-astroid/template/
-
 # Changesets are transient: the release tooling consumes and deletes them, and
 # they are authored prose. Formatting them is churn that never reaches a package.
 .changeset/

@@ -1,6 +1,11 @@
 # Releasing
 
-How to publish `louise-toolkit`, `astroidjs`, and `create-astroid` to npm.
+How to publish `louise-toolkit` and `@louise-toolkit/astro` to npm.
+
+`astroidjs` and `create-astroid` are **no longer released from this repo** — they
+live in [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) and have
+their own runbook. They consume this repo's packages from npm, so a toolkit
+release has to land here first before theirs can pick it up.
 Publishing is **manual** (no release Action). The version bump is a separate step
 that happens in its own PR (`pnpm changeset` → `changeset version`, reviewed and
 merged); this doc covers the publish that follows.
@@ -20,11 +25,11 @@ corepack pnpm release      # ← the release. Sign in to npm when it prompts.
 
 **Use `pnpm release`, not a bare `changeset publish`.** It runs
 `build:packages` first — one ordered pass, louise-toolkit → @louise-toolkit/astro
-→ astroidjs — and only then publishes.
+— and only then publishes.
 
 That ordering is load-bearing. `changeset publish` runs every package's
 `prepublishOnly` **concurrently**, and these packages are not independent:
-`@louise-toolkit/astro` and `astroidjs` type-check against `louise-toolkit`'s
+`@louise-toolkit/astro` type-checks against `louise-toolkit`'s
 emitted `dist/*.d.ts`, while `louise-toolkit`'s own build rewrites that same
 directory. Building during publish is therefore a race, and it is not theoretical
 — it took out the 0.27.0 release after three of four packages had already gone
@@ -32,8 +37,8 @@ out. So `prepublishOnly` no longer builds anything; it asserts the build happene
 (`scripts/ci/checks/dist-present.mjs`) and cannot race, because it only reads.
 
 `changeset publish` then rewrites the `workspace:*` deps to the exact published
-versions and publishes in dependency order (louise-toolkit → astroidjs →
-create-astroid). It **prompts you to sign in to npm** partway through (browser
+versions and publishes in dependency order (louise-toolkit →
+@louise-toolkit/astro). It **prompts you to sign in to npm** partway through (browser
 login / OTP) — that's expected; complete it and it continues. It also creates a
 git tag per package, so push them:
 
@@ -54,7 +59,7 @@ Read the expected numbers off `main` rather than out of this file — a version
 hardcoded in a runbook is a version that goes stale between releases:
 
 ```sh
-for p in packages/louise packages/astroid packages/create-astroid; do
+for p in packages/louise packages/louise-astro; do
   node -e "const p=require('./$p/package.json');console.log(p.name, p.version)"
 done
 ```
@@ -63,26 +68,51 @@ Then check npm agrees:
 
 ```sh
 npm view louise-toolkit version
-npm view astroidjs version
-npm view create-astroid version
+npm view @louise-toolkit/astro version
 ```
 
-**The real smoke test — scaffold from the LIVE registry.** CI's scaffold smokes
-build from local tarballs, so they cannot catch a broken export map, a missing
-`files` entry, or a dependency that resolves in-workspace and nowhere else. This
-is the only check that exercises what a stranger actually gets:
+**The real smoke test — install from the LIVE registry.** CI builds and tests
+against the workspace, where `louise-toolkit/*` resolves to source. That is
+structurally blind to the one bug class only a consumer meets: a subpath in
+`exports` whose `dist/` target was never emitted, a missing `files` entry, or a
+symbol that exists in `src/` and was never re-exported. `export-map.mjs` covers
+most of it from the inside; this covers it from the outside.
 
 ```sh
 cd "$(mktemp -d)"
-pnpm create astroid@<just-published> my-site --key mysite --name "My Site" --archetype marketing
-cd my-site && pnpm install && pnpm exec astro check && pnpm exec astro build
+# NOT `pnpm init` — it writes `packageManager: pnpm@^11.x`, a RANGE, and corepack
+# rejects anything but an exact version.
+echo '{"name":"smoke","private":true,"type":"module"}' > package.json
+corepack pnpm add louise-toolkit@<just-published> @louise-toolkit/astro@<just-published>
+
+node --input-type=module -e '
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+const pkg = JSON.parse(readFileSync("./node_modules/louise-toolkit/package.json", "utf8"));
+const subs = Object.keys(pkg.exports).filter((s) => !s.includes("*") && s !== "./package.json");
+let bad = 0;
+for (const sub of [...subs.map((s) => "louise-toolkit" + s.slice(1)), "@louise-toolkit/astro"]) {
+  try {
+    if (!existsSync(fileURLToPath(import.meta.resolve(sub)))) { console.log("MISSING", sub); bad++; }
+  } catch { console.log("UNRESOLVABLE", sub); bad++; }
+}
+console.log(`${subs.length + 1} subpaths checked, ${bad} broken`);
+'
 ```
 
-The scaffold's declared toolkit ranges are derived from `create-astroid`'s own
-resolved dependencies, not hand-written, and `scripts/ci/checks/scaffold-versions.mjs`
-fails the build if anyone re-hardcodes a literal. So a version bump needs no edit
-to `template/package.json` — if you find yourself making one, that check is about
-to fail and the derivation is what needs fixing.
+**Resolve, don't import.** `import.meta.resolve` walks the `exports` map and stops,
+which is exactly the question being asked. Actually importing a subpath pulls in
+the peer dependencies a consumer supplies — `drizzle-orm`, `better-auth`,
+`solid-js` and eight more — so it fails in an empty project for reasons that have
+nothing to do with the release.
+
+**Astroid is a separate release.** `astroidjs` and `create-astroid` consume these
+packages from npm and ship from
+[bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs). A toolkit release
+does not reach a scaffolded project until that repo bumps its dependency ranges
+and publishes — a scaffold pins `^0.27.0`-style ranges, which are minor-locked
+pre-1.0 and will not pick up a new minor on their own. If this release is meant
+to reach users of Astroid, open the follow-up there.
 
 ## If something goes wrong
 
@@ -105,10 +135,9 @@ to fail and the derivation is what needs fixing.
   - A git tag proves changesets _attempted_ the publish, not that npm accepted
     it — `git push --follow-tags` pushes tags either way.
 
-- **`pnpm create astroid@latest` can serve a cached older version**, which
-  scaffolds the _previous_ release's toolkit ranges and looks exactly like a
-  broken version derivation. Pin the version when smoke-testing a release
-  (`pnpm create astroid@<just-published>`) rather than trusting `@latest`.
+- **pnpm and npm both cache `@latest`.** Pin the exact version when smoke-testing
+  a release rather than trusting a floating tag; a cached older copy looks
+  identical to a broken publish.
 - **You cannot cleanly unpublish.** If a bad version ships, roll forward with a
   patch (`pnpm changeset` → `changeset version` → publish), don't unpublish.
 

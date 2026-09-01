@@ -51,9 +51,8 @@ The full set, roughly in the order CI runs it:
 ```sh
 corepack pnpm -C packages/louise run typecheck
 corepack pnpm -C packages/louise run test
-corepack pnpm -C packages/astroid run test
 corepack pnpm -C packages/louise run check     # lint + format + type-aware rules
-corepack pnpm -C packages/astroid run check
+corepack pnpm -C packages/louise-astro run check
 corepack pnpm run fmt:check                    # everything the two above don't reach
 corepack pnpm run lint:astro
 corepack pnpm run lint:solid
@@ -63,22 +62,18 @@ corepack pnpm run knip                         # dead code
 Then the builds plus the export-map check, which catch what nothing above can —
 an export map that omits a new subpath, or a `dist/` that never emitted it.
 
-## `packages/create-astroid/template/` is not source
+## Astroid lives in another repo
 
-It is scaffold **payload**, and three separate tools are configured to leave it
-alone (`.oxfmtignore`, `knip.jsonc`, `renovate.json5`). All three exclusions
-exist for the same reason:
+`astroidjs` and `create-astroid` moved to
+[bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) (#327). Anything
+opinionated — themes, section libraries, the scaffold, the CLI — belongs there,
+not here. The dependency runs one way and only one way: `astroidjs` →
+`louise-toolkit`.
 
-- Its files carry `__ASTROID_*__` placeholders and several are not valid
-  TypeScript standalone. Formatting one produces `SQUARE_ENVIRONMENT: string;;`
-  in every scaffolded project.
-- Its toolkit versions are sentinels (`0.0.0-replaced-at-scaffold`) that
-  create-astroid **derives** at pack time. `scripts/ci/checks/scaffold-versions.mjs`
-  fails the build if they become literals — which is exactly what a well-meaning
-  edit writes.
-
-Nothing type-checks the template until it is scaffolded, so the clean-room smoke
-test is the only thing that catches damage to it, and that runs late.
+What stays here is `@louise-toolkit/astro`, the _unopinionated_ Astro adapter:
+middleware, Actions, content-layer loaders, the forms bridge. The test is whether
+a change encodes an opinion about how a site should be built. Middleware that
+mounts editor routes does not. A section library does.
 
 ## Architectural rules are enforced, not just documented
 
