@@ -12,17 +12,30 @@ Once the version-bump PR is merged:
 ```sh
 cd ~/GitHub/louise-toolkit
 git checkout main && git pull --ff-only
-pnpm install
+nvm use                    # Node 26. Homebrew's node shadows it if nvm isn't loaded.
+corepack pnpm install
 
-pnpm changeset publish     # ← the release. Sign in to npm when it prompts.
+corepack pnpm release      # ← the release. Sign in to npm when it prompts.
 ```
 
-`pnpm changeset publish` builds each package via its `prepublishOnly`
-(`louise-toolkit` = `vp pack`, `astroidjs` = `tsgo`), rewrites the `workspace:*`
-deps to the exact published versions, and publishes in dependency order
-(louise-toolkit → astroidjs → create-astroid). It **prompts you to sign in to
-npm** partway through (browser login / OTP) — that's expected; complete it and it
-continues. It also creates a git tag per package, so push them:
+**Use `pnpm release`, not a bare `changeset publish`.** It runs
+`build:packages` first — one ordered pass, louise-toolkit → @louise-toolkit/astro
+→ astroidjs — and only then publishes.
+
+That ordering is load-bearing. `changeset publish` runs every package's
+`prepublishOnly` **concurrently**, and these packages are not independent:
+`@louise-toolkit/astro` and `astroidjs` type-check against `louise-toolkit`'s
+emitted `dist/*.d.ts`, while `louise-toolkit`'s own build rewrites that same
+directory. Building during publish is therefore a race, and it is not theoretical
+— it took out the 0.27.0 release after three of four packages had already gone
+out. So `prepublishOnly` no longer builds anything; it asserts the build happened
+(`scripts/ci/checks/dist-present.mjs`) and cannot race, because it only reads.
+
+`changeset publish` then rewrites the `workspace:*` deps to the exact published
+versions and publishes in dependency order (louise-toolkit → astroidjs →
+create-astroid). It **prompts you to sign in to npm** partway through (browser
+login / OTP) — that's expected; complete it and it continues. It also creates a
+git tag per package, so push them:
 
 ```sh
 git push --follow-tags origin main
@@ -61,7 +74,7 @@ is the only check that exercises what a stranger actually gets:
 
 ```sh
 cd "$(mktemp -d)"
-pnpm create astroid@latest my-site --key mysite --name "My Site" --archetype marketing
+pnpm create astroid@<just-published> my-site --key mysite --name "My Site" --archetype marketing
 cd my-site && pnpm install && pnpm exec astro check && pnpm exec astro build
 ```
 
@@ -74,8 +87,28 @@ to fail and the derivation is what needs fixing.
 ## If something goes wrong
 
 - **Interrupted mid-publish** (e.g. louise-toolkit published, astroidjs didn't):
-  just re-run `pnpm changeset publish`. It skips versions already on npm and
-  publishes the rest.
+  just re-run `corepack pnpm release`. It skips versions already on npm and
+  publishes the rest. This is a normal state, not a corrupt one — 0.27.0 went out
+  three-of-four and was finished by a re-run.
+
+- **npm lies to you for a minute after a publish, and it lies convincingly.**
+  `npm view <pkg> version` and `https://registry.npmjs.org/<pkg>` can both keep
+  serving the 404 they cached while the package genuinely did not exist. During
+  0.27.0 this produced a package that was live on npm and reported "not
+  published" by every read for several minutes. Do not conclude a publish failed
+  from a 404. The reliable tells:
+
+  - `npm view <pkg> --prefer-online`, and the versioned endpoint
+    `registry.npmjs.org/<pkg>/<version>`, which is cached separately.
+  - A `403 ... cannot publish over the previously published versions` on retry
+    means it **succeeded**. That error is the proof.
+  - A git tag proves changesets _attempted_ the publish, not that npm accepted
+    it — `git push --follow-tags` pushes tags either way.
+
+- **`pnpm create astroid@latest` can serve a cached older version**, which
+  scaffolds the _previous_ release's toolkit ranges and looks exactly like a
+  broken version derivation. Pin the version when smoke-testing a release
+  (`pnpm create astroid@<just-published>`) rather than trusting `@latest`.
 - **You cannot cleanly unpublish.** If a bad version ships, roll forward with a
   patch (`pnpm changeset` → `changeset version` → publish), don't unpublish.
 

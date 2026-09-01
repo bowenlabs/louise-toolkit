@@ -62,7 +62,7 @@
   "scripts": {
     "build": "tsgo -p tsconfig.build.json",
     "check": "vp check",
-    "prepublishOnly": "tsgo -p tsconfig.build.json",
+    "prepublishOnly": "node ../../scripts/ci/checks/dist-present.mjs",
     "test": "vp test",
     "typecheck": "tsgo --noEmit"
   },
