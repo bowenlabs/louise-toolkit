@@ -104,6 +104,16 @@ jobs:
       - name: Dead-code check (Knip)
         run: corepack pnpm run knip
 
+      # Release tooling, exercised on every PR rather than discovered at release
+      # time. `changeset status` is the cheapest command that actually loads the
+      # changesets stack, and nothing else in this suite touches it: a workspace
+      # refresh once resolved `read-yaml-file`'s js-yaml to a 4.x that removed
+      # the `safeLoad` it calls, and every changesets command died while all
+      # eighteen other legs stayed green. A dead release tool should fail a PR,
+      # not a release.
+      - name: Release tooling (changesets)
+        run: corepack pnpm run lint:release
+
   test:
     name: Type-check & unit tests
     runs-on: ubuntu-latest

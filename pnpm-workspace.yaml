@@ -37,10 +37,16 @@ overrides:
   # which parses frontmatter during `astro build` and ships nothing to a browser.
   # Like the esbuild pin above this UNIFIES rather than forces — the tree already
   # resolved a patched 4.3.2 next to the vulnerable 4.3.0, so this collapses the
-  # two 4.x copies onto one. Deliberately scoped to 4.x: a 3.x copy (js-yaml@3,
-  # via a different consumer) is outside the advisory's range and would break
-  # under a ^4 override.
-  js-yaml: "^4.3.1"
+  # two 4.x copies onto one.
+  #
+  # The `@4` selector is load-bearing, and its absence broke a release. A bare
+  # `js-yaml:` key overrides EVERY dependent regardless of the range it asked for
+  # — including `read-yaml-file@1.1.0`, which asks for `^3.6.1` and calls
+  # `yaml.safeLoad`, removed in 4.x. changesets reads `pnpm-workspace.yaml`
+  # through it, so the blanket form took out every `changeset` command with
+  # "safeLoad is removed in js-yaml 4" while the whole check suite stayed green.
+  # A 3.x copy is outside this advisory's range and must stay 3.x.
+  js-yaml@4: "^4.3.1"
 
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
