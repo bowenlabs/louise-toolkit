@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "sh ./scripts/ci-build.sh",
+    "build:packages": "corepack pnpm -C packages/louise run build && corepack pnpm -C packages/louise-astro run build && corepack pnpm -C packages/astroid run build",
     "build:site": "vp run site#build",
     "typecheck": "vp run louise#typecheck",
     "check": "vp run louise#check",
@@ -24,7 +25,7 @@
     "test": "vp run louise#test && vp run astroid#test",
     "dev": "vp run site#dev",
     "changeset": "changeset",
-    "release": "changeset publish"
+    "release": "corepack pnpm run build:packages && changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
