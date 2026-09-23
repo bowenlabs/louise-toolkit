@@ -7,6 +7,7 @@ import {
   createInvoice,
   createLocation,
   createOrder,
+  createPayment,
   createTeamMember,
   createTimecard,
   listCatalogItems,
@@ -634,6 +635,224 @@ describe("createOrder", () => {
 
     const body = calls[0]?.body as { order: Record<string, unknown> };
     expect(body.order).not.toHaveProperty("taxes");
+  });
+});
+
+describe("createOrder — fulfillments, service charges, modifiers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends line-item modifiers as catalog references, never with a price", async () => {
+    // Square prices modifiers from the catalog. A client-quoted amount would
+    // be a way to under-pay, so the type has no field for one.
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1, modifierIds: ["MOD_OAT", "MOD_SHOT"] }],
+    });
+    const body = calls[0]?.body as { order: { line_items: Record<string, unknown>[] } };
+    expect(body.order.line_items[0]).toEqual({
+      catalog_object_id: "VAR1",
+      quantity: "1",
+      modifiers: [{ catalog_object_id: "MOD_OAT" }, { catalog_object_id: "MOD_SHOT" }],
+    });
+  });
+
+  it("omits `modifiers` when the list is empty or absent", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [
+        { catalogObjectId: "A", quantity: 1, modifierIds: [] },
+        { catalogObjectId: "B", quantity: 1 },
+      ],
+    });
+    const body = calls[0]?.body as { order: { line_items: Record<string, unknown>[] } };
+    expect(body.order.line_items[0]).not.toHaveProperty("modifiers");
+    expect(body.order.line_items[1]).not.toHaveProperty("modifiers");
+  });
+
+  it("adds a service charge defaulting to an untaxed subtotal-phase flat fee", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      serviceCharges: [
+        { name: "Shipping — Standard", amountMoney: { amount: 600, currency: "USD" } },
+      ],
+    });
+    const body = calls[0]?.body as { order: { service_charges: unknown } };
+    expect(body.order.service_charges).toEqual([
+      {
+        name: "Shipping — Standard",
+        amount_money: { amount: 600, currency: "USD" },
+        calculation_phase: "SUBTOTAL_PHASE",
+        taxable: false,
+      },
+    ]);
+  });
+
+  it("omits `service_charges` when none are given", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      serviceCharges: [],
+    });
+    expect((calls[0]?.body as { order: object }).order).not.toHaveProperty("service_charges");
+  });
+
+  it("builds a PROPOSED ASAP pickup with a prep duration and a trimmed note", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      fulfillments: [
+        {
+          type: "pickup",
+          recipient: { displayName: "Sam", phone: "+19185550100" },
+          schedule: { type: "asap", prepMinutes: 15 },
+          note: "x".repeat(600),
+        },
+      ],
+    });
+    const body = calls[0]?.body as {
+      order: { fulfillments: { pickup_details: { note: string } }[] };
+    };
+    expect(body.order.fulfillments[0]).toMatchObject({
+      type: "PICKUP",
+      state: "PROPOSED",
+      pickup_details: {
+        recipient: { display_name: "Sam", phone_number: "+19185550100" },
+        schedule_type: "ASAP",
+        prep_time_duration: "PT15M",
+      },
+    });
+    expect(body.order.fulfillments[0].pickup_details.note).toHaveLength(500);
+    expect(body.order.fulfillments[0].pickup_details).not.toHaveProperty("email_address");
+  });
+
+  it("builds a SCHEDULED pickup at the caller's instant", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      fulfillments: [
+        {
+          type: "pickup",
+          recipient: { displayName: "Sam" },
+          schedule: { type: "scheduled", pickupAt: "2026-09-29T14:00:00.000Z" },
+        },
+      ],
+    });
+    const body = calls[0]?.body as { order: { fulfillments: Record<string, unknown>[] } };
+    expect(body.order.fulfillments[0]).toMatchObject({
+      pickup_details: { schedule_type: "SCHEDULED", pickup_at: "2026-09-29T14:00:00.000Z" },
+    });
+    expect(body.order.fulfillments[0]).not.toHaveProperty("pickup_details.prep_time_duration");
+  });
+
+  it("builds a SHIPMENT with the recipient's address in Square's field names", async () => {
+    const calls = stubFetch({ order: { id: "ORD1" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      fulfillments: [
+        {
+          type: "shipment",
+          recipient: {
+            displayName: "Sam",
+            email: "sam@example.com",
+            address: {
+              line1: "1 Main St",
+              locality: "Tulsa",
+              administrativeDistrictLevel1: "OK",
+              postalCode: "74103",
+              country: "US",
+            },
+          },
+          note: "Leave at door",
+        },
+      ],
+    });
+    const body = calls[0]?.body as { order: { fulfillments: unknown[] } };
+    expect(body.order.fulfillments[0]).toEqual({
+      type: "SHIPMENT",
+      state: "PROPOSED",
+      shipment_details: {
+        recipient: {
+          display_name: "Sam",
+          email_address: "sam@example.com",
+          address: {
+            address_line_1: "1 Main St",
+            locality: "Tulsa",
+            administrative_district_level_1: "OK",
+            postal_code: "74103",
+            country: "US",
+          },
+        },
+        shipping_note: "Leave at door",
+      },
+    });
+  });
+
+  it("maps discount and service-charge totals off the response", async () => {
+    stubFetch({
+      order: {
+        id: "ORD1",
+        total_money: { amount: 2000, currency: "USD" },
+        total_discount_money: { amount: 300, currency: "USD" },
+        total_service_charge_money: { amount: 600, currency: "USD" },
+      },
+    });
+    const order = await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+    });
+    expect(order.totalDiscountMoney).toEqual({ amount: 300, currency: "USD" });
+    expect(order.totalServiceChargeMoney).toEqual({ amount: 600, currency: "USD" });
+  });
+});
+
+describe("createPayment", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends the tip as tip_money on top of amount_money, never folded in", async () => {
+    // Square requires a payment for an order to equal the order total, and
+    // documents amount_money as "not including tip_money". Folding the tip in
+    // is a 400 at the last step of checkout.
+    const calls = stubFetch({
+      payment: { id: "PAY1", amount_money: { amount: 2000 }, tip_money: { amount: 300 } },
+    });
+    const payment = await createPayment(CONFIG, {
+      sourceId: "cnon:tok",
+      amountMoney: { amount: 2000, currency: "USD" },
+      tipMoney: { amount: 300, currency: "USD" },
+      locationId: "L1",
+      orderId: "ORD1",
+    });
+    expect(calls[0]?.body).toMatchObject({
+      amount_money: { amount: 2000, currency: "USD" },
+      tip_money: { amount: 300, currency: "USD" },
+      order_id: "ORD1",
+    });
+    expect(payment.tipMoney).toEqual({ amount: 300, currency: "USD" });
+  });
+
+  it("omits tip_money when the tip is zero or absent", async () => {
+    const calls = stubFetch({ payment: { id: "PAY1" } });
+    await createPayment(CONFIG, {
+      sourceId: "cnon:tok",
+      amountMoney: { amount: 2000, currency: "USD" },
+      tipMoney: { amount: 0, currency: "USD" },
+      locationId: "L1",
+    });
+    expect(calls[0]?.body).not.toHaveProperty("tip_money");
+    const payment = await createPayment(CONFIG, {
+      sourceId: "cnon:tok",
+      amountMoney: { amount: 2000, currency: "USD" },
+      locationId: "L1",
+    });
+    expect(payment.tipMoney).toEqual({ amount: 0, currency: "USD" });
   });
 });
 
