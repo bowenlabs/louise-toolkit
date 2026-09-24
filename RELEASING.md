@@ -2,7 +2,7 @@
 
 How to publish `louise-toolkit` and `@louise-toolkit/astro` to npm.
 
-`astroidjs` and `create-astroid` are **no longer released from this repo** — they
+`astroidjs` and `create-astroid` **no longer ship from this repo**. They
 live in [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) and have
 their own runbook. They consume this repo's packages from npm, so a toolkit
 release has to land here first before theirs can pick it up.
@@ -24,22 +24,22 @@ corepack pnpm release      # ← the release. Sign in to npm when it prompts.
 ```
 
 **Use `pnpm release`, not a bare `changeset publish`.** It runs
-`build:packages` first — one ordered pass, louise-toolkit → @louise-toolkit/astro
-— and only then publishes.
+`build:packages` first, one ordered pass (louise-toolkit → @louise-toolkit/astro),
+and only then publishes.
 
 That ordering is load-bearing. `changeset publish` runs every package's
 `prepublishOnly` **concurrently**, and these packages are not independent:
 `@louise-toolkit/astro` type-checks against `louise-toolkit`'s
 emitted `dist/*.d.ts`, while `louise-toolkit`'s own build rewrites that same
-directory. Building during publish is therefore a race, and it is not theoretical
-— it took out the 0.27.0 release after three of four packages had already gone
+directory. Building during publish is therefore a race, and it isn't theoretical:
+it took out the 0.27.0 release after three of four packages had already gone
 out. So `prepublishOnly` no longer builds anything; it asserts the build happened
-(`scripts/ci/checks/dist-present.mjs`) and cannot race, because it only reads.
+(`scripts/ci/checks/dist-present.mjs`) and can't race, because it only reads.
 
 `changeset publish` then rewrites the `workspace:*` deps to the exact published
 versions and publishes in dependency order (louise-toolkit →
 @louise-toolkit/astro). It **prompts you to sign in to npm** partway through (browser
-login / OTP) — that's expected; complete it and it continues. It also creates a
+login / OTP). That's expected; complete it and it continues. It also creates a
 git tag per package, so push them:
 
 ```sh
@@ -55,7 +55,7 @@ Notes:
 
 ## Verify
 
-Read the expected numbers off `main` rather than out of this file — a version
+Read the expected numbers off `main` rather than out of this file, because a version
 hardcoded in a runbook is a version that goes stale between releases:
 
 ```sh
@@ -71,7 +71,7 @@ npm view louise-toolkit version
 npm view @louise-toolkit/astro version
 ```
 
-**The real smoke test — install from the LIVE registry.** CI builds and tests
+**The real smoke test: install from the LIVE registry.** CI builds and tests
 against the workspace, where `louise-toolkit/*` resolves to source. That is
 structurally blind to the one bug class only a consumer meets: a subpath in
 `exports` whose `dist/` target was never emitted, a missing `files` entry, or a
@@ -102,30 +102,30 @@ console.log(`${subs.length + 1} subpaths checked, ${bad} broken`);
 
 **Resolve, don't import.** `import.meta.resolve` walks the `exports` map and stops,
 which is exactly the question being asked. Actually importing a subpath pulls in
-the peer dependencies a consumer supplies — `drizzle-orm`, `better-auth`,
-`solid-js` and eight more — so it fails in an empty project for reasons that have
+the peer dependencies a consumer supplies (`drizzle-orm`, `better-auth`,
+`solid-js`, and eight more), so it fails in an empty project for reasons that have
 nothing to do with the release.
 
 **Astroid is a separate release.** `astroidjs` and `create-astroid` consume these
 packages from npm and ship from
 [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs). A toolkit release
-does not reach a scaffolded project until that repo bumps its dependency ranges
-and publishes — a scaffold pins `^0.27.0`-style ranges, which are minor-locked
-pre-1.0 and will not pick up a new minor on their own. If this release is meant
+doesn't reach a scaffolded project until that repo bumps its dependency ranges
+and publishes. A scaffold pins `^0.27.0`-style ranges, which are minor-locked
+pre-1.0 and don't pick up a new minor on their own. If this release is meant
 to reach users of Astroid, open the follow-up there.
 
 ## If something goes wrong
 
-- **Interrupted mid-publish** (e.g. louise-toolkit published, astroidjs didn't):
-  just re-run `corepack pnpm release`. It skips versions already on npm and
-  publishes the rest. This is a normal state, not a corrupt one — 0.27.0 went out
-  three-of-four and was finished by a re-run.
+- **Interrupted mid-publish** (for example, louise-toolkit published and astroidjs
+  didn't): re-run `corepack pnpm release`. It skips versions already on npm and
+  publishes the rest. This is a normal state, not a corrupt one: 0.27.0 went out
+  three-of-four and a re-run finished it.
 
 - **npm lies to you for a minute after a publish, and it lies convincingly.**
   `npm view <pkg> version` and `https://registry.npmjs.org/<pkg>` can both keep
   serving the 404 they cached while the package genuinely did not exist. During
   0.27.0 this produced a package that was live on npm and reported "not
-  published" by every read for several minutes. Do not conclude a publish failed
+  published" by every read for several minutes. Don't conclude a publish failed
   from a 404. The reliable tells:
 
   - `npm view <pkg> --prefer-online`, and the versioned endpoint
@@ -133,17 +133,17 @@ to reach users of Astroid, open the follow-up there.
   - A `403 ... cannot publish over the previously published versions` on retry
     means it **succeeded**. That error is the proof.
   - A git tag proves changesets _attempted_ the publish, not that npm accepted
-    it — `git push --follow-tags` pushes tags either way.
+    it; `git push --follow-tags` pushes tags either way.
 
 - **pnpm and npm both cache `@latest`.** Pin the exact version when smoke-testing
   a release rather than trusting a floating tag; a cached older copy looks
   identical to a broken publish.
-- **You cannot cleanly unpublish.** If a bad version ships, roll forward with a
+- **You can't cleanly unpublish.** If a bad version ships, roll forward with a
   patch (`pnpm changeset` → `changeset version` → publish), don't unpublish.
 
 ## Pre-1.0
 
-Versions are pre-1.0, so a minor bump is where breaking changes live and there is
-no deprecation cycle. Read the changelogs before publishing — `changeset version`
-writes them from the changesets, and they are the only place a behaviour change
+Versions are pre-1.0, so a minor bump is where breaking changes live and there's
+no deprecation cycle. Read the changelogs before publishing: `changeset version`
+writes them from the changesets, and they're the only place a behavior change
 is explained at the length it deserves.
