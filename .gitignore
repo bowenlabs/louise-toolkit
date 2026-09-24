@@ -21,5 +21,7 @@ workers/site/public/_docs/
 # (The CI scaffold smoke test now scaffolds into $RUNNER_TEMP, outside the repo,
 # so there's nothing in-tree left to ignore.)
 
-# Vale style packages, fetched by `vale sync` — pinned in .vale.ini, not vendored.
-.vale/
+# Vale: the Google style is fetched by `vale sync` (pinned in .vale.ini, not
+# vendored). The house style, vale/styles/Louise, and its vocabulary are
+# committed, so only the fetched package is ignored.
+vale/styles/Google/
