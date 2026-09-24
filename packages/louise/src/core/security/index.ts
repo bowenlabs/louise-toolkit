@@ -6,6 +6,15 @@
 // every site at once (the reason these live in the package, not copy-pasted).
 
 export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from "./sanitize";
+// Rich text → text: meta descriptions, "is this field empty?", empty headings.
+export {
+  hasRichText,
+  metaDescription,
+  type MetaDescriptionOptions,
+  plainText,
+  type PlainTextOptions,
+  stripEmptyHeadings,
+} from "./text";
 // The same-origin (CSRF) check for cookie-authenticated or money-moving POSTs.
 // It lives in `auth/guard` (where the editor gates use it) but belongs to the
 // security surface too — a public POST that charges a card needs it without
