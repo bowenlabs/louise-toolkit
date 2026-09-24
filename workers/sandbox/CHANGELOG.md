@@ -48,6 +48,8 @@
 
 ### Patch Changes
 
+<!-- vale Google.Units = NO -->
+
 - Updated dependencies [c182412]
 - Updated dependencies [56821bc]
 - Updated dependencies [6fa4f98]
@@ -116,6 +118,8 @@
 - Updated dependencies [252d119]
 - Updated dependencies [ae8e661]
   - louise-toolkit@0.14.0
+
+<!-- vale Google.Units = YES -->
 
 ## 0.0.2
 

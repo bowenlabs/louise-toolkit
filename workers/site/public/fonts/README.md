@@ -1,6 +1,6 @@
 # Self-hosted brand fonts
 
-Latin-subset variable woff2 files served from our own Cloudflare edge, so the
+Latin-subset variable woff2 files served from the site's own Cloudflare edge, so the
 public site (`src/styles/fonts.css`) never requests fonts from Google (#194).
 Both are licensed under the SIL Open Font License 1.1 (see the `*-OFL.txt` files).
 
@@ -12,7 +12,7 @@ Both are licensed under the SIL Open Font License 1.1 (see the `*-OFL.txt` files
 Roboto Flex keeps only the two axes the design uses; the other 11 (`opsz`,
 `GRAD`, `slnt`, `XOPQ`, `YOPQ`, `XTRA`, `YTUC`, `YTLC`, `YTAS`, `YTDE`, `YTFI`)
 are instanced away, which is why the file is far smaller than Google's all-axis
-latin block (~191 KB). The `wdth` axis is required — the landing's display type
+latin block (~191 KB). The `wdth` axis is required, because the landing's display type
 uses `font-stretch: 125–140%`.
 
 ## Regenerating

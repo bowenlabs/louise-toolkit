@@ -15,7 +15,7 @@
 
   **What's new.** `composeWorker({ gate })` protects routes the worker dispatches. A site that mounts the editor routes as Astro API routes through `runEditorRoute` never reaches that gate. Pass `apiGate: true` to the middleware and every request under `/api/louise` must come from a signed-in editor before any route runs. Writes and WebSocket upgrades are origin-checked, and gated responses get `Cache-Control: no-store` unless the route set its own. If `resolveEditor` throws, pages still render publicly as before, but the API **refuses** rather than serving an anonymous request.
 
-  **Public routes are declared by path here.** Middleware runs before Astro knows which route file will answer, so a route can't mark itself public the way `publicRoute` does for `composeWorker`. The toolkit's own public routes are exempt at their default paths (`/api/louise/forms/*`, `/api/louise/vitals`); add your own with `apiGate: { isPublic: (pathname) => … }`. `louise-toolkit/worker` now exports those default paths (`LOUISE_FORMS_PATH`, `LOUISE_VITALS_PATH`, `isLouisePublicPath`), which `formRoute` and `vitalsRoute` build their defaults from, so the exemption can't drift from where the routes answer. It also exports `underPrefix`.
+  **Public routes are declared by path here.** Middleware runs before Astro knows which route file answers, so a route can't mark itself public the way `publicRoute` does for `composeWorker`. The toolkit's own public routes are exempt at their default paths (`/api/louise/forms/*`, `/api/louise/vitals`); add your own with `apiGate: { isPublic: (pathname) => … }`. `louise-toolkit/worker` now exports those default paths (`LOUISE_FORMS_PATH`, `LOUISE_VITALS_PATH`, `isLouisePublicPath`), which `formRoute` and `vitalsRoute` build their defaults from, so the exemption can't drift from where the routes answer. It also exports `underPrefix`.
 
   **What you have to do.** Nothing until you turn it on. Before you do, list any Astro route under `/api/louise` that must answer without an editor session (a webhook, for example) and name it in `isPublic`, or it starts returning 401. Behind `composeWorker({ gate })` it's a second check on requests the worker already let through, and costs nothing: the middleware resolves the editor on every request anyway.
 
@@ -54,7 +54,7 @@ fractionDigits?)`** in `louise-toolkit/commerce`. They replace two different
   Considered and left in the sites: cart-line math (three carts, three shapes; the shared
   part is a one-liner) and a modal focus trap (one site only).
 
-- 16ae16a: editor: `resumeDraft` — the edit-mode draft read every site was copying (#455)
+- 16ae16a: editor: `resumeDraft`, the edit-mode draft read every site was copying (#455)
 
   Edit mode has to render the editor's work-in-progress, not the live row, or
   reopening a page shows the last-published content and the next save reverts the
@@ -122,9 +122,9 @@ fractionDigits?)`** in `louise-toolkit/commerce`. They replace two different
 
 - 2227153: Astro support moves to `@louise-toolkit/astro`
 
-  **Breaking.** The `louise-toolkit/astro` subpath is gone. Its contents —
-  `createLouiseMiddleware`, the Action factories, `louiseLoader`,
-  `defineCatalogLoader`, `formToAstroSchema` — now live in a new package, and
+  **Breaking.** The `louise-toolkit/astro` subpath is gone. Its contents
+  (`createLouiseMiddleware`, the Action factories, `louiseLoader`,
+  `defineCatalogLoader`, `formToAstroSchema`) now live in a new package, and
   `louise-toolkit` no longer declares Astro at all: no peer, no devDependency, no
   export, no keyword.
 
@@ -137,20 +137,20 @@ fractionDigits?)`** in `louise-toolkit/commerce`. They replace two different
   pnpm add @louise-toolkit/astro
   ```
 
-  Nothing else changes: same functions, same signatures, same behaviour. A
-  scaffolded project gets the new dependency automatically — `create-astroid`
+  Nothing else changes: same functions, same signatures, same behavior. A
+  scaffolded project gets the new dependency automatically: `create-astroid`
   derives its version the same way it derives the other two, and the generated
   worker and Actions import from the new specifier.
 
   **Why.** `louise-toolkit` is described as framework-agnostic and shipped an
   `astro` peer dependency with an `./astro` export (#327). That claim should be
-  true rather than aspirational, and the practical cost was real: the toolkit could
-  not be published, versioned or reasoned about without Astro in the picture, and
+  true rather than aspirational, and the practical cost was real: the toolkit couldn't
+  be published, versioned, or reasoned about without Astro in the picture, and
   Astro's own release cadence dragged the whole workspace.
 
   Keeping the adapter as its own package rather than folding it into `astroidjs`
-  preserves the naming slot for a future host — a `/remix`, `/nuxt` or plain-Hono
-  adapter has somewhere obvious to go — and keeps the opinionated layer separate
+  preserves the naming slot for a future host (a `/remix`, `/nuxt`, or plain-Hono
+  adapter has somewhere obvious to go) and keeps the opinionated layer separate
   from the thin binding.
 
   The adapter versions independently of both core and `astroidjs`. It depends on

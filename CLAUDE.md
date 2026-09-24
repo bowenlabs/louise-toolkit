@@ -1,7 +1,7 @@
 # Working in this repo
 
 Conventions that CI or a reviewer enforces, written down so you meet them before
-they meet you. Deliberately short — a long file rots, and a rotted one is worse
+they meet you. Deliberately short, because a long file rots, and a rotted one is worse
 than none.
 
 ## The one rule everything else serves
@@ -22,14 +22,14 @@ Dependencies flow **one way**: `astroidjs` → `louise-toolkit`, never the rever
   `packageManager`. A globally-installed pnpm produces a store error rather than
   a clear message.
 - **`vite-plus` is coupled to `.github/actions/setup`.** That action fails the
-  run when the `vp` binary and the `vite-plus` devDependency disagree — a skew
+  run when the `vp` binary and the `vite-plus` devDependency disagree. A skew
   once turned a green PR red overnight with no code change. They move together,
   in one commit. Renovate is configured to leave it alone.
 
 ## Verifying a change
 
 **Run the full check suite, not just the tests.** This is the one that bites
-hardest, because a green `pnpm test` is not evidence of a working change:
+hardest, because a green `pnpm test` isn't evidence of a working change:
 
 | what broke                                   | what caught it                        | what `pnpm test` said |
 | -------------------------------------------- | ------------------------------------- | --------------------- |
@@ -38,11 +38,11 @@ hardest, because a green `pnpm test` is not evidence of a working change:
 
 Both times the suite reported success while the run failed. Grepping the vitest
 summary for `Tests` hides it — **check the exit code**, and read the `Errors`
-line if there is one.
+line if there's one.
 
-One more the suite cannot replace: `node scripts/ci/checks/export-map.mjs`, run
+One more the suite can't replace: `node scripts/ci/checks/export-map.mjs`, run
 after a build. Vitest aliases `louise-toolkit/*` to source, so every test in the
-workspace is blind to a symbol that exists in `src/` and was never re-exported —
+workspace is blind to a symbol that exists in `src/` and was never re-exported:
 the bug that only bites someone installing the package. Three such symbols were
 found this way while extracting the Astro adapter.
 
@@ -79,7 +79,7 @@ corepack pnpm -C packages/louise-astro run build
 corepack pnpm run build:site
 ```
 
-The last block catches what nothing above can: an export map that omits a new
+The last block catches what nothing before it can: an export map that omits a new
 subpath, a `dist/` that never emitted it, or an adapter that compiles against
 `src/` but not against what actually ships.
 
@@ -87,22 +87,22 @@ subpath, a `dist/` that never emitted it, or an adapter that compiles against
 
 `astroidjs` and `create-astroid` moved to
 [bowenlabs/astroidjs](https://github.com/bowenlabs/astroidjs) (#327). Anything
-opinionated — themes, section libraries, the scaffold, the CLI — belongs there,
-not here. The dependency runs one way and only one way: `astroidjs` →
+opinionated (themes, section libraries, the scaffold, the command-line tool)
+belongs there, not here. The dependency runs one way and only one way: `astroidjs` →
 `louise-toolkit`.
 
 What stays here is `@louise-toolkit/astro`, the _unopinionated_ Astro adapter:
 middleware, Actions, content-layer loaders, the forms bridge. The test is whether
 a change encodes an opinion about how a site should be built. Middleware that
-mounts editor routes does not. A section library does.
+mounts editor routes doesn't. A section library does.
 
 ## Architectural rules are enforced, not just documented
 
 `corepack pnpm run lint:arch` runs [ast-grep](https://ast-grep.github.io) over
 `.ast-grep/rules/`. Those rules exist for invariants that are **syntax-shaped**
-rather than name-shaped, which is precisely what oxlint and knip cannot see:
+rather than name-shaped, which is precisely what oxlint and knip can't see:
 
-- `cloudflare:workers` must not be imported **as a value** in the library — but
+- `cloudflare:workers` must not be imported **as a value** in the library, but
   `import type` from it is correct and load-bearing (`core/workflows`). Same
   module, same specifier; only the import kind separates right from wrong.
 - `louise-toolkit` must never import from `astroidjs`. Dependencies flow one way.
@@ -111,16 +111,16 @@ rather than name-shaped, which is precisely what oxlint and knip cannot see:
   unconfigured.
 
 Alongside it, `corepack pnpm run lint:core` enforces the framework-agnostic
-claim: **`packages/louise/src` must not mention Astro at all**, in code or in
+claim: **`packages/louise/src` must not mention Astro at all**, whether that's code or
 prose. A text scan rather than an AST rule, because what leaks back in is
-comments — "e.g. `astro dev`" is a constant temptation, since Astro genuinely is
+comments: "for example, `astro dev`" is a constant temptation, since Astro genuinely is
 the clearest example to reach for. It also catches "Astroid", which in library
 source is the dependency direction backwards: the floor naming the ceiling.
 Astro-specific code belongs in `@louise-toolkit/astro`; opinions belong in
 `astroidjs`.
 
 Every rule carries a `note` explaining the invariant, because a rule nobody
-understands gets deleted the first time it is inconvenient. Keep the set small:
+understands gets deleted the first time it's inconvenient. Keep the set small:
 anything expressible as an ordinary lint rule belongs in oxlint instead.
 
 ## Documentation style
@@ -133,7 +133,8 @@ people who use the package, a hover is the documentation.
 
 Write new prose to the guide from the start. The details that trip people up:
 
-- **Dashes:** `word—word`, never `word — word`, in comments too.
+- **Dashes:** `word—word`, with no space on either side of the dash, in
+  comments too.
 - **Contractions:** use them ("isn't," "doesn't").
 - **Voice:** second person and present tense, with no "we," "will," or "simply."
 - **Examples:** use Google's [example conventions](https://developers.google.com/style/examples)
@@ -163,12 +164,12 @@ or status line changes.
 ## Decisions get an ADR
 
 `docs/adr/`. And an ADR that has stopped being true gets **amended**, not quietly
-outdated — see 0009's amendment for the shape. A stale ADR is worse than no ADR,
+outdated. See 0009's amendment for the shape. A stale ADR is worse than no ADR,
 because people trust it.
 
 ## Changesets
 
-Pre-1.0, so a **breaking change ships as `minor`** — there is no deprecation
+Pre-1.0, so a **breaking change ships as `minor`**, because there's no deprecation
 cycle to lean on. Write the changeset for someone upgrading blind: what changed,
-why, and what they have to do about it. If there is an upgrade edge (in-flight
+why, and what they have to do about it. If there's an upgrade edge (in-flight
 state, a deploy-time window), say so plainly rather than letting them find it.

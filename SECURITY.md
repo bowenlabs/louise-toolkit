@@ -19,12 +19,12 @@ policy.
 
 ## Reporting a vulnerability
 
-Please report privately rather than opening a public issue:
+Report privately rather than opening a public issue:
 **[Report a vulnerability](https://github.com/bowenlabs/louise-toolkit/security/advisories/new)**.
 
 Include what you need to make it reproducible—affected version, a minimal case,
 and what an attacker gets. You'll get an acknowledgement within a few days. This
-is a small project with a single maintainer, so please allow reasonable time
+is a small project with a single maintainer, so allow reasonable time
 before disclosing publicly.
 
 ## What's in scope
@@ -45,7 +45,7 @@ they're where a real issue is most likely to be:
 Out of scope: the marketing site, the docs site, the sandbox, findings that
 require a compromised Cloudflare account or an already-authenticated editor
 acting within their own permissions, and dependency advisories with no reachable
-call path (see below).
+call path (see the following section).
 
 ## How dependency advisories are handled
 
@@ -62,10 +62,10 @@ caught. Each entry carries the advisory id and the reasoning.
 
 ### Accepted, unfixable
 
-- **`extract-zip` ≤2.0.1 — [GHSA-jmr9-qjv8-65gv](https://github.com/advisories/GHSA-jmr9-qjv8-65gv)**,
+- **`extract-zip` ≤2.0.1 ([GHSA-jmr9-qjv8-65gv](https://github.com/advisories/GHSA-jmr9-qjv8-65gv))**,
   unvalidated symlink path traversal. The advisory names 2.0.2 as the fix; **no
   such version has been published**, so there is nothing to upgrade to. It
   reaches the tree only through `@cloudflare/puppeteer`, which is an _optional_
-  peer dependency loaded by dynamic import for OG-image rendering — so it is
+  peer dependency loaded by dynamic import for OG-image rendering, so it's
   absent unless a consumer opts in, and `extract-zip` itself runs at browser-
   download time, not at Worker runtime. Revisit if a 2.0.2 ships.

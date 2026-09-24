@@ -2,11 +2,11 @@
 
 # Louise Toolkit
 
-**Everything you need to build editable sites on Astro + Cloudflare Workers —
+**Everything you need to build editable sites on Astro + Cloudflare Workers:
 content, commerce, media, forms, auth, and AI, as composable V8-native primitives.**
 
-Editing is the headline: no separate admin app, no JSON forms for prose. Log in
-and the live site becomes editable in place — text where the text is, structured
+Editing is the headline: no separate administration app, no JSON forms for prose. Log in
+and the live site becomes editable in place: text where the text is, structured
 sections through your own components, and back-office work in Louise Settings.
 
 [Documentation](https://docs.louisetoolkit.com) ·
@@ -18,31 +18,31 @@ sections through your own components, and back-office work in Louise Settings.
 
 ---
 
-Louise is a toolkit for building sites on **Astro + Cloudflare Workers** — the whole
-surface, not just content. Dependency-injected primitives — content, db, media, forms,
-commerce, email, queues, auth, AI, analytics, realtime, workflows — plus a SolidJS +
+Louise is a toolkit for building sites on **Astro + Cloudflare Workers**: the whole
+surface, not only content. Dependency-injected primitives (content, db, media, forms,
+commerce, email, queues, auth, AI, analytics, realtime, workflows) plus a SolidJS +
 ProseKit inline-edit client and the editor theme, published as one tree-shakeable
 package. The core primitives are framework-agnostic (they run in any Worker or a unit
-test); the batteries — the client, the theme, and the Astro adapter — target Astro on
+test); the batteries (the client, the theme, and the Astro adapter) target Astro on
 Cloudflare.
 
 Adding editing to an app you already have? `pnpm add louise-toolkit`.
 
 Starting a new site from scratch? Reach for **[Astroid](https://github.com/bowenlabs/astroidjs)**,
 the opinionated meta-framework built on this one: `pnpm create astroid my-site`
-scaffolds the whole thing. It lives in its own repo — Louise stays unopinionated,
+scaffolds the whole thing. It lives in its own repo: Louise stays unopinionated,
 and the opinions live there.
 
 ## Why Louise
 
 - **A whole toolkit, not a plugin.** Commerce, forms, media, auth, AI, queues, email,
-  realtime, and workflows are first-party primitives — not third-party add-ons. Editable
+  realtime, and workflows are first-party primitives, not third-party add-ons. Editable
   content is one of them.
 - **V8-native.** No Node runtime, no React on the server. Everything runs in workerd /
   Cloudflare Workers and deploys to the edge; published pages ship no editor JS.
 - **Edit in place.** Editable regions carry a `data-louise-field` marker; in edit mode
   the client makes each one editable where it lives. Rich text is a real ProseKit editor.
-- **Bring your own bindings.** D1, R2, Queues, Email are passed in — Louise has no
+- **Bring your own bindings.** You pass in D1, R2, Queues, and Email. Louise has no
   opinion about your schema or your auth, and never dictates your markup.
 - **Tree-shakeable.** One ESM package with granular subpath exports; import only the
   primitive you need, and pull peers only for what you use.
@@ -67,7 +67,7 @@ workers/
 
 ## Develop
 
-Louise uses [Vite+](https://viteplus.dev) — install it once:
+Louise uses [Vite+](https://viteplus.dev). Install it once:
 
 ```sh
 curl -fsSL https://vite.plus | bash
@@ -96,52 +96,52 @@ reference.
 
 Louise is **pre-1.0** and dogfooded on 4 production sites.
 [Astroid](https://github.com/bowenlabs/astroidjs) and `create-astroid` have
-shipped (both pre-1.0) and now develop in their own repo. The current push — Cloudflare
-platform depth, Astro-native APIs, and an agent-editable MCP server — is tracked
+shipped (both pre-1.0) and now develop in their own repo. The current push (Cloudflare
+platform depth, Astro-native APIs, and an agent-editable MCP server) is tracked
 in the open:
 
-- [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1) — the active milestone.
-- [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102) — the umbrella issue tying the work together.
+- [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1): the active milestone.
+- [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102): the umbrella issue tying the work together.
 
 ## Contributing
 
-Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the dev
+Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev
 setup (`vp`), the lint/format split, and the changeset + PR conventions. Because
 Louise is pre-1.0, the many subpath exports may still change between minor
-releases; breaking changes ship as a `minor` bump and are called out in the
-changeset.
+releases; breaking changes ship as a `minor` bump, and the changeset calls them
+out.
 
 ## Built with
 
-Louise is built on — and grateful for — a lot of excellent open source. Sincere
+Louise is built on, and grateful for, a lot of excellent open source. Sincere
 thanks to the authors and maintainers of the projects that make it possible:
 
-**Platform & framework** —
+**Platform & framework**
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflareworkers&logoColor=white)](https://workers.cloudflare.com)
 [![Astro](https://img.shields.io/badge/Astro-BC52EE?logo=astro&logoColor=white)](https://astro.build)
 
-**The in-place editor** —
+**The in-place editor**
 [![SolidJS](https://img.shields.io/badge/SolidJS-2C4F7C?logo=solid&logoColor=white)](https://www.solidjs.com)
 [![ProseKit](https://img.shields.io/badge/ProseKit-6E56CF?logo=prosemirror&logoColor=white)](https://prosekit.dev)
 [![TanStack Query](https://img.shields.io/badge/TanStack_Query-FF4154?logo=tanstack&logoColor=white)](https://tanstack.com/query)
 [![Harper](https://img.shields.io/badge/Harper-4C6EF5)](https://writewithharper.com)
 
-**Data, auth & validation** —
+**Data, auth & validation**
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![better-auth](https://img.shields.io/badge/better--auth-000000?logo=betterauth&logoColor=white)](https://www.better-auth.com)
 [![Standard Schema](https://img.shields.io/badge/Standard_Schema-8B5CF6)](https://standardschema.dev)
 
-**Rendering & assets** —
+**Rendering & assets**
 [![Phosphor Icons](https://img.shields.io/badge/Phosphor_Icons-2B2B2B?logo=phosphoricons&logoColor=white)](https://phosphoricons.com)
 [![Roboto Flex](https://img.shields.io/badge/Roboto_Flex-5C6370)](https://github.com/googlefonts/roboto-flex)
 [![resvg](https://img.shields.io/badge/resvg-5C6370)](https://github.com/yisibl/resvg-js)
 [![ultrahtml](https://img.shields.io/badge/ultrahtml-5C6370)](https://github.com/natemoo-re/ultrahtml)
 
-**Styling** —
+**Styling**
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![daisyUI](https://img.shields.io/badge/daisyUI-1AD1A5?logo=daisyui&logoColor=white)](https://daisyui.com)
 
-**Build & quality** —
+**Build & quality**
 [![Vite+](https://img.shields.io/badge/Vite%2B-646CFF?logo=vite&logoColor=white)](https://viteplus.dev)
 [![Rolldown](https://img.shields.io/badge/Rolldown-F04E23?logo=rolldown&logoColor=white)](https://rolldown.rs)
 [![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
@@ -151,7 +151,7 @@ thanks to the authors and maintainers of the projects that make it possible:
 
 Also gratefully used: [`@cloudflare/puppeteer`](https://developers.cloudflare.com/browser-rendering/)
 (Browser Rendering) and [`@vercel/stega`](https://github.com/vercel/stega) (visual-edit
-markers). Bundled fonts and icons ship under their original licenses — see
+markers). Bundled fonts and icons ship under their original licenses. See
 [THIRD_PARTY_NOTICES](packages/louise/THIRD_PARTY_NOTICES.md).
 
 ## License
