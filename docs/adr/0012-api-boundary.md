@@ -1,6 +1,6 @@
 # ADR 0012 — API boundary: a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23)
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -109,6 +109,18 @@ Each slice is one PR, shipped `minor` with an upgrade note.
 3. **Astroid turns it on** in the generated worker and middleware (astroidjs repo). Then coracle, tma and ghostfire pick it up through the normal upgrade.
 4. **`upstreamFetch` + `UpstreamError`**, then move each provider client onto them, one provider per commit. Stop the sandbox echoing upstream errors.
 5. **`fetchPublicUrl`**, move content webhooks and form-notify onto it, and turn on `global_fetch_strictly_public` in the reference Workers and Astroid's template.
+
+## Amendment (2026-09-23, at slice 2)
+
+§2 says "the route declares itself public; there is no path list". That holds for `composeWorker`, which sees a `publicRoute` mark before the route runs. **It can't hold in framework middleware.** `createLouiseMiddleware({ apiGate })` runs before Astro knows which route file will answer, so there is no route to read a mark from. There, a public route is declared by path:
+
+- The toolkit's own public routes are exempt at their **default** paths. `louise-toolkit/worker` exports those paths (`LOUISE_FORMS_PATH`, `LOUISE_VITALS_PATH`, `isLouisePublicPath`), and `formRoute` and `vitalsRoute` build their defaults from the same constants, so the exemption and the route can't drift apart. That was the objection to a path list in the first place.
+- A site's own public Astro route under the prefix goes in `apiGate: { isPublic }`. It's a site-side list, and it can drift like any list. The cost is bounded: none of the three sites has such a route today, and a missed entry fails closed (401), not open.
+
+Two smaller points the slices settled:
+
+- **Order in the middleware.** The gate runs right after the editor is resolved and before `extend`, `guard`, and `rewrite`: it needs only the editor, and a refused request shouldn't pay for the site's extra work. If `resolveEditor` throws, pages still degrade to public rendering as before, but the API fails closed.
+- **Behind both layers.** On a `composeWorker` site whose middleware also sets `apiGate`, the middleware check is a second pass over requests the worker already let through. It costs nothing, because the middleware resolves the editor on every request anyway.
 
 ## Out of scope, tracked separately
 
