@@ -13,6 +13,7 @@
 // PaymentIntent is re-fetched from the API (see retrievePaymentIntent).
 
 import { s } from "../schema/index.js";
+import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { hmacSha256Hex, safeEqual } from "./index.js";
 
 const STRIPE_API = "https://api.stripe.com/v1";
@@ -29,17 +30,32 @@ function stripeHeaders(secretKey: string): HeadersInit {
   };
 }
 
+interface StripeErrorBody {
+  error?: { message?: string; code?: string; decline_code?: string; type?: string };
+}
+
+/** Read a Stripe answer: the parsed body on 2xx, an {@link UpstreamError}
+ *  otherwise. Stripe's `decline_code` is the more specific code on a card
+ *  decline, so it wins over `code` — it's what a checkout maps to its copy. */
+async function stripeRead<T>(res: Response, operation: string): Promise<T> {
+  const { json, text } = await readUpstreamBody(res);
+  if (res.ok && json !== undefined) return json as T;
+  const error = (json as StripeErrorBody | undefined)?.error;
+  throw new UpstreamError("Stripe", res.status, {
+    code: error?.decline_code ?? error?.code ?? error?.type ?? null,
+    detail: error?.message ?? (text.slice(0, 500) || null),
+    operation,
+  });
+}
+
 async function stripePost<T>(secretKey: string, path: string, form: URLSearchParams): Promise<T> {
-  const res = await fetch(`${STRIPE_API}${path}`, {
+  const res = await upstreamFetch(`${STRIPE_API}${path}`, {
+    provider: "Stripe",
     method: "POST",
     headers: stripeHeaders(secretKey),
     body: form,
   });
-  const data = (await res.json()) as T & { error?: { message?: string } };
-  if (!res.ok) {
-    throw new Error(`Stripe ${path} ${res.status}: ${data?.error?.message ?? "error"}`);
-  }
-  return data;
+  return stripeRead<T>(res, `POST ${path}`);
 }
 
 export interface CartItem {
@@ -88,16 +104,14 @@ export async function retrievePaymentIntent<T = Record<string, unknown>>(
   secretKey: string,
   id: string,
 ): Promise<T> {
-  const res = await fetch(`${STRIPE_API}/payment_intents/${id}`, {
+  // Encoded: the id comes from a webhook event, and a `/` or `?` in it would
+  // otherwise address a different Stripe resource.
+  const path = `/payment_intents/${encodeURIComponent(id)}`;
+  const res = await upstreamFetch(`${STRIPE_API}${path}`, {
+    provider: "Stripe",
     headers: { authorization: `Bearer ${secretKey}`, "stripe-version": STRIPE_VERSION },
   });
-  const data = (await res.json()) as T & { error?: { message?: string } };
-  if (!res.ok) {
-    throw new Error(
-      `Stripe /payment_intents/${id} ${res.status}: ${data?.error?.message ?? "error"}`,
-    );
-  }
-  return data;
+  return stripeRead<T>(res, `GET ${path}`);
 }
 
 /**

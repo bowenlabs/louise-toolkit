@@ -20,6 +20,7 @@
 // whole collection. `getCollectionProducts` walks it now.
 
 import { s } from "../schema/index.js";
+import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { hmacSha256Base64, safeEqual } from "./index.js";
 
 const STOREFRONT_API = "https://storefront-api.fourthwall.com/v1";
@@ -134,12 +135,20 @@ async function sfGet(
   const url = new URL(`${STOREFRONT_API}${path}`);
   url.searchParams.set("storefront_token", token);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Fourthwall GET ${path} ${res.status}: ${body.slice(0, 200)}`);
+  // The storefront token rides in the query, so nothing here may carry the URL:
+  // the error names the path alone.
+  const res = await upstreamFetch(url, {
+    provider: "Fourthwall",
+    headers: { accept: "application/json" },
+  });
+  const { json, text } = await readUpstreamBody(res);
+  if (!res.ok || (json === undefined && text)) {
+    throw new UpstreamError("Fourthwall", res.status, {
+      detail: text.slice(0, 500) || null,
+      operation: `GET ${path}`,
+    });
   }
-  return res.json();
+  return json;
 }
 
 /** All storefront collections (Prints, Totes, Buttons, Stickers, …). */
@@ -195,18 +204,22 @@ export interface FwCartItem {
 export async function createCart(token: string, items: FwCartItem[]): Promise<{ id: string }> {
   const url = new URL(`${STOREFRONT_API}/carts`);
   url.searchParams.set("storefront_token", token);
-  const res = await fetch(url, {
+  const res = await upstreamFetch(url, {
+    provider: "Fourthwall",
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({ items }),
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Fourthwall POST /carts ${res.status}: ${body.slice(0, 200)}`);
+  const { json, text } = await readUpstreamBody(res);
+  const id = (json as { id?: unknown } | undefined)?.id;
+  if (!res.ok || typeof id !== "string" || !id) {
+    throw new UpstreamError("Fourthwall", res.status, {
+      ...(res.ok ? { code: "NO_CART_ID" } : {}),
+      detail: text.slice(0, 500) || null,
+      operation: "POST /carts",
+    });
   }
-  const data = (await res.json()) as { id?: string };
-  if (!data.id) throw new Error("Fourthwall cart create returned no id");
-  return { id: data.id };
+  return { id };
 }
 
 /** A single product by slug (authoritative pricing for import). */

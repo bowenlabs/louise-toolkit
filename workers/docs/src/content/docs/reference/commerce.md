@@ -331,9 +331,13 @@ const square = { accessToken, environment, retry: { attempts: 3 } };
 
 A 4xx other than 429 is never retried: that is our bug, not Square's weather.
 
-Every non-2xx answer throws a `SquareApiError` (an `Error`) carrying `status` and
-Square's `code`. Check `err.status === 404` to tell "not found" from a failure,
-since a 404 is often a real answer.
+Every non-2xx answer throws a `SquareApiError`, an
+[`UpstreamError`](/reference/security/) carrying
+`status`, Square's `code`, and its `category`. Check `err.status === 404` to tell
+"not found" from a failure, since a 404 is often a real answer. A decline has
+`category: "PAYMENT_METHOD_ERROR"`: the buyer's to fix, so map `code` to your own
+copy. Its `message` is safe to show; Square's own wording is on `detail`, for
+logs. Set `timeoutMs` (default 10 seconds) to allow a slow bulk call longer.
 
 ### Accounts: customers, cards, loyalty
 

@@ -97,13 +97,10 @@ describe("getCollectionProducts paging", () => {
         const url = new URL(String(input));
         calls.push(url);
         const page = Number(url.searchParams.get("page"));
-        return {
-          ok: true,
-          json: async () => ({
-            results: pages[page] ?? [],
-            paging: { hasNextPage: page < pages.length - 1 },
-          }),
-        } as unknown as Response;
+        return Response.json({
+          results: pages[page] ?? [],
+          paging: { hasNextPage: page < pages.length - 1 },
+        });
       }),
     );
     return calls;
@@ -143,7 +140,7 @@ describe("getCollectionProducts paging", () => {
       "fetch",
       vi.fn(async (input: string | URL) => {
         calls.push(new URL(String(input)));
-        return { ok: true, json: async () => [product("a"), product("b")] } as unknown as Response;
+        return Response.json([product("a"), product("b")]);
       }),
     );
     const out = await getCollectionProducts("tok", "all");
@@ -154,13 +151,7 @@ describe("getCollectionProducts paging", () => {
   it("stops on a malformed envelope rather than looping", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          ({
-            ok: true,
-            json: async () => ({ results: [product("a")], paging: null }),
-          }) as unknown as Response,
-      ),
+      vi.fn(async () => Response.json({ results: [product("a")], paging: null })),
     );
     await expect(getCollectionProducts("tok", "all")).resolves.toHaveLength(1);
   });
@@ -170,13 +161,7 @@ describe("getCollectionProducts paging", () => {
     // its mirror: it will drop whatever it did not see.
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          ({
-            ok: true,
-            json: async () => ({ results: [product("x")], paging: { hasNextPage: true } }),
-          }) as unknown as Response,
-      ),
+      vi.fn(async () => Response.json({ results: [product("x")], paging: { hasNextPage: true } })),
     );
     await expect(getCollectionProducts("tok", "all")).rejects.toThrow(
       /refusing to return a partial/i,
@@ -186,7 +171,7 @@ describe("getCollectionProducts paging", () => {
   it("propagates an API error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: false, status: 401, text: async () => "bad token" }) as Response),
+      vi.fn(async () => new Response("bad token", { status: 401 })),
     );
     await expect(getCollectionProducts("tok", "all")).rejects.toThrow(/401/);
   });

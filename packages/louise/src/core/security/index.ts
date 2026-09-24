@@ -49,3 +49,14 @@ export type {
   RateLimiterBinding,
   SecretBinding,
 } from "./types";
+// The one way the toolkit calls a third-party API (ADR 0012 §3): a timeout,
+// no redirects, and an error whose message is safe to show.
+export {
+  readUpstreamBody,
+  UPSTREAM_TIMEOUT_MS,
+  UpstreamError,
+  type UpstreamErrorInit,
+  type UpstreamFetchInit,
+  upstreamFetch,
+  upstreamLogLine,
+} from "./upstream";

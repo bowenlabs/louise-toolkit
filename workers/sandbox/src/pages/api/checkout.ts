@@ -6,10 +6,10 @@
 import { FROM_EMAIL, SQUARE_ENV, SQUARE_LOCATION, SQUARE_TOKEN } from "astro:env/server";
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { createPayment } from "louise-toolkit/commerce/square";
+import { createPayment, SquareApiError } from "louise-toolkit/commerce/square";
 import { db } from "louise-toolkit/db";
 import { sendEmail } from "louise-toolkit/email";
-import { rateLimit } from "louise-toolkit/security";
+import { rateLimit, UpstreamError, upstreamLogLine } from "louise-toolkit/security";
 import { demoOrders } from "../../schema.js";
 
 export const prerender = false;
@@ -94,7 +94,19 @@ export const POST: APIRoute = async ({ request }) => {
       },
     );
   } catch (cause) {
-    return Response.json({ error: `Payment failed: ${(cause as Error).message}` }, { status: 502 });
+    // Square's own words go to the log, never the browser. A decline is the
+    // buyer's to fix, so it says so; anything else is ours.
+    console.error("sandbox payment failed:", upstreamLogLine(cause));
+    const declined = cause instanceof SquareApiError && cause.category === "PAYMENT_METHOD_ERROR";
+    return Response.json(
+      {
+        error: declined
+          ? "Your card was declined. Try another card."
+          : "Payment failed. Please try again.",
+        ...(cause instanceof UpstreamError && cause.code ? { code: cause.code } : {}),
+      },
+      { status: declined ? 402 : 502 },
+    );
   }
 
   await db(bindings.SANDBOX_DB).insert(demoOrders).values({

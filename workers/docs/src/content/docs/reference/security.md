@@ -17,6 +17,9 @@ import {
   readSecret,
   louiseSecurityHeaders,
   isNoindexHost,
+  upstreamFetch,
+  UpstreamError,
+  upstreamLogLine,
 } from "louise-toolkit/security";
 ```
 
@@ -255,6 +258,57 @@ Send it from middleware, not from a page. A streamed page has already sent its
 headers by the time page code runs, so a header set there is silently dropped.
 `@louise-toolkit/astro`'s middleware takes a `noindex: (hostname) => boolean`
 option for exactly this.
+
+## `upstreamFetch(input, init)` · `UpstreamError`
+
+```ts
+function upstreamFetch(
+  input: string | URL,
+  init: RequestInit & {
+    provider: string; // "Square", "Stripe": names the error
+    timeoutMs?: number; // default 10 seconds
+  },
+): Promise<Response>;
+
+class UpstreamError extends Error {
+  provider: string;
+  status: number; // 0 when no response arrived
+  code: string | null; // the provider's code, when it's code-shaped
+  retryable: boolean; // 429, 5xx, or no response
+  detail: string | null; // the provider's own words: logs only
+  operation: string | null; // "GET /v2/cards": the path, never the query
+}
+```
+
+The one way the toolkit calls a third-party API. Every provider client
+(Square, Fourthwall, Stripe, Turnstile) goes through it, and your own
+integrations can too. It adds three things a bare `fetch` doesn't:
+
+- **A timeout,** combined with any `signal` you pass. A request with no answer
+  becomes an `UpstreamError` with status `0` and code `timeout` or `network`.
+- **No redirects.** A provider API doesn't redirect, so a 3xx comes back as a
+  non-ok response instead of being followed to a host nobody chose.
+- **An error that's safe to show.** `message` names the provider, the status,
+  and the provider's code, for example `Square request failed (404 NOT_FOUND)`.
+  What the provider actually wrote is on `detail`, which is left out of
+  `JSON.stringify(err)` and `{ ...err }`, so it can't end up in a response by
+  accident.
+
+A non-2xx is returned, not thrown, because each provider reports errors in its
+own shape. Read the body with `readUpstreamBody(res)`: it never throws, unlike
+`res.json()` on an HTML error page, whose `SyntaxError` quotes the page.
+
+Log with `upstreamLogLine(err)`, which includes `operation` and `detail`, and
+show users `message` or copy you map from `code`:
+
+```ts
+try {
+  await createPayment(square, payment);
+} catch (err) {
+  console.error("payment failed:", upstreamLogLine(err));
+  return Response.json({ error: "Payment failed. Please try again." }, { status: 502 });
+}
+```
 
 ## Types
 
