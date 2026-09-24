@@ -1528,7 +1528,15 @@ export type SquareFulfillment =
   | {
       type: "pickup";
       recipient: SquareFulfillmentRecipient;
-      schedule: { type: "asap"; prepMinutes?: number } | { type: "scheduled"; pickupAt: string };
+      schedule:
+        | {
+            type: "asap";
+            /** Minutes until the order is ready — the shop's prep time, a whole
+             *  number ≥ 1. Required: how long a kitchen takes is the shop's fact,
+             *  and a guessed default would promise customers the wrong time. */
+            prepMinutes: number;
+          }
+        | { type: "scheduled"; pickupAt: string };
       /** Customer note to the kitchen. Square caps it at 500 characters. */
       note?: string;
     }
@@ -1701,6 +1709,16 @@ function recipientBody(r: SquareFulfillmentRecipient) {
   };
 }
 
+/** An ASAP pickup's prep time as the ISO 8601 duration Square wants. Refuses a
+ *  value it would otherwise have to round or clamp — that would change the ready
+ *  time the customer is shown without anyone noticing. */
+function prepDuration(minutes: number): string {
+  if (!Number.isInteger(minutes) || minutes < 1) {
+    throw new RangeError(`prepMinutes must be a whole number ≥ 1, got ${minutes}`);
+  }
+  return `PT${minutes}M`;
+}
+
 function fulfillmentBody(f: SquareFulfillment) {
   // Square rejects a note over 500 chars with a 400 on the whole order, after
   // the customer has entered a card. Trimming here is the kinder failure.
@@ -1732,10 +1750,7 @@ function fulfillmentBody(f: SquareFulfillment) {
     pickup_details: {
       recipient: recipientBody(f.recipient),
       ...(f.schedule.type === "asap"
-        ? {
-            schedule_type: "ASAP",
-            prep_time_duration: `PT${Math.max(1, f.schedule.prepMinutes ?? 10)}M`,
-          }
+        ? { schedule_type: "ASAP", prep_time_duration: prepDuration(f.schedule.prepMinutes) }
         : { schedule_type: "SCHEDULED", pickup_at: f.schedule.pickupAt }),
       ...(note ? { note } : {}),
     },

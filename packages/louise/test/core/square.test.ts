@@ -731,6 +731,26 @@ describe("createOrder — fulfillments, service charges, modifiers", () => {
     expect(body.order.fulfillments[0].pickup_details).not.toHaveProperty("email_address");
   });
 
+  it("refuses a prep time it would have to round or clamp", async () => {
+    // A silent clamp would change the ready time the customer is promised.
+    stubFetch({ order: { id: "ORD1" } });
+    for (const prepMinutes of [0, -5, 7.5, Number.NaN]) {
+      await expect(
+        createOrder(CONFIG, {
+          locationId: "L1",
+          lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+          fulfillments: [
+            {
+              type: "pickup",
+              recipient: { displayName: "Sam" },
+              schedule: { type: "asap", prepMinutes },
+            },
+          ],
+        }),
+      ).rejects.toThrow(RangeError);
+    }
+  });
+
   it("builds a SCHEDULED pickup at the caller's instant", async () => {
     const calls = stubFetch({ order: { id: "ORD1" } });
     await createOrder(CONFIG, {
