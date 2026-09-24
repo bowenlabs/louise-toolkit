@@ -6,7 +6,7 @@ sidebar:
 ---
 
 ```ts
-import { composeWorker, withEdgeCache, withHealing } from "louise-toolkit/worker";
+import { composeWorker, publicRoute, withEdgeCache, withHealing } from "louise-toolkit/worker";
 ```
 
 The Worker entrypoint helpers. Every Louise site's `worker.ts` has the same
@@ -25,6 +25,7 @@ interface ComposeWorkerOptions<Env> {
   fetch: ExportedHandler<Env>["fetch"]; // SSR fallback when no route matches
   queue?: ExportedHandler<Env>["queue"];
   scheduled?: ExportedHandler<Env>["scheduled"];
+  gate?: { resolveEditor: ResolveEditor<Env>; prefix?: string }; // see below
 }
 ```
 
@@ -40,6 +41,62 @@ export default composeWorker<Env>({
   queue: (batch, env) => processBatch(batch, (m) => handle(m, env)),
 });
 ```
+
+### The editor API gate: `gate` and `publicRoute(route)`
+
+Every editor route checks for an editor session itself. `gate` makes the
+editor API safe even when one doesn't: pass it, and every request under
+`/api/louise` must come from a signed-in editor unless it's headed for a route
+marked public.
+
+```ts
+export default composeWorker<Env>({
+  routes: [...editorRoutes, formRoute({ form: contact }), vitalsRoute({ dataset })],
+  fetch: ssrHandler,
+  gate: { resolveEditor }, // the same function you pass the editor routes
+});
+```
+
+What the gate does:
+
+- **Denies by default.** An anonymous request under the prefix gets 401, whether
+  or not the route it would reach checks for itself. That includes paths no
+  route matches, so probing for which paths exist reveals nothing. It
+  also covers your own framework routes under `/api/louise`, which the `fetch`
+  fallback serves after the gate.
+- **Checks the origin of every write, and of WebSocket upgrades.** An upgrade is
+  a `GET`, but a cross-site page can open a socket that carries the editor's
+  session cookie, so the gate checks its `Origin` like a write's.
+- **Adds headers to route responses.** Routes run before your framework's
+  middleware, so their responses never get its security headers. With `gate`,
+  every route response gets `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, and the rest of `louiseSecurityHeaders`, plus
+  `Cache-Control: no-store` on gated responses. A header the route set itself
+  wins, and a `101` WebSocket response is passed through untouched.
+
+`formRoute` and `vitalsRoute` are already public: a visitor submits a form, and
+every browser sends vitals. They still do their own origin, validation, and
+rate-limit checks. Mark any other route an anonymous caller must reach with
+`publicRoute`. Without it, the gate returns 401:
+
+```ts
+const webhook = publicRoute(async (request, env) => {
+  if (new URL(request.url).pathname !== "/api/louise/hooks/shop") return undefined;
+  // verify the signature before trusting anything in the body
+});
+```
+
+The gate doesn't replace the per-route checks. It decides whether a request may
+enter the API; the route still decides what this editor may do, and routes you
+mount without `composeWorker` (through `runEditorRoute`) are still protected.
+Both ask `resolveEditor`, and the answer is cached for the request, so the
+session is looked up once.
+
+`louiseApiGate(request, env, config)` is the same check as a standalone
+function. It returns `null` to let the request through, or the 401 or 403
+`Response` to send instead. `prefix` changes the protected path from
+`/api/louise`. Without `gate`, `composeWorker` behaves as before. The reasoning
+is in ADR 0012.
 
 ## `withEdgeCache(handler, config)`
 

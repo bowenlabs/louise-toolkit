@@ -14,6 +14,7 @@
 // badge reads "not measured yet".
 
 import { s, standardValidate } from "../schema/index.js";
+import { publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
 
 /** The three Core Web Vitals Louise tracks. */
@@ -134,7 +135,8 @@ export interface VitalsRouteConfig<Env> {
  */
 export function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<Env> {
   const path = config.path ?? "/api/louise/vitals";
-  return async (request, env) => {
+  // Public: every visitor's browser beacons here, so the API gate lets it through.
+  return publicRoute(async (request, env) => {
     const url = new URL(request.url);
     if (url.pathname !== path) return undefined;
     if (request.method !== "POST")
@@ -162,7 +164,7 @@ export function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<En
       }
     }
     return new Response(null, { status: 204 });
-  };
+  });
 }
 
 // ── Query ─────────────────────────────────────────────────────────────────
