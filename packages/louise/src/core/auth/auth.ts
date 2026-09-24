@@ -25,7 +25,7 @@ import {
 import { defaultResolveAdmins } from "./admins.js";
 import { LOUISE_USER_FIELDS } from "./fields.js";
 import { invitationAcceptUrl } from "./org.js";
-import { activeCaptchaSecret, turnstileSecret } from "./turnstile.js";
+import { activeCaptchaSecret, TURNSTILE_PLACEHOLDER, turnstileSecret } from "./turnstile.js";
 import type { LouiseAuthEnv } from "./types.js";
 
 type BetterAuthOptions = Parameters<typeof betterAuth>[0];
@@ -318,7 +318,12 @@ export async function getLouiseAuth(
   const url = new URL(baseURL);
   const host = url.hostname;
   const isDev = host === "localhost" || host === "127.0.0.1";
-  const secret = await getSessionSecret(env.SESSION_SECRET, url, config.devSecret);
+  // The placeholder sentinel scaffolds seed every secret with reads as unset
+  // here, as it does for Turnstile, so a deploy that never replaced it fails
+  // closed instead of signing sessions with a publicly known key.
+  const secret = await getSessionSecret(env.SESSION_SECRET, url, config.devSecret, {
+    placeholder: TURNSTILE_PLACEHOLDER,
+  });
   const admins = (await (config.resolveAdmins ?? defaultResolveAdmins)(env)).map((e) =>
     e.trim().toLowerCase(),
   );
@@ -429,6 +434,15 @@ export async function getLouiseAuth(
       magicLink({
         expiresIn: 60 * 15,
         sendMagicLink: async ({ email, url: link }) => {
+          // Magic links are editor sign-in, so only the allowlist gets one.
+          // `handleAuthRequest` refuses everyone else before Better Auth runs,
+          // but only on the route that calls it: an instance served straight
+          // from `auth.handler` (a customer portal on its own `basePath`) would
+          // otherwise mail a working sign-in link — one that creates the
+          // account, `disableSignUp` or not — to any address anyone typed. The
+          // token Better Auth has already stored is never delivered, so it's
+          // inert.
+          if (!isAdmin(email)) return;
           // Local dev has no EMAIL binding — log the link instead.
           if (isDev) {
             console.log(`[dev] Magic link for ${email}: ${link}`);
