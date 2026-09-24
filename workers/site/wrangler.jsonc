@@ -7,7 +7,15 @@
   // BowenLabs account — pinned so deploys don't prompt for account selection.
   "account_id": "c3e97bc9169c1a57894dae15e6b39304",
   "compatibility_date": "2026-06-20",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public (ADR 0012 §3): a fetch to this zone goes in
+  // through Cloudflare's front door like any Internet request — past the WAF
+  // and bot rules — rather than skipping them. Both hosts are Custom Domains, so
+  // a same-zone fetch reached this Worker before too; what changes is that the
+  // zone's security rules now see it. Watch: the health scan's self-crawl
+  // (`checkLinks` on louisetoolkit.com, lib/louise/health.ts) — if a zone rule
+  // challenges it, the dashboard reports false broken links. Roll back by
+  // removing the flag.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   // @astrojs/cloudflare v14 dropped `workerEntryPoint`, so `main` points at the
   // source entry (src/worker.ts); the adapter builds it and wires the
   // prerendered pages + static assets under dist/.
