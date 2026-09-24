@@ -195,6 +195,14 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
 - **`inquiriesRoute`**—read-mostly: list submissions newest-first, delete one
   by `?id=`.
 
+## Resuming a draft
+
+`resumeDraft(d1, { versionsTable, collection, bufferKv? }, row)` returns the
+editor's work-in-progress for a versioned row (`{ id, publishedVersionId }`), or
+`null`: the KV buffer first, then the newest draft newer than the live pointer.
+That is the same base `applySaveDraft` layers a save onto, so edit mode shows what
+the next save builds on. See [Drafts → Rendering](/guide/drafts/#rendering).
+
 ## Pure helpers
 
 The security-sensitive logic is factored into pure, testable functions you can

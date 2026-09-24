@@ -7,7 +7,8 @@ import { ClientRouter } from "astro:transitions";
 import LouiseEditIsland from "../components/LouiseEditIsland.astro";
 import SiteChrome from "../components/SiteChrome.astro";
 import { publishedPageCache } from "../lib/louise/cache.js";
-import { latestDraftBody, resumeReadSession } from "../lib/louise/drafts.js";
+import { resumeReadSession } from "@louise-toolkit/astro";
+import { latestDraftBody } from "../lib/louise/drafts.js";
 import { pagesCollection } from "../pages-collection.js";
 import { pages } from "../schema.js";
 import "../styles/fonts.css";
@@ -49,7 +50,7 @@ if (Astro.locals.editMode || !LOUISE_EDGE_CACHE) {
 let draftBody: string | null = null;
 if (Astro.locals.editMode) {
   const resume = resumeReadSession(DB, Astro.cookies);
-  draftBody = await latestDraftBody(resume.client, page.id, DRAFTS);
+  draftBody = await latestDraftBody(resume.client, page, DRAFTS);
   resume.commit();
 }
 const body = draftBody ?? page.body;

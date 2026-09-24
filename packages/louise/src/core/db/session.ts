@@ -23,6 +23,10 @@ export type D1Client = D1Database | D1DatabaseSession;
  *  server-side resume read consumes it; no client script needs it. */
 export const D1_BOOKMARK_COOKIE = "louise_d1_bookmark";
 
+/** How long the bookmark cookie lives, in seconds: 8 hours — an editing
+ *  session. Past that, a resume read simply starts unconstrained. */
+export const D1_BOOKMARK_MAX_AGE = 60 * 60 * 8;
+
 /**
  * Open a D1 Sessions-API session for read-your-writes across read replicas,
  * degrading to the raw binding when the runtime predates the Sessions API (or a
@@ -79,7 +83,7 @@ export function readD1Bookmark(request: Request): D1SessionBookmark | null {
  */
 export function serializeD1BookmarkCookie(
   bookmark: D1SessionBookmark | null,
-  maxAgeSeconds = 60 * 60 * 8,
+  maxAgeSeconds = D1_BOOKMARK_MAX_AGE,
 ): string | undefined {
   if (!bookmark) return undefined;
   return [
