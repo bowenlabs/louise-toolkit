@@ -5,6 +5,24 @@ import { defineConfig } from "vitest/config";
 // inline-edit client runs under happy-dom with the Solid JSX transform.
 export default defineConfig({
   test: {
+    // Coverage is a ratchet on the way to a fixed 80% floor (ADR 0014). The
+    // thresholds below are the measured numbers on 2026-09-24, rounded down;
+    // `autoUpdate` rewrites them here as coverage rises, so a PR that raises
+    // coverage also commits the new floor, and a PR that lowers it fails. Once
+    // lines and statements reach 80, drop `autoUpdate` and pin both at 80. The
+    // gap sits in `core/content` (localApi, visual-editing, schema-gen, codegen),
+    // `editor/versions`, and `client/blocks.tsx`; see the tracking issue.
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.d.ts"],
+      thresholds: {
+        lines: 72.59,
+        statements: 70.15,
+        autoUpdate: true,
+      },
+    },
     projects: [
       {
         test: {

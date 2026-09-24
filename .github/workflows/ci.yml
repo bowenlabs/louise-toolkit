@@ -125,6 +125,9 @@ jobs:
       - name: Type-check the library
         run: corepack pnpm -C packages/louise run typecheck
 
+      # Both `test` scripts run with coverage, and each package's
+      # vitest.config.ts gates on the floor from ADR 0014: a fixed 80% for the
+      # adapter, a ratchet toward 80% for the library.
       - name: Test
         run: corepack pnpm -C packages/louise run test
 
