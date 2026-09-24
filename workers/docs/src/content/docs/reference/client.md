@@ -372,6 +372,43 @@ rather than per panel: the panel that forgot would render an empty list that rea
 as "no data" instead of "signed out". 401 responses are also never retried, so the redirect
 isn't delayed by a backoff.
 
+### Form behaviours: `unsavedChanges`, `settledSelect`, `uploadMediaFiles`
+
+Three behaviours every studio form needs. They're plain DOM, with no framework or
+router.
+
+**`unsavedChanges(snapshot, { alsoDirty?, message?, confirm? })`** is the "you have
+unsaved changes" guard. The form is dirty when `snapshot()`, its save payload,
+differs from its value when the guard was created. Typing a letter and deleting it
+isn't a change, and no field has to mark itself dirty. A form loses edits three
+ways, and the guard covers all three:
+
+```ts
+const guard = unsavedChanges(() => ({ title: title(), price: price() }));
+
+// 1. an exit inside the form (Back, Cancel)
+<button onClick={() => guard.leave(close)}>Cancel</button>
+
+// 2. a route change — any router's blocker; with TanStack Router:
+useBlocker({ shouldBlockFn: guard.shouldBlock, enableBeforeUnload: guard.dirty });
+
+// 3. refresh / close, if your router doesn't already handle it
+onCleanup(guard.watchUnload());
+
+// after a save that keeps the form open
+guard.markSaved();
+```
+
+**`settledSelect(commit)`** returns handlers for a `<select>` that saves on change,
+but only once a choice is made. Arrowing through a closed select fires `change`
+on every step, so a status select saved (and logged) every option it passed on
+the way. Keyboard changes wait for Enter or blur; a pointer pick saves at once:
+`<select {...settledSelect(save)}>`.
+
+**`uploadMediaFiles(files, { endpoint?, onUploaded? })`** uploads to the media route
+and returns `{ uploaded, failed }`, with **every** failure and its reason.
+`describeUploadFailures(outcome)` turns that into one line for an alert, or `null`.
+
 ### A routed app inside an Astro island
 
 `@tanstack/solid-router` works inside a `client:only="solid-js"` island—verified

@@ -28,3 +28,19 @@ export {
   louiseQueryKey,
   louiseQueryKeys,
 } from "../settings/query.js";
+
+// Behaviours every studio form needs: an unsaved-changes guard any router can
+// use, a select that saves only on a settled choice, and multi-file upload that
+// reports every failure.
+export {
+  type SettledSelectHandlers,
+  settledSelect,
+  type UnsavedChanges,
+  type UnsavedChangesOptions,
+  unsavedChanges,
+} from "./editing.js";
+export {
+  describeUploadFailures,
+  type UploadOutcome,
+  uploadMediaFiles,
+} from "../settings/upload.js";
