@@ -120,6 +120,55 @@ Its `format` is a **concrete encode defaulting to `avif`**, not the `auto` that 
 rewriting serves per the request's `Accept`. You are choosing the format, so
 choose deliberately.
 
+### `defineImageProxy(config)`—images on someone else's host
+
+`cfImage` only rewrites URLs on your own zone, and `transformImage` needs the
+bytes. Neither helps with a third-party image whose URL you can't change. The
+common case is a **signed** URL: the size is part of the signature, so the host
+serves one fixed size and a smaller request is refused. Fourthwall's product images
+are like this, fixed at 1920 px, so a grid of 300 px cards downloads full-size
+photos.
+
+`defineImageProxy` fetches the original through Cloudflare with `cf.image`, which
+resizes it at the edge on the way through. One config drives both the route and
+the URLs your markup emits:
+
+```ts
+import { FW_IMAGE_HOST } from "louise-toolkit/commerce/fourthwall";
+import { defineImageProxy } from "louise-toolkit/media";
+
+export const productImages = defineImageProxy({
+  path: "/api/img/products",
+  allowHosts: [FW_IMAGE_HOST],
+  widths: [320, 640, 960, 1280],
+  // Signed URLs never change content, so a long cache is safe:
+  cacheControl: "public, max-age=31536000, immutable",
+});
+
+// the route, mounted at `path`
+export const GET = ({ request }) => productImages.handle(request);
+
+// the markup
+<img src={productImages.url(src, 640)} srcset={productImages.srcset(src)} sizes="(min-width: 60rem) 25vw, 90vw" />
+```
+
+It's deliberately narrow:
+
+- It serves **only the hosts you list**, over https, on the default port. Anything
+  else gets a 400 without a fetch, so it can't be used as an open proxy.
+- It serves **only the widths you list**, so the edge caches the handful your
+  `srcset` asks for.
+- If resizing fails for any reason, it **redirects to the original**, so the worst
+  case is the page as it was. Resizing is unavailable locally and on a zone without
+  Image Resizing, so there every request takes this path. Pass
+  `onFailure: "error"` to answer 502 instead.
+
+`url` and `srcset` leave an image on any other host untouched (`srcset` returns
+`undefined`), so you can call them on every image. The format is negotiated from
+`Accept` (AVIF, then WebP), and the response varies on `Accept`. `quality`,
+`fit`, `edgeCacheTtl`, and the query parameter names are options. The widths are
+yours to choose: match them to your `sizes`.
+
 ## Worked example: a three-column image grid
 
 The whole path, from a media-library URL to a correct `sizes` string.
