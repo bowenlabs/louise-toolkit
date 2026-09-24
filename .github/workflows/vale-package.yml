@@ -19,6 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Node, corepack, and pnpm, the same way every CI job gets them. Vale runs
+      # through `corepack pnpm dlx` below, like `lint:docs`; `npx` skips the
+      # install step that downloads the Vale binary.
+      - uses: ./.github/actions/setup
+
       - name: Build the package
         run: sh scripts/vale-package.sh
 
@@ -30,8 +35,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/consumer"
           cd "$RUNNER_TEMP/consumer"
           printf 'StylesPath = .vale\nPackages = Google, %s\n' "$GITHUB_WORKSPACE/dist-vale/Louise.zip" > .vale.ini
-          npx --yes @vvago/vale@3.17.1 sync
-          npx --yes @vvago/vale@3.17.1 "$GITHUB_WORKSPACE/vale/package/styles/Louise/README.md"
+          corepack pnpm --package=@vvago/vale@3.17.1 dlx vale sync
+          corepack pnpm --package=@vvago/vale@3.17.1 dlx vale "$GITHUB_WORKSPACE/vale/package/styles/Louise/README.md"
 
       - name: Publish the release
         env:
