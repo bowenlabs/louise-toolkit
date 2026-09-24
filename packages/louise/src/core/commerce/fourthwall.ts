@@ -58,6 +58,19 @@ export interface FwVariant {
   images?: FwImage[];
 }
 
+/**
+ * One panel of a product's "additional information" — the accordion under a
+ * product on Fourthwall's storefront (More details, Size and fit, Guarantee and
+ * returns). `ProductAdditionalInformationV1` in Fourthwall's OpenAPI spec.
+ * Every member is optional: it is a shape we are told about, not one we control.
+ */
+export interface FwAdditionalInformation {
+  /** e.g. `"MORE_DETAILS"`. */
+  type?: string;
+  title?: string;
+  bodyHtml?: string;
+}
+
 export interface FwProduct {
   id: string;
   name: string;
@@ -67,6 +80,8 @@ export interface FwProduct {
   variants: FwVariant[];
   state?: "AVAILABLE" | "SOLD_OUT";
   access?: string;
+  /** The accordion panels — see {@link fourthwallCopy} for the one worth mirroring. */
+  additionalInformation?: FwAdditionalInformation[];
 }
 
 export interface FwCollection {
@@ -206,7 +221,9 @@ export async function getProduct(token: string, slug: string): Promise<FwProduct
 
 /** Walk every collection and return its products together with the collection
  * they came from (Fourthwall does not put collection membership on the product,
- * so category has to come from the collection). */
+ * so category has to come from the collection). In Fourthwall's order, which
+ * puts the catch-all "All Products" LAST — pass the result through
+ * {@link catchAllFirst} before any last-write-wins category assignment. */
 export async function listCatalog(
   token: string,
 ): Promise<{ collection: FwCollection; products: FwProduct[] }[]> {
@@ -217,6 +234,92 @@ export async function listCatalog(
     out.push({ collection, products });
   }
   return out;
+}
+
+// ── catalog facts ────────────────────────────────────────────────────────────
+
+/** The host Fourthwall serves product images from (signed imgproxy URLs). */
+export const FW_IMAGE_HOST = "imgproxy.fourthwall.dev";
+
+/**
+ * Fourthwall's catch-all collection ("All Products"), which every product is
+ * also in. It is a shelf holding the whole store, not a category.
+ */
+export function isCatchAllCollection(collection: { slug: string; name: string }): boolean {
+  const slug = collection.slug.trim().toLowerCase();
+  return (
+    slug === "all" ||
+    slug === "all-products" ||
+    collection.name.trim().toLowerCase() === "all products"
+  );
+}
+
+/**
+ * {@link listCatalog}'s entries with the catch-all collection moved FIRST, the
+ * rest in their original order.
+ *
+ * A product is in every collection it was filed under, so a sync that sets a
+ * product's category per collection keeps whichever it wrote LAST. Fourthwall
+ * returns the catch-all last — so every product also in "Prints" ends up
+ * categorised "All Products". Catch-all first means a real collection always
+ * has the final word, while a product filed nowhere else still gets one.
+ */
+export function catchAllFirst<T extends { collection: { slug: string; name: string } }>(
+  catalog: readonly T[],
+): T[] {
+  return [...catalog].sort(
+    (a, b) =>
+      Number(isCatchAllCollection(b.collection)) - Number(isCatchAllCollection(a.collection)),
+  );
+}
+
+/**
+ * Fourthwall's hidden compliance block: an EU GPSR notice it appends to the
+ * More details panel inside `<div class="hidden">`, carrying Fourthwall's own
+ * fulfilment address. Their storefront never shows it.
+ */
+const HIDDEN_BLOCK = /<div[^>]*\bclass=["'][^"']*\bhidden\b[^"']*["'][^>]*>[\s\S]*?<\/div>/gi;
+
+/** Text from that block. If any survives the strip, the panel is not publishable. */
+const COMPLIANCE_MARKER = /EU GPSR|Manufacturer contact information/i;
+
+export interface FourthwallCopyOptions {
+  /** The panel to read. Default `"MORE_DETAILS"`. */
+  panel?: string;
+  /**
+   * Called when the panel still carried compliance text after stripping and
+   * was dropped. Fourthwall's markup changed, or the strip under-matched; log
+   * it — the sync is declining copy it was given.
+   */
+  onComplianceDropped?: (product: FwProduct) => void;
+}
+
+/**
+ * The product copy worth mirroring: the More details panel with Fourthwall's
+ * hidden compliance block removed, falling back to `description`.
+ *
+ * `description` alone is often empty — the copy a seller types lives in the
+ * More details panel. And mirroring that panel verbatim would publish
+ * Fourthwall's fulfilment address (and feed it to any meta description derived
+ * from the copy) as if it were the seller's. The strip is a plain non-greedy
+ * match, and if compliance text survives it the panel is dropped whole — so an
+ * under-strip costs the copy, never a leak.
+ *
+ * HTML out; sanitize before rendering, as with any stored rich text.
+ */
+export function fourthwallCopy(
+  product: FwProduct,
+  options: FourthwallCopyOptions = {},
+): string | null {
+  const panels = Array.isArray(product.additionalInformation) ? product.additionalInformation : [];
+  const wanted = options.panel ?? "MORE_DETAILS";
+  const raw = panels.find((p) => p?.type === wanted)?.bodyHtml?.trim();
+  if (raw) {
+    const cleaned = raw.replace(HIDDEN_BLOCK, "").trim();
+    if (COMPLIANCE_MARKER.test(cleaned)) options.onComplianceDropped?.(product);
+    else if (cleaned) return cleaned;
+  }
+  return product.description?.trim() || null;
 }
 
 /** Lowest variant price, in whole dollars, for the catalog "from" price. */
