@@ -80,3 +80,15 @@ export function safeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+// Cart verification + repair against the live catalog — provider-neutral and pure.
+export {
+  type CartChange,
+  type CartIssue,
+  type CartLine,
+  cartIssues,
+  cartModifierIds,
+  type CatalogSnapshot,
+  repairCart,
+  type RepairCartOptions,
+} from "./cart.js";

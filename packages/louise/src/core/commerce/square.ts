@@ -638,6 +638,43 @@ export async function retrieveVariationPrices(
   return prices;
 }
 
+/** Square's ceiling on `object_ids` in one `/v2/catalog/batch-retrieve` call. */
+const BATCH_RETRIEVE_LIMIT = 1000;
+
+/**
+ * Which of `ids` still exist in the catalog — present and not deleted,
+ * optionally only of one object `type` (e.g. `"MODIFIER"`, so a variation id
+ * can't pass for an add-on). A deleted or unknown id is simply absent. POST
+ * /v2/catalog/batch-retrieve, chunked at Square's 1000-id limit; no request at
+ * all for an empty list.
+ *
+ * The add-on half of cart verification: pass the result as `liveModifierIds`
+ * to `cartIssues` (louise-toolkit/commerce). A deleted modifier reaching
+ * `createOrder` makes Square reject the whole order, with nothing to tell the
+ * customer which add-on it was.
+ */
+export async function retrieveLiveCatalogObjectIds(
+  config: SquareConfig,
+  ids: readonly string[],
+  options: { type?: string } = {},
+): Promise<Set<string>> {
+  const live = new Set<string>();
+  const unique = [...new Set(ids)];
+  for (let i = 0; i < unique.length; i += BATCH_RETRIEVE_LIMIT) {
+    const res = await sqPost<{ objects?: RawCatalogObject[] }>(
+      config,
+      "/v2/catalog/batch-retrieve",
+      { object_ids: unique.slice(i, i + BATCH_RETRIEVE_LIMIT) },
+    );
+    for (const obj of res.objects ?? []) {
+      if (obj.is_deleted) continue;
+      if (options.type && obj.type !== options.type) continue;
+      live.add(obj.id);
+    }
+  }
+  return live;
+}
+
 /**
  * Like {@link retrieveVariationPrices}, but resolves each price **at a specific
  * location** — the location's `location_overrides` price where one exists, else
