@@ -39,6 +39,7 @@ export {
   safeNextPath,
 } from "./guard.js";
 export {
+  activeCaptcha,
   activeCaptchaSecret,
   TURNSTILE_PLACEHOLDER,
   TURNSTILE_TEST_SITE_KEY,

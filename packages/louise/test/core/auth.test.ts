@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  activeCaptcha,
   activeCaptchaSecret,
   defaultResolveAdmins,
   getLouiseAuth,
@@ -66,6 +67,23 @@ describe("turnstile activation", () => {
     expect(activeCaptchaSecret(env({ siteKey: "0xREAL" }), "real")).toBe("real");
     expect(activeCaptchaSecret(env({ siteKey: TURNSTILE_TEST_SITE_KEY }), "real")).toBeNull();
     expect(activeCaptchaSecret(env({ siteKey: "0xREAL" }), null)).toBeNull();
+  });
+
+  it("activeCaptcha decides the widget and the check together", async () => {
+    expect(await activeCaptcha(env({ siteKey: "0xREAL", secret: "real" }))).toEqual({
+      siteKey: "0xREAL",
+      secret: "real",
+    });
+    // Each half-provisioned state is OFF for both — never a check with no
+    // widget (the sign-in outage) nor a widget that gates nothing.
+    for (const e of [
+      env({ siteKey: "0xREAL", secret: TURNSTILE_PLACEHOLDER }),
+      env({ siteKey: "0xREAL" }),
+      env({ siteKey: TURNSTILE_TEST_SITE_KEY, secret: "real" }),
+      env({ secret: "real" }),
+    ]) {
+      expect(await activeCaptcha(e)).toBeNull();
+    }
   });
 });
 

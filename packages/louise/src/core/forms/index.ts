@@ -13,6 +13,14 @@ export {
   tanstackFormValidators,
 } from "./tanstack.js";
 export { verifyTurnstileToken } from "./turnstile.js";
+export {
+  loadTurnstile,
+  type RenderTurnstileOptions,
+  renderTurnstile,
+  TURNSTILE_SCRIPT_SRC,
+  turnstileCsp,
+  type TurnstileWidget,
+} from "./turnstile-client.js";
 export type {
   AnyFormTable,
   FormColumns,
