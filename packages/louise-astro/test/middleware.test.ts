@@ -309,3 +309,127 @@ describe("createLouiseMiddleware — noindex", () => {
     expect(res.headers.get("x-frame-options")).toBeNull();
   });
 });
+
+describe("createLouiseMiddleware — apiGate (ADR 0012)", () => {
+  const editor = { userId: "u1", email: "e@x.com", name: "Ed", role: "admin" };
+
+  /** An APIContext for `path`, with the headers a browser would send. */
+  function apiContext(
+    path: string,
+    init: { method?: string; origin?: string | null; headers?: Record<string, string> } = {},
+  ): APIContext {
+    const url = new URL(`https://example.com${path}`);
+    const headers = new Headers(init.headers);
+    const origin = init.origin === undefined ? "https://example.com" : init.origin;
+    if (origin) headers.set("origin", origin);
+    return {
+      request: new Request(url, { method: init.method ?? "GET", headers }),
+      url,
+      locals: {},
+      cookies: { get: () => undefined, set() {}, delete() {} },
+    } as unknown as APIContext;
+  }
+
+  /** A route that forgot its own guard: answers anyone. */
+  const route = (init?: ResponseInit) => {
+    const calls = { n: 0 };
+    const next: MiddlewareNext = async () => {
+      calls.n++;
+      return Response.json({ secret: "rows" }, init);
+    };
+    return { next, calls };
+  };
+
+  it("refuses an anonymous request before the route runs, with security headers", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, apiGate: true });
+    const { next, calls } = route();
+    const res = (await mw(apiContext("/api/louise/crm/1"), next)) as Response;
+    expect(res.status).toBe(401);
+    expect(calls.n).toBe(0);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("lets an editor through, and marks the answer no-store", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => editor, apiGate: true });
+    const { next } = route();
+    const res = (await mw(apiContext("/api/louise/crm/1"), next)) as Response;
+    expect(await res.json()).toEqual({ secret: "rows" });
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("keeps a cache policy the route chose", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => editor, apiGate: true });
+    const { next } = route({ headers: { "cache-control": "private, max-age=30" } });
+    const res = (await mw(apiContext("/api/louise/crm/1"), next)) as Response;
+    expect(res.headers.get("cache-control")).toBe("private, max-age=30");
+  });
+
+  it("403s a cross-origin write and a cross-origin WebSocket upgrade", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => editor, apiGate: true });
+    const evil = "https://evil.example";
+    const write = apiContext("/api/louise/pages/1", { method: "POST", origin: evil });
+    expect(((await mw(write, route().next)) as Response).status).toBe(403);
+    const upgrade = apiContext("/api/louise/realtime/pages/1", {
+      origin: evil,
+      headers: { upgrade: "websocket" },
+    });
+    expect(((await mw(upgrade, route().next)) as Response).status).toBe(403);
+  });
+
+  it("fails closed when resolveEditor throws — pages degrade, the API refuses", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => {
+        throw new Error("SESSION_SECRET is not configured");
+      },
+      apiGate: true,
+    });
+    expect(((await mw(apiContext("/api/louise/crm/1"), route().next)) as Response).status).toBe(
+      401,
+    );
+    // The same failure on a page still renders it publicly.
+    expect((await run(mw, makeContext("GET", "/about"))).status).toBe(200);
+  });
+
+  it("exempts the toolkit's own public routes at their default mounts", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, apiGate: true });
+    for (const path of ["/api/louise/forms/contact", "/api/louise/vitals"]) {
+      const { next, calls } = route();
+      await mw(apiContext(path, { method: "POST" }), next);
+      expect(calls.n, path).toBe(1);
+    }
+  });
+
+  it("exempts a site's own public path, and nothing else", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      apiGate: { isPublic: (p) => p === "/api/louise/hooks/shop" },
+    });
+    const hook = route();
+    await mw(apiContext("/api/louise/hooks/shop", { method: "POST", origin: null }), hook.next);
+    expect(hook.calls.n).toBe(1);
+    const other = route();
+    const res = (await mw(apiContext("/api/louise/hooks/other"), other.next)) as Response;
+    expect(res.status).toBe(401);
+    expect(other.calls.n).toBe(0);
+  });
+
+  it("never gates outside the prefix, and is off unless asked for", async () => {
+    const gated = createLouiseMiddleware({ resolveEditor: () => null, apiGate: true });
+    expect(((await gated(apiContext("/api/louise-shop/x"), route().next)) as Response).status).toBe(
+      200,
+    );
+    const off = createLouiseMiddleware({ resolveEditor: () => null });
+    expect(((await off(apiContext("/api/louise/crm/1"), route().next)) as Response).status).toBe(
+      200,
+    );
+  });
+
+  it("honours a custom prefix", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      apiGate: { prefix: "/admin/api" },
+    });
+    expect(((await mw(apiContext("/admin/api/x"), route().next)) as Response).status).toBe(401);
+    expect(((await mw(apiContext("/api/louise/x"), route().next)) as Response).status).toBe(200);
+  });
+});

@@ -39,6 +39,14 @@ import { createLouiseMiddleware } from "@louise-toolkit/astro";
 export const onRequest = createLouiseMiddleware({/* ... */});
 ```
 
+Pass `apiGate: true` to deny the editor API by default: every request under
+`/api/louise` must come from a signed-in editor before any route runs, with
+writes and WebSocket upgrades origin-checked. This is the same gate as
+`composeWorker({ gate })` (ADR 0012), for routes mounted as Astro API routes.
+Middleware runs before Astro knows which route file answers, so a public route
+is declared by path: the toolkit's form and vitals routes are exempt at their
+default paths, and `apiGate: { isPublic: (path) => … }` adds your own.
+
 **Actions** — the editor write path as Astro Actions, so a save is a typed call
 rather than a hand-rolled endpoint. `louiseSaveAction`, `louiseSaveDraftAction`
 and `louiseSettingsAction` wrap the same primitives the framework exposes, which
