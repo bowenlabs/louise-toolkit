@@ -88,9 +88,44 @@ draft** / **Publish** governs the whole page.
 
 ## Rendering
 
-View mode renders the live main row. In **edit mode**, resume the latest draft so
-work-in-progress is visible until published—query the newest `status: 'draft'`
-version for the page and render its content, falling back to the main row.
+View mode renders the live main row. In **edit mode**, resume the editor's
+work-in-progress instead, or reopening a page shows the last-published content and
+the next save reverts the draft. `resumeDraft` (from `louise-toolkit/editor`)
+returns that snapshot, or `null` when there is none:
+
+```ts
+import { resumeReadSession } from "@louise-toolkit/astro";
+import { resumeDraft } from "louise-toolkit/editor";
+
+let sections = page.sections;
+if (Astro.locals.editMode) {
+  const resume = resumeReadSession(env.DB, Astro.cookies);
+  const draft = await resumeDraft(
+    resume.client,
+    { versionsTable: pagesVersions, collection: "pages", bufferKv: env.DRAFTS },
+    page, // needs `id` and `publishedVersionId`
+  );
+  resume.commit();
+  if (Array.isArray(draft?.sections)) sections = draft.sections;
+}
+```
+
+It finds the draft in the same order a save layers onto it, so what the editor
+sees is what their next save builds on:
+
+1. the KV write buffer, when you pass `bufferKv`—it holds auto-saves newer than
+   the last D1 flush;
+2. the newest draft **newer** than the live row's `publishedVersionId`.
+
+A draft at or below the live pointer is **superseded**. Publishing stamps
+`publishedVersionId` and leaves older drafts in history, and resuming one of those
+would silently revert the just-published content. A page that has never published
+has no pointer, so every draft counts. The route applies the same rule
+server-side: publishing with no explicit `versionId` promotes the newest pending
+draft, never a superseded one.
+
+`resumeDraft` returns the whole snapshot. Which fields a page renders from it is
+your schema's business.
 
 ### Read-your-writes behind read replication
 
@@ -105,27 +140,15 @@ it's wired for you:
   persists that bookmark in an HttpOnly `louise_d1_bookmark` cookie
   (`serializeD1BookmarkCookie`).
 - The **resume read** opens a session anchored at that cookie
-  (`resumeReadSession(env.DB, Astro.cookies)`) and hands the session to
-  `latestDraftSections` / `latestDraftBody`, so the read is guaranteed to see the
-  write. The cookie round-trips automatically—no client code.
+  (`resumeReadSession(env.DB, Astro.cookies)` from `@louise-toolkit/astro`) and
+  hands the session to `resumeDraft`, so the read is guaranteed to see the write.
+  Call `commit()` after the read to persist the bookmark it advanced to. The
+  cookie round-trips automatically—no client code.
 
 Writes always target the primary, so this only shapes the read path. With
 replication **off** (or on a runtime without the Sessions API) it degrades to the
 raw binding—behaviour is identical, so the seam is safe to ship before you flip
 replication on.
-
-```ts
-// Edit-mode resume, anchored at the last auto-save's bookmark (see the site's
-// index.astro / [...slug].astro). commit() persists the advanced bookmark.
-import { resumeReadSession, latestDraftSections } from "./lib/louise/drafts.js";
-
-let draft = null;
-if (editMode && home) {
-  const resume = resumeReadSession(env.DB, Astro.cookies);
-  draft = await latestDraftSections(resume.client, home.id, env.DRAFTS);
-  resume.commit();
-}
-```
 
 The lower-level seam lives in `louise-toolkit/db`: `openD1Session(DB, constraint)`
 returns a session (or the raw binding as a fallback), `d1Bookmark(client)` reads
@@ -152,38 +175,3 @@ curl -s \
   "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/d1/database/$D1_DATABASE_ID" \
   -H "Authorization: Bearer $CF_API_TOKEN" | jq '.result.read_replication'
 ```
-
-Skip **superseded** drafts: ignore any draft whose `id` is at or below the live
-row's `published_version_id`. Publishing a version stamps `published_version_id`
-and leaves older drafts in history; resuming one of those would silently revert
-the just-published content. Only a draft **newer** than the live pointer is
-pending work (a page that has never published has no pointer, so every draft
-counts):
-
-```ts
-import { and, desc, eq, gt } from "drizzle-orm";
-
-async function latestPendingDraft(db, pageId) {
-  const [page] = await db
-    .select({ publishedVersionId: pages.publishedVersionId })
-    .from(pages)
-    .where(eq(pages.id, pageId));
-  const live = page?.publishedVersionId ?? null;
-  const [draft] = await db
-    .select()
-    .from(pagesVersions)
-    .where(
-      and(
-        eq(pagesVersions.parentId, pageId),
-        eq(pagesVersions.status, "draft"),
-        live === null ? undefined : gt(pagesVersions.id, live),
-      ),
-    )
-    .orderBy(desc(pagesVersions.id))
-    .limit(1);
-  return draft?.versionData ?? null;
-}
-```
-
-The route applies the same rule server-side: publishing with no explicit
-`versionId` promotes the newest pending draft, never a superseded one.

@@ -71,6 +71,7 @@ export {
   type VersionsRouteConfig,
   versionsRoute,
 } from "./versions.js";
+export { type ResumeDraftDeps, type ResumeDraftRow, resumeDraft } from "./resume.js";
 export {
   type BufferedDraft,
   clearDraftBuffer,

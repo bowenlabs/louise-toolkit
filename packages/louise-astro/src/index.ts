@@ -26,6 +26,7 @@ export {
   type LouiseRow,
 } from "./content-loader.js";
 export { formToAstroSchema } from "./form-schema.js";
+export { type ResumeReadSession, resumeReadSession } from "./resume.js";
 export {
   createLouiseMiddleware,
   type LouiseMiddlewareConfig,
