@@ -81,8 +81,8 @@ jobs:
 
       # Prose style for every doc and all prose in code, against the Google
       # developer documentation style guide plus the house style (ADR 0013).
-      # `vale sync` fetches the Google package into the gitignored
-      # vale/styles/Google: pinned, reproducible, not vendored, the same shape
+      # `vale sync` fetches the Google package and copies the house package from
+      # vale/package/ into the gitignored .vale/: pinned, reproducible, the same shape
       # as the `lint:solid` dlx fetch above. `lint:docs` runs it as a per-file
       # ratchet against vale/baseline.json while the rewrite is in progress.
       - name: Documentation style (Vale + Google)

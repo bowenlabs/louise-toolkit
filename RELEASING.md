@@ -141,6 +141,23 @@ to reach users of Astroid, open the follow-up there.
 - **You can't cleanly unpublish.** If a bad version ships, roll forward with a
   patch (`pnpm changeset` → `changeset version` → publish), don't unpublish.
 
+## The Vale package
+
+The house Vale package, `Louise.zip` (ADR 0013), releases separately from the
+npm packages, on its own tags. Release it when a file under `vale/package/`
+changes:
+
+```sh
+git tag vale-v1.1.0
+git push origin vale-v1.1.0
+```
+
+The tag runs `.github/workflows/vale-package.yml`, which builds the zip with
+`scripts/vale-package.sh`, checks that it works as a package, and attaches it
+to a release named after the tag. Then move the pin in each consuming
+repository's `.vale.ini`, in a PR, so the new rules land with the fixes they
+need. This repository reads `vale/package/` directly and needs no pin.
+
 ## Pre-1.0
 
 Versions are pre-1.0, so a minor bump is where breaking changes live and there's

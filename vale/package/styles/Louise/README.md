@@ -2,7 +2,9 @@
 
 This style sits on top of the Google developer documentation style guide. It
 adds only what Google's rules can't know about this stack. [ADR
-0013](../../../docs/adr/0013-google-style-everywhere.md) records the decision.
+0013](../../../../docs/adr/0013-google-style-everywhere.md) records the decision.
+The style ships inside the house Vale package, `vale/package/`, which every
+Bowen Labs repository consumes.
 
 | Rule           | What it checks                                                                                                   |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- |

@@ -53,7 +53,7 @@ function lintedFiles() {
     .split("\n")
     .filter((f) => f && (PROSE.test(f) || CODE.test(f)) && !EXCLUDE.has(f))
     .filter((f) => fs.existsSync(f))
-    .filter((f) => !f.startsWith("vale/styles/Google/"));
+    .filter((f) => !f.startsWith(".vale/"));
 }
 
 function runVale(files) {

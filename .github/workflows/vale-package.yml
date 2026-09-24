@@ -1,0 +1,47 @@
+name: Vale package
+
+# Publishes Louise.zip, the house Vale package (ADR 0013), as a release asset.
+# Push a tag named `vale-v<semver>` and this builds the zip from vale/package/
+# and attaches it to a release of the same name. Every other Bowen Labs
+# repository pins a tag in its .vale.ini, so a rule change reaches them only
+# when they move the pin: the same reason the Google package is pinned.
+on:
+  push:
+    tags: ["vale-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Louise.zip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the package
+        run: sh scripts/vale-package.sh
+
+      # Lint the package's own README with the package, synced from the zip
+      # that's about to ship, so a broken zip fails here instead of in the
+      # next repository that pins it.
+      - name: Check the zip works as a package
+        run: |
+          mkdir -p "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          printf 'StylesPath = .vale\nPackages = Google, %s\n' "$GITHUB_WORKSPACE/dist-vale/Louise.zip" > .vale.ini
+          npx --yes @vvago/vale@3.17.1 sync
+          npx --yes @vvago/vale@3.17.1 "$GITHUB_WORKSPACE/vale/package/styles/Louise/README.md"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist-vale/Louise.zip \
+            --title "Vale package $GITHUB_REF_NAME" \
+            --notes "The Louise house Vale package (ADR 0013). Pin it in a repository's .vale.ini:
+
+          \`\`\`ini
+          StylesPath = .vale
+          Packages = Google, https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/Louise.zip
+          \`\`\`"
