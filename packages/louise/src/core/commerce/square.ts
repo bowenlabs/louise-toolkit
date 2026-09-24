@@ -13,6 +13,7 @@
 // (card data is tokenized in the browser and never reaches the Worker).
 
 import { s } from "../schema/index.js";
+import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { centsToMajor, hmacSha256Base64, safeEqual, type Money } from "./index.js";
 
 export type SquareEnvironment = "sandbox" | "production";
@@ -30,6 +31,9 @@ export interface SquareConfig {
    *  a 429 or a 5xx should cost a second rather than fail the job. Never retries a
    *  4xx other than 429 — those are our bug, not Square's weather. */
   retry?: SquareRetryConfig;
+  /** Abandon a request after this long, per attempt. Default 10 s. Raise it for
+   *  a slow bulk call (a large catalog upsert, an image upload). */
+  timeoutMs?: number;
 }
 
 export interface SquareRetryConfig {
@@ -99,26 +103,26 @@ interface SquareErrorBody {
 }
 
 /**
- * A non-2xx answer from Square. The message is unchanged from before this
- * class existed; `status` and `code` are what let a caller tell "not found"
- * (a 404 is often an answer — no loyalty program, no such card) from a failure
- * without matching on the message.
+ * A non-2xx answer from Square — an {@link UpstreamError}, so `message` is safe
+ * to show a user and Square's own `detail` stays in the logs. `status` and
+ * `code` (Square's first error code, e.g. `"NOT_FOUND"`) are what let a caller
+ * tell "not found" (a 404 is often an answer — no loyalty program, no such
+ * card) from a failure, and map a decline to its own copy.
  */
-export class SquareApiError extends Error {
-  readonly status: number;
-  /** Square's first error code, e.g. `"NOT_FOUND"`, when it sent one. */
-  readonly code: string | null;
-  constructor(path: string, status: number, body: SquareErrorBody) {
+export class SquareApiError extends UpstreamError {
+  /** Square's error category, e.g. `"PAYMENT_METHOD_ERROR"` — a decline, the
+   *  buyer's to fix — as opposed to `"INVALID_REQUEST_ERROR"`, which is ours. */
+  readonly category: string | null;
+  constructor(operation: string, status: number, body: SquareErrorBody, raw = "") {
     const first = body.errors?.[0];
-    super(`Square ${path} ${status}: ${first?.detail ?? first?.code ?? "error"}`);
+    super("Square", status, {
+      code: first?.code ?? null,
+      detail: first?.detail ?? (raw.slice(0, 500) || null),
+      operation,
+    });
     this.name = "SquareApiError";
-    this.status = status;
-    this.code = first?.code ?? null;
+    this.category = first?.category ?? null;
   }
-}
-
-function squareError(path: string, status: number, body: SquareErrorBody): Error {
-  return new SquareApiError(path, status, body);
 }
 
 /** Run a read, turning Square's 404 into `null`; every other error still throws. */
@@ -171,7 +175,9 @@ async function sqFetch<T>(
   for (let attempt = 0; attempt <= attempts; attempt++) {
     let res: Response;
     try {
-      res = await fetch(`${host(config)}${path}`, {
+      res = await upstreamFetch(`${host(config)}${path}`, {
+        provider: "Square",
+        ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
         method: init.method,
         headers: init.formData ? multipartHeaders(config) : headers(config),
         ...(init.formData
@@ -181,18 +187,30 @@ async function sqFetch<T>(
             : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
-      // Network-level failure (DNS, connection reset) — retryable in the same
-      // way a 5xx is, but there is no response to read a status off.
+      // No response (timeout, DNS, connection reset) — retryable in the same
+      // way a 5xx is, but there is no status to read.
       lastError = err;
       if (attempt === attempts) throw err;
       await sleep(Math.min(baseDelay * 2 ** attempt, maxDelay));
       continue;
     }
 
-    const data = (await res.json()) as T & SquareErrorBody;
-    if (res.ok) return data;
+    const operation = `${init.method} ${path.split("?")[0]}`;
+    const { json, text } = await readUpstreamBody(res);
+    if (res.ok) {
+      // A 2xx that isn't JSON is Square's failure, not an answer.
+      if (json === undefined && text) {
+        throw new SquareApiError(
+          operation,
+          res.status,
+          { errors: [{ code: "INVALID_RESPONSE" }] },
+          text,
+        );
+      }
+      return json as T;
+    }
 
-    lastError = squareError(path, res.status, data);
+    lastError = new SquareApiError(operation, res.status, (json ?? {}) as SquareErrorBody, text);
     if (attempt === attempts || !retryableStatus(res.status)) throw lastError;
 
     // Prefer Square's own Retry-After; otherwise exponential backoff with a
@@ -308,7 +326,7 @@ export async function retrieveLocation(
   } catch (err) {
     // A missing location is a 404 and a legitimate answer ("this merchant has no
     // Square location yet"), not an error the caller should have to catch.
-    if (err instanceof Error && / 404: /.test(err.message)) return null;
+    if (err instanceof UpstreamError && err.status === 404) return null;
     throw err;
   }
 }

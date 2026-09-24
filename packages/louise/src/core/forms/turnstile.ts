@@ -5,6 +5,8 @@
 // against Turnstile's siteverify endpoint before accepting a submission. The
 // secret is the site's (server-only); Louise just owns the request shape.
 
+import { upstreamFetch } from "../security/upstream.js";
+
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 /**
@@ -25,7 +27,12 @@ export async function verifyTurnstileToken(
   body.append("response", token);
   if (remoteIp) body.append("remoteip", remoteIp);
   try {
-    const res = await fetch(SITEVERIFY_URL, { method: "POST", body });
+    // A timeout lands in the catch below like any failure: fail closed.
+    const res = await upstreamFetch(SITEVERIFY_URL, {
+      provider: "Turnstile",
+      method: "POST",
+      body,
+    });
     const data = (await res.json()) as { success?: boolean };
     return data.success === true;
   } catch {

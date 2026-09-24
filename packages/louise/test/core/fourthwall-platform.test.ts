@@ -16,6 +16,7 @@ import {
   validateExternalOrder,
   verifyFourthwallPlatformSignature,
 } from "../../src/core/commerce/fourthwall-platform.js";
+import { UpstreamError, upstreamLogLine } from "../../src/core/security/index.js";
 
 /** One recorded call, in the shape the assertions actually read. */
 interface Call {
@@ -89,11 +90,17 @@ describe("fourthwall platform — request layer", () => {
     await expect(deleteProduct(config, "p1")).resolves.toBeUndefined();
   });
 
-  it("reports the provider's message rather than a bare status", async () => {
+  it("keeps the provider's message for logs, out of the one users see", async () => {
     stubFetch([{ status: 400, body: { message: "variantId is required" } }]);
-    await expect(
-      createProduct(config, { kind: "digital", name: "X", price: { value: 5, currency: "USD" } }),
-    ).rejects.toThrow(/Fourthwall POST \/products 400: variantId is required/);
+    const err = await createProduct(config, {
+      kind: "digital",
+      name: "X",
+      price: { value: 5, currency: "USD" },
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err.message).toBe("Fourthwall request failed (400)");
+    expect(err.detail).toBe("variantId is required");
+    expect(upstreamLogLine(err)).toBe("Fourthwall POST /products 400: variantId is required");
   });
 
   it("does not retry by default", async () => {

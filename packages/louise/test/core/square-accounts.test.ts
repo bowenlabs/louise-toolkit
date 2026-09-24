@@ -9,6 +9,7 @@ import {
   squareApplicationIdEnvironment,
   updateCustomer,
 } from "../../src/core/commerce/square.js";
+import { UpstreamError } from "../../src/core/security/index.js";
 
 // The account-side calls coracle.coffee reached around the toolkit for with a
 // hand-written fetch: cards on file, a customer's phone, and the loyalty
@@ -40,15 +41,16 @@ function route(handler: Route) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SquareApiError", () => {
-  it("carries the status and code, with the message it always had", async () => {
+  it("carries the status and code; the message is safe to show, Square's words are for logs", async () => {
     route(() => ({ status: 404, body: { errors: [{ code: "NOT_FOUND", detail: "Not found" }] } }));
     const err = await listCards(CONFIG, { customerId: "C1" }).catch((e) => e);
     expect(err).toBeInstanceOf(SquareApiError);
-    expect(err).toBeInstanceOf(Error);
-    expect(err).toMatchObject({ status: 404, code: "NOT_FOUND" });
-    expect(err.message).toBe(
-      "Square /v2/cards?customer_id=C1&include_disabled=false 404: Not found",
-    );
+    expect(err).toBeInstanceOf(UpstreamError);
+    expect(err).toMatchObject({ status: 404, code: "NOT_FOUND", retryable: false });
+    expect(err.message).toBe("Square request failed (404 NOT_FOUND)");
+    expect(err.detail).toBe("Not found");
+    // The path, not the query: a query can carry an id or a token.
+    expect(err.operation).toBe("GET /v2/cards");
   });
 });
 

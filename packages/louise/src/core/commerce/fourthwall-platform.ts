@@ -24,6 +24,7 @@
 // See {@link createProduct}. This is the single most surprising thing about the
 // Platform API and the reason that comment is where it is.
 
+import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { hmacSha256Base64, safeEqual } from "./index.js";
 
 const PLATFORM_API = "https://api.fourthwall.com/open-api/v1.0";
@@ -64,6 +65,14 @@ export interface FourthwallPlatformConfig {
    * {@link createExternalOrder}.
    */
   retry?: FourthwallRetryConfig;
+  /**
+   * Abandon a request after this long, per attempt. Default 10 s.
+   *
+   * A timed-out request has not necessarily failed: Fourthwall may have
+   * received and applied it. For an order create — no idempotency key — treat
+   * a timeout like the 5xx in {@link retry}: look before you try again.
+   */
+  timeoutMs?: number;
 }
 
 export interface FourthwallRetryConfig {
@@ -207,10 +216,19 @@ interface FwErrorBody {
   errors?: { message?: string; field?: string }[];
 }
 
-function platformError(method: string, path: string, status: number, body: unknown): Error {
+function platformError(
+  method: string,
+  path: string,
+  status: number,
+  body: unknown,
+  raw: string,
+): UpstreamError {
   const b = (body ?? {}) as FwErrorBody;
-  const detail = b.message ?? b.error ?? b.errors?.[0]?.message ?? "error";
-  return new Error(`Fourthwall ${method} ${path} ${status}: ${String(detail).slice(0, 200)}`);
+  const detail = b.message ?? b.error ?? b.errors?.[0]?.message ?? (raw.slice(0, 500) || null);
+  return new UpstreamError("Fourthwall", status, {
+    detail: detail === null ? null : String(detail),
+    operation: `${method} ${path}`,
+  });
 }
 
 interface RequestInit_ {
@@ -248,7 +266,9 @@ async function fwFetch<T>(
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await upstreamFetch(url, {
+        provider: "Fourthwall",
+        ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
         method: init.method,
         headers: {
           authorization: authHeader(config),
@@ -258,8 +278,8 @@ async function fwFetch<T>(
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
-      // Network-level failure (DNS, connection reset) — retryable like a 5xx,
-      // but with no response to read a status off.
+      // No response (timeout, DNS, connection reset) — retryable like a 5xx,
+      // but with no status to read.
       lastError = err;
       if (attempt === attempts) throw err;
       await sleep(Math.min(baseDelay * 2 ** attempt, maxDelay));
@@ -268,12 +288,15 @@ async function fwFetch<T>(
 
     // 204 and an empty 200 both mean "done, nothing to say" — `res.json()`
     // throws on an empty body, so it must not be the unconditional path.
-    const text = await res.text();
-    const data = text ? (JSON.parse(text) as T) : (undefined as T);
+    const { json, text } = await readUpstreamBody(res);
 
-    if (res.ok) return data;
+    if (res.ok) {
+      // A 2xx that isn't JSON is Fourthwall's failure, not an answer.
+      if (json === undefined && text) throw platformError(init.method, path, res.status, {}, text);
+      return json as T;
+    }
 
-    lastError = platformError(init.method, path, res.status, data);
+    lastError = platformError(init.method, path, res.status, json, text);
     if (attempt === attempts || !retryableStatus(res.status)) throw lastError;
 
     const backoff = Math.min(baseDelay * 2 ** attempt, maxDelay);
@@ -506,7 +529,7 @@ export async function getExternalOrder(
     // A missing order is a legitimate answer, not an exception the caller
     // should have to catch — same treatment as `retrieveLocation` in the Square
     // client.
-    if (err instanceof Error && / 404: /.test(err.message)) return null;
+    if (err instanceof UpstreamError && err.status === 404) return null;
     throw err;
   }
 }
