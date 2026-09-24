@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework-owned `inquiries` — contact-form submissions. `inquiries` is now the
+// Framework-owned `inquiries`—contact-form submissions. `inquiries` is now the
 // **built-in default form** (issue #46): its table is derived from a
 // `defineForm` definition, so the same definition drives the columns, the public
-// capture route (`formRoute`), validation, and the review columns — no
+// capture route (`formRoute`), validation, and the review columns—no
 // hand-authored DDL. Compose your own by extending `inquiriesForm.fields`, or add
-// site columns (e.g. a `clientId` soft link) by spreading `inquiriesColumns`.
+// site columns (for example, a `clientId` soft link) by spreading `inquiriesColumns`.
 
 import { defineForm } from "../forms/index.js";
 

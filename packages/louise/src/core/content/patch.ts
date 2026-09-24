@@ -3,7 +3,7 @@
 import type { JsonValue } from "./types.js";
 
 /**
- * Patch model + deep diff (issues #14, #24) — adopts Sanity's mutation/patch
+ * Patch model + deep diff (issues #14, #24)—adopts Sanity's mutation/patch
  * idea (pattern, not code): represent a content change as a small set of field
  * operations, and compute a diff between two document snapshots. Underpins
  * version-history display (what changed between two versions) and the
@@ -18,7 +18,7 @@ import type { JsonValue } from "./types.js";
  *     Reordering blocks with unchanged content is a no-op. This is what a
  *     version-history UI renders.
  *   - **Write** ({@link computePatch} / {@link applyPatch}) stays top-level
- *     field-level (`set`/`unset` on a document's own fields) — the
+ *     field-level (`set`/`unset` on a document's own fields)—the
  *     snapshot-store write model Louise shares with Payload/Strapi. Path-
  *     addressed write ops (insert-by-`_key`, etc.) are a separate Tier-2
  *     concern gated on a real-time-collaboration requirement, not built here.
@@ -36,13 +36,13 @@ export type FieldChangeKind = "added" | "removed" | "changed";
 /**
  * One segment of a {@link FieldChange} path. A plain string is an object field
  * key; `{ key }` addresses an element of a `_key`-keyed array (a builder
- * block) by its stable key rather than a positional index — so a change survives
- * reordering. E.g. `["blocks", { key: "b1a2" }, "heading"]`.
+ * block) by its stable key rather than a positional index—so a change survives
+ * reordering. For example, `["blocks", { key: "b1a2" }, "heading"]`.
  */
 export type PathSeg = string | { key: string };
 
 /** One field's difference between two document snapshots, addressed by a
- *  segmented {@link PathSeg} path (deep — may point inside a block). */
+ *  segmented {@link PathSeg} path (deep: it may point inside a block). */
 export interface FieldChange {
   path: PathSeg[];
   kind: FieldChangeKind;
@@ -55,7 +55,7 @@ export interface FieldChange {
 type Doc = Record<string, JsonValue>;
 
 /** The stable per-block key blocks are stamped with (see
- *  `visual-editing.ts`'s `BLOCK_KEY`/`newBlockKey`) — the identity the deep diff
+ *  `visual-editing.ts`'s `BLOCK_KEY`/`newBlockKey`)—the identity the deep diff
  *  matches array elements on. */
 const BLOCK_KEY = "_key";
 
@@ -73,7 +73,7 @@ export function formatPath(path: PathSeg[]): string {
   return out;
 }
 
-// Structural deep-equality over JSON values — order-sensitive for arrays
+// Structural deep-equality over JSON values—order-sensitive for arrays
 // (a reordered blocks array is a real change unless we match by key), key-order-
 // insensitive for objects.
 function deepEqual(a: JsonValue, b: JsonValue): boolean {
@@ -99,7 +99,7 @@ function isPlainObject(v: JsonValue): v is { [k: string]: JsonValue } {
 }
 
 /**
- * A `_key`-keyed array — a non-empty array whose every element is an object
+ * A `_key`-keyed array—a non-empty array whose every element is an object
  * carrying a string `_key`. Returns the elements when it qualifies, else `null`
  * (so ordinary scalar/mixed arrays fall back to a leaf compare). This is the
  * "match by identity, not index" predicate the deep diff keys on.
@@ -154,7 +154,7 @@ function diffValue(before: JsonValue, after: JsonValue, path: PathSeg[], out: Fi
   }
 
   // Leaf (scalar, non-keyed array, or a type change): a single change here. Both
-  // sides exist — add/remove is decided by the parent object/array.
+  // sides exist—add/remove is decided by the parent object/array.
   out.push({ path, kind: "changed", before, after });
 }
 
@@ -165,12 +165,12 @@ export interface DiffOptions {
    * (`id`/`createdAt`/`publishedVersionId`) in a version-history view.
    */
   fields?: readonly string[];
-  /** Top-level field keys to skip (e.g. `["id", "createdAt"]`). */
+  /** Top-level field keys to skip (for example, `["id", "createdAt"]`). */
   ignore?: readonly string[];
 }
 
 /**
- * Deep, `_key`-aware diff between two document snapshots — the per-change
+ * Deep, `_key`-aware diff between two document snapshots—the per-change
  * added/removed/changed list a version-history UI renders, each addressed by a
  * segmented {@link PathSeg} path. Editing one sub-field of one block yields a
  * single change at `["blocks", { key }, "<field>"]`; reordering blocks with
@@ -201,7 +201,7 @@ export function diffDocuments(before: Doc, after: Doc, options: DiffOptions = {}
  * added/changed top-level field, `unset` for each removed one. The write path
  * is field-level (a changed `blocks` array is one `set` of the whole array), so
  * `applyPatch(before, computePatch(before, after))` deep-equals `after`. Not
- * derived from the deep diff — the deep diff addresses sub-fields the top-level
+ * derived from the deep diff—the deep diff addresses sub-fields the top-level
  * write model can't target.
  */
 export function computePatch(before: Doc, after: Doc): Patch {

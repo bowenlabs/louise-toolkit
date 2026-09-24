@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/client — headless <Form> render helper (issue #46, Tier 2). Emits
+// louise-toolkit/client—headless <Form> render helper (issue #46, Tier 2). Emits
 // accessible inputs from a `defineForm` catalog, mirrors the SAME server
-// validation client-side (reuses `validateSubmission` → the shared Rule engine —
-// no second validation definition), and POSTs to the form's `formRoute`. Field
+// validation client-side (reuses `validateSubmission` → the shared Rule engine—no
+// second validation definition), and POSTs to the form's `formRoute`. Field
 // state is a Solid `createStore` (the same lightweight approach `mountSections`
 // uses); no form-state dependency.
 //
-// For a COMPLEX form — multi-step, field arrays, cross-field rules — hand-build
+// For a COMPLEX form—multi-step, field arrays, cross-field rules—hand-build
 // it with `@tanstack/solid-form` and keep Louise's one validation definition via
 // `tanstackFormValidators` (louise-toolkit/forms). Wire those to TanStack's
 // `onChangeAsync` slot, not `onChange`: they are async by contract, and a
@@ -15,7 +15,7 @@
 // appears (#316).
 //
 // There is deliberately NO generated solid-form scaffold. `defineForm` is flat
-// by construction — one column per field, no arrays, no nesting — so anything
+// by construction—one column per field, no arrays, no nesting—so anything
 // generated from it is a flat form, which is exactly what `<Form>` above already
 // renders with no dependency at all. The scaffold would cost a peer dependency
 // and an export subpath to do the same job worse; what a complex form actually
@@ -31,13 +31,13 @@ import type { FormConfig, FormField } from "../core/forms/types.js";
 import { validateSubmission } from "../core/forms/validate.js";
 
 export interface FormProps {
-  /** The form definition (from `defineForm`) — its fields + name drive rendering. */
+  /** The form definition (from `defineForm`)—its fields + name drive rendering. */
   form: FormConfig;
   /** POST target. Default `/api/louise/forms/<name>` (matches `formRoute`). */
   action?: string;
   /** Media upload endpoint for `file` fields. Default `/api/louise/media`. */
   mediaAction?: string;
-  /** Message shown after a successful submit. Default "Thanks — we'll be in touch." */
+  /** Message shown after a successful submit. Default "Thanks—we'll be in touch." */
   successMessage?: string;
   /** Called after a 201. */
   onSuccess?: () => void;

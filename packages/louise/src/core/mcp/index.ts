@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-// `louise-toolkit/mcp` — a Model Context Protocol server over the Local API, so
+// `louise-toolkit/mcp`—a Model Context Protocol server over the Local API, so
 // an agent reads and edits a live site through the SAME validation, hooks and
 // access rules a human gets editing in place (ADR 0009, issue #103).
 //

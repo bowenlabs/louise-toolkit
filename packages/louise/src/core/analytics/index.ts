@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/analytics — Core Web Vitals (RUM) on Cloudflare Analytics Engine
+// louise-toolkit/analytics—Core Web Vitals (RUM) on Cloudflare Analytics Engine
 // (#106 CWV piece). Real-visitor LCP/INP/CLS, owned and queryable, so the health
-// co-pilot can show a plain "Fast ✓ / Slow" performance badge — no third-party
+// co-pilot can show a plain "Fast ✓ / Slow" performance badge—no third-party
 // analytics, no cookies.
 //
 // The loop: a tiny cookieless beacon on public pages ({@link cwvBeaconScript})
@@ -37,7 +37,7 @@ export function rateMetric(name: CwvMetric, value: number): CwvRating {
   return value <= t.good ? "good" : value <= t.poor ? "needs-improvement" : "poor";
 }
 
-/** The p75 CWV snapshot folded into HealthSummary — values plus an overall
+/** The p75 CWV snapshot folded into HealthSummary—values plus an overall
  *  rating (the worst present metric), or `"none"` when no field data yet. */
 export interface CwvSummary {
   lcp?: number;
@@ -71,7 +71,7 @@ export function summarizeCwv(input: {
 
 // ── Ingestion ──────────────────────────────────────────────────────────────
 
-/** The Analytics Engine surface the ingestion route needs — structural so the
+/** The Analytics Engine surface the ingestion route needs—structural so the
  *  real `AnalyticsEngineDataset` binding fits without importing Workers types. */
 export interface AnalyticsEngineLike {
   writeDataPoint(point: {
@@ -94,7 +94,7 @@ const VITAL_BODY = s.object({
   path: s.optional(s.string()),
 });
 
-/** Sane ceiling on a reported value — rejects garbage/adversarial payloads
+/** Sane ceiling on a reported value—rejects garbage/adversarial payloads
  *  (an hour in ms comfortably exceeds any real LCP/INP; CLS is well under it). */
 const MAX_VITAL_VALUE = 3_600_000;
 
@@ -119,7 +119,7 @@ export function vitalDataPoint(v: VitalReading): {
 }
 
 export interface VitalsRouteConfig<Env> {
-  /** The Analytics Engine dataset binding, e.g. `(env) => env.ANALYTICS`.
+  /** The Analytics Engine dataset binding, for example, `(env) => env.ANALYTICS`.
    *  `undefined` (unprovisioned) → the route accepts and drops, staying optional. */
   dataset: (env: Env) => AnalyticsEngineLike | undefined;
   /** Mount path. Default `/api/louise/vitals`. */
@@ -128,7 +128,7 @@ export interface VitalsRouteConfig<Env> {
 
 /**
  * Build the public CWV ingestion route: `POST /api/louise/vitals`. It's
- * unauthenticated (anonymous visitor beacons) but **same-origin only** — a
+ * unauthenticated (anonymous visitor beacons) but **same-origin only**—a
  * cross-origin `Origin` is refused so it can't be spammed from elsewhere. Always
  * answers `204` (the beacon ignores the body); a malformed payload or missing
  * dataset is silently dropped. Returns `undefined` for a non-matching path.
@@ -143,8 +143,8 @@ export function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<En
       return Response.json({ error: "Method not allowed" }, { status: 405 });
 
     // Same-origin guard: a real beacon's Origin matches the request host, so a
-    // cross-origin Origin is spam and refused. (A missing Origin — e.g. a
-    // same-origin sendBeacon that omits it — is allowed through.)
+    // cross-origin Origin is spam and refused. (A missing Origin—for example, a
+    // same-origin sendBeacon that omits it—is allowed through.)
     const origin = request.headers.get("origin");
     if (origin) {
       try {
@@ -213,7 +213,7 @@ export function parseCwvRows(
  * The cookieless CWV beacon to inline in a `<script>` on public pages. It
  * observes LCP, CLS, and (approximate) INP via `PerformanceObserver` and reports
  * each once, on the first `visibilitychange` to hidden, via `sendBeacon`. INP is
- * approximated as the longest interaction — enough for an owner-facing badge, not
+ * approximated as the longest interaction—enough for an owner-facing badge, not
  * a lab-grade number. Self-contained (no dependency), so it inlines CSP-safely.
  *
  * @param opts.endpoint  where to POST (default `/api/louise/vitals`).

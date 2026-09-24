@@ -14,7 +14,7 @@ const CATALOG: SectionCatalog = {
     layouts: { wide: { label: "Wide" }, boxed: { label: "Boxed" } },
     settings: {
       background: { type: "text", inline: false },
-      // A closed choice (#272) — the inspector must render a picker for this,
+      // A closed choice (#272)—the inspector must render a picker for this,
       // not a free-text box.
       tone: {
         type: "select",
@@ -200,7 +200,7 @@ describe("mountSections — inspector popover (#182 Phase 4)", () => {
     // back to the component's own default.
     expect([...(select?.options ?? [])].map((o) => o.value)).toEqual(["", "brand", "base"]);
     expect([...(select?.options ?? [])].map((o) => o.textContent)).toEqual(["—", "Brand", "Base"]);
-    // The opaque render hint rides through to the DOM untouched — the schema
+    // The opaque render hint rides through to the DOM untouched—the schema
     // layer never interprets it, so a renderer can key a swatch UI off it.
     expect(select?.getAttribute("data-display")).toBe("swatch");
   });
@@ -221,7 +221,7 @@ describe("mountSections — inspector popover (#182 Phase 4)", () => {
     await flush();
     await flush();
 
-    // A picker commits on change — there is no "finished typing" moment to wait
+    // A picker commits on change—there is no "finished typing" moment to wait
     // for, unlike a text field.
     expect((lastDraft(calls) as { _settings?: Record<string, unknown> })?._settings?.tone).toBe(
       "brand",

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — submission notifications (issue #46, Tier 3). A form declares
+// louise-toolkit/forms—submission notifications (issue #46, Tier 3). A form declares
 // where a submission is announced (`notify.webhook` / `notify.email`); `formRoute`
 // fires these after a successful insert, off the response path (waitUntil). The
 // email transport is the site's (a `FormMailer`), so Louise stays decoupled from
@@ -20,7 +20,7 @@ export function renderSubmissionText(config: FormConfig, values: Record<string, 
  * Fire a form's declared notifications for a submission. The webhook POSTs
  * `{ form, values }`; the email uses the site-supplied `mailer`. Errors are
  * swallowed (a notification failure must never fail the submission the visitor
- * already completed) — the caller runs this via `ctx.waitUntil`.
+ * already completed)—the caller runs this via `ctx.waitUntil`.
  */
 export async function notifySubmission(
   config: FormConfig,
@@ -57,7 +57,7 @@ export async function notifySubmission(
 /**
  * Silent anti-spam heuristics evaluated on the raw body: a filled honeypot field
  * or a too-fast submit (vs the render helper's `louise_ts` stamp). Returns `true`
- * when the submission looks like a bot — the route then returns a fake success
+ * when the submission looks like a bot—the route then returns a fake success
  * (so the bot can't tune) without inserting. Missing timestamp is NOT treated as
  * a bot (a plain HTML form without the render helper won't stamp one).
  */

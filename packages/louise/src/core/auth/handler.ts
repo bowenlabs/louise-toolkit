@@ -6,13 +6,13 @@ import type { LouiseAuth } from "./auth.js";
 /**
  * Better Auth catch-all with the editor magic-link allowlist gate. A site's
  * `/api/auth/[...all]` route calls this. Non-admin magic-link requests are
- * rejected BEFORE Better Auth runs — no token, no mail, and (at the verify
- * step) no user row — and return the SAME enumeration-safe response a real send
+ * rejected BEFORE Better Auth runs—no token, no mail, and (at the verify
+ * step) no user row—and return the SAME enumeration-safe response a real send
  * returns, so probing the endpoint reveals nothing. Customer email/password
  * sign-up (when enabled) is intentionally NOT gated by this.
  *
  * `admins` is the resolved allowlist (use `defaultResolveAdmins` or the config's
- * `resolveAdmins` — the same source the factory uses).
+ * `resolveAdmins`—the same source the factory uses).
  */
 export async function handleAuthRequest(
   auth: LouiseAuth,

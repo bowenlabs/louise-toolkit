@@ -14,7 +14,7 @@ export interface UploadOutcome {
  *
  * Every failure is kept. A loop that set a single error message on each failure
  * showed only the LAST one: pick five images, have two refused, and you were told
- * about one of them — or, if the last file succeeded, none. The form then showed
+ * about one of them—or, if the last file succeeded, none. The form then showed
  * fewer images than were picked, with nothing to say why.
  *
  * `onUploaded` fires as each file lands, so a form can add images as they
@@ -45,7 +45,7 @@ export async function uploadMediaFiles(
   return outcome;
 }
 
-/** One line naming every file that failed and why — for an alert. `null` when none did. */
+/** One line naming every file that failed and why—for an alert. `null` when none did. */
 export function describeUploadFailures(outcome: UploadOutcome): string | null {
   const { failed, uploaded } = outcome;
   if (failed.length === 0) return null;

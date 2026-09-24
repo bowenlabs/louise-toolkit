@@ -1,4 +1,4 @@
-// POST /api/checkout — takes a REAL Square sandbox payment and sends a REAL
+// POST /api/checkout—takes a REAL Square sandbox payment and sends a REAL
 // confirmation email. An Astro endpoint (not a raw worker route) so astro:env's
 // server config + secret (SQUARE_TOKEN) resolve at runtime; Cloudflare bindings
 // (EMAIL/D1/KV) come from `cloudflare:workers`. Priced server-side so the client
@@ -16,20 +16,20 @@ export const prerender = false;
 
 const bindings = env as unknown as CloudflareEnv;
 
-// The one demo product — priced here on the SERVER (the rule holds even in a
+// The one demo product—priced here on the SERVER (the rule holds even in a
 // sandbox). Square test cards approve this for free.
 const DEMO = { name: "Cortado", amountCents: 450, currency: "USD" as const };
 const RATE_LIMIT_PER_DAY = 8;
 const ONE_DAY_SEC = 86_400;
-// Advisory — the native binding's real budget lives in wrangler (`ratelimits`).
+// Advisory—the native binding's real budget lives in wrangler (`ratelimits`).
 const BURST_PER_MIN = 20;
 
 // Two-tier abuse control on this public pay+email surface, both through the
 // shared `rateLimit` primitive (louise-toolkit/security):
-//   1. an optional native, in-colo burst guard (env.RATE_LIMIT) when provisioned
-//      — cheap protection against a rapid flood;
-//   2. the per-IP daily budget on KV — a per-day cap can't be a native binding
-//      (its period maxes at 60s), so it stays on the KV counter.
+//   1. an optional native, in-colo burst guard (env.RATE_LIMIT) when
+//      provisioned—cheap protection against a rapid flood;
+//   2. the per-IP daily budget on KV—a per-day cap can't be a native binding
+//      (its period maxes at 60 seconds), so it stays on the KV counter.
 // Both fail open, so a limiter hiccup never blocks a legitimate checkout.
 async function rateLimited(ip: string): Promise<boolean> {
   if (bindings.RATE_LIMIT) {
@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request }) => {
     return Response.json({ error: "Sandbox not configured yet." }, { status: 503 });
   }
 
-  // Real Square sandbox charge — config from astro:env/server.
+  // Real Square sandbox charge—config from astro:env/server.
   let payment: { id: string; status: string };
   try {
     payment = await createPayment(

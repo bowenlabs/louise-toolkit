@@ -1,4 +1,4 @@
-// Which Fourthwall field a product's copy comes from — ported from
+// Which Fourthwall field a product's copy comes from—ported from
 // themidwestartist.com, whose sync mirrored `description`, empty across nearly
 // its whole catalog, while the copy a buyer wants sat in the More details panel.
 //
@@ -58,7 +58,7 @@ describe("fourthwallCopy", () => {
   });
 
   it("falls back when More details exists but is blank", () => {
-    // An empty panel is the same as no panel — trading an empty string for an
+    // An empty panel is the same as no panel—trading an empty string for an
     // empty string would be a silent no-op that looks like it worked.
     expect(
       fourthwallCopy({
@@ -70,7 +70,7 @@ describe("fourthwallCopy", () => {
   });
 
   it("returns null when neither field has anything", () => {
-    // null, not "" — the column is nullable and an empty string would make
+    // null, not ""—the column is nullable and an empty string would make
     // `product.details` truthy enough to render an empty block on the page.
     expect(fourthwallCopy(base)).toBeNull();
     expect(fourthwallCopy({ ...base, description: "  " })).toBeNull();
@@ -81,7 +81,7 @@ describe("fourthwallCopy", () => {
   //
   // The seller types a few bullets in the Fourthwall editor. Fourthwall appends
   // an EU GPSR notice to the rendered panel, hidden behind `class="hidden"`,
-  // naming its own fulfilment address — not the seller's. Mirroring it verbatim
+  // naming its own fulfilment address—not the seller's. Mirroring it verbatim
   // would publish that address as the seller's and feed it to the meta
   // description.
   const GPSR =

@@ -5,7 +5,7 @@ const MASTER = "https://media.example.com/originals/camera-master.jpg";
 
 describe("thumb", () => {
   it("asks for a derivative at 2× the display box", () => {
-    // The whole point: a 120px tile fetches ~240px, not a 6MB master.
+    // The whole point: a 120px tile fetches ~240px, not a 6 MB master.
     const url = new URL(thumb(MASTER, 120));
     expect(url.pathname).toContain("/cdn-cgi/image/");
     expect(url.pathname).toContain("width=240");

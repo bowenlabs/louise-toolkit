@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `form` capture route (issue #46). The PUBLIC
+// louise-toolkit/editor—the generic `form` capture route (issue #46). The PUBLIC
 // companion to the editor-gated submissions review route: a same-origin-guarded
 // POST that validates a visitor's submission against a `defineForm` definition,
 // applies the spam guard (rate limit + optional Turnstile), and inserts a row.
-// Unlike the other editor routes it is NOT session-gated — anyone may submit —
-// so the guard is same-origin (CSRF) + the spam checks, not an editor session.
+// Unlike the other editor routes it is NOT session-gated—anyone may submit—so
+// the guard is same-origin (CSRF) + the spam checks, not an editor session.
 
 import { isSameOrigin } from "../auth/guard.js";
 import {
@@ -24,7 +24,7 @@ import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, ident, json, matchPath } from "./shared.js";
 
 /** Env for a form capture route: the D1 binding (a KV binding too if the form
- *  rate-limits — supplied via `rateLimitKv`). */
+ *  rate-limits, supplied via `rateLimitKv`). */
 export type FormRouteEnv = EditorRouteEnv;
 
 export interface FormRouteConfig<Env extends FormRouteEnv = FormRouteEnv> {
@@ -32,18 +32,18 @@ export interface FormRouteConfig<Env extends FormRouteEnv = FormRouteEnv> {
   form: FormDefinition;
   /** Mount path. Default `/api/louise/forms/<name>`. */
   path?: string;
-  /** Rate-limit backend, when the form declares `spam.rateLimit` — a KV binding
+  /** Rate-limit backend, when the form declares `spam.rateLimit`—a KV binding
    *  or Cloudflare's native Rate Limiting binding. */
   rateLimitKv?: (env: Env) => RateLimitBackend;
   /** Rate-limit key for a request. Default: the `CF-Connecting-IP` header. */
   clientKey?: (request: Request) => string;
   /** Turnstile secret, when the form declares `spam.turnstile`. */
   turnstileSecret?: (env: Env) => string;
-  /** Email transport for `notify.email` — wrap your `EMAIL` binding here. */
+  /** Email transport for `notify.email`—wrap your `EMAIL` binding here. */
   mailer?: (env: Env) => FormMailer;
   /**
    * Store into the shared generic `submissions` table as `{ form, data }`
-   * instead of a per-form typed table — so an ad-hoc form needs no migration.
+   * instead of a per-form typed table—so an ad-hoc form needs no migration.
    * Pass the ready-made `submissions` table name (default `"submissions"`).
    */
   genericTable?: string;
@@ -99,7 +99,7 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
     // bot can't tune, and never insert. Runs before the visible checks.
     if (looksLikeSpam(form, body)) return json({ ok: true }, 201);
 
-    // Spam guard — rate limit first (cheap), then Turnstile (a network call).
+    // Spam guard—rate limit first (cheap), then Turnstile (a network call).
     if (form.spam?.rateLimit && config.rateLimitKv) {
       const key = config.clientKey
         ? config.clientKey(request)
@@ -130,7 +130,7 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
 
     const now = Math.floor(Date.now() / 1000);
     if (config.genericTable) {
-      // Shared store: one row is `{ form, data }` — no per-form migration.
+      // Shared store: one row is `{ form, data }`—no per-form migration.
       await env.DB.prepare(
         `INSERT INTO ${ident(config.genericTable)} ("form","data","created_at") VALUES (?1,?2,?3)`,
       )

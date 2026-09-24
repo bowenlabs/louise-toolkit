@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/worker — a read-through KV cache for a lookup that runs on
+// louise-toolkit/worker—a read-through KV cache for a lookup that runs on
 // every request (a tenant by hostname, a settings row, a feature flag).
 // `withEdgeCache` caches whole responses; this caches one value.
 
@@ -18,12 +18,12 @@ const MISS = "\u0000miss";
 const KV_MIN_TTL_SECONDS = 60;
 
 export interface KvCachedOptions {
-  /** How long a value (and a miss) stays cached. At least 60 — KV's minimum. */
+  /** How long a value (and a miss) stays cached. At least 60—KV's minimum. */
   ttlSeconds: number;
   /**
    * Cache `null` results too. Default `true`: a lookup keyed by something a
    * visitor controls (a hostname, a slug) otherwise costs one database read
-   * per garbage request — this makes it one read per key per TTL.
+   * per garbage request—this makes it one read per key per TTL.
    */
   cacheMisses?: boolean;
 }
@@ -34,7 +34,7 @@ export interface KvCachedOptions {
  *
  * Fails open: a KV read or write that throws is ignored and `load` runs, so a
  * cache outage costs speed, never correctness. A value that no longer parses
- * is treated as a miss. `kv` may be `undefined` (unbound in dev) — then this
+ * is treated as a miss. `kv` may be `undefined` (unbound in dev)—then this
  * is just `load()`.
  *
  * After a write to the underlying data, call {@link kvBust} for the key, or

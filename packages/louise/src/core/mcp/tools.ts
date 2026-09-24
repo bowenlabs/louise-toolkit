@@ -1,16 +1,16 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-// `louise-toolkit/mcp` — tool generation (ADR 0009, slice 1 of #103).
+// `louise-toolkit/mcp`—tool generation (ADR 0009, slice 1 of #103).
 //
 // Pure data in / data out, like `content/structure.ts`: this derives the MCP
 // tool *definitions* a collection exposes, and nothing else. No transport, no
-// Local API, no session — those arrive in slices 2–4. Everything here is
+// Local API, no session—those arrive in slices 2–4. Everything here is
 // synchronous and trivially testable, which is the point of splitting it out.
 //
 // The pitch the whole feature rests on: humans edit in place, agents edit over
 // the SAME typed primitives. So a tool's arguments are derived from the very
-// `FieldConfig` map that drives codegen, the schema layer and the editor — never
-// hand-written — and the tools an agent gets are exactly the operations that
+// `FieldConfig` map that drives codegen, the schema layer and the editor—never
+// hand-written—and the tools an agent gets are exactly the operations that
 // collection supports.
 
 import { flattenFields } from "../content/types.js";
@@ -35,12 +35,12 @@ export type McpToolOperation =
 
 /** One generated tool, in the shape `tools/list` reports it. */
 export interface McpTool {
-  /** Wire name, e.g. `get_pages`. Unique across a config. */
+  /** Wire name, for example, `get_pages`. Unique across a config. */
   name: string;
   description: string;
   /** JSON Schema for the tool's arguments. */
   inputSchema: JsonSchema;
-  /** The collection this acts on — not part of the MCP wire shape, but what
+  /** The collection this acts on—not part of the MCP wire shape, but what
    *  slice 2's dispatcher routes on. */
   collection: string;
   operation: McpToolOperation;
@@ -50,7 +50,7 @@ export interface CollectionToolsOptions {
   /**
    * The site's section catalog. Supplying it adds `add_<slug>_section` for
    * writable versioned collections, with `section` constrained to the catalog's
-   * names — so an agent cannot insert a section the site does not render.
+   * names—so an agent cannot insert a section the site does not render.
    * Omit it and no section tool is generated.
    */
   sections?: SectionCatalog;
@@ -66,7 +66,7 @@ function fieldSchema(field: FieldConfig | SectionField): JsonSchema {
   switch (field.type) {
     case "select": {
       // `options` may be plain strings or `{value,label}` objects (the shape
-      // `SectionField` allows), and may be a resolver function — which cannot be
+      // `SectionField` allows), and may be a resolver function—which cannot be
       // enumerated without running it, so those degrade to a bare string.
       const options = "options" in field ? field.options : undefined;
       if (Array.isArray(options)) {
@@ -82,7 +82,7 @@ function fieldSchema(field: FieldConfig | SectionField): JsonSchema {
     case "checkbox":
       return described({ type: "boolean" });
     case "date":
-      // ISO 8601 on the wire regardless of the column's storage mode — an agent
+      // ISO 8601 on the wire regardless of the column's storage mode—an agent
       // should never have to know whether a column is seconds or milliseconds.
       return described({ type: "string", format: "date-time" });
     case "richText":
@@ -107,7 +107,7 @@ function fieldSchema(field: FieldConfig | SectionField): JsonSchema {
     case "upload":
       return described({ type: "string", description: "Media key or URL." });
     case "json":
-      // Genuinely arbitrary — an empty schema accepts anything, which is
+      // Genuinely arbitrary—an empty schema accepts anything, which is
       // accurate, where `{type:"object"}` would wrongly reject an array.
       return described({});
     default:
@@ -162,7 +162,7 @@ const label = (c: CollectionConfig) => c.admin?.label ?? c.slug;
  *     machine-written tables; an agent gets the same treatment.
  *
  * Write tools require `versions.drafts`, because ADR 0009 puts every agent edit
- * through the draft path — a collection with no version history has nowhere safe
+ * through the draft path—a collection with no version history has nowhere safe
  * to land one. `publish_<slug>` is generated separately from the write tools so a
  * token can be scoped to draft-only.
  */
@@ -208,7 +208,7 @@ export function collectionTools(
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   });
 
-  // Only when the collection actually has an FTS index — otherwise the tool
+  // Only when the collection actually has an FTS index—otherwise the tool
   // would advertise a capability `createLocalApi` cannot serve.
   if (collection.search) {
     tools.push({
@@ -240,7 +240,7 @@ export function collectionTools(
   });
 
   // Everything below edits an existing document, and every agent edit lands as a
-  // draft — so these exist only where there is a version history to land in.
+  // draft—so these exist only where there is a version history to land in.
   if (!collection.versions?.drafts) return tools;
 
   const editable = Object.keys(flattenFields(collection.fields));

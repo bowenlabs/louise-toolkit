@@ -3,18 +3,18 @@
 import type { ContentConfig, CollectionAdminConfig, CollectionConfig } from "./types.js";
 
 /**
- * Louise's Structure Builder — the framework half of issue #12.
+ * Louise's Structure Builder—the framework half of issue #12.
  *
  * Adopts Sanity's `sanity/structure` idea (pattern, not code): **decouple
  * the admin nav from the raw collection list.** Instead of mapping every
- * `config.collections` entry to an `/admin/<slug>` link — which surfaces
- * system/log tables as editable links and produces dead links — the sidebar
+ * `config.collections` entry to an `/admin/<slug>` link—which surfaces
+ * system/log tables as editable links and produces dead links—the sidebar
  * renders from an explicit, grouped structure derived here from each
  * collection's `admin` hints (see {@link CollectionAdminConfig}) plus
  * optional per-slug overrides supplied at the call site.
  *
- * Pure data in / pure data out: no SolidJS, no DOM, no server imports — so
- * it's safe to import from a client editor component (e.g. the site's
+ * Pure data in / pure data out: no SolidJS, no DOM, no server imports—so
+ * it's safe to import from a client editor component (for example, the site's
  * `PanelNav`) and trivially testable.
  */
 
@@ -25,7 +25,7 @@ export const DEFAULT_EDITOR_GROUP = "Content";
 export interface EditorStructureItem {
   /** The collection's slug. */
   slug: string;
-  /** Human label — `admin.label`, else the capitalized slug. */
+  /** Human label—`admin.label`, else the capitalized slug. */
   label: string;
   /** Where the sidebar link points (`/admin/<slug>`, configurable prefix). */
   href: string;
@@ -51,7 +51,7 @@ export interface BuildEditorStructureOptions {
    * Per-slug presentation overrides, merged over each collection's own
    * `admin` block (override keys win). The escape hatch for plugin-injected
    * collections (`products`, `payments`, `webhook_events`, …) that can't
-   * carry an `admin` block in hand-written config — the editor declares
+   * carry an `admin` block in hand-written config—the editor declares
    * their presentation here, exactly like Sanity defines structure at the
    * editor level rather than on the schema.
    */
@@ -87,7 +87,7 @@ function resolveAdmin(
  * - Each remaining collection is placed in its `admin.group` (or
  *   {@link DEFAULT_EDITOR_GROUP}).
  * - Within a group, items sort by `admin.order` (ascending; unset sorts
- *   after set), then by their original position in `config.collections` —
+ *   after set), then by their original position in `config.collections`,
  *   so config order is the stable tiebreaker.
  * - Groups render in `options.groupOrder` first, then first-appearance
  *   order for the rest.

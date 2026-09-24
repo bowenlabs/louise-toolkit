@@ -1,21 +1,21 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 /**
- * Visual editing / click-to-edit (issue #15) — adopts Sanity's
+ * Visual editing / click-to-edit (issue #15)—adopts Sanity's
  * Presentation/visual-editing idea (pattern, not code): the rendered page
  * (in a preview context) tags editable regions with the source field they
  * came from, and an overlay turns those regions into click targets that tell
  * the editor which field to focus.
  *
  * This module ships the reusable, framework-agnostic primitives:
- * 1. **Encoding** — `editAttr({ collection, id, field })` produces a data
+ * 1. **Encoding**—`editAttr({ collection, id, field })` produces a data
  *    attribute the server renderer spreads onto an element; `decodeEditRef`
  *    reads it back. Pure, testable.
- * 2. **Overlay** — `mountVisualEditing()` (browser-only; references `document`
+ * 2. **Overlay**—`mountVisualEditing()` (browser-only; references `document`
  *    lazily, so importing it server-side is harmless) highlights tagged
  *    elements on hover and, on click, calls `onSelect` and `postMessage`s the
  *    ref to the parent window (the editor shell hosting the preview iframe).
- * 3. **Clipboard guard** — `mountStegaClipboardGuard()` strips the invisible
+ * 3. **Clipboard guard**—`mountStegaClipboardGuard()` strips the invisible
  *    stega payload from copied text so an editor never pastes zero-width chars
  *    into another app. Uses the dependency-free `stegaClean` (no `@vercel/stega`).
  *
@@ -39,7 +39,7 @@ export const EDIT_ATTR = "data-louise-edit";
 /**
  * Per-item stable key on `array`/block items (#15, per-block tagging). The
  * editor's block builder stamps this on each block it creates so a click-to-
- * edit ref (`blocks.<_key>`) survives reordering — unlike a bare array index.
+ * edit ref (`blocks.<_key>`) survives reordering—unlike a bare array index.
  * It rides along in the block's JSON (the `array` field is a verbatim JSON
  * column) and is never rendered as an input (the editor only renders declared
  * sub-fields).
@@ -49,7 +49,7 @@ export const BLOCK_KEY = "_key";
 /**
  * Generate a stable block key. Deliberately starts with a letter so a ref
  * segment `blocks.<key>` is always distinguishable from a legacy index path
- * (`blocks.<n>.<field>`) by whether the segment is numeric — see
+ * (`blocks.<n>.<field>`) by whether the segment is numeric—see
  * {@link parseBlockFieldRef}'s consumers.
  */
 export function newBlockKey(): string {
@@ -60,7 +60,7 @@ export function newBlockKey(): string {
  * Split a block field path into the array field name and the target block's
  * key (or legacy index). Handles both the per-block wrapper ref
  * (`blocks.<_key>`) and the per-field live-preview path (`blocks.<index>.
- * <field>`) — either way the first segment is the array, the second the
+ * <field>`)—either way the first segment is the array, the second the
  * block. Returns null for a bare array ref (`blocks`) that names no specific
  * block. Shared by the editor (routing a click to a block) and the block
  * builder (focusing it) so the two can't drift.
@@ -90,7 +90,7 @@ export function decodeEditRef(value: string): EditRef | null {
 
 /**
  * Attribute object to spread onto a rendered element so the overlay can map
- * it back to its source field, e.g. `<h1 {...editAttr({collection:'pages',
+ * it back to its source field, for example, `<h1 {...editAttr({collection:'pages',
  * id, field:'title'})}>`.
  */
 export function editAttr(ref: EditRef): Record<string, string> {
@@ -106,7 +106,7 @@ export interface VisualEditingMessage {
 // Live preview (editor → preview): the reverse channel of click-to-edit. The
 // editor posts the in-progress form values into the preview iframe so tagged
 // text regions update as the client types. Structural edits (adding blocks)
-// aren't reflected — those need a full re-render — but text edits feel live.
+// aren't reflected—those need a full re-render—but text edits feel live.
 // ---------------------------------------------------------------------------
 
 /** `postMessage` type carrying in-progress field values into the preview. */
@@ -114,7 +114,7 @@ export const PREVIEW_VALUES_MESSAGE = "louise:preview-values";
 
 export interface PreviewValuesMessage {
   type: typeof PREVIEW_VALUES_MESSAGE;
-  /** Which document the values belong to — must match the preview's. */
+  /** Which document the values belong to—must match the preview's. */
   collection: string;
   id: number;
   /** Field key → current value (only string values patch text regions). */
@@ -146,7 +146,7 @@ export function applyPreviewValues(
 }
 
 export interface PreviewSyncOptions {
-  /** The document this preview renders — messages for others are ignored. */
+  /** The document this preview renders—messages for others are ignored. */
   collection: string;
   id: number;
   /** Where to search for tagged regions. Default `document`. */
@@ -191,7 +191,7 @@ export interface VisualEditingOptions {
    * Resolve a stega-encoded {@link EditRef} from a text run (pass `stegaDecode`
    * from `louise-toolkit/stega`). When provided, the overlay ALSO hit-tests text
    * nodes: prose tagged invisibly via stega becomes a click target with no
-   * wrapper element — in addition to the `data-louise-edit` element targets.
+   * wrapper element—in addition to the `data-louise-edit` element targets.
    * Kept as an injected callback so this module stays free of the optional
    * `@vercel/stega` dependency.
    */
@@ -199,8 +199,8 @@ export interface VisualEditingOptions {
 }
 
 /** The text node directly under a viewport point, or null. Feature-detects the
- *  two caret APIs (`caretRangeFromPoint` — WebKit/Blink; `caretPositionFromPoint`
- *  — Firefox/spec). */
+ *  two caret APIs (`caretRangeFromPoint` for WebKit/Blink; `caretPositionFromPoint`
+ *  for Firefox/spec). */
 function textNodeFromPoint(x: number, y: number): Text | null {
   const doc = document as Document & {
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
@@ -216,7 +216,7 @@ function textNodeFromPoint(x: number, y: number): Text | null {
 }
 
 /**
- * Mount the click-to-edit overlay. Browser-only — call from a preview page's
+ * Mount the click-to-edit overlay. Browser-only—call from a preview page's
  * client script. Highlights `[data-louise-edit]` elements on hover and, on
  * click, calls `onSelect` and posts a {@link VisualEditingMessage} to the
  * parent window. With `resolveStega`, also hit-tests stega-tagged text runs
@@ -334,12 +334,12 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
 // Clipboard guard: in edit/preview mode, rendered text carries an invisible
 // stega payload (its source pointer). If an editor selects that text and copies
 // it, the zero-width characters ride along into whatever they paste it into.
-// Strip them on the way out — the same footgun Sanity's visual editing guards.
+// Strip them on the way out—the same footgun Sanity's visual editing guards.
 // ---------------------------------------------------------------------------
 
 /**
  * Strip stega payloads from a copied selection's `text`/`html`, and report
- * whether anything was removed — so {@link mountStegaClipboardGuard} only
+ * whether anything was removed—so {@link mountStegaClipboardGuard} only
  * overrides the clipboard when a payload was actually present (an ordinary copy
  * is left to the browser). Pure, so the decision is testable without a live
  * `Selection`/`ClipboardEvent`.
@@ -362,8 +362,8 @@ const STEGA_GUARD_FLAG = "louiseStegaGuard";
 
 /**
  * Mount the clipboard guard (browser-only). Installs a capturing `copy` listener
- * that rewrites the copied `text/plain` (+ `text/html`) through {@link stegaClean}
- * — but only when a stega payload is present, so a normal copy is untouched.
+ * that rewrites the copied `text/plain` (+ `text/html`) through {@link stegaClean},
+ * but only when a stega payload is present, so a normal copy is untouched.
  *
  * Idempotent: installs a single listener per document (which survives soft
  * navigation, since the document persists), so it's safe to call on every mount.
@@ -381,14 +381,14 @@ export function mountStegaClipboardGuard(target: Document = document): () => voi
     const selection = target.getSelection();
     if (!data || !selection || selection.isCollapsed) return;
 
-    // Stega can hide in the markup too — clean the selection's HTML, not just its
-    // plain text. Build that HTML from the selected range(s).
+    // Stega can hide in the markup too—clean the selection's HTML, not just its
+    // plain text. Build that HTML from the selected ranges.
     const fragment = target.createElement("div");
     for (let i = 0; i < selection.rangeCount; i++) {
       fragment.appendChild(selection.getRangeAt(i).cloneContents());
     }
     const { text, html, changed } = cleanCopiedStega(selection.toString(), fragment.innerHTML);
-    if (!changed) return; // no payload — let the browser copy natively
+    if (!changed) return; // no payload—let the browser copy natively
 
     event.preventDefault();
     data.setData("text/plain", text);

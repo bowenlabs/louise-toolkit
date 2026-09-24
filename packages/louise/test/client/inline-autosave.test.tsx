@@ -2,7 +2,7 @@
 // a debounced live save after typing, no manual Save button while auto-save is
 // on, edit-during-save is never dropped, a visibilitychange flush, the
 // view-transition (before-swap / after-swap) lifecycle (#74), and
-// the opt-out path. Plain-text markers only — no ProseKit — so the DOM is stable.
+// the opt-out path. Plain-text markers only—no ProseKit—so the DOM is stable.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mountLouise } from "../../src/client/index.js";
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // mountLouise is idempotent via this flag — reset it, and remove what it
+  // mountLouise is idempotent via this flag—reset it, and remove what it
   // injected, so the next test mounts fresh. after-swap also drops the
   // module-level `activeInline` (the shared leave handlers are wired once and
   // persist across tests), so a stray event can't flush a defunct mount.
@@ -222,7 +222,7 @@ describe("mountLouise — auto-save via Astro Action (#138)", () => {
 
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(saveDraft.mock.calls[0][0]).toEqual({ id: 5, data: { heroHeadline: "draft text" } });
-    // The Action handled the save — no POST to the raw versions route. (A GET to
+    // The Action handled the save—no POST to the raw versions route. (A GET to
     // load the draft-state for the Publish button on mount is fine.)
     const posts = fetchMock.mock.calls.filter(
       ([, init]) => ((init as RequestInit | undefined)?.method ?? "GET").toUpperCase() === "POST",
@@ -238,8 +238,8 @@ describe("mountLouise — view transitions (#74)", () => {
     mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 5000 } });
 
     type(el, "mid-edit");
-    // A view-transition nav fires none of pagehide/visibilitychange — only
-    // before-swap — so without a flush hung off it the edit is lost.
+    // A view-transition nav fires none of pagehide/visibilitychange—only
+    // before-swap—so without a flush hung off it the edit is lost.
     louiseNavigation.beforeSwap();
     await vi.advanceTimersByTimeAsync(0);
 
@@ -272,7 +272,7 @@ describe("mountLouise — view transitions (#74)", () => {
     expect(document.documentElement.dataset.louiseMounted).toBe("1");
 
     // <html> survives the swap, so the guard is cleared here rather than by the
-    // (replaced) body — otherwise the next page could never re-mount.
+    // (replaced) body—otherwise the next page could never re-mount.
     louiseNavigation.afterSwap();
     expect(document.documentElement.dataset.louiseMounted).toBeUndefined();
   });
@@ -292,7 +292,7 @@ describe("mountLouise — view transitions (#74)", () => {
     // bootstrap does. The guard was cleared on after-swap, so this proceeds.
     const b = addField("pages", "9", "title", "");
     mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 } });
-    // One bar for the new page — the swap removed page A's, and re-mount adds one.
+    // One bar for the new page—the swap removed page A's, and re-mount adds one.
     expect(document.querySelectorAll(".louise-bar")).toHaveLength(1);
 
     fetchMock.mockClear();

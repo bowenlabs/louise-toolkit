@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — shared plumbing for the generic `api/louise/*` editor
+// louise-toolkit/editor—shared plumbing for the generic `api/louise/*` editor
 // routes (issue #10, Tier 2). Each route is a `WorkerRoute` composeWorker
 // composes: it matches its mount path, resolves + guards the editor session,
 // then reads/writes D1. The site supplies `resolveEditor` (wrapping its own
@@ -35,8 +35,8 @@ export function matchPath(request: Request, path: string): boolean {
 /**
  * Resolve the editor session and run the shared same-origin + session guard
  * ({@link requireEditor}). Returns the editor on success, or a `Response` to
- * short-circuit the route. `mutation` gates the same-origin (CSRF) check —
- * `false` for reads, `true` for writes.
+ * short-circuit the route. `mutation` gates the same-origin (CSRF) check—`false`
+ * for reads, `true` for writes.
  */
 export async function guardEditor<Env>(
   request: Request,
@@ -74,7 +74,7 @@ export function tableMeta(table: SQLiteTable): { name: string; pk: string } {
 }
 
 /** A no-op `ExecutionContext` for calling editor routes outside a Worker fetch
- *  handler (e.g. a framework route). The editor routes don't use `ctx`; it's
+ *  handler (for example, a framework route). The editor routes don't use `ctx`; it's
  *  only part of the `WorkerRoute`/composeWorker contract. */
 const NOOP_CTX = {
   waitUntil() {},
@@ -82,9 +82,9 @@ const NOOP_CTX = {
 } as unknown as ExecutionContext;
 
 /**
- * Run an editor {@link WorkerRoute} from a non-Worker context — a framework
- * `APIRoute`, a Nitro/Nuxt handler, etc. — where you already have the resolved
- * editor session (e.g. from middleware) and the bindings, but no
+ * Run an editor {@link WorkerRoute} from a non-Worker context—a framework
+ * `APIRoute`, a Nitro/Nuxt handler, etc.—where you already have the resolved
+ * editor session (for example, from middleware) and the bindings, but no
  * `ExecutionContext`. Supplies a no-op `ctx` and turns a path fall-through
  * (`undefined`) into a 404, so a consuming route is a one-liner:
  *

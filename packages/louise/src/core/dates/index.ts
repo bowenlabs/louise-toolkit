@@ -1,23 +1,23 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/dates — calendar dates in a business's own time zone.
+// louise-toolkit/dates—calendar dates in a business's own time zone.
 //
 // A Worker runs in UTC, and so does `new Date().toISOString().slice(0, 10)`.
-// For a shop in US-Central that "today" is already tomorrow from about 7pm:
+// For a shop in US-Central that "today" is already tomorrow from about 7 PM:
 // follow-ups go overdue a day early, an evening sale is recorded on the next
 // day's date, a date picker refuses the real today. Every site built on this
 // toolkit hit it, and each fixed it (or didn't) on its own.
 //
 // Two kinds of value, kept apart on purpose:
 //
-//   - an INSTANT (`Date`, epoch ms) — a moment. Which calendar day it falls on
+//   - an INSTANT (`Date`, epoch ms): a moment. Which calendar day it falls on
 //     depends on the zone, so every function taking one also takes the zone.
-//   - a CALENDAR DAY (`YYYY-MM-DD`) — a day, not a moment. Arithmetic and
+//   - a CALENDAR DAY (`YYYY-MM-DD`): a day, not a moment. Arithmetic and
 //     formatting on it never consult a zone, so nothing can shift it by one.
 //
-// The zone is always a parameter (an IANA name, e.g. "America/Chicago"). It is
+// The zone is always a parameter (an IANA name, for example, "America/Chicago"). It is
 // a fact about the business, not the device or the request, so it should come
-// from config — never guessed from the Worker's clock or a browser's locale.
+// from config, never guessed from the Worker's clock or a browser's locale.
 // Pure `Intl` throughout: no dependencies, and it runs the same on workerd,
 // Node and in a browser.
 
@@ -28,7 +28,7 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 86_400_000;
 
 /** Split and validate a calendar day. Throws on anything that is not a real
- *  `YYYY-MM-DD` date — "2026-02-30" included — so arithmetic can't run on garbage. */
+ *  `YYYY-MM-DD` date, "2026-02-30" included, so arithmetic can't run on garbage. */
 function parseIsoDate(iso: IsoDate): { year: number; month: number; day: number } {
   const m = ISO_DATE.exec(iso);
   if (m) {
@@ -81,7 +81,7 @@ export function addDays(iso: IsoDate, days: number): IsoDate {
   return new Date(Date.UTC(year, month - 1, day) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** Whole days from `from` to `to` — positive when `to` is later. */
+/** Whole days from `from` to `to`—positive when `to` is later. */
 export function daysBetween(from: IsoDate, to: IsoDate): number {
   const a = parseIsoDate(from);
   const b = parseIsoDate(to);
@@ -123,15 +123,15 @@ function offsetAt(t: number, timeZone: string): number {
 }
 
 /**
- * The instant at which the wall clock in `timeZone` reads `time` on `iso` —
- * "9am Tulsa time next Tuesday" as a `Date`, for a scheduled pickup or a
+ * The instant at which the wall clock in `timeZone` reads `time` on `iso`—"9 AM
+ * Tulsa time next Tuesday" as a `Date`, for a scheduled pickup or a
  * booking slot. `time` is `HH:MM` (24-hour).
  *
  * The two DST edge cases resolve the way `Temporal`'s "compatible" mode does:
  *
- *   - a time that does not exist (2:30am on the spring-forward day) moves
- *     forward by the gap — 3:30am;
- *   - a time that happens twice (1:30am on the fall-back day) is the FIRST
+ *   - a time that does not exist (2:30 AM on the spring-forward day) moves
+ *     forward by the gap—3:30 AM;
+ *   - a time that happens twice (1:30 AM on the fall-back day) is the FIRST
  *     occurrence, the one still on daylight time.
  */
 export function zonedTimeToUtc(iso: IsoDate, time: string, timeZone: string): Date {
@@ -145,7 +145,7 @@ export function zonedTimeToUtc(iso: IsoDate, time: string, timeZone: string): Da
   const wall = Date.UTC(year, month - 1, day, hour, minute);
 
   // Offsets a day either side are clear of any transition near `wall`, so the
-  // answer is one of the two candidates they imply — or neither, in a gap.
+  // answer is one of the two candidates they imply—or neither, in a gap.
   const before = offsetAt(wall - DAY_MS, timeZone);
   const after = offsetAt(wall + DAY_MS, timeZone);
   const valid = [wall - before, wall - after].filter((t) => t + offsetAt(t, timeZone) === wall);
@@ -171,7 +171,7 @@ function formatOptions(options: FormatDateOptions): [string, Intl.DateTimeFormat
 }
 
 /**
- * An instant as the customer lived it, in `timeZone` — "July 4, 2026" by
+ * An instant as the customer lived it, in `timeZone`—"July 4, 2026" by
  * default; pass `Intl.DateTimeFormat` fields to change that. Empty string for
  * `null`/`undefined`/an unparseable value, so a template can render it blind.
  */
@@ -188,7 +188,7 @@ export function formatInstant(
 }
 
 /**
- * A stored calendar day spelled out — "July 1, 2026" by default. Takes no zone:
+ * A stored calendar day spelled out—"July 1, 2026" by default. Takes no zone:
  * it IS a day, not a moment, so it is read at UTC noon and formatted in UTC and
  * nothing can move it. Empty string for `null`/`undefined`; anything that is
  * not a calendar date is returned as it came.

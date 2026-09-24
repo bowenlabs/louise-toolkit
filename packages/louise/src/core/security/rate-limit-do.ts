@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-// Durable-Object rate limiter — the only *atomic* counter available on Workers.
+// Durable-Object rate limiter—the only *atomic* counter available on Workers.
 //
 // `security/rate-limit` (KV) and Cloudflare's native Rate Limiting binding are
 // both permissive and eventually consistent: a read→write gap can undercount
@@ -9,7 +9,7 @@
 // form spam. It is weak for the auth surface, which is why this exists.
 //
 // A Durable Object handles one request at a time, so read-decide-write inside it
-// IS atomic — no CAS, no Lua, no races. One object per key (the caller derives
+// IS atomic—no CAS, no Lua, no races. One object per key (the caller derives
 // the id from the key), so no single object becomes the global bottleneck; a DO
 // sustains roughly 500–1,000 simple operations per second, which is a per-key
 // ceiling here rather than a per-site one.
@@ -20,7 +20,7 @@
 // delegates to. Runtime types are ambient (@cloudflare/workers-types), so nothing
 // runtime-only is imported here.
 //
-//   // site worker.ts — owns the class + the wrangler `durable_objects` binding:
+//   // site worker.ts: owns the class + the wrangler `durable_objects` binding:
 //   import { DurableObject } from "cloudflare:workers";
 //   import { createRateLimiter } from "louise-toolkit/security";
 //   export class RateLimitDO extends DurableObject<Env> {
@@ -29,7 +29,7 @@
 //     alarm() { return this.#rl.alarm(); }
 //   }
 //
-//   // and where the limit is consumed (e.g. Better Auth's rateLimit.customStorage):
+//   // and where the limit is consumed (for example, Better Auth's rateLimit.customStorage):
 //   durableRateLimitStorage(env.RATE_LIMIT_DO)
 
 /** One consume decision. Mirrors Better Auth's `BetterAuthRateLimitStorage`. */
@@ -91,7 +91,7 @@ export function createRateLimiter(
       return { allowed: true, retryAfter: null };
     }
 
-    // Inside the window and already at budget. `resetAt` is NOT extended — the
+    // Inside the window and already at budget. `resetAt` is NOT extended—the
     // window must end when it was scheduled to, or a client under sustained load
     // would never be let back in.
     if (state.count >= rule.max) {
@@ -148,7 +148,7 @@ export interface DurableRateLimitStorage {
  * Consume against the DO for `key`, one object per key.
  *
  * **Fails open**, like `security/rate-limit`: any transport error allows the
- * request. A limiter outage must never take down sign-in — the alternative is an
+ * request. A limiter outage must never take down sign-in—the alternative is an
  * unreachable DO locking every editor out of their own site.
  */
 export function durableRateLimitStorage(ns: RateLimitNamespace): DurableRateLimitStorage {

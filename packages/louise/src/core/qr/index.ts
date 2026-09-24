@@ -1,4 +1,4 @@
-// QR codes — a vendored ISO/IEC 18004 byte-mode encoder plus SVG rendering.
+// QR codes—a vendored ISO/IEC 18004 byte-mode encoder plus SVG rendering.
 // See ./encode.ts for why this is vendored rather than a dependency.
 //
 // For a PNG, hand `qrSvg()` to the existing SVG→PNG renderer in

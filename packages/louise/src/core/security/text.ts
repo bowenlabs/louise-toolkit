@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/security — rich text → plain text, and "is this field empty?".
+// louise-toolkit/security—rich text → plain text, and "is this field empty?".
 //
 // Editor HTML leaks into places that print rather than render it. A meta
 // description is an ATTRIBUTE: markup in it is shown to every search result and
 // link preview verbatim (`content="<div><p>Hi</p></div>"` shipped to production
-// on a client site). And an emptied field is still a truthy string — `<h3></h3>`,
-// `<p><br></p>` — so a `field && …` guard renders an empty heading that a screen
+// on a client site). And an emptied field is still a truthy string—`<h3></h3>`,
+// `<p><br></p>`—so a `field && …` guard renders an empty heading that a screen
 // reader announces as a nameless "heading, level 3". Every site hand-rolled a
 // regex for these; the naive one (`/<[^>]*>/g`) also eats `5 < 6 and 7 > 2`.
 //
@@ -34,13 +34,13 @@ const NAMED: Record<string, string> = {
 };
 
 function codePoint(n: number): string {
-  // An out-of-range escape (`&#99999999;`) makes `fromCodePoint` throw — which
+  // An out-of-range escape (`&#99999999;`) makes `fromCodePoint` throw—which
   // would let one bad stored string take a page down. Drop it instead.
   return Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : "";
 }
 
 /** One level of entity decoding. `&amp;` resolves last, so `&amp;lt;` becomes
- *  `&lt;` on this pass rather than `<` — the fixed-point loop in
+ *  `&lt;` on this pass rather than `<`—the fixed-point loop in
  *  {@link plainText} is the only thing allowed to take it further. */
 function decodeOnce(input: string): string {
   return input
@@ -82,7 +82,7 @@ export function plainText(html: string | null | undefined, options: PlainTextOpt
 export interface MetaDescriptionOptions extends PlainTextOptions {
   /**
    * Clamp to this many characters, ellipsis included, cut on a word boundary.
-   * Default 160 — about where search results truncate. Past it, the tag is
+   * Default 160—about where search results truncate. Past it, the tag is
    * bytes nobody reads.
    */
   maxLength?: number;
@@ -92,7 +92,7 @@ export interface MetaDescriptionOptions extends PlainTextOptions {
  * Rich text as a meta description (or any attribute that prints its value):
  * {@link plainText}, clamped to `maxLength` on a word boundary.
  *
- * `undefined` — not `""` — for input that is empty or was nothing but markup,
+ * `undefined`—not `""`—for input that is empty or was nothing but markup,
  * so the caller falls back to a default. An empty `content=""` tells a crawler
  * the page is described, as nothing.
  */
@@ -113,7 +113,7 @@ export function metaDescription(
 }
 
 /**
- * Does this rich-text field have anything in it — text, or an embedded image,
+ * Does this rich-text field have anything in it—text, or an embedded image,
  * video, iframe or SVG? `false` for `null`, `""` and markup-only leftovers
  * such as `<h3></h3>`, `<p><br></p>` or `<p>&nbsp;</p>`.
  *

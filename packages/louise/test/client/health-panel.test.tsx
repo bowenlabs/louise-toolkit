@@ -1,4 +1,4 @@
-// #106 Phase 2 — the site-health detail panel. Reads the full persisted summary
+// #106 Phase 2—the site-health detail panel. Reads the full persisted summary
 // from /api/louise/health, lists broken links, shows alt/SEO gap counts with a
 // jump to the surface that fixes each, and handles the not-yet-scanned state.
 

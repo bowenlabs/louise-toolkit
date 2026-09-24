@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // `Error.captureStackTrace` is a real V8 engine feature available in
-// workerd's V8 isolates — it's just not part of any spec, so it isn't in
+// workerd's V8 isolates—it's just not part of any spec, so it isn't in
 // TypeScript's standard lib types without pulling in @types/node, which
 // Louise deliberately doesn't (V8-first, no Node assumptions). Declared
 // non-optional so it merges cleanly with @cloudflare/workers-types' own
@@ -9,14 +9,14 @@
 // detects it before calling.
 declare global {
   interface ErrorConstructor {
-    // oxlint-disable-next-line typescript/no-unsafe-function-type -- matches the real V8 signature — this.constructor is typed as Function by TS itself
+    // oxlint-disable-next-line typescript/no-unsafe-function-type -- matches the real V8 signature—this.constructor is typed as Function by TS itself
     captureStackTrace(targetObject: object, constructorOpt?: Function): void;
   }
 }
 
 /**
  * Base class for all Louise errors.
- * All primitives throw LouiseError or a typed subclass — never a raw Error.
+ * All primitives throw LouiseError or a typed subclass—never a raw Error.
  *
  * @example
  * try {
@@ -25,7 +25,7 @@ declare global {
  *   if (e instanceof LouiseAuthError) {
  *     // auth-specific handling
  *   } else if (e instanceof LouiseError) {
- *     // any Louise error — e.code tells you which primitive threw
+ *     // any Louise error—e.code tells you which primitive threw
  *   } else {
  *     throw e // re-throw unknown errors
  *   }
@@ -134,8 +134,8 @@ export class LouiseAccessDeniedError extends LouiseContentError {
 
 /**
  * One failed field-validation rule (issue #16). `path` is the field's key
- * (flattened, e.g. `shippingAddress_city` for a group subfield). `severity`
- * lets a rule warn without blocking the write — only `"error"` violations
+ * (flattened, for example, `shippingAddress_city` for a group subfield). `severity`
+ * lets a rule warn without blocking the write—only `"error"` violations
  * cause createLocalApi to throw; `"warning"` ones are carried through for
  * the editor to surface non-blockingly.
  */
@@ -147,7 +147,7 @@ export interface ValidationViolation {
 
 /**
  * Thrown by `createLocalApi` when a collection's field-validation rules
- * (Sanity-style chainable `Rule` API — see content/validation.ts) reject a
+ * (Sanity-style chainable `Rule` API—see content/validation.ts) reject a
  * create/update. Carries the structured `violations` so a UI can surface
  * per-field messages and a routing layer can map it to **422** by `instanceof`
  * rather than message matching. A subclass of LouiseContentError, so existing
@@ -167,7 +167,7 @@ export class LouiseValidationError extends LouiseContentError {
 
 /**
  * Carries an HTTP `status` and parsed `body` for a failed request against a
- * Louise-backed API surface, so callers can branch on `status` (e.g. 403 →
+ * Louise-backed API surface, so callers can branch on `status` (for example, 403 →
  * access denied, 404 → not found) instead of re-parsing `{ error: string }`
  * response bodies by hand.
  */

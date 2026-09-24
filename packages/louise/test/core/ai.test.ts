@@ -188,8 +188,8 @@ describe("suggestSeo", () => {
   });
 
   it("reads a JSON-mode object response (response is already parsed)", async () => {
-    // Workers AI structured outputs return `response` as an OBJECT, not a string —
-    // the shape that silently broke SEO on the model swap (extractText expected a
+    // Workers AI structured outputs return `response` as an OBJECT, not a string—the
+    // shape that silently broke SEO on the model swap (extractText expected a
     // string). This is the case JSON mode + extractJsonObject now handle.
     const r = runner({ response: { title: "Structured", description: "From JSON mode." } }).runner;
     expect(await suggestSeo(r, "x")).toEqual({
@@ -265,8 +265,8 @@ describe("aiRunner — the generation kill switch (#334)", () => {
 
   it("accepts the obvious spellings of off, case- and space-insensitively", () => {
     // A kill switch that silently doesn't engage because someone wrote "false"
-    // is worse than no kill switch. There is no matching leniency for "on" —
-    // every other value means on, so no typo can accidentally DISABLE AI.
+    // is worse than no kill switch. There is no matching leniency for "on"—every
+    // other value means on, so no typo can accidentally DISABLE AI.
     for (const value of ["off", "OFF", " Off ", "false", "0", "no", "disabled"]) {
       expect(aiRunner({ AI, LOUISE_AI: value }), value).toBeUndefined();
     }
@@ -277,7 +277,7 @@ describe("aiRunner — the generation kill switch (#334)", () => {
 
   it("tells 'off by choice' apart from 'never configured'", () => {
     // Both 503 and both hide the control, which is right for an unprovisioned
-    // binding — there is nothing to tell the editor. It is wrong for a
+    // binding—there is nothing to tell the editor. It is wrong for a
     // deliberate opt-out, where the honest answer is "turned off for this site".
     expect(aiUnavailableReason({ AI, LOUISE_AI: "off" })).toBe("disabled");
     expect(aiUnavailableReason({})).toBe("unconfigured");

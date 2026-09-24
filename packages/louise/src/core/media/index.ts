@@ -6,7 +6,7 @@
 // listing, delete-with-reference-scan, and Cloudflare Image-Resizing URL
 // transforms + a per-usage CSS crop. The `media` table these track lives in
 // `louise-toolkit/db` (`mediaColumns` / `media`). Bindings contract: `MEDIA` (R2) +
-// `MEDIA_URL` — see {@link LouiseMediaEnv}.
+// `MEDIA_URL`; see {@link LouiseMediaEnv}.
 
 export { type ImageDimensions, imageDimensions, imageInfo } from "./dimensions.js";
 export { sniffImageType, type SniffedImageType } from "./sniff.js";

@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/security — the one way the toolkit calls a third-party API
+// louise-toolkit/security—the one way the toolkit calls a third-party API
 // (ADR 0012 §3).
 //
 // Every provider client used to call `fetch` itself: no timeout, redirects
-// followed, and the provider's own error text copied into `Error.message` —
+// followed, and the provider's own error text copied into `Error.message`,
 // which routes then handed straight to the browser. `upstreamFetch` fixes the
 // first two once. `UpstreamError` fixes the third: its `message` is safe to
 // show a user, and what the provider actually said is kept on `detail`, which
@@ -14,7 +14,7 @@
 export const UPSTREAM_TIMEOUT_MS = 10_000;
 
 export interface UpstreamFetchInit extends RequestInit {
-  /** Who is being called — `"Square"`, `"Stripe"`. Names the error. */
+  /** Who is being called—`"Square"`, `"Stripe"`. Names the error. */
   provider: string;
   /** Abandon the call after this long. Default {@link UPSTREAM_TIMEOUT_MS}. */
   timeoutMs?: number;
@@ -24,7 +24,7 @@ export interface UpstreamErrorInit {
   /** The provider's own error code (`"NOT_FOUND"`, `"card_declined"`). Safe to
    *  show and to branch on; anything that isn't code-shaped is dropped. */
   code?: string | null;
-  /** What the provider said, verbatim. For logs — never for a response. */
+  /** What the provider said, verbatim. For logs—never for a response. */
   detail?: string | null;
   /** Method and path (never the query, which can carry a token). For logs. */
   operation?: string | null;
@@ -37,7 +37,7 @@ const CODE_SHAPE = /^[A-Za-z0-9_.-]{1,64}$/;
 
 /**
  * A call to a third-party API that failed. `message` is safe to put in front of
- * a user — provider, status, and the provider's code, nothing it wrote. The
+ * a user—provider, status, and the provider's code, nothing it wrote. The
  * provider's own words are on `detail`, non-enumerable so `{ ...err }`,
  * `JSON.stringify(err)` and a logger copying fields all leave it behind.
  *
@@ -92,7 +92,7 @@ export class UpstreamError extends Error {
 
 /**
  * One log line for any error, with everything an upstream failure knows:
- * operation, status, code, and what the provider said. For logs only — the
+ * operation, status, code, and what the provider said. For logs only—the
  * point of `UpstreamError` is that its `message` alone is what users see.
  */
 export function upstreamLogLine(err: unknown): string {
@@ -105,7 +105,7 @@ export function upstreamLogLine(err: unknown): string {
   return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
-/** `METHOD /path` for logs — the pathname only, since a query can carry a token. */
+/** `METHOD /path` for logs—the pathname only, since a query can carry a token. */
 function operationOf(input: string | URL, method: string | undefined): string {
   let path: string;
   try {

@@ -1,11 +1,11 @@
 // A richText field must render into a container that can legally HOLD blocks.
 //
-// The stored value is HTML the editor produced — `<p>`, lists, blockquotes.
+// The stored value is HTML the editor produced—`<p>`, lists, blockquotes.
 // Rendering that into a `<p>` is invalid nesting, and the parser does not merely
 // tolerate it: it CLOSES the paragraph and hoists the block content out as a
 // following sibling. The marker stays on the now-empty `<p>`, so the editor
-// mounts on nothing while the prose sits outside it, unmarked and uneditable —
-// and every paragraph break the editor creates is hoisted straight back out.
+// mounts on nothing while the prose sits outside it, unmarked and uneditable—and
+// every paragraph break the editor creates is hoisted straight back out.
 //
 // Nothing about that fails loudly. The page renders; the field is simply inert.
 // Two sites (themidwestartist.com, coracle.coffee) shipped it independently
@@ -83,7 +83,7 @@ describe("sections rich text — container element", () => {
     const said = warn.mock.calls.map((c) => String(c[0])).join("\n");
     expect(said).toContain("0.body");
     expect(said).toContain("<p>");
-    // The remedy has to be in the message — a warning that only says something is
+    // The remedy has to be in the message—a warning that only says something is
     // wrong costs more than it saves.
     expect(said).toContain("<div>");
   });
@@ -97,7 +97,7 @@ describe("sections rich text — container element", () => {
   });
 
   it("does not warn about a PLAIN-text field in a <p>", async () => {
-    // `<p>` is the right element for a text field — it holds no blocks. Warning
+    // `<p>` is the right element for a text field—it holds no blocks. Warning
     // on every paragraph on the page would train everyone to ignore the warning.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     mount(pageHost("p"));

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The module memoises the payments instance per app + location, so each test
-// gets a fresh copy of it — and a fresh fake SDK on `window.Square`, which
+// gets a fresh copy of it—and a fresh fake SDK on `window.Square`, which
 // `loadSquare` short-circuits on instead of injecting a <script>.
 
 interface FakeSdk {

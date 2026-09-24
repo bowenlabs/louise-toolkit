@@ -11,7 +11,7 @@ import {
 } from "../../src/core/security/index.js";
 
 // ADR 0012 §3: a timeout, no redirects, and an error whose message is safe to
-// put in front of a user — with what the provider said kept for logs only.
+// put in front of a user—with what the provider said kept for logs only.
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -30,7 +30,7 @@ function stubFetch(answer: (url: string, init: RequestInit) => Response | Promis
   return calls;
 }
 
-/** A fetch that never answers until its signal aborts — a hung upstream. */
+/** A fetch that never answers until its signal aborts—a hung upstream. */
 function hangingFetch() {
   vi.stubGlobal(
     "fetch",

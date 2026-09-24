@@ -1,4 +1,4 @@
-// coracle.coffee#36 — the editor's account/history controls, which span THREE
+// coracle.coffee#36—the editor's account/history controls, which span THREE
 // independent mounts (the edit bar, the sections surface, the Settings drawer).
 // Covers the two things that only break at the seam between them:
 //
@@ -101,7 +101,7 @@ afterEach(() => {
   settingsHost = undefined;
   document.body.replaceChildren();
   document.documentElement.removeAttribute("data-louise-history");
-  // mountLouise returns void and guards on this flag — reset it (and drop the
+  // mountLouise returns void and guards on this flag—reset it (and drop the
   // module-level leave handlers' view of the mount) so the next test mounts fresh.
   louiseNavigation.afterSwap();
   delete document.documentElement.dataset.louiseMounted;
@@ -125,7 +125,7 @@ describe("History trigger — Settings strip drives the sections drawer (#36)", 
     frameButton("Version history")?.click();
     await flush();
 
-    // The drawer that opens is the sections one — Settings got out of the way so
+    // The drawer that opens is the sections one—Settings got out of the way so
     // two modals don't fight over the focus trap.
     expect(historyDrawer()).not.toBeNull();
     expect(settingsHost?.querySelector(".louise-drawer-head")).toBeNull();
@@ -155,7 +155,7 @@ describe("History trigger — Settings strip drives the sections drawer (#36)", 
   it("drops the fallback button whichever order the two surfaces mount in", async () => {
     stubFetch();
 
-    // Settings first — the sections surface finds #louise-drawer-root on mount.
+    // Settings first—the sections surface finds #louise-drawer-root on mount.
     mountSettingsShell(() => <Settings userName="Baylee" />);
     mountSectionsSurface(pageHost());
     await flush();
@@ -165,7 +165,7 @@ describe("History trigger — Settings strip drives the sections drawer (#36)", 
     disposers = [];
     document.body.replaceChildren();
 
-    // Sections first — nothing to detect yet, so it starts with the fallback and
+    // Sections first—nothing to detect yet, so it starts with the fallback and
     // gives it up when mountSettings announces itself.
     mountSectionsSurface(pageHost());
     await flush();
@@ -193,7 +193,7 @@ describe("Edit bar — Done became Sign out (#36)", () => {
     const calls = stubFetch();
     const assign = vi.fn();
     vi.spyOn(window.location, "assign").mockImplementation(assign);
-    mountLouise({ onOpenSettings: () => {} }); // returns void — torn down via the flag in afterEach
+    mountLouise({ onOpenSettings: () => {} }); // returns void—torn down via the flag in afterEach
 
     const exit = document.querySelector<HTMLButtonElement>(".louise-exit");
     expect(exit?.tagName).toBe("BUTTON"); // an action, not a link

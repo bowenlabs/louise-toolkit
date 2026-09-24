@@ -1,6 +1,6 @@
 // Unit coverage for the grammar checker's offset math (#110): Harper reports
 // code-point spans into a block's text; these map to UTF-16 and then to
-// ProseMirror doc positions. No WASM worker involved — pure functions.
+// ProseMirror doc positions. No WASM worker involved—pure functions.
 
 import { describe, expect, it } from "vitest";
 import {

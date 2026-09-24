@@ -3,7 +3,7 @@ import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, envField } from "astro/config";
 
-// sandbox.louisetoolkit.com — the interactive sandbox worker. SSR (`output:
+// sandbox.louisetoolkit.com—the interactive sandbox worker. SSR (`output:
 // server`) because the checkout is a real per-request Square call and pages read
 // demo orders from D1. Same Tailwind v4 + daisyUI + `louise` theme as the site.
 export default defineConfig({

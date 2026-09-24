@@ -11,7 +11,7 @@ export interface SecretBinding {
 }
 
 /**
- * Minimal Workers KV shape the rate limiter needs — `get` + `put` with a TTL.
+ * Minimal Workers KV shape the rate limiter needs—`get` + `put` with a TTL.
  * Declared structurally so the real `KVNamespace` (from `@cloudflare/workers-types`)
  * satisfies it without a hard dependency on those types.
  */
@@ -23,7 +23,7 @@ export interface KVLike {
 /**
  * The subset of Cloudflare's native Rate Limiting binding Louise uses. Unlike
  * the KV limiter, the budget (limit + period) is fixed in wrangler config on
- * the binding itself — at runtime you only pass a `key`, and the response is
+ * the binding itself—at runtime you only pass a `key`, and the response is
  * just `{ success }` (no remaining/retryAfter). It's in-colo (no round-trip)
  * and cheaper, but permissive/eventually-consistent like KV. Declared
  * structurally so the real binding satisfies it without a hard dependency on
@@ -36,7 +36,7 @@ export interface RateLimiterBinding {
 /**
  * Either backend the rate limiter accepts: the KV counter (portable, budget set
  * per call) or the native binding (in-colo, budget fixed in config). Callers
- * pass whichever they have — typically `env.RATE_LIMIT ?? env.KV` — so a site
+ * pass whichever they have—typically `env.RATE_LIMIT ?? env.KV`—so a site
  * gains the native path just by provisioning the binding, and falls back to KV
  * otherwise.
  */
@@ -50,7 +50,7 @@ export type RateLimitBackend = KVLike | RateLimiterBinding;
 export interface LouiseEnv {
   /**
    * Session-signing secret. Either a Secrets Store binding or the plain string a
-   * `wrangler secret put` produces — `getSessionSecret` reads both, so a site
+   * `wrangler secret put` produces—`getSessionSecret` reads both, so a site
    * picks whichever it provisioned rather than the one Louise happened to name.
    */
   SESSION_SECRET: SecretBinding | string;

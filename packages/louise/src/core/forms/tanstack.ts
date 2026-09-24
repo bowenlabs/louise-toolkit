@@ -1,16 +1,16 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — optional TanStack Form adapter (issue #46, Tier 2).
+// louise-toolkit/forms—optional TanStack Form adapter (issue #46, Tier 2).
 //
 // The base <Form> render helper (louise-toolkit/client) covers the flat, generated
-// forms in scope with no dependency. For a COMPLEX form — multi-step, field
-// arrays, cross-field/async rules — a site may reach for `@tanstack/solid-form`.
+// forms in scope with no dependency. For a COMPLEX form—multi-step, field
+// arrays, cross-field/async rules—a site may reach for `@tanstack/solid-form`.
 // This adapter lets that form still validate with Louise's SHARED `Rule` engine
 // instead of a second schema: each helper returns a validator function in
 // TanStack Form's shape (`({ value }) => errorMessage | undefined`), so there's
 // still one validation definition.
 //
-// Dependency-free by design: it imports nothing from `@tanstack/solid-form` — it
+// Dependency-free by design: it imports nothing from `@tanstack/solid-form`; it
 // just returns functions that slot into TanStack's `validators`. The consumer
 // brings the peer. See the forms guide for a worked example.
 
@@ -20,7 +20,7 @@ import { coerceFormValue, validateField } from "./validate.js";
 /** A TanStack Form field-validator: returns an error string, or `undefined` when
  *  valid.
  *
- *  Async so DB-backed custom rules can be awaited — which is also why these
+ *  Async so DB-backed custom rules can be awaited—which is also why these
  *  belong in TanStack's `onChangeAsync` / `onBlurAsync` / `onSubmitAsync` slots
  *  rather than the sync ones. See {@link tanstackFieldValidator}. */
 export type TanstackFieldValidator = (args: { value: unknown }) => Promise<string | undefined>;
@@ -33,7 +33,7 @@ export type TanstackFieldValidator = (args: { value: unknown }) => Promise<strin
  * **Wire it to an `*Async` slot.** These validators are async by contract (below),
  * and TanStack keys its slots on that: a promise-returning function in `onChange`
  * is stored *as the promise*, so `meta.errors` holds a pending Promise instead of
- * a string. Nothing throws — the message simply never renders and the submit
+ * a string. Nothing throws—the message simply never renders and the submit
  * button never disables, which reads exactly like "validation isn't running".
  *
  * ```tsx
@@ -59,7 +59,7 @@ export function tanstackFieldValidator(key: string, field: FormField): TanstackF
  * Complex forms wire these into `@tanstack/solid-form` and keep Louise's one
  * validation definition.
  *
- * The map is FLAT, mirroring `FormConfig.fields` — `defineForm` has no array or
+ * The map is FLAT, mirroring `FormConfig.fields`—`defineForm` has no array or
  * nested field type, since each field is one column. A form with repeating rows
  * builds its array with TanStack's own API and attaches these validators to the
  * leaves.

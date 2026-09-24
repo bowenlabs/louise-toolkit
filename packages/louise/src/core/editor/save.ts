@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `save` route: the inline field-save endpoint
+// louise-toolkit/editor—the generic `save` route: the inline field-save endpoint
 // the client posts a single changed field to (`{ collection, key, field, value }`).
 // The session comes from `resolveEditor` (never the page's edit mode); field
 // names are allowlisted per collection so a forged request can't touch an
 // unintended column; rich fields are sanitized (louise-toolkit/security) before store.
 //
 // Scope: collection rows keyed by id. Settings edits go through the `settings`
-// route (structured panel), not here — so `save` has no settings branch.
+// route (structured panel), not here, so `save` has no settings branch.
 
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -18,7 +18,7 @@ import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
 // The inline field-save body. `collection`/`key`/`field` are the routing keys;
-// `value` stays `unknown` — its non-empty-string check + per-field sanitize
+// `value` stays `unknown`—its non-empty-string check + per-field sanitize
 // belong to {@link resolveFieldValue}, which needs the collection config.
 const SAVE_BODY = s.object({
   collection: s.string(),
@@ -53,7 +53,7 @@ export type ResolvedField =
 
 /**
  * Allowlist-check a field for a collection and sanitize it when it's a rich
- * field. Pure — the allowlist + sanitize decision lives here so it's
+ * field. Pure—the allowlist + sanitize decision lives here so it's
  * unit-testable independently of D1.
  */
 export function resolveFieldValue(
@@ -75,7 +75,7 @@ export function resolveFieldValue(
 /**
  * Apply an already-validated field save: look up the collection, allowlist-check
  * + sanitize the field ({@link resolveFieldValue}), then write it to the row's
- * primary key. Carries no transport/parse concern — the raw {@link saveRoute} and
+ * primary key. Carries no transport/parse concern—the raw {@link saveRoute} and
  * a host's `save` endpoint each validate their own input, then converge here, so
  * the store logic (and the #96 body-validation contract about where parsing
  * happens) lives in exactly one place rather than being duplicated per adapter.

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/worker — the Worker entrypoint compose helper (issue #10, Tier 2).
+// louise-toolkit/worker—the Worker entrypoint compose helper (issue #10, Tier 2).
 //
 // Every Louise site's `worker.ts` is the same shape: try a few Louise-owned
 // routes (the generic `api/louise/*` handlers, an OG-image endpoint, …), fall
@@ -37,7 +37,7 @@ export type WorkerRoute<Env = unknown> = (
 export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
   /** Ordered route handlers; the first to return a `Response` wins. */
   routes?: WorkerRoute<Env>[];
-  /** Fallback when no route matches — typically the handler the framework's
+  /** Fallback when no route matches—typically the handler the framework's
    *  Cloudflare adapter exposes. */
   fetch: NonNullable<ExportedHandler<Env>["fetch"]>;
   /** Optional Queue consumer, passed through unchanged. */
@@ -47,7 +47,7 @@ export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
   /**
    * Deny-by-default gate for the editor API (ADR 0012). Set it and every
    * request under `/api/louise` must resolve to an editor unless it's headed
-   * for a {@link publicRoute} — including the site's own framework routes
+   * for a {@link publicRoute}—including the site's own framework routes
    * under that prefix, which the fallback serves after the gate. Every route
    * response also gets the baseline security headers the site's middleware
    * never sees. Omitted, `composeWorker` behaves exactly as before.
@@ -138,15 +138,15 @@ export {
   underPrefix,
 } from "./gate.js";
 
-// `withHealing` — self-healing recovery that maps typed LouiseErrors to
+// `withHealing`—self-healing recovery that maps typed LouiseErrors to
 // deterministic retry / stale-fallback / async-escalation strategies. Kept in
 // its own file; re-exported here so it's part of the `louise-toolkit/worker`
 // subpath alongside `composeWorker`.
 export * from "./healing.js";
 
-// `withEdgeCache` — cookie-aware Worker Cache API layer for the SSR fallback
+// `withEdgeCache`—cookie-aware Worker Cache API layer for the SSR fallback
 // (#163), so public pages edge-cache while personalized (editor) requests always
 // run fresh. Its own file; re-exported here alongside `composeWorker`.
 export * from "./edge-cache.js";
-// A read-through KV cache for one value (tenant, settings row, flag) — cached misses, fail-open.
+// A read-through KV cache for one value (tenant, settings row, flag)—cached misses, fail-open.
 export * from "./kv-cache.js";

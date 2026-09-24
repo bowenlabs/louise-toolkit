@@ -1,6 +1,6 @@
 // Async field options (ADR 0010 Phase A2, #344).
 //
-// The three states a picker has — choices, wait, failure — plus the dedup that
+// The three states a picker has—choices, wait, failure—plus the dedup that
 // keeps ten fields of one type from firing ten requests.
 
 import { createRoot } from "solid-js";
@@ -35,7 +35,7 @@ describe("a literal option set", () => {
     createRoot((d) => {
       dispose = d;
       const s = createFieldOptions(() => [{ value: "a" }, { value: "b", label: "B" }]);
-      // No spinner over a static list — that would be a lie about what's happening.
+      // No spinner over a static list—that would be a lie about what's happening.
       expect(s.loading()).toBe(false);
       expect(s.error()).toBe("");
       expect(s.options().map((o) => o.value)).toEqual(["a", "b"]);
@@ -179,7 +179,7 @@ describe("a stale resolution", () => {
     });
 
     expect(s.loading()).toBe(true);
-    dispose?.(); // the inspector closed — every effect is torn down
+    dispose?.(); // the inspector closed—every effect is torn down
     slow.resolve([{ value: "stale" }]);
     await tick();
 

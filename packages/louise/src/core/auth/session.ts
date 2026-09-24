@@ -5,7 +5,7 @@ import type { EditorSession } from "./types.js";
 
 /**
  * Re-derive the editor (admin) session from the signed Better Auth session on
- * every request — edit access is never trusted from the client. Returns the
+ * every request—edit access is never trusted from the client. Returns the
  * editor when the session user holds `editorRole` (the admin plugin's "admin"),
  * else null. The site assigns the result to its `locals`.
  */
@@ -28,7 +28,7 @@ export async function resolveEditorSession(
 
 /**
  * Re-derive the signed-in user and their role WITHOUT gating on any specific
- * role — for a site's own multi-role auth instance where the role is arbitrary
+ * role—for a site's own multi-role auth instance where the role is arbitrary
  * and access is decided per route (via {@link requireRole}) or the UI renders
  * per role. Returns null only when there is no session. Generic and
  * unopinionated: Louise bakes in no role names. (Louise Editor uses the

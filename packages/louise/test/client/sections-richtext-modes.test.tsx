@@ -5,7 +5,7 @@
 // paragraphs and lists. A render opts a field into a named preset with
 // `data-louise-rt`; everything unnamed keeps the site-wide default.
 //
-// mountRichText is mocked — this is about which OPTIONS each field is mounted
+// mountRichText is mocked—this is about which OPTIONS each field is mounted
 // with, not about ProseKit. Mounting the real editor would test ProseKit.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -94,7 +94,7 @@ describe("sections rich text — per-field modes", () => {
     });
     await flush();
 
-    // The heading keeps the site-wide inline mode — this is the pairing that a
+    // The heading keeps the site-wide inline mode—this is the pairing that a
     // single global option cannot express.
     expect(optsFor("heading")).toEqual({ inline: true });
     expect(optsFor("body")).toEqual({ minimal: false, grammar: true });
@@ -160,8 +160,8 @@ describe("sections rich text — declared on the field", () => {
     });
     await flush();
 
-    // `body` carries `data-louise-rt="prose"` and the mount declares that mode —
-    // the field still wins, because it is the more specific statement.
+    // `body` carries `data-louise-rt="prose"` and the mount declares that mode—the
+    // field still wins, because it is the more specific statement.
     expect(optsFor("body")).toEqual({ minimal: false, grammar: true });
   });
 

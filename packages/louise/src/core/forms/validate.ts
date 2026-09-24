@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — validate + coerce a submission against a form's fields.
+// louise-toolkit/forms—validate + coerce a submission against a form's fields.
 // Reuses the shared `Rule`/`validateValue` engine (louise-toolkit/content) so the client
-// mirror and the server run exactly the same checks — plus per-type built-ins
+// mirror and the server run exactly the same checks—plus per-type built-ins
 // (email/url format, select allowlist, number coercion) and the `required` flag.
 
 import { type Rule, type ValidationBuilder, validateValue } from "../content/rule.js";
@@ -108,7 +108,7 @@ export async function validateField(
  * Validate + coerce a raw submission (`data`) against a form's fields. Runs the
  * `required` flag, the per-type built-in checks, the select allowlist, and each
  * field's `validation` chain (via {@link validateValue}). Unknown keys in `data`
- * are ignored — only declared fields are read and stored.
+ * are ignored—only declared fields are read and stored.
  */
 export async function validateSubmission(
   config: FormConfig,

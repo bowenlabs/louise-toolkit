@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce/stripe — Stripe glue. Raw fetch + crypto.subtle only, no Node
+// louise-toolkit/commerce/stripe—Stripe glue. Raw fetch + crypto.subtle only, no Node
 // SDKs: an embedded Payment Element over a multi-item cart (PaymentIntent)
 // rather than single-item hosted Checkout Sessions, plus invoice + webhook-
 // signature helpers. For merch fulfillment, pair it with
@@ -8,7 +8,7 @@
 
 // Stripe: PaymentIntents/Invoices are not yet in Stripe's /v2 namespace
 // (v2 covers core accounts, event destinations, billing meters, money
-// management as of 2026-07) — payments must use v1 endpoints. The webhook
+// management as of 2026-07)—payments must use v1 endpoints. The webhook
 // compensates v2-style: events are treated as pointers and the
 // PaymentIntent is re-fetched from the API (see retrievePaymentIntent).
 
@@ -18,8 +18,8 @@ import { hmacSha256Hex, safeEqual } from "./index.js";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 // Pin the Stripe API version so an account-default upgrade can't silently
-// change response shapes / behavior (Stripe best practice for raw HTTP —
-// mirrors what the official SDKs pin at release). Bump deliberately.
+// change response shapes / behavior (Stripe best practice for raw HTTP—mirrors
+// what the official SDKs pin at release). Bump deliberately.
 const STRIPE_VERSION = "2026-06-24.dahlia";
 
 function stripeHeaders(secretKey: string): HeadersInit {
@@ -36,7 +36,7 @@ interface StripeErrorBody {
 
 /** Read a Stripe answer: the parsed body on 2xx, an {@link UpstreamError}
  *  otherwise. Stripe's `decline_code` is the more specific code on a card
- *  decline, so it wins over `code` — it's what a checkout maps to its copy. */
+ *  decline, so it wins over `code`—it's what a checkout maps to its copy. */
 async function stripeRead<T>(res: Response, operation: string): Promise<T> {
   const { json, text } = await readUpstreamBody(res);
   if (res.ok && json !== undefined) return json as T;
@@ -83,7 +83,7 @@ export async function createPaymentIntent(
   form.set(
     "metadata[items]",
     JSON.stringify(
-      // Slug+qty only (Stripe caps metadata values at 500 chars) — the
+      // Slug+qty only (Stripe caps metadata values at 500 chars)—the
       // webhook re-reads product truth from D1, so nothing here stales.
       items.map((i) => ({ s: i.slug, q: i.qty })),
     ),
@@ -97,7 +97,7 @@ export async function createPaymentIntent(
 }
 
 /**
- * Re-fetch a PaymentIntent by id — the webhook treats events as pointers
+ * Re-fetch a PaymentIntent by id—the webhook treats events as pointers
  * (v2-style thin-event handling) instead of trusting the delivered payload.
  */
 export async function retrievePaymentIntent<T = Record<string, unknown>>(
@@ -128,7 +128,7 @@ export async function verifyStripeSignature(
 ): Promise<boolean> {
   // Stripe can send MULTIPLE `v1=` signatures in one header (both the old and
   // new endpoint secret during a rotation), so collect them all and accept if
-  // ANY matches — a last-wins parse would reject a validly-signed event.
+  // ANY matches—a last-wins parse would reject a validly-signed event.
   let t: number | undefined;
   const v1s: string[] = [];
   for (const part of header.split(",")) {
@@ -148,7 +148,7 @@ export async function verifyStripeSignature(
 /**
  * A Stripe webhook event, validated to the fields this integration reads.
  * Run it via {@link import("./index.js").parseWebhookEvent} AFTER
- * {@link verifyStripeSignature} — the signature proves the sender, this proves
+ * {@link verifyStripeSignature}—the signature proves the sender, this proves
  * the shape. The handler treats events as thin pointers and re-fetches the
  * PaymentIntent by id (see {@link retrievePaymentIntent}), so this locks down
  * `id` + `type` + the presence of `data.object` and leaves the polymorphic

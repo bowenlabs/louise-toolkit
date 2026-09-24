@@ -21,7 +21,7 @@ const KNOWN_FIELD_TYPES: ReadonlySet<FieldConfig["type"]> = new Set([
 // invariants) without descending into a collection's broader rules
 // (search.fields etc, which only make sense at the top level). Recurses
 // into `group`'s nested fields so a group can't smuggle in an unrecognized
-// or malformed nested field — same checks, one level down.
+// or malformed nested field—same checks, one level down.
 function validateField(slug: string, key: string, field: FieldConfig): void {
   if (!KNOWN_FIELD_TYPES.has(field.type)) {
     throw new LouiseContentError(
@@ -73,7 +73,7 @@ function validateCollectionConfig(config: CollectionConfig): void {
     "richText",
     "upload",
     // `json` (and array-of-block content stored as json) is indexed by flattening
-    // every string leaf to plain text — see codegen's `extractSearchText`.
+    // every string leaf to plain text—see codegen's `extractSearchText`.
     "json",
   ]);
   for (const key of config.search?.fields ?? []) {
@@ -91,8 +91,8 @@ function validateCollectionConfig(config: CollectionConfig): void {
   }
 
   // Real-time sessions persist coalesced edits through the versioned draft path
-  // (ADR 0002 / #71), so `realtime` is meaningless — and would have nowhere to
-  // write — without draft versioning.
+  // (ADR 0002 / #71), so `realtime` is meaningless—and would have nowhere to
+  // write—without draft versioning.
   if (config.realtime && !config.versions?.drafts) {
     throw new LouiseContentError(
       `Collection "${config.slug}" sets realtime: true but not versions.drafts — realtime persists as drafts, so it requires draft versioning`,
@@ -119,7 +119,7 @@ export function defineCollection(config: CollectionConfig): CollectionConfig {
 
 export function defineContentConfig(config: ContentConfig): ContentConfig {
   // Run plugins in array order, each fed the previous one's output, before
-  // any validation — a plugin's emitted config is held to exactly the same
+  // any validation—a plugin's emitted config is held to exactly the same
   // rules as a hand-written one. The resolved config (not the raw input) is
   // what every downstream consumer reads: schema codegen, admin meta, and
   // the Local API. Plugins must not mutate their input; treat `config` as

@@ -25,7 +25,7 @@ describe("createSettingsQueryClient", () => {
     expect(retry(0, new Error("network"))).toBe(true);
     expect(retry(1, new Error("network"))).toBe(false);
     expect(retry(0, new LouiseApiError("GET", "/api/louise/pages", 401))).toBe(false);
-    // A 403 is a permissions answer, not an expired session — still retried once.
+    // A 403 is a permissions answer, not an expired session—still retried once.
     expect(retry(0, new LouiseApiError("GET", "/api/louise/pages", 403))).toBe(true);
   });
 });

@@ -7,7 +7,7 @@
 // stays for genuine full-page work (link-check, live previews).
 //
 // `@resvg/resvg-wasm` is an OPTIONAL peer, dynamically imported so it's only
-// pulled in by sites that actually render OG cards — mirroring how the Puppeteer
+// pulled in by sites that actually render OG cards—mirroring how the Puppeteer
 // renderer treats `@cloudflare/puppeteer`. The caller supplies the compiled WASM
 // module and the font buffers (Workers has no system fonts), so the toolkit
 // stays font-agnostic and ships no multi-megabyte binary of its own.
@@ -16,11 +16,11 @@ import type { InitInput } from "@resvg/resvg-wasm";
 import type { OgRenderer } from "./types.js";
 
 /** The subset of `@resvg/resvg-wasm` this renderer uses. Declared structurally
- *  (via `typeof import`) so the peer is a pure type — erased at build, never a
+ *  (via `typeof import`) so the peer is a pure type—erased at build, never a
  *  runtime import except the guarded dynamic `import()` below. */
 type ResvgModule = typeof import("@resvg/resvg-wasm");
 
-/** WASM init is global to the isolate — calling `initWasm` twice throws. Guard
+/** WASM init is global to the isolate—calling `initWasm` twice throws. Guard
  *  it per resolved module so a renderer created per request (as the Worker does)
  *  initializes exactly once. Keyed by the module namespace object: the real
  *  dynamic import is module-cached (one key → one init in production); each
@@ -46,7 +46,7 @@ export interface ResvgRendererOptions {
    *  package's `index_bg.wasm` (a `WebAssembly.Module`) and pass it here. */
   wasm: InitInput | Promise<InitInput>;
   /** Raw font buffers used to shape `<text>`. At least one is required for any
-   *  text to render — Workers has no system fonts. */
+   *  text to render; Workers has no system fonts. */
   fonts: (Uint8Array | ArrayBuffer)[];
   /** Family resvg falls back to when a `font-family` isn't matched. Set this to
    *  the family of the font you pass so a single supplied font always renders. */

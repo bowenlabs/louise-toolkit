@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/security — fetching a URL someone else chose (ADR 0012 §3).
+// louise-toolkit/security—fetching a URL someone else chose (ADR 0012 §3).
 //
 // A provider API has a fixed host, so `upstreamFetch` only needs a timeout and
-// no redirects. A webhook URL, a form's notify target — anything that came from
-// content or a config a user can edit — can point anywhere, so it gets a policy
+// no redirects. A webhook URL, a form's notify target—anything that came from
+// content or a config a user can edit—can point anywhere, so it gets a policy
 // on top, checked on the first request and again on every redirect hop.
 //
 // What the policy is for, on Workers: a Worker's fetch runs on Cloudflare's
@@ -14,7 +14,7 @@
 // past the WAF and any Worker on that route), authenticated endpoints elsewhere
 // reached with the site's standing, and a redirect from an acceptable host to
 // one that isn't. A hostname can still resolve to anything, and there is no DNS
-// lookup to check it against here — so this narrows what can be asked for, and
+// lookup to check it against here, so this narrows what can be asked for, and
 // the compatibility flag closes the own-zone path; neither alone is the whole
 // defense.
 
@@ -40,9 +40,9 @@ export interface FetchPublicUrlInit extends Omit<UpstreamFetchInit, "provider">,
   maxRedirects?: number;
 }
 
-/** A URL the policy refuses — never retryable; the URL itself is the problem. */
+/** A URL the policy refuses—never retryable; the URL itself is the problem. */
 export class BlockedUrlError extends Error {
-  /** Why, in a few words — for logs and for the person fixing the config. */
+  /** Why, in a few words—for logs and for the person fixing the config. */
   readonly reason: string;
   constructor(reason: string) {
     super(`URL not allowed: ${reason}`);
@@ -58,8 +58,8 @@ const PRIVATE_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa", ".l
 
 /**
  * Why `url` may not be fetched, or `null` when it may. The URL parser has
- * already normalized the tricks — `http://2130706433/` and `http://0x7f.1/`
- * both parse to `127.0.0.1` — so the checks run on what would actually be
+ * already normalized the tricks—`http://2130706433/` and `http://0x7f.1/`
+ * both parse to `127.0.0.1`—so the checks run on what would actually be
  * requested.
  */
 export function publicUrlProblem(url: URL, policy: PublicUrlPolicy = {}): string | null {

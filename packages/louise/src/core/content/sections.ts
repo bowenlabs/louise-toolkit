@@ -1,9 +1,9 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/content — the structured "sections" schema + its server-side validator.
+// louise-toolkit/content—the structured "sections" schema + its server-side validator.
 //
-// A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`
-// — a discriminated block that the SITE renders with its own bespoke component.
+// A *section* is one item of a page's `sections` JSON array—`{ _type, ...fields }`—a
+// discriminated block that the SITE renders with its own bespoke component.
 // The catalog here is schema only (field defs); it lives in core (not the DOM
 // client) so the SAME catalog object drives both the on-page editor
 // (`mountSections`, which type-imports these types) and the write-time validator
@@ -15,30 +15,30 @@
 // `Rule` machinery (via `validateValue`) for any per-field `validation` chain.
 
 import { LouiseValidationError, type ValidationViolation } from "../errors.js";
-// The field-type registry owns what each `type` means — its validation and
+// The field-type registry owns what each `type` means—its validation and
 // whether it's edited in place (ADR 0010 A2). Importing it for the side effect of
 // registering the built-ins as well as for the checker: a catalog naming `"link"`
 // is only meaningful once something has defined it.
 import { type FieldOptions, type FieldTypeName, validateFieldType } from "./field-types.js";
-// The drizzle-free Rule engine, NOT the `./validation.js` barrel — that half
+// The drizzle-free Rule engine, NOT the `./validation.js` barrel—that half
 // imports `drizzle-orm` (an *optional* peer) for its uniqueness queries, and
 // importing it here would drag drizzle into every consumer of these section
-// validators (e.g. the `louise-toolkit/content/sections` entry). See rule.ts's
+// validators (for example, the `louise-toolkit/content/sections` entry). See rule.ts's
 // header and `content/define.ts`.
 import { type ValidationBuilder, type ValidationFieldContext, validateValue } from "./rule.js";
 
 // Re-exported, not defined here. The predicate belongs with the `link` field
 // type in `field-types.ts`; this alias exists because `isSafeLinkUrl` shipped
 // from this module in the XSS fix and `core/editor/settings.ts` imports it from
-// here. Two definitions of the same allowlist briefly existed — the fix branched
-// before the registry landed, and both survived the merge — which is the exact
+// here. Two definitions of the same allowlist briefly existed—the fix branched
+// before the registry landed, and both survived the merge—which is the exact
 // drift the "asserted identical in test" comments are there to prevent.
 export { isSafeLinkUrl } from "./field-types.js";
 
 // Also re-exported, for a plainer reason: `SectionField.options` is typed with
 // `FieldOptions`, so a site declaring a resolver-backed picker has to be able to
 // NAME the type. These lived only in `field-types.js`, which the content barrel
-// doesn't include — so `louise-toolkit/content` published a field whose type was
+// doesn't include—so `louise-toolkit/content` published a field whose type was
 // unreachable, and a site wanting to annotate its resolver had to redeclare a
 // structural stand-in. Re-exporting here covers both entries at once: the
 // `content` barrel (via its `export * from "./sections.js"`) and the
@@ -49,14 +49,14 @@ export type { FieldOption, FieldOptions, FieldOptionsResolver } from "./field-ty
 /**
  * The names a section field may declare.
  *
- * Now an alias for {@link FieldTypeName} — one list for sections and settings
+ * Now an alias for {@link FieldTypeName}—one list for sections and settings
  * both, where there used to be `SectionFieldType` (8) and `SettingsFieldType` (6),
  * overlapping on four and disagreeing on the rest. A type added to one was
  * silently missing from the other, and that asymmetry had teeth: settings had a
  * `links` type and no `link` type, so there was nowhere for a scheme check to
  * live, and stored nav destinations went unvalidated until it was found.
  *
- * Kept as its own name because it is the published one — a site's catalog is
+ * Kept as its own name because it is the published one—a site's catalog is
  * typed with it.
  */
 export type SectionFieldType = FieldTypeName;
@@ -64,17 +64,17 @@ export type SectionFieldType = FieldTypeName;
 /**
  * Editor options for a `richText` field.
  *
- * Schema, not UI — plain data describing which affordances the field wants, which
+ * Schema, not UI—plain data describing which affordances the field wants, which
  * is why it lives in core alongside the rest of the field's declaration rather
  * than with the ProseKit editor that reads it.
  */
 export interface RichTextFieldOptions {
   /** The page-BUILDER palette (Hero/Columns/Gallery…). Meant for full page
-   *  bodies, not a one-line heading — leave it off for most section fields. */
+   *  bodies, not a one-line heading; leave it off for most section fields. */
   blocks?: boolean;
   /** Lazy-load Harper for grammar checking. */
   grammar?: boolean;
-  /** Inline formatting only — the light bubble (bold/italic/underline/strike/
+  /** Inline formatting only: the light bubble (bold/italic/underline/strike/
    *  link/colour). `false` surfaces the prose block buttons and the AI-rewrite
    *  sparkle. Defaults to `true` for a section field. */
   minimal?: boolean;
@@ -92,7 +92,7 @@ export interface SectionField {
   label?: string;
   placeholder?: string;
   /**
-   * `richText` only — this field's editor options.
+   * `richText` only—this field's editor options.
    *
    * Declared here because they were always a property of the FIELD. They shipped
    * as a mount-level `richTextModes` map keyed by a `data-louise-rt` name the
@@ -104,56 +104,56 @@ export interface SectionField {
    */
   richText?: RichTextFieldOptions;
   /** Whether this field is edited in place on the bespoke render (a visible text
-   *  node) vs. in the dock (a value you can't point at, e.g. a link URL).
+   *  node) vs. in the dock (a value you can't point at, for example, a link URL).
    *  Defaults to `true` for text/textarea, `false` for `array`. */
   inline?: boolean;
   /**
-   * `select` only — the allowed values, in the order the picker shows them.
+   * `select` only—the allowed values, in the order the picker shows them.
    * A stored value outside this set is a validation error, the same way an
    * undeclared `_layout` token is.
    *
    * `label` is what the editor reads; `value` is what's stored. They differ for
-   * the usual reason a token differs from its presentation — "Brand" is a label,
+   * the usual reason a token differs from its presentation—"Brand" is a label,
    * `brand` is the thing the site's class map is keyed on.
    *
-   * May instead be a {@link FieldOptionsResolver} — an async function returning
-   * the choices — for a picker whose values come from an API rather than the
+   * May instead be a {@link FieldOptionsResolver}—an async function returning
+   * the choices—for a picker whose values come from an API rather than the
    * catalog. Note the trade: a resolved set is NOT checked on write, because that
    * would put a network call on the save path. See the `select` type's own
    * comment in `field-types.ts`.
    */
   options?: FieldOptions;
   /**
-   * `select` only — an opaque hint for how the picker should render (e.g.
+   * `select` only—an opaque hint for how the picker should render (for example,
    * `"swatch"` for colour tokens). Passed through untouched, like
    * {@link SectionDef.icon}: the schema layer has no business knowing what a
    * swatch looks like, and a site's renderer may ignore it entirely.
    */
   display?: string;
   /**
-   * `select` only — the value is a **string array**, any number of the options
+   * `select` only—the value is a **string array**, any number of the options
    * (ADR 0010 Phase B). Rendered as a checkbox list rather than a dropdown;
    * validated as an array whose every member is an allowed value (resolver-
    * backed sets keep the same write-path exemption as single selects). The
-   * shape a mirror's filter lists need — "these subcategories", "these items
+   * shape a mirror's filter lists need—"these subcategories", "these items
    * hidden".
    */
   multiple?: boolean;
-  /** `array` only — label for each repeated item (e.g. "Feature"). */
+  /** `array` only—label for each repeated item (for example, "Feature"). */
   itemLabel?: string;
-  /** `array` only — the fields of each repeated item. With a {@link SectionField.discriminator}
+  /** `array` only—the fields of each repeated item. With a {@link SectionField.discriminator}
    *  these are the fields shared by *every* variant; the variant adds more on top. */
   itemFields?: Record<string, SectionField>;
   /**
-   * `array` only — makes the array a *discriminated union* of item shapes
+   * `array` only—makes the array a *discriminated union* of item shapes
    * (blocks: image vs. quote vs. embed …) instead of one fixed `itemFields`
    * shape, mirroring `ArrayFieldConfig.discriminator` (`core/content/types.ts`)
-   * one level down — the proving slice for a first-class `blocks` layer (ADR 0005).
+   * one level down—the proving slice for a first-class `blocks` layer (ADR 0005).
    * `key` names the field holding each item's variant (set by the type-switcher,
    * not typed in place); `variants` maps each variant value to the *additional*
    * fields layered on top of `itemFields`, validated/shown only for items whose
    * `key` field holds that value. `variantsAdmin` gives the "add"/switch picker a
-   * per-variant `label` + opaque `icon` string. Storage is unchanged — `array`
+   * per-variant `label` + opaque `icon` string. Storage is unchanged—`array`
    * stays one JSON column; this only changes the item's field set.
    */
   discriminator?: {
@@ -161,7 +161,7 @@ export interface SectionField {
     variants: Record<string, Record<string, SectionField>>;
     variantsAdmin?: Record<string, { label?: string; icon?: string }>;
   };
-  /** Optional per-field validation, reusing the content `Rule` builder — e.g.
+  /** Optional per-field validation, reusing the content `Rule` builder, for example,
    *  `validation: (r) => r.required().max(120)`. Enforced server-side by
    *  {@link validateSections}. */
   validation?: ValidationBuilder;
@@ -175,7 +175,7 @@ export interface SectionDef {
   /** The section's editable fields, keyed by prop name. */
   fields: Record<string, SectionField>;
   /**
-   * Opt this section into the first-class **block layer** (ADR 0005) — the
+   * Opt this section into the first-class **block layer** (ADR 0005)—the
    * organising layer *within* a section. Declaring this policy is what promotes
    * a section's reserved `blocks` array from ignored free-form data to a
    * validated, ordered list of polymorphic {@link BlockItem}s, each resolved
@@ -184,13 +184,13 @@ export interface SectionDef {
    *
    * `allow` bounds which block types this section accepts (any block in the
    * catalog when omitted); `min` / `max` bound the block count. Storage is
-   * unchanged — `blocks` rides in the same `sections` JSON column.
+   * unchanged—`blocks` rides in the same `sections` JSON column.
    */
   blocks?: { allow?: string[]; min?: number; max?: number };
   /**
    * Named layout variants for this section (ADR 0005 §5), surfaced in the
    * inspector rail as a picker. A stored {@link SectionItem._layout} must be one
-   * of these keys. Louise stores only the chosen **token** — the site component
+   * of these keys. Louise stores only the chosen **token**—the site component
    * maps it to actual grid/flex/CSS, so layout stays 100% site-owned.
    */
   layouts?: Record<string, { label: string }>;
@@ -199,25 +199,25 @@ export interface SectionDef {
    * edited in the inspector rail rather than in place (ADR 0005 §5). Reuse
    * {@link SectionField}, so they validate exactly like regular fields; their
    * values live under {@link SectionItem._settings}. Louise stores tokens/values
-   * only, never CSS — the site component reads them and switches its own styles.
+   * only, never CSS—the site component reads them and switches its own styles.
    */
   settings?: Record<string, SectionField>;
   /**
    * Where this section's CONTENT truth lives, when it isn't the page (ADR 0010
-   * Phase B). Marks a section that mirrors a system the site doesn't own — a
-   * Square-backed product grid — so the editor rings it yellow and its wrench
+   * Phase B). Marks a section that mirrors a system the site doesn't own—a
+   * Square-backed product grid—so the editor rings it yellow and its wrench
    * configures the mirror (category, filters, hidden items), never the
    * mirrored content itself. Omitted means the page owns it, which is every
    * section that existed before Phase B.
    *
    * The bare `"external"` form is the tone alone; the object form additionally
    * declares the mirror's configuration, which the inspector renders as its
-   * own group writing to SITE SETTINGS — immediately, not into the page draft
+   * own group writing to SITE SETTINGS—immediately, not into the page draft
    * (see {@link ExternalSource}).
    */
   source?: "external" | ExternalSource;
   /**
-   * Site-settings keys this section READS when it renders — e.g.
+   * Site-settings keys this section READS when it renders—for example,
    * `["addressStreet", "hours"]` for a location panel. The coupling is
    * otherwise invisible (it lives inside the site's own component), and it
    * is what the shared-value editor counts to say "used in N surfaces"
@@ -227,31 +227,31 @@ export interface SectionDef {
 }
 
 /**
- * The object form of {@link SectionDef.source} — an external mirror plus its
+ * The object form of {@link SectionDef.source}—an external mirror plus its
  * site-owned configuration (ADR 0010 Phase B).
  *
  * `settings` are the knobs of the MIRROR (which category, which filters, which
  * items hidden), not of the section: their values live in the site-settings
  * `custom` JSON under `settingsKey`, shared by every page that renders the
- * section — which is why the inspector writes them through the settings route,
+ * section—which is why the inspector writes them through the settings route,
  * immediately, instead of staging them into a page draft. A field may be a
- * resolver-backed `select` (the usual case — the choices come from the external
+ * resolver-backed `select` (the usual case—the choices come from the external
  * system's API).
  */
 export interface ExternalSource {
   kind: "external";
-  /** Editor-facing name of the system — "Square" — used to title the inspector
+  /** Editor-facing name of the system—"Square"—used to title the inspector
    *  group. Falls back to "Source". */
   label?: string;
   /** The site-settings custom key holding this mirror's configuration object,
-   *  e.g. `"shop"` → `site_settings.custom.shop`. Required for `settings` to
+   *  for example, `"shop"` → `site_settings.custom.shop`. Required for `settings` to
    *  have anywhere to live. */
   settingsKey?: string;
   /** The mirror's configuration fields, keyed by property within that object. */
   settings?: Record<string, SectionField>;
 }
 
-/** Normalize {@link SectionDef.source} — `"external"` and the object form both
+/** Normalize {@link SectionDef.source}—`"external"` and the object form both
  *  answer, so consumers switch on one shape. `null` for a page-owned section. */
 export function externalSourceOf(def: SectionDef | undefined): ExternalSource | null {
   const s = def?.source;
@@ -259,11 +259,11 @@ export function externalSourceOf(def: SectionDef | undefined): ExternalSource | 
   return s === "external" ? { kind: "external" } : s;
 }
 
-/** The site's catalog of preconfigured section types (schema only — the bespoke
+/** The site's catalog of preconfigured section types (schema only—the bespoke
  *  render components live on the site). */
 export type SectionCatalog = Record<string, SectionDef>;
 
-/** One block type's schema (label/icon + fields) — the block-level analogue of
+/** One block type's schema (label/icon + fields)—the block-level analogue of
  *  {@link SectionDef}. Block fields reuse {@link SectionField} verbatim, so a
  *  block validates exactly like a section's field set: the same `Rule` chain and
  *  the same `array` / `discriminator` support, no separate path. */
@@ -271,17 +271,17 @@ export interface BlockDef {
   label: string;
   icon?: string;
   fields: Record<string, SectionField>;
-  /** Inspector-rail settings for this block (ADR 0005 §5) — the block-level
+  /** Inspector-rail settings for this block (ADR 0005 §5): the block-level
    *  analogue of {@link SectionDef.settings}; values live under
    *  {@link BlockItem._settings}. Blocks carry settings but not layouts. */
   settings?: Record<string, SectionField>;
 }
 
-/** The site's catalog of block types (schema only — bespoke renders live on the
+/** The site's catalog of block types (schema only—bespoke renders live on the
  *  site), the block-level analogue of {@link SectionCatalog} (ADR 0005). */
 export type BlockCatalog = Record<string, BlockDef>;
 
-/** One stored block: a `_type` discriminant plus its field values — the
+/** One stored block: a `_type` discriminant plus its field values—the
  *  block-level analogue of {@link SectionItem}. Flat and ordered; blocks do not
  *  nest blocks in v1 (named slots / cross-section moves are deferred). */
 export interface BlockItem {
@@ -297,14 +297,14 @@ export interface SectionItem {
   _type: string;
   /**
    * The optional organising layer *within* this section (ADR 0005): an ordered
-   * list of polymorphic blocks. Reserved structural key — a section opts into
+   * list of polymorphic blocks. Reserved structural key—a section opts into
    * validation by declaring {@link SectionDef.blocks}. Additive: absent on every
    * pre-block section, and a section may carry both direct fields and blocks
    * during a transition.
    */
   blocks?: BlockItem[];
   /**
-   * A named layout token (ADR 0005 §5) — one of {@link SectionDef.layouts}'
+   * A named layout token (ADR 0005 §5)—one of {@link SectionDef.layouts}'
    * keys. Louise stores only the token; the site component maps it to CSS.
    */
   _layout?: string;
@@ -320,8 +320,8 @@ export interface ValidateSectionsOptions {
   operation: "create" | "update";
   /**
    * The site's `MEDIA_URL` base. When set, an `image` field whose value is a
-   * non-empty string that isn't served from this base is a violation —
-   * enforcing that section images come from the media library, not an external
+   * non-empty string that isn't served from this base is a violation—enforcing
+   * that section images come from the media library, not an external
    * hotlink. Omit to skip the origin check (image fields still validate as
    * strings). See {@link isMediaUrl}.
    */
@@ -349,12 +349,12 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *    string, array → array of objects whose `itemFields` are validated in turn);
  *  - for a section that declares a `blocks` policy, its `blocks` array (count vs.
  *    `min`/`max`, each block's `_type` against the policy `allow` + the
- *    `blockCatalog`, then that block's fields — ADR 0005);
+ *    `blockCatalog`, then that block's fields—ADR 0005);
  *  - `_layout` (must be a declared layout token) and `_settings` (validated
- *    against the def's `settings` fields), on sections and blocks — ADR 0005 §5;
+ *    against the def's `settings` fields), on sections and blocks—ADR 0005 §5;
  *  - any field's `validation` Rule chain (reused from the content validator).
- * Absent/`undefined` (the field wasn't part of a partial update) is a no-op —
- * presence is the route allowlist's job, not this validator's.
+ * Absent/`undefined` (the field wasn't part of a partial update) is a no-op—presence
+ * is the route allowlist's job, not this validator's.
  */
 export async function validateSections(
   catalog: SectionCatalog,
@@ -406,7 +406,7 @@ export async function validateSections(
 
 /**
  * A stored `_layout` must be one of the section's declared {@link SectionDef.layouts}
- * (ADR 0005 §5) — an unknown/undeclared layout is rejected like an unknown section
+ * (ADR 0005 §5)—an unknown/undeclared layout is rejected like an unknown section
  * `_type`. Absent `_layout` is a no-op; Louise stores the token, the site owns the CSS.
  */
 function validateLayout(
@@ -429,7 +429,7 @@ function validateLayout(
 
 /**
  * Validate an item's `_settings` object against a def's `settings` field map
- * (ADR 0005 §5) — the same {@link validateSectionField} machinery as regular
+ * (ADR 0005 §5)—the same {@link validateSectionField} machinery as regular
  * fields, one level in. Undeclared setting keys are ignored (like undeclared
  * fields); absent `_settings` is a no-op. Shared by sections and blocks.
  */
@@ -515,7 +515,7 @@ async function validateBlocks(
     for (const [key, field] of Object.entries(def.fields)) {
       out.push(...(await validateSectionField(field, block[key], `${at}.${key}`, block, options)));
     }
-    // Block inspector settings (ADR 0005 §5) — blocks carry `_settings`, not `_layout`.
+    // Block inspector settings (ADR 0005 §5)—blocks carry `_settings`, not `_layout`.
     out.push(
       ...(await validateSettings(def.settings, block._settings, `${at}._settings`, options)),
     );
@@ -579,8 +579,8 @@ async function validateSectionField(
     }
   } else {
     // Every non-structural type is the registry's business (ADR 0010 A2). What
-    // was an if/else ladder here — one arm per type, and a fallthrough that
-    // quietly covered text/textarea/richText — is now one lookup, so adding a
+    // was an if/else ladder here—one arm per type, and a fallthrough that
+    // quietly covered text/textarea/richText—is now one lookup, so adding a
     // type never means remembering to come back and edit this function.
     out.push(...validateFieldType(value, { field, path, mediaBase: options.mediaBase }));
   }
@@ -618,7 +618,7 @@ export async function assertValidSections(
  *
  *  Recurses into `array` fields via their `itemFields`. That is not a nicety:
  *  `SectionField` lets an `array` declare a `richText` item field, and a catalog
- *  promptly did — a shipped `faq.items[].answer` is richText and is rendered with
+ *  promptly did—a shipped `faq.items[].answer` is richText and is rendered with
  *  `set:html`. One level of walking meant it was stored exactly as typed, so the
  *  "never store raw HTML" invariant held everywhere except the one place a
  *  catalog author would naturally reach for it, with CSP as the only remaining
@@ -651,8 +651,8 @@ function sanitizeItemRichText(
 }
 
 /**
- * Return a copy of a page's `sections` with every `richText` field — section-level
- * and block-level — run through `sanitize`. A richText field stores HTML (edited
+ * Return a copy of a page's `sections` with every `richText` field—section-level
+ * and block-level—run through `sanitize`. A richText field stores HTML (edited
  * in place with the light ProseKit editor, #182), so it must be sanitized on write
  * just like the page body; call this from the collection's `beforeChange` next to
  * the body sanitize. Non-array input and unknown `_type`s pass through untouched.

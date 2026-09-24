@@ -19,7 +19,7 @@ function quote(value: string): string {
 // Mirrors codegen.ts's fieldToColumn switch, emitting drizzle-orm
 // source text instead of building a runtime column. Kept as its own
 // switch (not shared code) since the two have different outputs
-// (Column vs. string) — codegen.test.ts's schema-parity assertions are
+// (Column vs. string)—codegen.test.ts's schema-parity assertions are
 // what keep this in sync with codegen.ts's actual runtime behavior.
 function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<string>): string {
   const columnName = field.name ?? toSnakeCase(key);
@@ -40,10 +40,10 @@ function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<
     case "array":
     case "json": {
       usedBuilders.add("text");
-      // `.$type<JsonValue>()` mirrors codegen.ts's fieldToColumn — see
+      // `.$type<JsonValue>()` mirrors codegen.ts's fieldToColumn—see
       // types.ts's JsonValue doc comment for why drizzle's inferred
-      // `unknown` needs overriding here. `group` fields never reach here —
-      // see flattenFields below.
+      // `unknown` needs overriding here. `group` fields never reach here—see
+      // flattenFields below.
       let source = `text(${quote(columnName)}, { mode: "json" }).$type<JsonValue>()`;
       if (field.required) source += ".notNull()";
       if (field.defaultValue !== undefined) {
@@ -52,7 +52,7 @@ function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<
       return source;
     }
     case "relationship": {
-      // hasMany relationship fields never reach here — collectionToTableSource
+      // hasMany relationship fields never reach here—collectionToTableSource
       // filters them out (see its own comment).
       usedBuilders.add("integer");
       let source = `integer(${quote(columnName)})`;
@@ -106,7 +106,7 @@ function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<
 
 function collectionToTableSource(config: CollectionConfig, usedBuilders: Set<string>): string {
   const fieldLines = Object.entries(flattenFields(config.fields))
-    // hasMany relationships have no column on this table — emitted as a
+    // hasMany relationships have no column on this table—emitted as a
     // separate join table instead (see relationshipJoinTableSource).
     .filter(([, field]) => !(field.type === "relationship" && field.hasMany))
     .map(([key, field]) => `  ${key}: ${fieldToColumnSource(key, field, usedBuilders)},`);
@@ -160,14 +160,14 @@ function relationshipJoinTableSources(
 }
 
 // Generates the full TS source for a consuming app's generated Drizzle
-// schema file from a ContentConfig. Pure string generation — the caller (a
+// schema file from a ContentConfig. Pure string generation—the caller (a
 // script run via tsx) is responsible for writing the result to disk
 // (and formatting it). Louise has no opinion on what the app names its
-// config file or where it lives — that's app-specific, never hardcoded here.
+// config file or where it lives—that's app-specific, never hardcoded here.
 /** Options for {@link generateSchemaSource}. */
 export interface GenerateSchemaOptions {
   /**
-   * Collection slugs to omit from the emitted schema — e.g. a consuming site
+   * Collection slugs to omit from the emitted schema—for example, a consuming site
    * excludes plugin-owned collections here so drizzle-kit diffs only its own
    * tables, letting plugins ship their own migrations.
    */
@@ -188,8 +188,8 @@ export function generateSchemaSource(
       ...(collection.versions?.drafts ? [versionsTableSource(collection, usedBuilders)] : []),
     ]);
   const importList = [...usedBuilders].sort().join(", ");
-  // Every JSON column emitted above carries a `.$type<JsonValue>()` call —
-  // detected by string search rather than threading a second tracking set
+  // Every JSON column emitted above carries a `.$type<JsonValue>()` call—detected
+  // by string search rather than threading a second tracking set
   // through every *Source function, since this is the one place that
   // needs to know about it.
   const needsJsonValue = blocks.some((block) => block.includes(".$type<JsonValue>()"));
@@ -198,7 +198,7 @@ export function generateSchemaSource(
     "// Source: this app's ContentConfig (see defineContentConfig).",
     // Import-sorting formatters (Oxfmt, Biome, Prettier, run over consuming
     // apps, not this generated file directly) order "louise-toolkit/content"
-    // before "drizzle-orm/sqlite-core" alphabetically — matching that order
+    // before "drizzle-orm/sqlite-core" alphabetically—matching that order
     // here means a consumer formatting their repo never sees this generated
     // file flagged as needing a fix.
     ...(needsJsonValue ? ['import type { JsonValue } from "louise-toolkit/content";'] : []),

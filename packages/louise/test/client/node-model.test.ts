@@ -1,4 +1,4 @@
-// The editable-node model (ADR 0010) — one path grammar replacing four.
+// The editable-node model (ADR 0010)—one path grammar replacing four.
 //
 // Everything the chrome does hangs off these functions, so they carry the
 // defensiveness the three old readers each implemented separately: a malformed
@@ -29,7 +29,7 @@ describe("parseNodePath", () => {
 
   it("distinguishes indices from keys by type, not position", () => {
     // This is what lets one grammar cover all four old ones: nothing is special
-    // about "blocks" or about segment 0 — a number is an index, a word is a key.
+    // about "blocks" or about segment 0—a number is an index, a word is a key.
     expect(parseNodePath("0.blocks.1")).toEqual([0, "blocks", 1]);
     expect(parseNodePath("0.rows.1.cells.2")).toEqual([0, "rows", 1, "cells", 2]);
   });
@@ -59,7 +59,7 @@ describe("samePath", () => {
     expect(samePath([0, "blocks", 1], [0, "blocks", 1])).toBe(true);
     expect(samePath([0, "blocks", 1], [0, "blocks", 2])).toBe(false);
     expect(samePath([0], [0, "blocks"])).toBe(false);
-    // "0" as a key would be a different node from index 0 — the type carries meaning.
+    // "0" as a key would be a different node from index 0—the type carries meaning.
     expect(samePath([0], ["0"])).toBe(false);
   });
 });
@@ -81,7 +81,7 @@ function tree(): { section: HTMLElement; block: HTMLElement; field: HTMLElement 
 describe("nodeAt — deepest wins", () => {
   it("returns the nearest marked ancestor, so depth ordering is structural", () => {
     const { section, block, field } = tree();
-    // No hand-ordered ladder decides this — `closest` does, because there is only
+    // No hand-ordered ladder decides this—`closest` does, because there is only
     // one attribute to match.
     expect(nodeAt(field)?.path).toEqual([0, "blocks", 1, "href"]);
     expect(nodeAt(block)?.path).toEqual([0, "blocks", 1]);
@@ -131,7 +131,7 @@ describe("readNodeMarkers", () => {
 describe("restampNode", () => {
   it("rewrites a node and every descendant by prefix", () => {
     const { section, block, field } = tree();
-    // Section 0 moves to 2 — its block and the block's field must follow without
+    // Section 0 moves to 2—its block and the block's field must follow without
     // either of them knowing its own depth. This one function replaces the
     // separate section and block re-stampers.
     restampNode(section, [0], [2]);
@@ -153,7 +153,7 @@ describe("restampNode", () => {
   });
 
   it("does not rewrite a sibling that merely shares a prefix string", () => {
-    // "0.blocks.10" starts with the characters of "0.blocks.1" — matching on the
+    // "0.blocks.10" starts with the characters of "0.blocks.1"—matching on the
     // raw string without the segment boundary would corrupt it.
     const a = document.createElement("div");
     a.setAttribute(NODE_MARKER_ATTR, "0.blocks.1");

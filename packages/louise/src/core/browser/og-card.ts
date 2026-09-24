@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // The OG share card as an SVG document (issue #85). This is the same visual as
-// the old `ogCardHtml` — brand label, wrapped title, footer on a dark slate
-// field — but expressed as SVG so it can be rasterized by the resvg/WASM
+// the old `ogCardHtml`—brand label, wrapped title, footer on a dark slate
+// field—but expressed as SVG so it can be rasterized by the resvg/WASM
 // renderer (`createResvgRenderer`) instead of screenshotted in a headless
 // browser. Pure + deterministic: no bindings, no I/O, so it's trivially testable
 // and the caller controls every colour and the font family.
@@ -10,7 +10,7 @@
 // SVG `<text>` has no line wrapping, so `wrapTitle` greedily splits the title
 // into `<tspan>` lines using an estimated glyph advance (there are no real font
 // metrics without parsing the font, and an OG card doesn't need pixel-perfect
-// wrapping — just "don't run off the edge").
+// wrapping, just "don't run off the edge").
 
 /** Escape a string for inclusion in SVG/XML text or an attribute value. */
 function escapeXml(value: string): string {
@@ -24,7 +24,7 @@ export interface WrapTitleOptions {
   maxWidth: number;
   /** Title font size, in px. */
   fontSize: number;
-  /** Estimated glyph advance as a fraction of font size. Default 0.56 — a
+  /** Estimated glyph advance as a fraction of font size. Default 0.56—a
    *  reasonable mean for a heavy UI sans; tune per font if wrapping drifts. */
   charWidthRatio?: number;
   /** Hard cap on lines; the last line is ellipsized if the title overflows.
@@ -73,7 +73,7 @@ export function wrapTitle(title: string, options: WrapTitleOptions): string[] {
 }
 
 export interface OgCardOptions {
-  /** Card dimensions. Default 1200×630 — the standard OG card. */
+  /** Card dimensions. Default 1200×630—the standard OG card. */
   width?: number;
   height?: number;
   /** Uniform inset for all text, in px. Default 80. */
@@ -98,8 +98,8 @@ export interface OgCardOptions {
 /**
  * Build the OG card as an SVG string. Content-equivalent to the legacy
  * `ogCardHtml` so the cache key (slug + content hash) stays stable across the
- * renderer swap. Feed the result to an {@link OgRenderer} — e.g.
- * `createResvgRenderer` — to rasterize to PNG.
+ * renderer swap. Feed the result to an {@link OgRenderer}—for example,
+ * `createResvgRenderer`—to rasterize to PNG.
  */
 export function ogCardSvg(title: string, options: OgCardOptions = {}): string {
   const width = options.width ?? 1200;
@@ -118,7 +118,7 @@ export function ogCardSvg(title: string, options: OgCardOptions = {}): string {
   const lines = wrapTitle(title, { maxWidth: width - padding * 2, fontSize });
 
   // Baselines: brand near the top, title block below it, footer pinned to the
-  // bottom inset — mirrors the flex layout of the old HTML card closely enough.
+  // bottom inset—mirrors the flex layout of the old HTML card closely enough.
   const brandBaseline = padding + 50;
   const titleTop = brandBaseline + 110;
   const footerBaseline = height - padding + 24;

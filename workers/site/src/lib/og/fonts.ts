@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Roboto Flex (Apache-2.0), Latin subset, instanced to three static weights for
-// the OG card. resvg's font DB selects a face by weight — it does not interpolate
-// a variable `wght` axis — so we ship 400/600/800 as separate faces, all under the
+// the OG card. resvg's font DB selects a face by weight—it does not interpolate
+// a variable `wght` axis—so we ship 400/600/800 as separate faces, all under the
 // family name "Roboto Flex". Base64-inlined (no bundler/binary-import config), decoded
 // once at module load. Generated from the Roboto Flex VF via fonttools; see PR #85.
 

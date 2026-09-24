@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/astro — the shared Louise Astro middleware, as a factory. Every
+// louise-toolkit/astro—the shared Louise Astro middleware, as a factory. Every
 // Louise site's `middleware.ts` runs the same flow; only the auth wiring, rate
 // rules, and CSP allow-list vary. `createLouiseMiddleware` owns the flow and
 // takes those as config, so a site's middleware collapses to:
@@ -12,11 +12,11 @@
 //     cspStyleSrc: "'self' 'unsafe-inline'",
 //   });
 //
-// (The brand font is bundled + base64-inlined — no Google Fonts host to allow.
+// (The brand font is bundled + base64-inlined—no Google Fonts host to allow.
 // The middleware auto-allows `data:` fonts in the response CSP, so a strict
 // `font-src` needs no manual change for the inlined @font-face.)
 //
-// This subpath is the ONE place Louise touches Astro's types — `astro` is an
+// This subpath is the ONE place Louise touches Astro's types—`astro` is an
 // optional peer, pulled in only by sites that import `louise-toolkit/astro`.
 
 import type { APIContext, MiddlewareHandler } from "astro";
@@ -40,22 +40,22 @@ import {
 
 /** The locals this middleware writes. A site's `App.Locals` should declare at
  *  least these (plus anything it sets via {@link LouiseMiddlewareConfig.extend},
- *  e.g. a `customer`). */
+ *  for example, a `customer`). */
 interface LouiseLocals {
   editor: unknown;
   editMode: boolean;
 }
 
 export interface LouiseMiddlewareRateLimit {
-  /** The site's rate-limit rules — the public POST surfaces worth protecting. */
+  /** The site's rate-limit rules—the public POST surfaces worth protecting. */
   rules: RateRule[];
   /**
-   * Rate-limit backend — a KV counter or Cloudflare's native Rate Limiting
+   * Rate-limit backend—a KV counter or Cloudflare's native Rate Limiting
    * binding, or a getter that yields one. A getter is resolved per request, so a
    * `cloudflare:workers` `env` binding is read in request scope rather than at
-   * module-eval — the same reason editor Actions take `getEnv: () => env`. A
-   * getter that yields a falsy backend (e.g. the KV namespace isn't provisioned
-   * yet) simply skips rate-limiting — fail open, consistent with {@link rateLimit}.
+   * module-eval—the same reason editor Actions take `getEnv: () => env`. A
+   * getter that yields a falsy backend (for example, the KV namespace isn't provisioned
+   * yet) simply skips rate-limiting—fail open, consistent with {@link rateLimit}.
    */
   kv: RateLimitBackend | (() => RateLimitBackend | undefined);
 }
@@ -65,7 +65,7 @@ export interface LouiseMiddlewareApiGate {
   prefix?: string;
   /**
    * Paths under the prefix an anonymous request may still reach, on top of the
-   * toolkit's own public routes at their default mounts (forms and vitals — see
+   * toolkit's own public routes at their default mounts (forms and vitals—see
    * `isLouisePublicPath`).
    *
    * A path, not a mark on the route, because middleware runs before it knows
@@ -77,17 +77,17 @@ export interface LouiseMiddlewareApiGate {
 
 export interface LouiseMiddlewareConfig<TEditor = unknown> {
   /**
-   * Resolve the editor session for a request — the site wraps its own auth,
-   * e.g. `resolveEditorSession(await getLouiseAuth(env, origin), request)`. A
+   * Resolve the editor session for a request—the site wraps its own auth,
+   * for example, `resolveEditorSession(await getLouiseAuth(env, origin), request)`. A
    * truthy result is written to `locals.editor` and unlocks edit mode; `null`
-   * renders the public page. A thrown error (e.g. missing bindings under plain
+   * renders the public page. A thrown error (for example, missing bindings under plain
    * `astro preview`) degrades to public rendering.
    */
   resolveEditor: (request: Request) => TEditor | null | Promise<TEditor | null>;
   /** Rate-limit the public POST surfaces before any other work. Omit to skip. */
   rateLimit?: LouiseMiddlewareRateLimit;
   /**
-   * `style-src` replacement for the response CSP header — the site's allow-list.
+   * `style-src` replacement for the response CSP header—the site's allow-list.
    * Astro's `security.csp` hashes inline island styles, which voids the
    * `'unsafe-inline'` the data-driven `style=""` carriers need; this rewrites
    * ONLY `style-src` (script hashes stay verbatim). No-op without a CSP header
@@ -98,13 +98,13 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    *  response. Default `true`. */
   securityHeaders?: boolean;
   /**
-   * Hosts to keep out of search indexes — sent as `X-Robots-Tag: noindex`.
-   * E.g. `(host) => isNoindexHost(host, { prefixes: ["preview."] })`. Set here
+   * Hosts to keep out of search indexes—sent as `X-Robots-Tag: noindex`.
+   * For example, `(host) => isNoindexHost(host, { prefixes: ["preview."] })`. Set here
    * rather than in a page, because a streamed page's headers are already gone.
    */
   noindex?: (hostname: string) => boolean;
   /**
-   * Extra per-request work after editor resolution, before `next()` — e.g.
+   * Extra per-request work after editor resolution, before `next()`—for example,
    * resolve a second session (a shop customer) onto `locals`. Runs inside the
    * same try/catch, so a throw degrades to public rendering.
    */
@@ -117,12 +117,12 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * Deliberately separate from `extend`: sessions must be resolved before
    * anything can be authorized against them, and collapsing the two would make
    * that ordering a convention rather than a guarantee. It runs OUTSIDE the
-   * `extend` try/catch, because a guard that throws must fail closed — a
+   * `extend` try/catch, because a guard that throws must fail closed—a
    * swallowed error there would serve the protected page.
    */
   guard?: (context: APIContext) => Response | undefined | Promise<Response | undefined>;
   /**
-   * Rewrite the request internally before the page runs — return the path to
+   * Rewrite the request internally before the page runs—return the path to
    * render, or `undefined` to render the requested one. Runs **after**
    * {@link guard}, so policy is still expressed against the URL the visitor
    * actually asked for rather than an internal one.
@@ -131,7 +131,7 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * `void` and `guard` returns only a `Response`. Astro permits exactly one
    * middleware file, and in a generated one there is nowhere else to put it.
    *
-   * The motivating case is host dispatch — serving `*.example.com` from one
+   * The motivating case is host dispatch—serving `*.example.com` from one
    * Worker by mapping a subdomain onto an internal path prefix. The middleware
    * stays policy-free: what a host means, and whether an unknown one is a 404,
    * belong to the site.
@@ -143,7 +143,7 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * },
    * ```
    *
-   * The visitor's URL is unchanged — this is an internal rewrite, not a
+   * The visitor's URL is unchanged—this is an internal rewrite, not a
    * redirect, so `context.url` still reads as the public address and links
    * rendered from it stay correct.
    */
@@ -151,7 +151,7 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
   /**
    * Deny-by-default gate for the editor API (ADR 0012), for routes mounted as
    * framework API routes (`runEditorRoute`) rather than `composeWorker` routes.
-   * `true` — or an object to change the prefix or add public paths — and every
+   * `true`—or an object to change the prefix or add public paths—and every
    * request under `/api/louise` must resolve to an editor, with writes and
    * WebSocket upgrades origin-checked, before any route runs. Gated responses
    * get `Cache-Control: no-store` unless the route set its own. Omit to skip.
@@ -197,7 +197,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
         // Resolve the backend only for a matched surface, and per request: a
         // getter defers the `env` binding read to request scope (never
         // module-eval). A falsy backend (binding not yet provisioned) skips
-        // limiting — fail open, like `rateLimit` itself.
+        // limiting—fail open, like `rateLimit` itself.
         const backend =
           typeof config.rateLimit.kv === "function" ? config.rateLimit.kv() : config.rateLimit.kv;
         if (backend) {
@@ -230,13 +230,13 @@ export function createLouiseMiddleware<TEditor = unknown>(
       if (editor) {
         locals.editor = editor;
         // Edit mode is sticky: ?louise enters (sets a cookie), ?louise=off
-        // exits. The cookie alone never grants anything — the session above is
+        // exits. The cookie alone never grants anything—the session above is
         // always re-checked, so a stale cookie without a session renders public.
         const param = context.url.searchParams.get("louise");
         if (context.url.searchParams.has("louise") && param !== "off") {
           // `secure` only over https, so plain-http localhost dev still round-trips
-          // the toggle. The cookie grants nothing on its own — the session above is
-          // re-verified every request — so this is hygiene, not a control.
+          // the toggle. The cookie grants nothing on its own—the session above is
+          // re-verified every request—so this is hygiene, not a control.
           context.cookies.set(editCookie, "1", {
             path: "/",
             sameSite: "lax",
@@ -250,7 +250,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
         }
       }
     } catch {
-      // Missing bindings (e.g. plain `astro preview`, an unprovisioned
+      // Missing bindings (for example, plain `astro preview`, an unprovisioned
       // SESSION_SECRET) → public rendering. Auth degrading is fine; what it
       // must NOT do is cancel anything else.
     }
@@ -258,7 +258,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
     // The API gate, before extend: it needs only the editor, and a refused
     // request shouldn't pay for the site's extra work. A `resolveEditor` that
     // threw left `locals.editor` null above, so where pages degrade to public
-    // the API fails closed — refused, not served anonymously.
+    // the API fails closed—refused, not served anonymously.
     const pathname = context.url.pathname;
     const gatedApi =
       apiGate !== undefined &&
@@ -274,7 +274,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
     }
 
     // extend gets its OWN catch, deliberately separate from auth's. When these
-    // shared one, `resolveEditor` throwing (a sentinel SESSION_SECRET — the
+    // shared one, `resolveEditor` throwing (a sentinel SESSION_SECRET—the
     // dormant-until-provisioned state every module is supposed to survive)
     // silently skipped extend too, and everything extend feeds died with it:
     // `locals.tenant` never set, so host dispatch quietly served the ordinary
@@ -316,7 +316,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
     const locals = context.locals as LouiseLocals;
     // content freshness: cached HTML would hide editor edits. Edit-mode pages are
     // per-editor and must be live (`no-store`); public HTML `no-cache` so edits
-    // appear without a manual purge. Only HTML — hashed `/_astro/*` assets keep
+    // appear without a manual purge. Only HTML—hashed `/_astro/*` assets keep
     // their immutable caching (set via `_headers`).
     if ((response.headers.get("content-type") ?? "").includes("text/html")) {
       response.headers.set("Cache-Control", locals.editMode ? "no-store" : "no-cache");
@@ -324,7 +324,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
 
     if (config.cspStyleSrc) rewriteCspStyleSrc(response, config.cspStyleSrc);
     // Louise's bundled brand font is an inlined `data:` @font-face (loaded on
-    // every edit surface), so guarantee the CSP permits data: fonts — no-op
+    // every edit surface), so guarantee the CSP permits data: fonts—no-op
     // without a CSP header or when already allowed. Saves consumers a font-src edit.
     allowCspDataFonts(response);
     const noindex = config.noindex?.(context.url.hostname) ?? false;

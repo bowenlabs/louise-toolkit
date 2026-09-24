@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/astro` — `louiseLoader`: an Astro Content Layer loader that
+// `louise-toolkit/astro`—`louiseLoader`: an Astro Content Layer loader that
 // exposes a Louise D1 collection through the native `getCollection()` /
 // `getEntry()` pipeline, with a Zod schema derived from the collection's own
 // `defineCollection` fields (so entry data is typed the same way the editor
 // models it).
 //
 // Content Layer loaders run at BUILD time (in Node, during `astro build`), where
-// Cloudflare bindings don't exist — so, like `defineCatalogLoader`, the *read*
+// Cloudflare bindings don't exist—so, like `defineCatalogLoader`, the *read*
 // is injected: a site supplies `read()` (typically the D1 REST API at build, or
-// a snapshot) and this owns the rest — schema mapping, store population, content
+// a snapshot) and this owns the rest—schema mapping, store population, content
 // digests for incremental builds, and fail-safe error handling. The result is a
-// build-time snapshot of published content; rebuild on publish (e.g. a webhook)
+// build-time snapshot of published content; rebuild on publish (for example, a webhook)
 // to refresh it. For request-time freshness, read D1 directly in an SSR page (or
 // use the Live-collection `defineCatalogLoader`).
 //
@@ -23,7 +23,7 @@ import type { Loader } from "astro/loaders";
 import { z } from "astro/zod";
 import type { CollectionConfig, FieldConfig } from "louise-toolkit/content";
 
-/** A published row as read from D1 — a document in the collection's field shape. */
+/** A published row as read from D1—a document in the collection's field shape. */
 export type LouiseRow = Record<string, unknown>;
 
 /**
@@ -47,7 +47,7 @@ function fieldToZod(field: FieldConfig): z.ZodType {
     case "relationship":
       return z.number();
     case "checkbox":
-      // D1 stores booleans as 0/1 — accept either and normalize to boolean.
+      // D1 stores booleans as 0/1—accept either and normalize to boolean.
       return z.union([z.boolean(), z.number().transform((n) => n !== 0)]);
     case "date":
       // D1 stores dates as integer epochs; a REST/JSON read may hand back a
@@ -55,10 +55,10 @@ function fieldToZod(field: FieldConfig): z.ZodType {
       return z.coerce.date();
     case "group":
       // A group flattens to real columns in D1, but the Local API re-nests it on
-      // read — so mirror the config's nested object shape.
+      // read—so mirror the config's nested object shape.
       return z.object(mapFields(field.fields));
     // JSON-backed columns (rich text, builder arrays, freeform json) pass through
-    // untouched — their inner shape is the site's concern, not the loader's.
+    // untouched—their inner shape is the site's concern, not the loader's.
     case "richText":
     case "array":
     case "json":
@@ -72,7 +72,7 @@ function fieldToZod(field: FieldConfig): z.ZodType {
 function mapFields(fields: Record<string, FieldConfig>): Record<string, z.ZodType> {
   const shape: Record<string, z.ZodType> = {};
   for (const [key, field] of Object.entries(fields)) {
-    // A hasMany relationship lives in a join table — no column on this row.
+    // A hasMany relationship lives in a join table—no column on this row.
     if (field.type === "relationship" && field.hasMany) continue;
     const base = fieldToZod(field);
     // Non-required columns are nullable in D1 and may be absent from a row.
@@ -83,7 +83,7 @@ function mapFields(fields: Record<string, FieldConfig>): Record<string, z.ZodTyp
 
 /**
  * Build an Astro (Zod) schema from a collection's `defineCollection` fields.
- * Unknown/bookkeeping columns (`id`, `status`, timestamps) are dropped — the
+ * Unknown/bookkeeping columns (`id`, `status`, timestamps) are dropped—the
  * schema captures exactly the declared fields, so `getCollection` entry data
  * matches the editor's model.
  */
@@ -92,12 +92,12 @@ export function collectionToAstroSchema(collection: CollectionConfig): z.ZodType
 }
 
 export interface LouiseLoaderConfig {
-  /** The collection definition (from `defineCollection`) — drives the schema. */
+  /** The collection definition (from `defineCollection`)—drives the schema. */
   collection: CollectionConfig;
   /**
    * Read the published rows to expose, each a document in the collection's field
    * shape. The site owns D1 access (the loader runs at build time, off any
-   * binding) — typically the D1 REST API, or a cached snapshot. Only published
+   * binding)—typically the D1 REST API, or a cached snapshot. Only published
    * rows should be returned; drafts never reach `getCollection`.
    */
   read: () => Promise<LouiseRow[]>;
@@ -132,7 +132,7 @@ function errorMessage(error: unknown): string {
  * };
  * ```
  *
- * then read with `getCollection("pages")` / `getEntry("pages", slug)` — typed
+ * then read with `getCollection("pages")` / `getEntry("pages", slug)`—typed
  * from the collection's own fields, no hand-written schema.
  */
 export function louiseLoader(config: LouiseLoaderConfig): Loader {

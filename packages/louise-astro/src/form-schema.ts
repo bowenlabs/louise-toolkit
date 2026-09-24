@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/astro` — `formToAstroSchema`: the forms counterpart to
+// `louise-toolkit/astro`—`formToAstroSchema`: the forms counterpart to
 // `collectionToAstroSchema`. It maps a `defineForm` definition to a Zod schema
 // so a form can drop straight into an Astro Action's `input`:
 //
@@ -40,14 +40,14 @@ function formFieldToZod(field: FormField): z.ZodType {
       return required ? z.coerce.date() : z.coerce.date().optional();
     case "checkbox": {
       // A checkbox may arrive as a real boolean (JSON action), or "on"/"true"/
-      // "1"/1 (form-encoded) — normalize any of them to a boolean.
+      // "1"/1 (form-encoded)—normalize any of them to a boolean.
       const bool = z
         .union([z.boolean(), z.number(), z.string()])
         .transform((v) => v === true || v === 1 || v === "1" || v === "true" || v === "on");
       return required ? bool : bool.optional();
     }
     case "select": {
-      // Options double as the allowlist — a value outside them is rejected.
+      // Options double as the allowlist—a value outside them is rejected.
       const select =
         field.options && field.options.length > 0
           ? z.enum([...field.options] as [string, ...string[]])
@@ -63,7 +63,7 @@ function formFieldToZod(field: FormField): z.ZodType {
 }
 
 /**
- * Build a Zod schema from a `defineForm` definition's fields — the form is the
+ * Build a Zod schema from a `defineForm` definition's fields—the form is the
  * single source of truth for its Astro Action `input`, so the handler receives a
  * typed, validated value and the client infers the same shape. Field-level
  * `validation`/`schema` extras still run in the shared `validateSubmission` pass;

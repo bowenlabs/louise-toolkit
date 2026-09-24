@@ -2,7 +2,7 @@
 //
 // A destination has no visible text node to click, so it's always wrench-edited.
 // Before this it rendered as a bare text input; now it gets a page picker fed by
-// BOTH the `pages` API and the site's code-defined routes — the latter matter
+// BOTH the `pages` API and the site's code-defined routes—the latter matter
 // because a site's most-linked destinations (`/shop`, `/contact`) have no `pages`
 // row, so a picker without them is missing exactly what editors reach for.
 
@@ -112,7 +112,7 @@ function mount(
 
 const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles: true }));
 const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-/** The wrench — always the last button on the bar, and matched by position
+/** The wrench—always the last button on the bar, and matched by position
  *  rather than by name because its name is now the field's (ADR 0010 A2), so
  *  there is no fixed label to look for. */
 const cog = () =>
@@ -137,7 +137,7 @@ const lastDraft = (calls: Call[]) => {
   return (post?.body as { sections?: SectionItem[] } | undefined)?.sections?.[0];
 };
 
-/** Open the wrench on a node — the section by default, or any deeper path. */
+/** Open the wrench on a node—the section by default, or any deeper path. */
 async function openInspector(host: HTMLElement, path = "0") {
   over(host.querySelector(`[data-louise-node="${path}"]`) as Node);
   click(cog());
@@ -184,7 +184,7 @@ describe("inspector — link field", () => {
   it("maps slugs through pagePathForSlug and dedupes by path", async () => {
     // The home-row alias (coracle QA, louise-toolkit#348): the DB row a site
     // serves at `/` mapped to `/home` by default, so the picker offered "Home"
-    // twice — once as the built-in `/`, once as a duplicate-content alias.
+    // twice—once as the built-in `/`, once as a duplicate-content alias.
     // The site maps the slug; the picker collapses the pair by path, built-in
     // first.
     stubFetch([
@@ -215,7 +215,7 @@ describe("inspector — link field", () => {
     dispose = mount(host);
     await openInspector(host);
 
-    // An editor can still type a destination — the important half.
+    // An editor can still type a destination—the important half.
     expect(linkSelect()).toBeNull();
     expect(linkInput()).not.toBeNull();
   });
@@ -245,7 +245,7 @@ describe("inspector — link field", () => {
     input.value = "https://example.com";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
-    // NOTHING staged at all — committing per keystroke would re-render the section
+    // NOTHING staged at all—committing per keystroke would re-render the section
     // through the fragment route mid-word and yank the input from under the cursor.
     expect(lastDraft(calls)).toBeUndefined();
     expect(calls.some((c) => c.url === "/louise-fragment")).toBe(false);
@@ -298,7 +298,7 @@ describe("inspector — a value node scopes to its own field", () => {
     await flush();
     await flush();
 
-    // The value lives on the OWNING item — a value node addresses a field, it
+    // The value lives on the OWNING item—a value node addresses a field, it
     // doesn't own one.
     expect(lastDraft(calls)?.href).toBe("/pricing");
   });

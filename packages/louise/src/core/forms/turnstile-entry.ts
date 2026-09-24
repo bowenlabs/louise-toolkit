@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms/turnstile — Cloudflare Turnstile, both halves, and
+// louise-toolkit/forms/turnstile—Cloudflare Turnstile, both halves, and
 // nothing else.
 //
 // Its own entry because `louise-toolkit/forms` also carries the form-table

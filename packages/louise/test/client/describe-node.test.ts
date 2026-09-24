@@ -1,4 +1,4 @@
-// `describeNode` — the catalog→chrome seam (ADR 0010).
+// `describeNode`—the catalog→chrome seam (ADR 0010).
 //
 // This is the only place that knows a section from a block from a field, so it's
 // where the interesting judgements live: whether a node can hold children,
@@ -65,7 +65,7 @@ describe("describeNode — sections", () => {
 
   it("is a container only when its def opts into blocks", () => {
     expect(at([1])?.children).toEqual({ count: 2 });
-    // `hero` declares no block policy, so it holds nothing — and must not offer
+    // `hero` declares no block policy, so it holds nothing—and must not offer
     // an add-first button.
     expect(at([0])?.children).toBeUndefined();
   });
@@ -76,7 +76,7 @@ describe("describeNode — sections", () => {
     expect(at([2])?.children).toEqual({ count: 0 });
   });
 
-  // The chrome can't name what goes inside a container — its own label describes
+  // The chrome can't name what goes inside a container—its own label describes
   // the container, and using it produced "Add the first Hero" on a hero whose
   // children are CTAs (live QA, 2026-07-28). So the name is resolved here, where
   // the block policy actually is.
@@ -90,7 +90,7 @@ describe("describeNode — sections", () => {
   });
 
   it("gives no child name when several kinds are allowed", () => {
-    // `content` takes text OR button — there is no singular answer, and inventing
+    // `content` takes text OR button—there is no singular answer, and inventing
     // one would misname whichever the editor actually picks.
     expect(at([2])?.children).toEqual({ count: 0 });
   });
@@ -113,7 +113,7 @@ describe("describeNode — sections", () => {
   });
 
   it("offers a wrench only when there is something to configure", () => {
-    // `hero` is a single inline heading — an inspector would read "Nothing to
+    // `hero` is a single inline heading—an inspector would read "Nothing to
     // configure here yet", which is exactly what live QA saw.
     expect(at([0])?.fields).toBe(false);
     // A non-inline field counts…
@@ -156,7 +156,7 @@ describe("describeNode — fields", () => {
   });
 
   it("never reports a position, so a value can't offer move or delete", () => {
-    // Where a CTA sits belongs to whatever contains it — this absence is what
+    // Where a CTA sits belongs to whatever contains it—this absence is what
     // makes the wrench-only toolbar fall out instead of being hand-built.
     expect(at([3, "href"])?.ordered).toBeUndefined();
     expect(at([3, "href"])?.children).toBeUndefined();
@@ -176,7 +176,7 @@ describe("describeNode — paths that address nothing", () => {
     ["a path deeper than anything real", [1, "blocks", 0, "body", "extra"]],
   ])("returns null for %s", (_label, path) => {
     // A stale marker must resolve to nothing rather than to a wrench over
-    // something that no longer exists — the chrome then treats it as unmarked.
+    // something that no longer exists—the chrome then treats it as unmarked.
     expect(at(path as (string | number)[])).toBeNull();
   });
 });

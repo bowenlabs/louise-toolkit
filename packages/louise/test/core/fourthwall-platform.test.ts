@@ -77,7 +77,7 @@ describe("fourthwall platform — request layer", () => {
     const calls = stubFetch([{ body: [] }]);
     await listExternalOrders(config);
     expect(calls[0]?.url).toBe("https://api.fourthwall.com/open-api/v1.0/external-orders");
-    // Basic, not Bearer, and not the storefront's query-param token — this is
+    // Basic, not Bearer, and not the storefront's query-param token—this is
     // the credential that must never reach a browser.
     expect(calls[0]?.headers.authorization).toBe(`Basic ${btoa("api-user:s3cret")}`);
     expect(calls[0]?.url).not.toContain("storefront_token");
@@ -229,7 +229,7 @@ describe("fourthwall platform — products", () => {
 
     await createProduct(config, { kind: "physical", name: "Tee", profitMargin: 8 });
     expect(calls[0]?.body).toEqual({ name: "Tee", profitMargin: 8, type: "PHYSICAL" });
-    // `kind` is the toolkit's discriminant, not a Fourthwall field — it must not
+    // `kind` is the toolkit's discriminant, not a Fourthwall field—it must not
     // ride along into the request body.
     expect(calls[0]?.body).not.toHaveProperty("kind");
 
@@ -246,7 +246,7 @@ describe("fourthwall platform — products", () => {
     const stock = await getProductInventory(config, "p1");
     expect(stock).toEqual([
       { variantId: "v1", quantity: 4, raw: { variantId: "v1", quantity: 4 } },
-      // null, not 0 — "not stock-tracked" and "none left" are different facts,
+      // null, not 0—"not stock-tracked" and "none left" are different facts,
       // and collapsing them hides a sellable variant.
       { variantId: "v2", quantity: null, raw: { variantId: "v2" } },
     ]);
@@ -306,7 +306,7 @@ describe("fourthwall platform — rate limiting", () => {
     const calls = stubFetch([{ body: { id: "p" } }]);
     const limits = { productCreatesPerMinute: 1, globalPer10s: 100 } as const;
     // Two API users, one shop. Fourthwall counts per SHOP, so separate buckets
-    // would let the pair overrun the real limit together — which is the whole
+    // would let the pair overrun the real limit together—which is the whole
     // reason `rateLimitKey` exists.
     const userA: FourthwallPlatformConfig = {
       username: "a",

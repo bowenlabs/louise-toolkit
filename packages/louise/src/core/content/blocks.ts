@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 /**
- * Renderer registry for block/document content (issue #13) — adopts the
+ * Renderer registry for block/document content (issue #13)—adopts the
  * Portable Text + `@portabletext/react` pattern (idea, not code): a content
  * document is a serializable **array of typed blocks**, and rendering is a
  * lookup of `block.type → renderer`, not a hand-rolled `switch`. Adding a
@@ -9,7 +9,7 @@
  * branch.
  *
  * Framework-agnostic on purpose: `TRenderer` is whatever a host wants a
- * block's renderer to be — a string-producing function (SSR/preview HTML),
+ * block's renderer to be—a string-producing function (SSR/preview HTML),
  * a server component, a Solid component, etc. The registry only does lookup,
  * fallback, and introspection; it never assumes a rendering technology.
  */
@@ -18,7 +18,7 @@
  * The minimal shape every block must have: a string discriminant under
  * `type`. (Portable Text uses `_type`; Louise content is TipTap-JSON-shaped
  * and already keyed on `type`, so the registry keys on `type` to stay
- * drop-in with stored content — the editor can stay TipTap.)
+ * drop-in with stored content—the editor can stay TipTap.)
  */
 export interface PortableBlockLike {
   type: string;
@@ -92,8 +92,8 @@ export function createBlockRegistry<TRenderer>(
 }
 
 /**
- * A renderer that turns one block into an HTML string — the registry value
- * type for SSR/preview paths that build markup as strings (e.g. a Hono
+ * A renderer that turns one block into an HTML string—the registry value
+ * type for SSR/preview paths that build markup as strings (for example, a Hono
  * preview route) rather than mounting components.
  */
 export type StringBlockRenderer<TBlock extends PortableBlockLike = PortableBlockLike> = (
@@ -103,7 +103,7 @@ export type StringBlockRenderer<TBlock extends PortableBlockLike = PortableBlock
 /**
  * Render an array of blocks to a single HTML string via a registry of
  * {@link StringBlockRenderer}s. Blocks whose type resolves to no renderer
- * (and no fallback) contribute the empty string — the same forgiving
+ * (and no fallback) contribute the empty string—the same forgiving
  * behavior the old hand-rolled `switch` had for unknown types.
  */
 export function renderBlocksToString<TBlock extends PortableBlockLike>(

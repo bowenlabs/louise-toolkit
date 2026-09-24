@@ -7,7 +7,7 @@
 // generator (schema-gen.ts) so the two can never drift ("always generate,
 // never hand-roll").
 //
-// Both are optional/nullable text columns — additive, so bringing an existing
+// Both are optional/nullable text columns—additive, so bringing an existing
 // site onto a louise version that includes them is a safe migration.
 export const LOUISE_USER_FIELDS = {
   firstName: { type: "string", required: false, input: true },

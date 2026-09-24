@@ -29,7 +29,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           // Core primitives plus the framework-agnostic `louise/astro` helpers
-          // (build-time loaders — pure Node, no DOM).
+          // (build-time loaders—pure Node, no DOM).
           include: ["test/core/**/*.test.ts", "test/astro/**/*.test.ts"],
         },
       },

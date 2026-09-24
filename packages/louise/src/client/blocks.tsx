@@ -5,7 +5,7 @@
 // sanitized-HTML storage contract keeps working: `toDOM` is the persistence
 // format (rendered verbatim on the public site via set:html after
 // sanitization), `parseDOM` reconstructs the node when a stored page is
-// edited again, and the Solid node view is *editing chrome only* — selection
+// edited again, and the Solid node view is *editing chrome only*—selection
 // outline and per-block controls, never markup of record.
 //
 // Class names on serialized blocks use the `pb-` prefix exclusively: the
@@ -14,9 +14,9 @@
 //
 // The grid (rowBlock → columnBlock) is the adjustable layout primitive: a row
 // serializes its column widths as a sanitizer-validated inline
-// `grid-template-columns` fr track list (e.g. "6fr 4fr"), and the row node view
+// `grid-template-columns` fr track list (for example, "6fr 4fr"), and the row node view
 // exposes preset layouts, per-column width steppers, and add/remove column +
-// add row — so widths are freely adjustable, not just fixed presets.
+// add row—so widths are freely adjustable, not just fixed presets.
 
 import type { Attrs, Node as PMNode } from "@prosekit/pm/model";
 import type { Command } from "@prosekit/pm/state";
@@ -32,20 +32,20 @@ import {
 import { createSignal, For, onCleanup, Show } from "solid-js";
 import { wirePopoverDismiss } from "./a11y.js";
 import { Icon } from "./icons.jsx";
-// The link editor moved out to be shared with the sections inspector (#38) —
-// same control, two hosts. It was defined privately here first.
+// The link editor moved out to be shared with the sections inspector (#38)—same
+// control, two hosts. It was defined privately here first.
 import { LinkField } from "./link-field.jsx";
 
 export interface BlockAttrSpec {
   default: string;
-  /** Serialized as this data-* attribute (e.g. "data-size"). */
+  /** Serialized as this data-* attribute (for example, "data-size"). */
   attr: string;
 }
 
 export interface BlockDef {
-  /** Node name in the schema (e.g. "dividerBlock"). */
+  /** Node name in the schema (for example, "dividerBlock"). */
   name: string;
-  /** `data-block` token — the stable identity in serialized HTML. */
+  /** `data-block` token—the stable identity in serialized HTML. */
   block: string;
   /** Serialized tag (section/figure/hr/…). */
   tag: string;
@@ -57,7 +57,7 @@ export interface BlockDef {
   attrs?: Record<string, BlockAttrSpec>;
   /** True for content-less blocks (divider). */
   atom?: boolean;
-  /** Editing chrome — optional: container blocks render fine through
+  /** Editing chrome—optional: container blocks render fine through
    * ProseMirror's default toDOM rendering with CSS-only chrome. */
   component?: SolidNodeViewComponent;
 }
@@ -91,7 +91,7 @@ export function defineBlock(def: BlockDef): Extension {
     parseDOM: [
       {
         tag: `${def.tag}[data-block="${def.block}"]`,
-        // Beat the generic rules for the same tag (e.g. the basic
+        // Beat the generic rules for the same tag (for example, the basic
         // extension's bare `blockquote`), which share the default 50.
         priority: 60,
         getAttrs: (dom: HTMLElement) =>
@@ -146,7 +146,7 @@ const DividerView: SolidNodeViewComponent = (props) => {
    A row is a CSS grid whose track list is its `cols` attr (an fr weight list
    like "6fr 4fr"), serialized to the (sanitizer-validated) inline
    `grid-template-columns`. Columns hold arbitrary blocks. The row node view is
-   editing chrome only — the serialized `toDOM` stays clean, so stored/rendered
+   editing chrome only—the serialized `toDOM` stays clean, so stored/rendered
    HTML never carries the toolbar. */
 
 const DEFAULT_ROW_COLS = "1fr 1fr";
@@ -497,8 +497,8 @@ function defineGalleryBlock(): Extension {
 /* ── Button block ─────────────────────────────────────────────────────────
    A link styled as a button. An atom (label + href are node attrs, edited via an
    on-canvas popup) so there's no inline-content/link-mark ambiguity. Serializes
-   to `<div data-block="button" class="pb-button"><a href="…">label</a></div>` —
-   the div keeps class + data-block, the anchor keeps href, both surviving the
+   to `<div data-block="button" class="pb-button"><a href="…">label</a></div>`—the
+   div keeps class + data-block, the anchor keeps href, both surviving the
    sanitizer with no class needed on <a>. */
 
 const ButtonView: SolidNodeViewComponent = (props) => {
@@ -674,7 +674,7 @@ export const BLOCKS: BlockEntry[] = [
   },
 ];
 
-/** All block extensions, unioned — opt in via RichText's `blocks` prop. */
+/** All block extensions, unioned—opt in via RichText's `blocks` prop. */
 export function defineBlocksExtension(): Extension {
   return union(
     ...SIMPLE_BLOCKS.map(defineBlock),
@@ -716,7 +716,7 @@ export function BlockInserterButton() {
         <Icon name="plus" /> Block
       </button>
       <Show when={open()}>
-        {/* A labelled button group, not role="menu" — these are plain buttons in
+        {/* A labelled button group, not role="menu"—these are plain buttons in
             the tab order, and announcing "menu" would promise arrow-key roving
             that isn't implemented. Escape / an outside press dismiss it. */}
         <div

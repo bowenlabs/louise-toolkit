@@ -1,6 +1,6 @@
 // The versioned-draft store deps for `pages`, shared by the raw `versionsRoute`
 // (worker.ts) and the `saveDraft` Astro Action (actions/index.ts) so their draft
-// behaviour — sections validation + the #70 DRAFTS KV write-buffer — can never
+// behaviour—sections validation + the #70 DRAFTS KV write-buffer—can never
 // drift between the two save entrypoints (#138).
 //
 // `deferReindex` is deliberately NOT here: it's a *publish*-path concern, and a
@@ -12,11 +12,11 @@ import { pages, pagesVersions } from "../../schema.js";
 import { BLOCKS } from "../../sections/blocks.js";
 import { SECTIONS } from "../../sections/catalog.js";
 
-/** Media base — matches wrangler.jsonc `vars.MEDIA_URL`; every section image is
+/** Media base—matches wrangler.jsonc `vars.MEDIA_URL`; every section image is
  *  validated against it so only media-library assets are stored (#47). */
 const MEDIA_BASE = "/media";
 
-/** Shared draft deps — spread into both `versionsRoute(...)` and
+/** Shared draft deps—spread into both `versionsRoute(...)` and
  *  `louiseSaveDraftAction(...)`. Params are annotated inline because the
  *  `SaveDraftDeps` type isn't publicly exported; the shape is structurally what
  *  both consumers accept. */

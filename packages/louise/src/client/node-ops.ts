@@ -4,7 +4,7 @@
 // ADR 0005 §4).
 //
 // Reorder / delete / insert move elements that are ALREADY rendered and reconcile
-// the store — no server round-trip, no reload. The catch is that a node's index is
+// the store—no server round-trip, no reload. The catch is that a node's index is
 // baked into its own marker and into the markers of everything inside it, so after
 // a move the survivors must be re-stamped or the markers (and thus the store-write
 // paths they drive) drift out of alignment with the data.
@@ -27,7 +27,7 @@ import {
 
 /** One marker family since A2 (ADR 0010): `data-louise-sfield` folded into the
  *  node marker, so a re-stamp moves one attribute instead of keeping two in step.
- *  A1 had to move both together — a re-stamp that moved only the node marker
+ *  A1 had to move both together—a re-stamp that moved only the node marker
  *  would have left inline edits writing into the item next door. */
 const RESTAMPED_ATTRS = [NODE_MARKER_ATTR] as const;
 
@@ -43,13 +43,13 @@ function makeFocusable(el: HTMLElement): void {
 }
 
 /**
- * Every marked node at `parent`'s depth + 1 whose parent path is `parent` — one
+ * Every marked node at `parent`'s depth + 1 whose parent path is `parent`—one
  * ordered sibling list, at any depth.
  *
  * Deliberately **DOM order**, not marker order. Sorting by the stamped index
  * looks more careful and is actively wrong: right after an insert the new element
  * still carries the index the fragment route gave it (0), so two siblings claim
- * the same position and a sort interleaves them — which re-stamps the list into an
+ * the same position and a sort interleaves them—which re-stamps the list into an
  * order that doesn't match what's on screen. Between structural ops the two orders
  * agree anyway; during one, only the DOM is trustworthy.
  */
@@ -75,7 +75,7 @@ function restampSiblings(parent: NodePath, els: HTMLElement[]): void {
 
 /**
  * Move the child at `from` to `to` within `parent`'s ordered list, and re-stamp
- * the list — the instant reflection of a reorder. No-op when either index is out
+ * the list—the instant reflection of a reorder. No-op when either index is out
  * of range. Assumes the siblings share a DOM parent, as every render nests them.
  *
  * One function for sections (`parent: []`) and blocks (`parent: [i, "blocks"]`).
@@ -96,8 +96,8 @@ export function moveNodeElement(
   restampSiblings(parent, els);
 }
 
-/** Remove the child at `index` and re-stamp the survivors to a gapless 0…n-1 —
- *  the instant reflection of a delete. No-op when not found. */
+/** Remove the child at `index` and re-stamp the survivors to a gapless 0…n-1—*
+  the instant reflection of a delete. No-op when not found. */
 export function deleteNodeElement(
   parent: NodePath,
   index: number,
@@ -115,7 +115,7 @@ export function deleteNodeElement(
 
 /**
  * Insert a server-rendered element at `index` among `parent`'s marked children
- * and re-stamp the list — the instant reflection of a structural **add**, the
+ * and re-stamp the list—the instant reflection of a structural **add**, the
  * store having already spliced the item at `index`.
  *
  * `el` comes from the fragment-render route stamped at its own index 0, so every
@@ -136,7 +136,7 @@ export function insertNodeElement(
 }
 
 /**
- * Replace the child at `index` in place with a freshly rendered element — the
+ * Replace the child at `index` in place with a freshly rendered element—the
  * instant reflection of a change that alters *this* child's markup (a block add,
  * a type swap), where only its own subtree changes and siblings are untouched.
  */

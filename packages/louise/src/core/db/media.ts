@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework-owned `media` asset registry — turns "R2 file picker" into a real
+// Framework-owned `media` asset registry—turns "R2 file picker" into a real
 // media library. Tracked assets carry verified type/size/dimensions plus
 // asset-level `alt`/`caption`, are reusable across collection items, and make
 // delete-safety a join (with `louise-toolkit/media`'s LIKE scan retained as a
@@ -10,7 +10,7 @@
 // asset's alt/caption/dimensions by join. `alt` is an asset-level default
 // (reused everywhere, DRY); a per-usage override and per-usage crop live on the
 // consumer row, not here. Compose with `mediaColumns` or use the ready-made
-// `media` table — drizzle-kit generates the migration from your schema either
+// `media` table—drizzle-kit generates the migration from your schema either
 // way (the `pages`/`site_settings` precedent).
 
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
@@ -31,7 +31,7 @@ export const mediaColumns = {
   /** Intrinsic pixel dimensions, when known. */
   width: integer("width"),
   height: integer("height"),
-  /** Accessibility / SEO description — the asset-level default. */
+  /** Accessibility / SEO description—the asset-level default. */
   alt: text("alt"),
   caption: text("caption"),
   uploadedAt: integer("uploaded_at", { mode: "timestamp" }).$defaultFn(() => new Date()),

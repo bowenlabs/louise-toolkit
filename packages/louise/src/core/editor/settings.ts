@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `settings` route. The `site_settings` singleton
+// louise-toolkit/editor—the generic `settings` route. The `site_settings` singleton
 // holds a Louise site's config. Storage model (issues #10/#11): a **structured
 // base** (the framework `siteSettingsColumns`) plus a JSON **`custom`** column
 // for site-specific settings. GET returns the merged config (custom flattened
-// on top); PATCH/POST patches an allowlisted set — base keys → their columns,
+// on top); PATCH/POST patches an allowlisted set—base keys → their columns,
 // site-declared keys → merged into `custom`. Keys in neither allowlist are
 // ignored (never written): a forged request can't touch an unintended column.
 //
@@ -28,12 +28,12 @@ export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
   table: SQLiteTable;
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
-  /** Drizzle property keys of the base columns a site exposes for editing —
+  /** Drizzle property keys of the base columns a site exposes for editing;
    *  only these structured columns are patched. */
   columns: string[];
   /** Site-specific setting keys, merged into the `custom` JSON object. */
   customKeys?: string[];
-  /** Setting keys whose value must be a media-library URL (e.g. `logoUrl`,
+  /** Setting keys whose value must be a media-library URL (for example, `logoUrl`,
    *  `defaultOgImageUrl`). A patched value that is a non-empty string not served
    *  from {@link mediaBase} is rejected `422`, so an external hotlink can't be
    *  stored. Requires {@link mediaBase}. */
@@ -50,7 +50,7 @@ export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
  * Reject any link row whose `href` names a scheme a site must not render.
  *
  * Settings hold `navLinks` / `socialLinks` as arrays of `{ label, href }`, and a
- * site renders them straight into `<a href={…}>` in its chrome — on every page.
+ * site renders them straight into `<a href={…}>` in its chrome—on every page.
  * Nothing checked them: an editor could store `javascript:alert(1)` as a nav
  * destination and it would persist and render as a working link for every
  * visitor. Sections closed exactly this hole with the `link` field type, whose
@@ -59,7 +59,7 @@ export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
  * Shape-driven rather than key-driven, deliberately. An `imageKeys`-style
  * allowlist means every site must remember to configure it, and the one that
  * forgets is the one that gets hit. Any patched value that is an array of objects
- * carrying an `href` is a link list — that key has one meaning — so a site's own
+ * carrying an `href` is a link list—that key has one meaning—so a site's own
  * custom link setting is covered without opting in.
  *
  * Non-link values pass through untouched; this is not a type checker.
@@ -84,7 +84,7 @@ export function validateSettingsLinks(patch: Record<string, unknown>): Validatio
 
 /**
  * Reject any patched {@link SettingsRouteConfig.imageKeys} value that isn't a
- * media-library URL — pure so the allowlist enforcement is unit-testable
+ * media-library URL—pure so the allowlist enforcement is unit-testable
  * independently of D1. Empty/absent/non-string values are skipped (clearing a
  * field is fine; type coercion isn't this check's job).
  */
@@ -113,13 +113,13 @@ export interface SettingsPartition {
   columnUpdates: Record<string, unknown>;
   /** Site-specific keys to merge into the `custom` JSON object. */
   customUpdates: Record<string, unknown>;
-  /** Keys in neither allowlist — ignored, never written. */
+  /** Keys in neither allowlist—ignored, never written. */
   ignored: string[];
 }
 
 /**
  * Split an incoming settings patch into base-column updates, `custom`-extension
- * updates, and ignored (non-allowlisted) keys. Pure — the allowlist enforcement
+ * updates, and ignored (non-allowlisted) keys. Pure—the allowlist enforcement
  * lives here so it's unit-testable independently of D1.
  */
 export function partitionSettingsPatch(
@@ -149,7 +149,7 @@ function flatten(row: Record<string, unknown>): Record<string, unknown> {
   return { ...rest, ...extra };
 }
 
-/** The store-side settings config — the subset of {@link SettingsRouteConfig} the
+/** The store-side settings config—the subset of {@link SettingsRouteConfig} the
  *  {@link applySettingsPatch} write needs (no transport/auth concern). */
 export interface SettingsPatchConfig {
   table: SQLiteTable;
@@ -174,7 +174,7 @@ export type SettingsPatchResult =
  * Apply an already-validated settings patch to the singleton row: enforce
  * media-strictness on image keys, split the patch into base-column vs `custom`
  * updates ({@link partitionSettingsPatch}), and write. Carries no transport/parse
- * concern — the raw {@link settingsRoute} (POST/PATCH) and a host's `settings`
+ * concern—the raw {@link settingsRoute} (POST/PATCH) and a host's `settings`
  * Action each validate their own input, then converge here, so the merge + write
  * lives in exactly one place rather than being duplicated per adapter.
  */
@@ -193,7 +193,7 @@ export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRout
 
   // Link-scheme strictness: a stored `href` is rendered into the site chrome on
   // every page, so it gets the same allowlist a section's `link` field does.
-  // Unconditional — there is no config to forget, and no site wants the other
+  // Unconditional—there is no config to forget, and no site wants the other
   // behaviour.
   const linkViolations = validateSettingsLinks(patch);
   if (linkViolations.length > 0) {
@@ -201,7 +201,7 @@ export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRout
   }
 
   // Media-strictness: image settings (logo, favicon, share image…) must point at
-  // a media-library URL — an external hotlink is rejected before write.
+  // a media-library URL—an external hotlink is rejected before write.
   if (config.imageKeys && config.imageKeys.length > 0 && config.mediaBase) {
     const violations = validateSettingsImages(patch, config.imageKeys, config.mediaBase);
     if (violations.length > 0) {

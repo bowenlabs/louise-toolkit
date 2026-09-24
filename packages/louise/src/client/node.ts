@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The editable-node model (ADR 0010) — the marker contract the on-canvas chrome
+// The editable-node model (ADR 0010)—the marker contract the on-canvas chrome
 // reads.
 //
 // A render stamps ONE attribute on anything editable:
@@ -15,20 +15,20 @@
 //   "0.blocks.1.href"   → block 1's href field
 //
 // This replaces `data-louise-section` / `data-louise-block` / `data-louise-link`,
-// which were three attributes over four grammars with two hand-written parsers —
-// and which forced the render side to string-sniff a path to decide which
+// which were three attributes over four grammars with two hand-written parsers—and
+// which forced the render side to string-sniff a path to decide which
 // attribute to stamp (a section component in the layer above, pre-0010).
 //
 // The chrome deliberately owns **no policy**. It cannot tell a section from a
 // block from a link, and does not try: it hands a parsed path to a `resolve`
 // callback and renders whatever capabilities come back. That is what makes a new
-// kind of node (a shared value, an external source — ADR 0010 Phase B) a change
+// kind of node (a shared value, an external source—ADR 0010 Phase B) a change
 // in the *editor*, never in the chrome.
 
 /** One step of a node path: an array index, or a field/collection key. */
 export type PathSegment = number | string;
 
-/** A parsed `data-louise-node` value — a path into the page's `sections` JSON. */
+/** A parsed `data-louise-node` value—a path into the page's `sections` JSON. */
 export type NodePath = PathSegment[];
 
 /** Anything the readers can scan. NOT `ParentNode`: that DOM mixin isn't
@@ -48,7 +48,7 @@ export const NODE_MARKER_ATTR = "data-louise-node";
  * three old parsers handled separately, because all of them were only ever paths.
  *
  * Malformed markers return `null` rather than throwing, so a bad stamp is skipped
- * instead of taking the chrome down with it — the defensiveness the section,
+ * instead of taking the chrome down with it—the defensiveness the section,
  * block, and link readers each implemented on their own.
  */
 export function parseNodePath(value: string | null): NodePath | null {
@@ -81,7 +81,7 @@ export function samePath(a: NodePath, b: NodePath): boolean {
 
 /**
  * What a node can do, resolved by the editor from its catalog. Every field is
- * optional and independent — a node may have any combination, including none.
+ * optional and independent—a node may have any combination, including none.
  *
  * They are NOT an exclusive role. A section is both `ordered` (it has a position
  * in the page's list, so it moves and deletes) and a `children` holder (it holds
@@ -89,20 +89,20 @@ export function samePath(a: NodePath, b: NodePath): boolean {
  * the pre-0010 chrome.
  */
 export interface NodeDescriptor {
-  /** The node occupies a position in a parent's ordered list — enables move and
+  /** The node occupies a position in a parent's ordered list—enables move and
    *  delete, and supplies the bounds so the chrome can disable the ends. */
   ordered?: { index: number; count: number };
-  /** The node holds an ordered list — enables add. `count: 0` is what drives the
+  /** The node holds an ordered list—enables add. `count: 0` is what drives the
    *  "add the first one" affordance, at every depth.
    *
    *  `label` names what goes IN, which the chrome cannot infer: the container's
    *  own label describes the container. Live QA read "Add the first Hero" on a
-   *  hero whose children are CTAs — the same `label` that correctly reads "Add
+   *  hero whose children are CTAs—the same `label` that correctly reads "Add
    *  Hero after" one button along. Omitted when the answer isn't singular (a
    *  container accepting several child types), which the chrome renders as the
    *  neutral "Add the first one". */
   children?: { count: number; label?: string };
-  /** The node has an inspector — enables the wrench. */
+  /** The node has an inspector—enables the wrench. */
   fields?: boolean;
   /**
    * Which ring/toolbar palette to draw. The chrome maps this to a CSS class and
@@ -110,7 +110,7 @@ export interface NodeDescriptor {
    * SOURCE (shared / external) purely by changing what the editor returns here.
    */
   tone?: NodeTone;
-  /** Shown in the toolbar's accessible name, e.g. "Hero". */
+  /** Shown in the toolbar's accessible name, for example, "Hero". */
   label?: string;
 }
 
@@ -123,7 +123,7 @@ export type NodeTone = "section" | "block" | "value" | "shared" | "external";
 export type ResolveNode = (path: NodePath) => NodeDescriptor | null;
 
 /** The marked node element nearest `node` (or `node` itself), with its parsed
- *  path — the deepest-boundary-wins lookup, now over one attribute instead of a
+ *  path—the deepest-boundary-wins lookup, now over one attribute instead of a
  *  hand-ordered ladder. */
 export function nodeAt(node: Node | null): { el: HTMLElement; path: NodePath } | null {
   const start = node instanceof Element ? node : (node?.parentElement ?? null);
@@ -144,7 +144,7 @@ export function readNodeMarkers(root: NodeRoot = document): { el: HTMLElement; p
 }
 
 /** Re-stamp a node's marker (and every marked descendant) after its path changes
- *  — the one re-stamper that replaces `restampSection` + `restampBlock`.
+ * —the one re-stamper that replaces `restampSection` + `restampBlock`.
  *
  *  Descendants are rewritten by PREFIX, so a block's fields follow its block, and
  *  a block follows its section, without any of them knowing their own depth. */

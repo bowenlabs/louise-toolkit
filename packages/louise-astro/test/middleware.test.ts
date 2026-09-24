@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createLouiseMiddleware } from "../src/middleware.js";
 import type { KVLike, RateRule } from "louise-toolkit/security";
 
-/** In-memory KV counter — the same fake the security tests use. */
+/** In-memory KV counter—the same fake the security tests use. */
 function makeKv(): KVLike {
   const store = new Map<string, string>();
   return {
@@ -66,7 +66,7 @@ describe("createLouiseMiddleware — rate limiting", () => {
         },
       },
     });
-    // Building the middleware must NOT touch the binding — `env` is only valid in
+    // Building the middleware must NOT touch the binding—`env` is only valid in
     // request scope, so an eager read here would crash at module load.
     expect(reads).toBe(0);
 
@@ -111,7 +111,7 @@ describe("createLouiseMiddleware — rate limiting", () => {
       resolveEditor: () => null,
       rateLimit: { rules: RULES, kv: () => undefined },
     });
-    // Three POSTs over a limit of 2 — but with no backend, none are blocked.
+    // Three POSTs over a limit of 2—but with no backend, none are blocked.
     const hit = () => run(mw, makeContext("POST", "/api/auth/sign-in/magic-link"));
     expect((await hit()).status).toBe(200);
     expect((await hit()).status).toBe(200);
@@ -152,7 +152,7 @@ describe("createLouiseMiddleware — rewrite (#307)", () => {
   });
 
   it("calls next() bare when the hook returns undefined", async () => {
-    // Not `next(undefined)` by accident — an unrewritten request must take the
+    // Not `next(undefined)` by accident—an unrewritten request must take the
     // exact path it always did.
     const { next, seen } = spyNext();
     const mw = createLouiseMiddleware({
@@ -229,7 +229,7 @@ describe("createLouiseMiddleware — rewrite (#307)", () => {
 
   it("lets a throwing rewrite fail loudly rather than serve the unrewritten path", async () => {
     // Degrading to the unrewritten path would, under host dispatch, mean
-    // rendering another tenant's page — so this must not be swallowed.
+    // rendering another tenant's page—so this must not be swallowed.
     const { next } = spyNext();
     const mw = createLouiseMiddleware({
       resolveEditor: () => null,
@@ -245,7 +245,7 @@ describe("createLouiseMiddleware — extend survives an auth failure", () => {
   it("still runs extend when resolveEditor throws", async () => {
     // The dormant-until-provisioned state: SESSION_SECRET is a sentinel, so
     // resolveEditor throws on every request. That must degrade to "signed
-    // out" — never to "extend was skipped", because extend is what writes
+    // out"—never to "extend was skipped", because extend is what writes
     // locals.tenant, and skipping it silently turns every tenant subdomain
     // into the ordinary site. Found live on themidwestartist.com's Wave 4.
     let extended = false;

@@ -2,7 +2,7 @@
 //
 // The guard exists so a stray click can't lose an edit session: clicking a CTA
 // you are editing should edit its label, not leave the page. It used to block
-// EVERY `a[href]` outside the editor's own chrome — which also blocked the
+// EVERY `a[href]` outside the editor's own chrome—which also blocked the
 // site's header nav, footer, brand mark and skip link, so an editor could not
 // reach another page at all without first leaving edit mode. That is the worse
 // failure of the two: a lost edit is recoverable, an unreachable page is not.

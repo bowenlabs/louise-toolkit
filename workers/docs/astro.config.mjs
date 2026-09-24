@@ -2,13 +2,13 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig, passthroughImageService } from "astro/config";
 
-// docs.louisetoolkit.com — the Starlight documentation as a standalone STATIC Astro
+// docs.louisetoolkit.com—the Starlight documentation as a standalone STATIC Astro
 // app. `astro build` emits a plain static site to dist/ (no adapter, default
 // `output: "static"`), which the single marketing Worker serves under the docs
 // host (see workers/site/src/worker.ts: docs.* requests are prefixed to
 // /_docs/* against the Worker's static assets). Content lives at the app root
-// (src/content/docs/{guide,reference}), so pages are /guide/x and /reference/x —
-// the subdomain-root URLs, with no path rewriting of internal links.
+// (src/content/docs/{guide,reference}), so pages are /guide/x and /reference/x—the
+// subdomain-root URLs, with no path rewriting of internal links.
 export default defineConfig({
   site: "https://docs.louisetoolkit.com",
   // No raster image optimization here (the only asset is an SVG logo, which is
@@ -19,7 +19,7 @@ export default defineConfig({
   //
   // The two `/astroid/` entries are gone-but-not-forgotten: those pages moved to
   // docs.astroidjs.org when Astroid split into its own repo, and these URLs are
-  // published — linked from the README, from npm, and from wherever readers
+  // published—linked from the README, from npm, and from wherever readers
   // bookmarked them. A 404 is a worse answer than a hop. The reference page became
   // fifteen pages there, so `/reference/astroid/` lands on the config page, which
   // is what its first section was.

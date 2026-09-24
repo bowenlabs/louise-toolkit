@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/client — the auto-save scheduler shared by both on-page editing
+// louise-toolkit/client—the auto-save scheduler shared by both on-page editing
 // surfaces (inline fields in `index.ts` and the sections dock in `sections.tsx`).
 //
 // It is deliberately framework-agnostic (no Solid, no DOM): give it the surface's
-// existing save function and it debounces edits, calls that save, and — crucially
-// — serializes saves so two never overlap. When an edit lands while a save is
+// existing save function and it debounces edits, calls that save, and—crucially—serializes
+// saves so two never overlap. When an edit lands while a save is
 // in flight, exactly one coalesced re-run is queued for when it settles, so no
 // edit is ever dropped. The save function keeps owning persistence + status
 // reporting; this only owns *when* to call it.
@@ -15,19 +15,19 @@
 // are what the surfaces would otherwise each reimplement.
 
 /** Public option shape. `true`/`undefined` enable with the default delay; an
- *  object tunes the debounce; `false` disables (opt-out — auto-save is on by
+ *  object tunes the debounce; `false` disables (opt-out—auto-save is on by
  *  default). */
 export type AutoSaveOption = boolean | { debounceMs?: number };
 
 export interface Autosave {
-  /** Call after any edit — (re)arms the idle debounce. */
+  /** Call after any edit—(re)arms the idle debounce. */
   schedule(): void;
   /** Save now, bypassing the debounce (blur / tab-hide / unload). */
   flush(): void;
-  /** Drop a pending debounce without saving — for a manual action (Publish, a
+  /** Drop a pending debounce without saving—for a manual action (Publish, a
    *  structural change) that supersedes the queued auto-save. */
   cancel(): void;
-  /** A save is scheduled, in flight, or queued to re-run — i.e. there is unsaved
+  /** A save is scheduled, in flight, or queued to re-run—that is, there is unsaved
    *  or in-transit work. Drives the `beforeunload` unsaved-changes guard. */
   pending(): boolean;
 }
@@ -48,7 +48,7 @@ export function resolveAutoSave(opt: AutoSaveOption | undefined): {
 /**
  * Build an auto-save scheduler around a surface's `save`. `save` may be sync or
  * async and is expected to report its own success/failure (it typically leaves
- * the surface "dirty" on error, so the next `schedule()` naturally retries — the
+ * the surface "dirty" on error, so the next `schedule()` naturally retries—the
  * scheduler intentionally does not hot-retry a failing endpoint).
  */
 export function createAutosave(save: () => unknown, debounceMs = DEFAULT_DEBOUNCE_MS): Autosave {
@@ -89,7 +89,7 @@ export function createAutosave(save: () => unknown, debounceMs = DEFAULT_DEBOUNC
       clearTimeout(timer);
       void run();
     } else if (running) {
-      // Mid-save with nothing queued yet — make sure the latest state gets one
+      // Mid-save with nothing queued yet—make sure the latest state gets one
       // more save after the in-flight one, so flush is never a silent no-op.
       rerun = true;
     }

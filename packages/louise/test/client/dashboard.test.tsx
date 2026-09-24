@@ -1,4 +1,4 @@
-// #108 owner Home dashboard — happy-dom Solid tests for the card registry:
+// #108 owner Home dashboard—happy-dom Solid tests for the card registry:
 // cards read one shared overview query, report statuses the summary aggregates
 // into a traffic light, degrade to "absent" (hidden) when their slice is missing,
 // and deep-link via `navigate`. Also asserts the empty dashboard registers no

@@ -33,7 +33,7 @@ function ctx(): ExecutionContext {
   return {
     waitUntil: (p: Promise<unknown>) => pending.push(p),
     passThroughOnException: () => {},
-    // test helper — drain queued waitUntil work
+    // test helper—drain queued waitUntil work
     _drain: () => Promise.all(pending),
   } as unknown as ExecutionContext;
 }
@@ -224,7 +224,7 @@ describe("isEditRequest", () => {
 
   it("matches at a name boundary, so a suffixed cookie can't false-positive", () => {
     // `x_louise_edit=1` matching would bypass the cache for every request that
-    // carried it — a permanent, silent cache miss nobody would think to look for.
+    // carried it—a permanent, silent cache miss nobody would think to look for.
     expect(isEditRequest(withCookie(`x_${LOUISE_EDIT_COOKIE}=1`))).toBe(false);
     expect(isEditRequest(withCookie(`not${LOUISE_EDIT_COOKIE}=1`))).toBe(false);
   });

@@ -69,7 +69,7 @@ describe("createAutosave", () => {
     // An edit lands while save #1 is still in flight.
     auto.schedule();
     await vi.advanceTimersByTimeAsync(50);
-    expect(save).toHaveBeenCalledTimes(1); // still one — no overlap
+    expect(save).toHaveBeenCalledTimes(1); // still one—no overlap
 
     release(); // save #1 resolves → the queued re-run is scheduled
     await vi.advanceTimersByTimeAsync(50);
@@ -111,7 +111,7 @@ describe("createAutosave", () => {
     auto.schedule();
     await vi.advanceTimersByTimeAsync(20);
     expect(save).toHaveBeenCalledTimes(1);
-    // A later edit still schedules and runs — the rejection didn't stick.
+    // A later edit still schedules and runs—the rejection didn't stick.
     auto.schedule();
     await vi.advanceTimersByTimeAsync(20);
     expect(save).toHaveBeenCalledTimes(2);

@@ -1,6 +1,6 @@
 // happy-dom coverage for the shared modal-dialog accessibility helper: the four
 // behaviours every Louise overlay (Settings drawer, version history, inspector)
-// needs — focus moves in on open, Tab stays inside, Escape closes, and focus
+// needs—focus moves in on open, Tab stays inside, Escape closes, and focus
 // returns to the opener on close.
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -88,8 +88,8 @@ describe("wireDialogA11y", () => {
     );
     const off = wireDialogA11y(dialog, { onClose: () => {} });
     await flush();
-    // The summary is the last tabbable — the buried button inside the closed
-    // <details> doesn't count — so Tab from it wraps back to the first.
+    // The summary is the last tabbable—the buried button inside the closed
+    // <details> doesn't count—so Tab from it wraps back to the first.
     const s = dialog.querySelector<HTMLElement>("#s")!;
     s.focus();
     press(s, "Tab");
@@ -111,7 +111,7 @@ describe("wireDialogA11y", () => {
     const { dialog, opener } = mountDialog('<button id="a">A</button>');
     const off = wireDialogA11y(dialog, { onClose: () => {} });
     await flush();
-    opener.remove(); // e.g. the on-canvas ⚙ unmounts with the chrome
+    opener.remove(); // for example, the on-canvas ⚙ unmounts with the chrome
     expect(() => off()).not.toThrow();
   });
 });

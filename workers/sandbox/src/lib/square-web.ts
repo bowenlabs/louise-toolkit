@@ -1,4 +1,4 @@
-// Client-side Square Web Payments SDK loader — adapted from the pattern the
+// Client-side Square Web Payments SDK loader—adapted from the pattern the
 // production shops use. The SDK is served as an iframe from the squarecdn host
 // and tokenizes the card in the browser, so raw card data never reaches the
 // Worker. This module is *dynamically imported* on first interaction (see

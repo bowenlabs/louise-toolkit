@@ -7,7 +7,7 @@ import type { RateLimiterBinding } from "louise-toolkit/security";
 
 // Cloudflare *bindings* this Worker exposes (see wrangler.jsonc), read via
 // `import { env } from "cloudflare:workers"`. The string config (SQUARE_*,
-// FROM_EMAIL) is typed + validated by the astro:env schema instead — see
+// FROM_EMAIL) is typed + validated by the astro:env schema instead—see
 // astro.config.mjs, consumed via `astro:env/server`.
 type CloudflareEnv = {
   /** Demo orders (nightly-reset). */
@@ -15,7 +15,7 @@ type CloudflareEnv = {
   /** Per-IP daily rate-limit budget (KV counter). */
   RL: KVNamespace;
   /** Native in-colo burst guard on the pay/email surface (see wrangler.jsonc
-   *  `ratelimits`). Optional — checkout falls back to the KV budget without it. */
+   *  `ratelimits`). Optional—checkout falls back to the KV budget without it. */
   RATE_LIMIT?: RateLimiterBinding;
   /** Cloudflare Email Sending binding (louise-toolkit/email). */
   EMAIL: EmailSender;

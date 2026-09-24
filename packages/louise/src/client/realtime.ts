@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/client — the realtime WebSocket client (ADR 0002 / #71, task 4).
+// louise-toolkit/client—the realtime WebSocket client (ADR 0002 / #71, task 4).
 // The browser half of the per-page edit session: it connects to the authed
 // upgrade route (`/api/louise/realtime/:slug/:id`), receives presence + field
-// changes + locks, and publishes local edits — with a **degradation-first**
+// changes + locks, and publishes local edits—with a **degradation-first**
 // contract: while the socket is down (or the DO binding is absent → the route
-// 503s → the upgrade fails) it reports `connected() === false` so the editing
+// returns 503 → the upgrade fails) it reports `connected() === false` so the editing
 // surface keeps using its debounced-fetch auto-save. The DO is the coalescer only
 // while connected.
 //
@@ -20,7 +20,7 @@
 export type RealtimeOption = boolean | { throttleMs?: number };
 
 /** Normalize the public `realtime` option once, so both editing surfaces agree on
- *  the default (OFF — realtime is opt-in). */
+ *  the default (OFF—realtime is opt-in). */
 export function resolveRealtime(opt: RealtimeOption | undefined): {
   enabled: boolean;
   throttleMs: number | undefined;
@@ -40,7 +40,7 @@ export interface RealtimePeer {
 /** Held soft-locks: field name → the editor id currently holding it. */
 export type RealtimeLocks = Record<string, string>;
 
-/** The minimal `WebSocket` surface the client drives — so tests can inject a fake
+/** The minimal `WebSocket` surface the client drives—so tests can inject a fake
  *  without a real socket. A DOM `WebSocket` satisfies it structurally. */
 export interface WebSocketLike {
   send(data: string): void;
@@ -53,21 +53,21 @@ export interface WebSocketLike {
 }
 
 export interface RealtimeHandlers {
-  /** Presence changed — the full peer list (includes you; the UI dedupes/excludes). */
+  /** Presence changed—the full peer list (includes you; the UI dedupes/excludes). */
   onPresence?(peers: RealtimePeer[]): void;
   /** Held soft-locks changed. */
   onLocks?(locks: RealtimeLocks): void;
-  /** A peer edited a (non-lock-guarded) field — apply it optimistically. */
+  /** A peer edited a (non-lock-guarded) field—apply it optimistically. */
   onRemoteChange?(field: string, value: unknown): void;
   /** The current field snapshot at connect time (pending edits since the last flush). */
   onSnapshot?(snapshot: Record<string, unknown>): void;
-  /** Socket up/down — the surface flips between publishing here and its fetch fallback. */
+  /** Socket up/down—the surface flips between publishing here and its fetch fallback. */
   onStatus?(connected: boolean): void;
 }
 
 export interface RealtimeSession {
   /** Publish a local field edit (trailing-throttled; coalesced per field). No-op
-   *  while disconnected — the surface uses its debounced fetch then. */
+   *  while disconnected—the surface uses its debounced fetch then. */
   publish(field: string, value: unknown): void;
   /** Acquire a rich-text soft-lock (sent immediately). */
   claim(field: string): void;
@@ -77,7 +77,7 @@ export interface RealtimeSession {
   connected(): boolean;
   /** This editor's own presence, once the `welcome` handshake has landed. */
   you(): RealtimePeer | null;
-  /** Close intentionally — stops heartbeat + reconnect. */
+  /** Close intentionally—stops heartbeat + reconnect. */
   close(): void;
 }
 
@@ -92,11 +92,11 @@ export interface ConnectRealtimeOptions extends RealtimeHandlers {
   heartbeatMs?: number;
   /** Cap on the reconnect backoff, ms. Default 15000. */
   maxBackoffMs?: number;
-  /** Test seam — build the socket. Default `(url) => new WebSocket(url)`. */
+  /** Test seam—build the socket. Default `(url) => new WebSocket(url)`. */
   socketFactory?: (url: string) => WebSocketLike;
 }
 
-/** Up-to-two-letter initials for a presence avatar (e.g. "Ada Lovelace" → "AL"). */
+/** Up-to-two-letter initials for a presence avatar (for example, "Ada Lovelace" → "AL"). */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -105,8 +105,8 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-/** The presence peers to render — everyone but yourself, de-duped by id (the same
- *  editor can hold more than one socket, e.g. inline + sections on one page). */
+/** The presence peers to render—everyone but yourself, de-duped by id (the same
+ *  editor can hold more than one socket, for example, inline + sections on one page). */
 export function otherPeers(peers: RealtimePeer[], meId: string | undefined): RealtimePeer[] {
   const seen = new Set<string>();
   const out: RealtimePeer[] = [];
@@ -158,7 +158,7 @@ export function connectRealtime(opts: ConnectRealtimeOptions): RealtimeSession {
 
   let socket: WebSocketLike | null = null;
   let you: RealtimePeer | null = null;
-  let closed = false; // intentional close — stop reconnecting
+  let closed = false; // intentional close—stop reconnecting
   let backoff = 1_000;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -213,7 +213,7 @@ export function connectRealtime(opts: ConnectRealtimeOptions): RealtimeSession {
       case "locks":
         opts.onLocks?.(msg.locks);
         break;
-      // `ack` / `pong` are liveness only — nothing to apply.
+      // `ack` / `pong` are liveness only—nothing to apply.
     }
   };
 
@@ -223,7 +223,7 @@ export function connectRealtime(opts: ConnectRealtimeOptions): RealtimeSession {
     try {
       sock = makeSocket(wsUrl(path, opts.slug, opts.id));
     } catch {
-      scheduleReconnect(); // couldn't even construct — retry later
+      scheduleReconnect(); // couldn't even construct—retry later
       return;
     }
     socket = sock;
@@ -265,7 +265,7 @@ export function connectRealtime(opts: ConnectRealtimeOptions): RealtimeSession {
     publish(field, value) {
       pending.set(field, value);
       if (!isOpen()) {
-        pending.clear(); // disconnected — the surface's fetch fallback owns this edit
+        pending.clear(); // disconnected—the surface's fetch fallback owns this edit
         return;
       }
       if (throttleTimer == null) throttleTimer = setTimeout(flushPending, throttleMs);

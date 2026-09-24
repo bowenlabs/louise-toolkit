@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Two small behaviours every studio form needs, and every site got wrong the
-// same way. Both are plain DOM — no framework, no router.
+// same way. Both are plain DOM—no framework, no router.
 
 // ── Unsaved changes ──────────────────────────────────────────────────────────
 
 export interface UnsavedChangesOptions {
   /**
-   * A dirtiness the snapshot can't see — e.g. a rich-text document that loads
+   * A dirtiness the snapshot can't see—for example, a rich-text document that loads
    * after the form opens, so it has no value to compare at open.
    */
   alsoDirty?: () => boolean;
@@ -32,8 +32,8 @@ export interface UnsavedChanges {
   markSaved: () => void;
   /**
    * Prompt on refresh / close / leaving the site while dirty (the browser's
-   * own prompt; its wording is the browser's). Returns the detach function —
-   * call it on unmount. Skip this if your router's blocker already does it.
+   * own prompt; its wording is the browser's). Returns the detach function—call
+   * it on unmount. Skip this if your router's blocker already does it.
    */
   watchUnload: () => () => void;
 }
@@ -41,14 +41,14 @@ export interface UnsavedChanges {
 /**
  * "You have unsaved changes" for a studio form.
  *
- * Dirty is decided by comparing `snapshot()` — the form's save payload — with
+ * Dirty is decided by comparing `snapshot()`—the form's save payload—with
  * its value when the guard was created, so typing a letter and deleting it
  * again is not a change, and no field has to remember to mark itself dirty.
  * The snapshot must be JSON-serializable.
  *
  * Router-agnostic on purpose: in-form exits call `leave`, a router's blocker
  * calls `shouldBlock`, and the browser's own exits go through `watchUnload`.
- * A form that forgets one of the three drops edits without a word — which is
+ * A form that forgets one of the three drops edits without a word—which is
  * what happened on each of them before this existed.
  */
 export function unsavedChanges(
@@ -104,14 +104,14 @@ export interface SettledSelectHandlers {
 }
 
 /**
- * Event handlers for a `<select>` that saves on change — but only once a
+ * Event handlers for a `<select>` that saves on change—but only once a
  * choice is actually made.
  *
  * Arrowing through a closed select fires `change` on every step. For a select
  * that saves on change, that is one save per option passed: a status went
  * New → Replied → Quoted → Won, logging each, on the way to the one intended.
- * So a keyboard change is held until it's committed — Enter, or leaving the
- * field — while a pointer pick still saves at once.
+ * So a keyboard change is held until it's committed—Enter, or leaving the
+ * field—while a pointer pick still saves at once.
  *
  * Spread onto the element: `<select {...settledSelect(save)}>`.
  */

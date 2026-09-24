@@ -30,7 +30,7 @@ import {
 const CONFIG = { accessToken: "tok", environment: "sandbox" } as const;
 
 /** Stub global fetch to return `json` once, capturing each request's method,
- *  url, and parsed body — the shared shape the write-path tests assert against. */
+ *  url, and parsed body—the shared shape the write-path tests assert against. */
 function stubFetch(json: unknown): { url: string; method: string; body: unknown }[] {
   const calls: { url: string; method: string; body: unknown }[] = [];
   vi.stubGlobal(
@@ -50,7 +50,7 @@ function stubFetch(json: unknown): { url: string; method: string; body: unknown 
   return calls;
 }
 
-// Reference HMAC-SHA256(base64) of (notificationUrl + body) — computed with the
+// Reference HMAC-SHA256(base64) of (notificationUrl + body)—computed with the
 // same WebCrypto primitives the verifier uses, so the test pins the algorithm
 // (concatenation order + base64 encoding) rather than a hand-copied constant.
 async function sign(notificationUrl: string, body: string, key: string): Promise<string> {
@@ -178,7 +178,7 @@ describe("listCatalogItems", () => {
   });
 
   // Regression for #58: the SearchCatalogObjects endpoint is `/v2/catalog/search`,
-  // not `/v2/catalog/search-catalog-objects` (which 404s "Resource not found").
+  // not `/v2/catalog/search-catalog-objects` (which returns 404 "Resource not found").
   it("POSTs to /v2/catalog/search and walks the cursor", async () => {
     const calls: { url: string; body: unknown }[] = [];
     const pages: Record<string, unknown> = {
@@ -497,8 +497,8 @@ describe("readModifyWriteCatalog", () => {
   }
 
   it("round-trips every field, including ones it does not model", async () => {
-    // The failure this guards is silent by definition — a dropped field reads as
-    // an intentional clear — so it needs an explicit diff, not a spot check.
+    // The failure this guards is silent by definition—a dropped field reads as
+    // an intentional clear—so it needs an explicit diff, not a spot check.
     const calls = stubReadWrite();
     await readModifyWriteCatalog(CONFIG, "VAR1", (object) => {
       const data = object.item_variation_data as Record<string, unknown>;
@@ -623,7 +623,7 @@ describe("createOrder", () => {
   });
 
   it("never sends order.taxes[], which Square documents as double-taxing", async () => {
-    // Not a configuration choice — there is no way to express `taxes[]`
+    // Not a configuration choice—there is no way to express `taxes[]`
     // through this client, and this pins that it stays that way.
     const calls = stubFetch({ order: { id: "ORD1" } });
 
@@ -1076,7 +1076,7 @@ describe("presentAt", () => {
   });
 
   it("ignores the whitelist when present everywhere, and vice versa", () => {
-    // The two lists are not symmetric — only the one matching the flag applies.
+    // The two lists are not symmetric—only the one matching the flag applies.
     expect(
       presentAt({ ...base, presentAtAllLocations: true, presentAtLocationIds: ["L9"] }, "L1"),
     ).toBe(true);
@@ -1190,7 +1190,7 @@ describe("retrieveVariationPricesAt", () => {
           type: "ITEM_VARIATION",
           item_variation_data: { price_money: { amount: 800, currency: "USD" } },
         },
-        // Sold only at L2 — must not appear in an L1 lookup, so a caller that
+        // Sold only at L2—must not appear in an L1 lookup, so a caller that
         // requires every id to resolve fails closed instead of overselling.
         {
           id: "var-elsewhere",
@@ -1247,7 +1247,7 @@ describe("listLocations / retrieveLocation", () => {
   });
 
   it("returns null for a missing location rather than throwing", async () => {
-    // "This merchant has no Square location yet" is a legitimate answer — the
+    // "This merchant has no Square location yet" is a legitimate answer—the
     // `external` sales_mode depends on it.
     vi.stubGlobal(
       "fetch",
@@ -1308,7 +1308,7 @@ describe("createLocation / updateLocation", () => {
     await updateLocation(CONFIG, "L1", { name: "Renamed" });
     expect(calls[0]?.method).toBe("PUT");
     expect(calls[0]?.url).toContain("/v2/locations/L1");
-    // Only the name — no address key at all, which is what keeps the existing
+    // Only the name—no address key at all, which is what keeps the existing
     // address intact rather than replaced with an empty object.
     expect(calls[0]?.body).toEqual({ location: { name: "Renamed" } });
   });
@@ -1385,7 +1385,7 @@ describe("searchOrders", () => {
     expect(call).toBe(2);
   });
 
-  // Square caps `location_ids` at 10 per call. Passing 11 is a 400 — from the
+  // Square caps `location_ids` at 10 per call. Passing 11 is a 400—from the
   // exact multi-location account this endpoint exists to report on.
   it("chunks locationIds at 10, Square's hard ceiling", async () => {
     const calls = stubFetch({ orders: [] });
@@ -1415,7 +1415,7 @@ describe("searchOrders", () => {
     );
     const ids = Array.from({ length: 11 }, (_, i) => `L${i + 1}`);
     const orders = await searchOrders(CONFIG, { locationIds: ids });
-    // DESC by closedAt, the default — newest first regardless of which chunk.
+    // DESC by closedAt, the default—newest first regardless of which chunk.
     expect(orders.map((o) => o.id)).toEqual(["new", "old"]);
   });
 
@@ -1484,7 +1484,7 @@ describe("calculateOrder", () => {
     // The whole point of a preview is that the number shown is the number
     // charged. Taxes are opt-in on BOTH calls, so a preview that omitted them
     // while createOrder applied them would show a total the customer never
-    // agreed to — and it would look correct in isolation on either side.
+    // agreed to—and it would look correct in isolation on either side.
     // One object passed to both calls: the test would be worthless if the two
     // sides could be given different carts.
     const cart = {
@@ -1567,7 +1567,7 @@ describe("SquareConfig.retry", () => {
   });
 
   it("never retries a 4xx that is not 429", async () => {
-    // A 401/400 is our bug and will stay wrong — retrying just delays the error.
+    // A 401/400 is our bug and will stay wrong—retrying just delays the error.
     let calls = 0;
     vi.stubGlobal(
       "fetch",

@@ -1,15 +1,15 @@
-// Owner Home dashboard (#108) — the site's overview slice resolvers, wired into
+// Owner Home dashboard (#108)—the site's overview slice resolvers, wired into
 // `overviewRoute` in worker.ts. Each returns cheap COUNTs the dashboard cards
 // read in one round-trip; a resolver that throws is omitted by the route, so a
 // transient D1 error degrades the card to "nothing to show" rather than erroring.
 //
 // Definitions match what the owner sees elsewhere:
-//   • drafts       — pages not live. The public loader filters `status='published'`
-//                    (published-pages.ts), so `status='draft'` is "not published".
-//   • unpublished  — a live page with a saved-but-unpublished draft version
-//                    (pages_versions.status='draft'), i.e. edits waiting to publish.
-//   • unread inbox — inquiries are review-and-clear (the panel DELETEs handled
-//                    ones), so every un-cleared row is a submission still waiting.
+//   • drafts: pages not live. The public loader filters `status='published'`
+//     (published-pages.ts), so `status='draft'` is "not published".
+//   • unpublished: a live page with a saved-but-unpublished draft version
+//     (pages_versions.status='draft'), that is, edits waiting to publish.
+//   • unread inbox: inquiries are review-and-clear (the panel DELETEs handled
+//     ones), so every un-cleared row is a submission still waiting.
 
 import type { OverviewContent, OverviewHealth, OverviewInbox } from "louise-toolkit/editor";
 import { readHealthSummary } from "louise-toolkit/health";

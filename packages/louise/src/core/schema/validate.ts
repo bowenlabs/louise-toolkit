@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/schema — run any Standard Schema and fold its result into
+// louise-toolkit/schema—run any Standard Schema and fold its result into
 // Louise's own {@link ValidationViolation} shape, so a consumer-supplied
 // validator (Zod/Valibot/ArkType) and the built-in `s.*` builder surface
 // identical, per-field error data everywhere validation already flows.
@@ -24,8 +24,8 @@ function segmentKey(segment: PropertyKey | StandardSchemaV1.PathSegment): string
 
 /**
  * Turn a Standard Schema issue path into a flattened, dotted string, optionally
- * under `basePath` — so a field-level schema's issues land at the field's key
- * (e.g. `slug`), and a nested issue at `slug.0`. Matches how the rest of the
+ * under `basePath`—so a field-level schema's issues land at the field's key
+ * (for example, `slug`), and a nested issue at `slug.0`. Matches how the rest of the
  * codebase carries a single `path` string on each violation.
  */
 function joinPath(
@@ -51,7 +51,7 @@ export function issuesToViolations(
 
 /**
  * Validate `input` against any Standard Schema, awaiting an async validator.
- * Returns the typed value or the violations — never throws for a validation
+ * Returns the typed value or the violations—never throws for a validation
  * failure (only a schema that itself throws would propagate). `basePath`
  * prefixes every violation path, so a caller validating one field's value can
  * anchor the issues at that field's key.
@@ -72,8 +72,8 @@ export async function standardValidate<Schema extends StandardSchemaV1>(
 /**
  * Validate `input` and return the typed value, throwing
  * {@link LouiseValidationError} (carrying the structured violations) on
- * failure. For call sites that want an exception rather than a result branch —
- * e.g. sharing the same `instanceof LouiseValidationError → 422` mapping the
+ * failure. For call sites that want an exception rather than a result branch—for example,
+ * sharing the same `instanceof LouiseValidationError → 422` mapping the
  * `Rule` engine already uses.
  */
 export async function parseOrThrow<Schema extends StandardSchemaV1>(
@@ -96,7 +96,7 @@ function parseFailure<T>(message: string, path = ""): StandardParseResult<T> {
 /**
  * Parse a raw JSON string, then validate it against `schema`. A malformed body
  * becomes a violation (rather than a thrown `SyntaxError`), so a caller handles
- * "not JSON" and "wrong shape" through the same result branch — e.g. parsing a
+ * "not JSON" and "wrong shape" through the same result branch—for example, parsing a
  * signature-verified webhook body post-verify, where the HMAC proves the sender
  * but not the payload's shape.
  */
@@ -114,8 +114,8 @@ export async function parseJson<Schema extends StandardSchemaV1>(
 }
 
 /**
- * Extract the first balanced JSON object/array embedded in `text` — tolerating
- * model prose and ```json fences around it — respecting strings and escapes so
+ * Extract the first balanced JSON object/array embedded in `text`—tolerating
+ * model prose and ```json fences around it—respecting strings and escapes so
  * a `}` inside a string value doesn't end the scan early. Returns the JSON
  * substring, or `null` when no balanced object/array is present. Replaces the
  * brittle `indexOf("{")`/`lastIndexOf("}")` slice.
@@ -148,7 +148,7 @@ export function extractJson(text: string): string | null {
 
 /**
  * Parse the JSON an LLM emitted (often wrapped in prose or a ```json fence) and
- * validate it against `schema` — the canonical untrusted-JSON case. Extracts
+ * validate it against `schema`—the canonical untrusted-JSON case. Extracts
  * the first balanced object/array ({@link extractJson}) rather than slicing on
  * the first/last brace, then validates. Never throws: a missing/malformed JSON
  * blob or a shape mismatch both come back as violations, so callers keep a

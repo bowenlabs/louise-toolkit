@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — declarative form builder (issue #46). Define a form's fields
+// louise-toolkit/forms—declarative form builder (issue #46). Define a form's fields
 // once; derive the table, capture route (`formRoute`, in louise-toolkit/editor),
 // validation, and review columns from that single definition.
 

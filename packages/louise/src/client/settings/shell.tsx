@@ -1,16 +1,16 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The Louise Settings shell — a SolidJS overlay summoned in edit mode: the
+// The Louise Settings shell—a SolidJS overlay summoned in edit mode: the
 // command centre for structured/back-office work the inline surface can't do.
 // Rendered over the live page, not a separate admin app.
 //
 // Two groups, and the split is first-class in the registry API so a site can't
 // accidentally collapse it:
-//   • TOP strip — the framework panels Pages / Media / Settings. Fixed and
+//   • TOP strip: the framework panels Pages / Media / Settings. Fixed and
 //     shell-owned; near-identical on every Louise site, so sites neither
 //     register nor reorder them. Settings alone is extensible, via its
 //     declarative extension groups + an escape-hatch `settingsExtras` slot.
-//   • BOTTOM tabs — the site's own collections (`config.tabs`), whose shape and
+//   • BOTTOM tabs: the site's own collections (`config.tabs`), whose shape and
 //     display vary per site. Inquiries is a Louise base table but a per-site
 //     display, so it ships as a registerable tab (InquiriesPanel), not a fixed
 //     panel.
@@ -56,7 +56,7 @@ export interface SettingsConfig {
   /** Editor display name shown in the Louise Settings header. */
   userName: string;
   /** Site-registered collection tabs (bottom group). The framework panels
-   *  (Pages/Media/Settings) are fixed and shell-owned — not part of this list. */
+   *  (Pages/Media/Settings) are fixed and shell-owned, not part of this list. */
   tabs?: CollectionTab[];
   /** Code-defined routes listed in the framework Pages panel. */
   builtInPages?: BuiltInPageRef[];
@@ -67,12 +67,12 @@ export interface SettingsConfig {
   ogCard?: OgCardOptions;
   /** Override which framework Settings groups render. Omit for the defaults;
    *  pass a subset (or `[]`) so a site whose settings don't map to
-   *  `siteSettingsColumns` shows no empty base fields — its config lives in
+   *  `siteSettingsColumns` shows no empty base fields—its config lives in
    *  `settingsExtension` instead. */
   settingsBaseGroups?: SettingsFieldGroup[];
   /** Site-specific settings groups rendered inside the framework Settings panel. */
   settingsExtension?: SettingsFieldGroup[];
-  /** Bespoke Settings sections (e.g. passkey enrollment) that self-persist. */
+  /** Bespoke Settings sections (for example, passkey enrollment) that self-persist. */
   settingsExtras?: () => JSX.Element;
   /** Show the Users panel (louise editor/admin management) in the top strip.
    *  Opt-in: wire `editorsRoute` server-side for it to talk to. */
@@ -83,7 +83,7 @@ export interface SettingsConfig {
   dashboard?: {
     /** Site cards appended to the grid (rendered alongside the built-ins). */
     cards?: DashboardCard[];
-    /** Hide built-in cards by id, e.g. `["health"]`. */
+    /** Hide built-in cards by id, for example, `["health"]`. */
     hide?: string[];
     /** Override the health-detail endpoint the Health drill-in reads.
      *  Default `/api/louise/health` (wire `healthRoute` server-side). */
@@ -97,7 +97,7 @@ export function Settings(props: SettingsConfig) {
   const tabs = () => props.tabs ?? [];
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<string | undefined>(tabs()[0]?.id);
-  // Framework panels aren't tabs — they open over the tabs via the top strip.
+  // Framework panels aren't tabs—they open over the tabs via the top strip.
   const [overlay, setOverlay] = createSignal<FrameworkPanel | null>(initialPanel(props));
 
   // Whether a sections surface is mounted, and so whether there is any version
@@ -111,7 +111,7 @@ export function Settings(props: SettingsConfig) {
   window.addEventListener(OPEN_SETTINGS_EVENT, openDrawer);
   onCleanup(() => window.removeEventListener(OPEN_SETTINGS_EVENT, openDrawer));
 
-  // History hands off to the sections drawer and closes this one — two stacked
+  // History hands off to the sections drawer and closes this one—two stacked
   // modals would fight over the focus trap.
   const openHistory = () => {
     setOpen(false);
@@ -195,7 +195,7 @@ export function Settings(props: SettingsConfig) {
 
 /**
  * Mount the Louise Settings shell: inject the Louise stylesheet, create the shared
- * QueryClient, and render into a body-appended root. Idempotent — a second call
+ * QueryClient, and render into a body-appended root. Idempotent—a second call
  * is a no-op (soft-navigation re-runs). Returns nothing; Louise Settings opens
  * on the {@link OPEN_SETTINGS_EVENT}.
  */
@@ -220,7 +220,7 @@ export function mountSettings(config: SettingsConfig): void {
   // where Settings got there first (coracle.coffee#36).
   window.dispatchEvent(new CustomEvent(SETTINGS_READY_EVENT));
   // A soft navigation (#74) replaces <body>, orphaning this drawer while its
-  // window listeners (e.g. the OPEN_SETTINGS_EVENT handler) live on — so a Settings
+  // window listeners (for example, the OPEN_SETTINGS_EVENT handler) live on—so a Settings
   // click after a nav would fire a stale handler. Dispose the Solid root before the
   // swap; the bootstrap re-mounts a fresh drawer on the next page. A host that
   // never reports a swap simply never disposes early, which is correct for it.

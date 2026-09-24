@@ -71,7 +71,7 @@ describe("overviewRoute", () => {
     });
     const res = await r(req("GET", "/api/louise/overview"), env, ctx);
     expect(res?.status).toBe(200);
-    // A broken/absent slice never 500s the dashboard — it's just omitted.
+    // A broken/absent slice never makes the dashboard return 500—it's just omitted.
     expect((await res!.json()) as unknown).toEqual({
       health: { brokenLinks: 1, missingAlt: 0, seoGaps: 0 },
     });

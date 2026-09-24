@@ -1,21 +1,21 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — a Workers KV write-buffer for high-frequency auto-save
+// louise-toolkit/editor—a Workers KV write-buffer for high-frequency auto-save
 // (#70). Auto-save fires a draft write on every idle pause; on a busy page that
 // hammers D1 with a version row per debounce tick. This buffers the working
-// draft in KV (fast, cheap, one key overwritten) and only *flushes* to D1 — the
-// source of truth — on a boundary: the first write of a session, an interval
+// draft in KV (fast, cheap, one key overwritten) and only *flushes* to D1—the
+// source of truth—on a boundary: the first write of a session, an interval
 // while editing, and on publish. Resume reads prefer the buffer (it's the
 // freshest work); publish clears it.
 //
 // Consistency model (deliberately simple): the buffer is only ever *ahead of or
-// equal to* the D1 draft — every auto-save writes the buffer, D1 is flushed
-// periodically — and it's deleted on publish. So "the freshest pending draft" is
+// equal to* the D1 draft—every auto-save writes the buffer, D1 is flushed
+// periodically—and it's deleted on publish. So "the freshest pending draft" is
 // `buffer ?? D1 draft`, with no timestamp reconciliation needed. KV is
 // eventually consistent and caps ~1 sustained write/sec per key, which is why it
 // is a scratch buffer and D1 stays authoritative.
 
-/** The KV surface the buffer needs — structural so the real `KVNamespace` fits
+/** The KV surface the buffer needs—structural so the real `KVNamespace` fits
  *  without a hard dependency. Unlike `security`'s `KVLike`, this also needs
  *  `delete` (to clear a buffer on publish). */
 export interface DraftBufferKV {
@@ -37,7 +37,7 @@ export interface BufferedDraft {
 /** Default self-expiry for an abandoned buffer: 7 days. */
 export const DRAFT_BUFFER_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-/** Default flush cadence: coalesce D1 writes to at most one per 10s while a burst
+/** Default flush cadence: coalesce D1 writes to at most one per 10 seconds while a burst
  *  of edits continues. */
 export const DEFAULT_FLUSH_MS = 10_000;
 

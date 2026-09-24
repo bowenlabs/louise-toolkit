@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // The built-in Phase-1 dashboard cards (#108). All three read ONE aggregate query
-// (`/api/louise/overview`) so the dashboard is a single round-trip — TanStack
+// (`/api/louise/overview`) so the dashboard is a single round-trip—TanStack
 // dedupes the shared key. Each selects its slice, reports a status the summary
 // header aggregates, and returns `absent` (rendering nothing) when its slice is
 // missing, so a brochure site's dashboard differs from a shop's with no config.

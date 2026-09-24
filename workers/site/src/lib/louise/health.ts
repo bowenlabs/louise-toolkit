@@ -1,10 +1,10 @@
-// Site-health co-pilot (#106) — the cron scan that composes Louise's primitives
+// Site-health co-pilot (#106)—the cron scan that composes Louise's primitives
 // into the persisted HealthSummary the Home dashboard's Health card reads.
 //
 // Broken-link checking is a crawl (seconds, network), so it runs on the Cron
 // Trigger (worker.ts scheduled()) and its result is persisted; the alt/SEO gap
 // counts are cheap D1 COUNTs computed alongside. The summary is stored in KV
-// (the rate-limit namespace RL — already bound, so no new binding to provision;
+// (the rate-limit namespace RL—already bound, so no new binding to provision;
 // it's just a small singleton blob under a distinct key). The Health card stays
 // hidden until the first scan writes one (overviewHealth reads the same key).
 
@@ -26,8 +26,8 @@ const CWV_DATASET = "louise_web_vitals";
 
 /**
  * Read the p75 of each Core Web Vital over the last day from the Analytics Engine
- * SQL API (#106). Returns `undefined` — so the badge stays "not measured yet" —
- * when the API creds aren't set, the query fails, or there's no field data yet.
+ * SQL API (#106). Returns `undefined`—so the badge stays "not measured yet"—when
+ * the API creds aren't set, the query fails, or there's no field data yet.
  */
 async function queryCwv(): Promise<CwvSummary | undefined> {
   if (!CF_ACCOUNT_ID || !CF_API_TOKEN) return undefined;

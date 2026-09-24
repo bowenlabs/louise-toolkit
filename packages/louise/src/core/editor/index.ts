@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — framework-generic `api/louise/*` route handlers (issue
+// louise-toolkit/editor—framework-generic `api/louise/*` route handlers (issue
 // #10, Tier 2 slice 3). Each factory returns a `WorkerRoute` for
 // `composeWorker` (louise-toolkit/worker); a site wires the ones it needs, passing
 // its own Drizzle tables + a `resolveEditor` that bridges its auth, and keeps
@@ -23,8 +23,8 @@ export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
   // `applySettingsPatch` + its config are the route-free core of a settings write.
-  // Public because a host that mounts its own endpoint — a framework action rather
-  // than `settingsRoute`'s WorkerRoute — needs the same write path, and reaching
+  // Public because a host that mounts its own endpoint—a framework action rather
+  // than `settingsRoute`'s WorkerRoute—needs the same write path, and reaching
   // into `louise-toolkit/src/...` for it breaks on a published tarball (#327).
   applySettingsPatch,
   partitionSettingsPatch,

@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Live OG / social-card preview for the pages drawer (issue #76). As the editor
-// types the title / SEO title, this shows the share card they'll get — either the
+// types the title / SEO title, this shows the share card they'll get—either the
 // custom Social image (if set) or the auto-generated card, drawn with the SAME
 // `ogCardSvg` template the site rasterizes for real (#85). It's pure client SVG:
 // the browser rasterizes it natively, so there's no Browser Rendering, no server
-// round-trip, and no debounce needed — the card just re-renders reactively.
+// round-trip, and no debounce needed—the card just re-renders reactively.
 //
-// `ogCardSvg` is imported directly from the core module (it's pure — no bindings,
+// `ogCardSvg` is imported directly from the core module (it's pure—no bindings,
 // no imports), NOT via the `core/browser` barrel, which would pull resvg/puppeteer
 // into the client bundle.
 
@@ -20,8 +20,8 @@ export type OgPreviewContent = { kind: "image"; src: string } | { kind: "card"; 
 
 /**
  * Decide the preview content. A non-empty `customImage` wins (the editor set an
- * explicit Social image); otherwise build the generated card from the title —
- * falling back to "Untitled" so a blank title still previews a real card. Pure,
+ * explicit Social image); otherwise build the generated card from the title—falling
+ * back to "Untitled" so a blank title still previews a real card. Pure,
  * so the image-vs-card decision is unit-testable without a DOM.
  */
 export function ogPreviewContent(
@@ -59,7 +59,7 @@ export function OgPreview(props: {
         <Show
           when={content().kind === "image"}
           fallback={
-            // Trusted, script-free SVG from `ogCardSvg` — inline (not a `data:`
+            // Trusted, script-free SVG from `ogCardSvg`—inline (not a `data:`
             // image) so it never trips the site CSP's `img-src`. Same pattern as
             // the inline Phosphor `Icon`.
             <div class="louise-og-card" innerHTML={cardSvg(content())} />

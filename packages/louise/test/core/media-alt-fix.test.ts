@@ -1,4 +1,4 @@
-// #106 Phase 2b — the one-click AI alt backfill action on the media route
+// #106 Phase 2b—the one-click AI alt backfill action on the media route
 // (POST /api/louise/media/generate-alt). Uses fake D1 / R2 / AI runner so the
 // wiring is exercised without a real Workers AI binding (that's deploy-only).
 

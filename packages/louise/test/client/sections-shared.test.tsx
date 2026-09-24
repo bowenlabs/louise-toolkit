@@ -1,12 +1,12 @@
 // The shared-value (green) editor (ADR 0010 Phase B / #376).
 //
-// A `data-louise-node="settings.<key>"` marker — stamped wherever a site
-// renders a shared settings value: the Nav, the Footer, a location panel — is
+// A `data-louise-node="settings.<key>"` marker—stamped wherever a site
+// renders a shared settings value: the Nav, the Footer, a location panel—is
 // different in kind from every other node: its truth lives in the settings
 // table, one value with many surfaces, and there is no settings draft. So its
 // chrome is green and wrench-only, its inspector shows the used-in count and
 // the save-immediately band persistently, and its writes PATCH the settings
-// route — never the page draft.
+// route—never the page draft.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SectionCatalog, SectionItem } from "../../src/client/sections.jsx";
@@ -51,7 +51,7 @@ function stubFetch(opts: { failPatch?: boolean } = {}): Call[] {
       }
       if (url === "/api/louise/pages") {
         // Three pages; two contain a consuming type. One stores sections as a
-        // JSON string (the D1 shape), one as an array — both must count.
+        // JSON string (the D1 shape), one as an array—both must count.
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -83,7 +83,7 @@ const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles
 const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
 /** The host holds a section; the phone renders TWICE outside it (desktop +
- *  mobile nav — the shape that decided "surfaces", not DOM occurrences). */
+ *  mobile nav—the shape that decided "surfaces", not DOM occurrences). */
 function page(): { host: HTMLElement; phones: HTMLElement[] } {
   const host = document.createElement("div");
   const sec = document.createElement("section");
@@ -156,7 +156,7 @@ describe("shared values — the green editor (#376)", () => {
     over(phones[0]);
     expect(phones[0].getAttribute("data-louise-tone")).toBe("shared");
     expect(toolbar()?.getAttribute("data-louise-tone")).toBe("shared");
-    // No move/delete/add — one value, one wrench, named after the thing.
+    // No move/delete/add—one value, one wrench, named after the thing.
     expect(visibleButtons()).toEqual(["Phone number"]);
   });
 
@@ -182,7 +182,7 @@ describe("shared values — the green editor (#376)", () => {
 
     expect(inspector()?.querySelector(".louise-inspector-title")?.textContent).toBe("Phone number");
     // Static chrome surface + the two consuming pages (one JSON-string, one
-    // array — both shapes count), phrased for a human.
+    // array—both shapes count), phrased for a human.
     expect(band()?.textContent).toBe(
       "Used in the header and 2 pages — saves immediately, everywhere.",
     );
@@ -205,7 +205,7 @@ describe("shared values — the green editor (#376)", () => {
 
     expect(settingsPatches(calls).at(-1)?.body).toEqual({ phone: "918-555-0202" });
     expect(draftPosts(calls)).toHaveLength(0);
-    // BOTH occurrences update — the Nav renders the value twice, and syncing
+    // BOTH occurrences update—the Nav renders the value twice, and syncing
     // one would leave the page lying about the other.
     expect(phones.map((p) => p.textContent)).toEqual(["918-555-0202", "918-555-0202"]);
   });
@@ -227,7 +227,7 @@ describe("shared values — the green editor (#376)", () => {
     expect(inspector()?.querySelector(".louise-field-error")?.textContent).toContain(
       "hasn’t taken effect",
     );
-    // And the on-page markers did NOT sync — the save didn't happen.
+    // And the on-page markers did NOT sync—the save didn't happen.
     expect(phones[0].textContent).toBe("918-555-0101");
   });
 });

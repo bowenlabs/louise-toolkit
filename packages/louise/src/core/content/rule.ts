@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/content` Rule engine — the drizzle-free half of the content
+// `louise-toolkit/content` Rule engine—the drizzle-free half of the content
 // validator. Everything here evaluates a field's chainable `validation` rules
 // against a value with pure, synchronous logic (required/min/max/regex/custom
 // …); none of it touches a database.
 //
-// Why this is its own file. The two DB-backed checks — `unique` and
-// `reference` — need `drizzle-orm` to build their queries, and drizzle-orm is
+// Why this is its own file. The two DB-backed checks—`unique` and
+// `reference`—need `drizzle-orm` to build their queries, and drizzle-orm is
 // an *optional* peer of louise-toolkit. ESM is eager, so any module that
 // imported the evaluator resolved drizzle-orm at import time even when it only
 // wanted the pure checks. `content/sections.ts` (the structured-sections
 // validator) and `forms/validate.ts` both reuse this engine via
-// {@link validateValue} and must stay drizzle-free — the same class of bug
+// {@link validateValue} and must stay drizzle-free—the same class of bug
 // `content/define.ts` was carved out to fix. So the pure machinery lives here;
 // the drizzle-dependent uniqueness / reference queries stay in `validation.ts`,
 // which injects them into {@link evaluateCheck} via its optional `db` handlers
@@ -19,11 +19,11 @@
 // unchanged.
 //
 // Design notes:
-// - The builder is **immutable** — every method returns a new {@link Rule}
+// - The builder is **immutable**: every method returns a new {@link Rule}
 //   with one more check appended, so a shared base rule can't be mutated by
 //   a consumer's chain (mirrors Sanity).
 // - Most checks are synchronous and pure (min/max/regex/custom over the
-//   value alone). Two — `unique` and `reference` — need the database and so
+//   value alone). Two, `unique` and `reference`, need the database and so
 //   only run where {@link validateDocument} (in validation.ts) supplies its
 //   `db` handlers to {@link evaluateCheck}; they no-op in a pure pass.
 
@@ -31,7 +31,7 @@ import type { ValidationViolation } from "../errors.js";
 import type { FieldConfig } from "./types.js";
 
 /**
- * Chainable field validation for Louise (issue #16) — adopts Sanity's
+ * Chainable field validation for Louise (issue #16)—adopts Sanity's
  * `defineField`/`Rule` validation API (pattern, not code). A field declares
  * `validation: (rule) => rule.required().min(2).custom(...)`; this module
  * turns that chain into a list of declarative checks and evaluates them at
@@ -57,11 +57,11 @@ export type CustomValidatorResult =
 export interface ValidationFieldContext {
   /** The whole document being validated (nested shape, post-hooks). */
   document: Record<string, unknown>;
-  /** This field's flattened key (e.g. `slug`, `shippingAddress_city`). */
+  /** This field's flattened key (for example, `slug`, `shippingAddress_city`). */
   path: string;
   /** Whether this is a create or an update. */
   operation: "create" | "update";
-  /** The document's id on update — lets `unique` exclude the row itself. */
+  /** The document's id on update—lets `unique` exclude the row itself. */
   id?: number;
 }
 
@@ -91,7 +91,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * Immutable, chainable rule builder — the value a field's `validation`
+ * Immutable, chainable rule builder—the value a field's `validation`
  * function receives and returns. Build a `Rule` with the module-level
  * {@link rule} factory, or accept the one passed to your `validation`
  * callback.
@@ -203,7 +203,7 @@ export class Rule {
   }
 }
 
-/** Fresh, empty rule — the root of a chain. */
+/** Fresh, empty rule—the root of a chain. */
 export function rule(): Rule {
   return new Rule();
 }
@@ -216,7 +216,7 @@ export function rule(): Rule {
 export type ValidationBuilder = (r: Rule) => Rule | Rule[];
 
 /**
- * Identity helper mirroring Sanity's `defineField` — returns the field
+ * Identity helper mirroring Sanity's `defineField`—returns the field
  * config unchanged but gives editors autocomplete and a single, greppable
  * call site for field definitions. Optional: a plain object literal is still
  * a valid field.
@@ -225,7 +225,7 @@ export function defineField<T extends FieldConfig>(field: T): T {
   return field;
 }
 
-/** Resolve a field's `validation` builder(s) to a flat list of checks. */
+/** Resolve a field's `validation` builder, or builders, to a flat list of checks. */
 export function resolveChecks(field: FieldConfig): readonly Check[] {
   if (!field.validation) return [];
   const built = field.validation(new Rule());
@@ -249,7 +249,7 @@ function sizeOf(value: unknown): { size: number; unit: string } | null {
  * they're implemented in `validation.ts` and injected into
  * {@link evaluateCheck} as this handler pair. Keeping them out of this module
  * is the whole point of the split (see the header): `rule.ts` must never import
- * `drizzle-orm`. When no handlers are supplied both checks no-op — exactly the
+ * `drizzle-orm`. When no handlers are supplied both checks no-op—exactly the
  * pure client-side / sections / forms pass.
  */
 export interface DbBackedChecks {
@@ -369,12 +369,12 @@ export async function evaluateCheck(
 /**
  * Evaluate a single value against a field's `validation` chain, returning its
  * violations. Reuses the same {@link Rule} builder and check semantics as
- * {@link validateDocument}, but for one value in isolation — so schemas that
- * aren't a `CollectionConfig` (e.g. the structured-sections catalog) can run
+ * {@link validateDocument}, but for one value in isolation—so schemas that
+ * aren't a `CollectionConfig` (for example, the structured-sections catalog) can run
  * the exact same rules. DB-backed checks (`unique`/`reference`) are inapplicable
  * here and no-op (no `db` handlers passed to {@link evaluateCheck}), so this
- * entry point — and every module that reuses it (`content/sections.ts`,
- * `forms/validate.ts`) — stays free of `drizzle-orm`.
+ * entry point—and every module that reuses it (`content/sections.ts`,
+ * `forms/validate.ts`)—stays free of `drizzle-orm`.
  */
 export async function validateValue(
   builder: ValidationBuilder | undefined,

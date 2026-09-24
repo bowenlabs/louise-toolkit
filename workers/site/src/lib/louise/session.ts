@@ -1,17 +1,17 @@
 // Minimal pre-prod editor gate for the louisetoolkit.com site.
 //
-// This is NOT Better Auth — it's the smallest thing that can answer "is this
+// This is NOT Better Auth—it's the smallest thing that can answer "is this
 // request an editor?" for a single-editor, pre-production testbed, sitting
 // behind the SAME `resolveEditor(request, env)` seam the louise-toolkit/editor routes
 // expect. A signed (HMAC-SHA256) cookie carries the editor identity; the login
 // (/louise) checks one shared password. Swapping in getLouiseAuth
-// (louise-toolkit/auth) later is a drop-in — the routes and middleware don't change,
+// (louise-toolkit/auth) later is a drop-in—the routes and middleware don't change,
 // only this module does.
 
 import type { EditorSession } from "louise-toolkit/auth";
 
 /** Config the gate reads. Env-injected (see the astro:env schema in
- *  astro.config.mjs) so this module stays framework-agnostic — it runs
+ *  astro.config.mjs) so this module stays framework-agnostic—it runs
  *  identically in the Worker editor routes and in SSR middleware. */
 export interface EditorGateEnv {
   /** HMAC key that signs the session cookie. Optional: unset in local dev
@@ -26,7 +26,7 @@ export interface EditorGateEnv {
 
 /** Signed identity cookie. */
 export const SESSION_COOKIE = "louise_session";
-/** Unsigned edit-mode flag — controls affordance rendering only; every write is
+/** Unsigned edit-mode flag—controls affordance rendering only; every write is
  *  re-checked against the signed session + same-origin, so this is not a
  *  security boundary. */
 export const EDIT_COOKIE = "louise_edit";
@@ -87,7 +87,7 @@ export async function verifySession(
   const key = await hmacKey(env.LOUISE_SESSION_SECRET ?? "");
   const ok = await crypto.subtle
     // b64urlDecode returns Uint8Array<ArrayBufferLike>; lib.dom's BufferSource
-    // (TS 5.7+) wants an ArrayBuffer-backed view — fine at the Workers runtime.
+    // (TS 5.7+) wants an ArrayBuffer-backed view—fine at the Workers runtime.
     .verify("HMAC", key, b64urlDecode(sig) as BufferSource, encoder.encode(body))
     .catch(() => false);
   if (!ok) return null;

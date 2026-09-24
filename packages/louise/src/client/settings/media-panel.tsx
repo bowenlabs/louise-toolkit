@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework Media panel — browses the site's media library (GET
+// Framework Media panel—browses the site's media library (GET
 // /api/louise/media), uploads new images, copies public URLs, and deletes
 // objects with the delete-safety reference scan (a 409 lists what still uses
 // the file). Opened from the image icon in the Settings' top framework strip.
@@ -48,7 +48,7 @@ export function MediaPanel() {
   const [uploading, setUploading] = createSignal(false);
   const [copied, setCopied] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
-  // Only one asset's alt/caption editor is open at a time — its Save/Cancel own
+  // Only one asset's alt/caption editor is open at a time—its Save/Cancel own
   // the drawer footer, so the footer stack always has a single, unambiguous top.
   const [editingKey, setEditingKey] = createSignal<string | null>(null);
 
@@ -163,8 +163,8 @@ export function MediaPanel() {
 }
 
 /**
- * One asset card: thumbnail (with its real alt), filename/size/dimensions, and —
- * when it's the single open editor — the asset-level `alt`/`caption` inputs. Its
+ * One asset card: thumbnail (with its real alt), filename/size/dimensions, and—when
+ * it's the single open editor—the asset-level `alt`/`caption` inputs. Its
  * Save/Cancel live in the drawer footer (via {@link MediaEditor}); the card's own
  * Copy / Alt / Delete stay inline in the grid.
  */

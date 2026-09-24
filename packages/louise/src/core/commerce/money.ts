@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce — getting money INTO minor units without float drift.
+// louise-toolkit/commerce—getting money INTO minor units without float drift.
 // (Out is `centsToMajor`.) Two different jobs, deliberately two functions:
 // converting a number you computed, and parsing a string someone typed.
 
@@ -14,7 +14,7 @@
  * point in the number's decimal STRING instead, which is exact for every
  * amount that has one.
  *
- * `fractionDigits` is the currency's minor-unit count — 2 for USD, 0 for JPY,
+ * `fractionDigits` is the currency's minor-unit count—2 for USD, 0 for JPY,
  * 3 for BHD.
  */
 export function majorToCents(amount: number, fractionDigits = 2): number {
@@ -27,7 +27,7 @@ export function majorToCents(amount: number, fractionDigits = 2): number {
 }
 
 /**
- * Money a person typed — "12", "12.5", "12.50" — as minor units, or `null` if it
+ * Money a person typed—"12", "12.5", "12.50"—as minor units, or `null` if it
  * isn't a plain non-negative amount with at most `fractionDigits` decimals.
  *
  * Parsed as text, never through `parseFloat`, so nothing drifts. Strict on

@@ -1,6 +1,6 @@
 // Phosphor icons for Louise's editor + chrome. SVGs are imported raw from
 // @phosphor-icons/core (regular weight) and inlined, so they inherit
-// `currentColor` and size to `1em` — no icon font, no runtime fetch, CSP-safe.
+// `currentColor` and size to `1em`—no icon font, no runtime fetch, CSP-safe.
 import bold from "@phosphor-icons/core/assets/regular/text-b.svg?raw";
 import italic from "@phosphor-icons/core/assets/regular/text-italic.svg?raw";
 import underline from "@phosphor-icons/core/assets/regular/text-underline.svg?raw";
@@ -30,11 +30,11 @@ import house from "@phosphor-icons/core/assets/regular/house.svg?raw";
 import user from "@phosphor-icons/core/assets/regular/user.svg?raw";
 import star from "@phosphor-icons/core/assets/regular/star.svg?raw";
 import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw";
-// The four-point sparkle — the conventional "AI assist" affordance (rewrite /
+// The four-point sparkle—the conventional "AI assist" affordance (rewrite /
 // SEO suggest, #75/#166).
 import sparkle from "@phosphor-icons/core/assets/regular/star-four.svg?raw";
 import link from "@phosphor-icons/core/assets/regular/link.svg?raw";
-// Version history — the conventional "rewind the clock" affordance.
+// Version history—the conventional "rewind the clock" affordance.
 import history from "@phosphor-icons/core/assets/regular/clock-counter-clockwise.svg?raw";
 
 export const icons = {

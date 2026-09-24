@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The owner Home/Overview landing (#108) — the drawer's default panel. It leads
+// The owner Home/Overview landing (#108)—the drawer's default panel. It leads
 // with attention, not fields: a traffic-light summary ("Your site is healthy" vs
 // "3 things need your attention") over a grid of registerable cards. Each card is
 // handed a card-scoped DashboardApi (cross-panel deep-links + status reporting);
 // the panel aggregates every card's status into the summary.
 //
-// It registers NO footer actions — every card carries its own single verb — so
+// It registers NO footer actions—every card carries its own single verb—so
 // the drawer footer (#109) collapses here, which is exactly the empty-slot case
 // that panel validates.
 

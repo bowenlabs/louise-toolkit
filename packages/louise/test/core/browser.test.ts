@@ -55,7 +55,7 @@ describe("ogImage", () => {
 
     const second = await ogImage({ cacheKey: "og/x.png", markup: "<h1>x</h1>", render, cache });
     expect(second.cached).toBe(true);
-    expect(render).toHaveBeenCalledTimes(1); // NOT called again — no browser session
+    expect(render).toHaveBeenCalledTimes(1); // NOT called again—no browser session
   });
 
   it("always renders when no cache is provided", async () => {
@@ -140,7 +140,7 @@ describe("createResvgRenderer", () => {
     expect(Array.from(png)).toEqual([137, 80, 78, 71]);
     expect(initWasm).toHaveBeenCalledTimes(1);
 
-    // A second render — even a second renderer over the same module — must not
+    // A second render—even a second renderer over the same module—must not
     // re-init (initWasm throws on a double init).
     await render(ogCardSvg("again"));
     const render2 = createResvgRenderer({
@@ -253,7 +253,7 @@ describe("checkLinks", () => {
       fetch: fetchImpl,
     });
     expect(broken).toEqual([]); // external 404 never checked
-    // Only the page itself was fetched — the external link was skipped.
+    // Only the page itself was fetched—the external link was skipped.
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

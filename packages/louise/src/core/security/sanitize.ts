@@ -3,24 +3,24 @@
 // Parser-based allowlist sanitizer for editor-authored rich text. Parses the
 // HTML with ultrahtml and rebuilds it against a strict allowlist:
 //
-//   1. Element allowlist — any tag not in ALLOWED_TAGS is dropped with its
+//   1. Element allowlist: any tag not in ALLOWED_TAGS is dropped with its
 //      children (ultrahtml's `sanitize`), so script/style/iframe/svg/etc. and
 //      their contents never survive.
-//   2. Strict per-tag attribute allowlist — ultrahtml keeps unknown attributes
+//   2. Strict per-tag attribute allowlist: ultrahtml keeps unknown attributes
 //      by default (it only drops what's in `dropAttributes`), so we run our own
 //      pass that deletes every attribute not explicitly allowed for its tag.
 //      This is what removes `on*` handlers, arbitrary `style`, etc.
-//   3. URL-scheme + style-value scrubbing — `href`/`src` must be http(s),
+//   3. URL-scheme + style-value scrubbing: `href`/`src` must be HTTP or HTTPS,
 //      mailto, or same-document/relative; inline `style` is limited to a plain
 //      `color:` declaration (the only style the ProseKit text-color mark emits).
 //   4. A final regex net strips any stray dangerous-tag token left by the
-//      parser's serialization of malformed input (e.g. `<scr<script>ipt>`).
+//      parser's serialization of malformed input (for example, `<scr<script>ipt>`).
 //
 // The allowlist matches exactly the formatting Louise's ProseKit client emits
 // (see `../content/richtext`): block + inline formatting, resizable images
 // (`<img width height>`), the text-color mark (`<span style="color:…"
 // data-text-color="…">`), and the builder block containers. Keep this in
-// sync with the client — that coupling is why the sanitizer lives in the
+// sync with the client; that coupling is why the sanitizer lives in the
 // package alongside the richtext it guards.
 
 import { ELEMENT_NODE, transformSync, walkSync } from "ultrahtml";
@@ -60,7 +60,7 @@ export const ALLOWED_TAGS = [
   "code",
   "pre",
   "div",
-  // Builder block containers — serialized by the blocks framework as
+  // Builder block containers—serialized by the blocks framework as
   // `<tag data-block="…" class="pb-…">`.
   "section",
   "figure",
@@ -80,31 +80,31 @@ export const ATTR_ALLOW: Record<string, Set<string>> = {
   figcaption: new Set(["class"]),
   hr: new Set(["class", "data-block", "data-size"]),
   // Grid rows/columns: identity + the row's adjustable track list (a validated
-  // `grid-template-columns` — see the style scrub below).
+  // `grid-template-columns`—see the style scrub below).
   div: new Set(["class", "data-block", "style"]),
   blockquote: new Set(["class", "data-block"]),
 };
 const NO_ATTRS: Set<string> = new Set();
 
-/** Tags whose `class` survives — and only `pb-*` tokens, so editor HTML can
- * never borrow arbitrary site classes (e.g. class="btn-solid"). */
+/** Tags whose `class` survives—and only `pb-*` tokens, so editor HTML can
+ * never borrow arbitrary site classes (for example, class="btn-solid"). */
 const PB_CLASS_TAGS = new Set(["section", "figure", "figcaption", "hr", "div", "blockquote"]);
 const PB_TOKEN = /^pb(?:-[a-z0-9-]+)?$/;
 
-/** http(s), mailto, hash, or root-/dot-relative — never javascript:/data:/etc. */
+/** HTTP or HTTPS, mailto, hash, or root-/dot-relative—never javascript:/data:/etc. */
 const SAFE_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
 
-/** Allowed inline `style` declarations — each a single, value-validated
+/** Allowed inline `style` declarations—each a single, value-validated
  *  property. Two are permitted:
- *   • `color:` — the ProseKit text-color mark. A literal (hex / rgb(a) / hsl /
+ *   • `color:`—the ProseKit text-color mark. A literal (hex / rgb(a) / hsl /
  *     named) OR a brand token: `var(--color-<token>)`, the daisyUI theme custom
- *     property the site defines (#182 Phase 5). The token stays theme-aware — a
- *     re-theme flows through with no content rewrite — and `var(--color-…)` can
+ *     property the site defines (#182 Phase 5). The token stays theme-aware—a
+ *     re-theme flows through with no content rewrite—and `var(--color-…)` can
  *     only reference a CSS custom property, so it carries no injection surface.
- *   • `grid-template-columns:` — an adjustable grid row's track list: a
+ *   • `grid-template-columns:`—an adjustable grid row's track list: a
  *     space-separated run of up to 12 numeric tracks (`%`, `fr`, `px`, or
  *     `auto`). No functions, urls, `calc`, or `;`-chaining, so there is no
- *     injection surface — it's a numeric layout value, same spirit as color. */
+ *     injection surface—it's a numeric layout value, same spirit as color. */
 const SAFE_COLOR_STYLE =
   /^\s*color:\s*(?:#[0-9a-f]{3,8}|rgba?\([\d,.\s%]+\)|hsl\([\d,.\s%]+\)|var\(\s*--color-[a-z-]+\s*\)|[a-z]+)\s*;?\s*$/i;
 const SAFE_GRID_STYLE =
@@ -117,11 +117,11 @@ function isSafeStyle(value: string): boolean {
 const DANGEROUS_TOKENS =
   /<\/?(?:script|style|iframe|object|embed|form|meta|link|base|svg|math)\b[^>]*>/gi;
 
-/** An `<img>` with no `src=` attribute — what a non-media `src` becomes after
+/** An `<img>` with no `src=` attribute—what a non-media `src` becomes after
  *  the strict scrub deletes it, so we drop the now-empty element entirely. */
 const SRCLESS_IMG = /<img\b(?![^>]*\bsrc=)[^>]*>/gi;
 
-/** Whether `src` is served from `base` (the site's `MEDIA_URL`) — mirrors
+/** Whether `src` is served from `base` (the site's `MEDIA_URL`)—mirrors
  *  `isMediaUrl` in louise-toolkit/media, inlined so this base-security module stays
  *  dependency-free. */
 function isFromMediaBase(base: string, src: string): boolean {
@@ -133,9 +133,9 @@ function isFromMediaBase(base: string, src: string): boolean {
 export interface SanitizeOptions {
   /**
    * When set, an `<img>` whose `src` is not served from this base (the site's
-   * `MEDIA_URL`) is dropped — enforcing that editor images live in the media
+   * `MEDIA_URL`) is dropped—enforcing that editor images live in the media
    * library, never hotlinked from an external origin (pasted HTML, etc.). Omit
-   * to keep any safe http(s)/relative `src` (the default, back-compatible
+   * to keep any safe HTTP, HTTPS, or relative `src` (the default, back-compatible
    * behavior).
    */
   mediaBase?: string;
@@ -160,7 +160,7 @@ function strictAttributes(mediaBase?: string) {
           delete el.attributes[name];
         }
         // Media-strictness: an image src that isn't from the media base is a
-        // hotlink — drop it (the src-less img is then removed on serialize).
+        // hotlink—drop it (the src-less img is then removed on serialize).
         if (
           name === "src" &&
           el.name === "img" &&

@@ -3,7 +3,7 @@
 // The site's OG-card renderer: resvg/WASM instead of Browser Rendering (#85).
 // The compiled resvg module comes straight from the `@resvg/resvg-wasm` package
 // (the Cloudflare Worker build compiles the `.wasm` import to a
-// `WebAssembly.Module` — no vendored binary in the repo); the fonts are the
+// `WebAssembly.Module`—no vendored binary in the repo); the fonts are the
 // base64-inlined Roboto Flex faces. `createResvgRenderer` initializes the WASM
 // lazily on the first render and once per isolate, so building the renderer at
 // module scope costs nothing until an OG card is actually requested.

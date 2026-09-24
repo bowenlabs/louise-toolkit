@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — Cloudflare Turnstile, the browser half. The server half
+// louise-toolkit/forms—Cloudflare Turnstile, the browser half. The server half
 // is `verifyTurnstileToken`; whether captcha is on at all is `activeCaptcha`
 // (louise-toolkit/auth), which decides the widget and the check together.
 //
@@ -8,7 +8,7 @@
 //
 //   1. The load race. Turnstile's automatic mode scans for `.cf-turnstile` once,
 //      when `api.js` runs. A widget created by a component that hydrates later
-//      is never found — no widget, on a form the server demands a token for.
+//      is never found: no widget, on a form the server demands a token for.
 //      This renders explicitly, after the script is ready, whichever lands first.
 //   2. The spent token. A token is single-use, and siteverify consumes it even
 //      when the submit fails for another reason (validation, a 429). Retrying
@@ -78,7 +78,7 @@ export function loadTurnstile(options: { timeoutMs?: number } = {}): Promise<Tur
 export interface RenderTurnstileOptions {
   siteKey: string;
   /**
-   * `"always"`, `"execute"` or `"interaction-only"` — for THIS widget only (see
+   * `"always"`, `"execute"` or `"interaction-only"`—for THIS widget only (see
    * the header). Omitted, Turnstile's default applies.
    */
   appearance?: "always" | "execute" | "interaction-only";
@@ -99,9 +99,9 @@ export interface TurnstileWidget {
   /** The current token, or `null` before one is issued. Also injected into the
    *  enclosing form as `cf-turnstile-response`. */
   token(): string | null;
-  /** Get a fresh token. Call after ANY failed submit — the old one is spent. */
+  /** Get a fresh token. Call after ANY failed submit—the old one is spent. */
   reset(): void;
-  /** Remove the widget (e.g. on component unmount). */
+  /** Remove the widget (for example, on component unmount). */
   remove(): void;
 }
 
@@ -150,7 +150,7 @@ export async function renderTurnstile(
 }
 
 /**
- * The CSP origins Turnstile needs, per directive — merge into the site's
+ * The CSP origins Turnstile needs, per directive—merge into the site's
  * policy. Its script, its challenge iframe, and the challenge's own requests all
  * come from one host.
  */

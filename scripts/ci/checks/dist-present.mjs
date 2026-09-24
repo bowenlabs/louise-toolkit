@@ -8,14 +8,14 @@
 // (`louise-toolkit/content`, `/forms`, `/auth`, `/db`), while `louise-toolkit`'s
 // own build rewrites that same directory. During the 0.27.0 release the adapter's
 // `tsgo` read `packages/louise/dist` while `vp pack` was rewriting it and died,
-// after the other three packages had already published — a partial release, from
+// after the other three packages had already published—a partial release, from
 // a race that only exists during a publish.
 //
 // So the build moved to one ordered pass up front (`pnpm run build:packages`,
 // which `pnpm release` runs), and what is left here is the guarantee that pass
 // actually happened. Nothing this script does can race: it only reads.
 //
-// It does not detect STALE output — a dist older than src still passes. That is
+// It does not detect STALE output—a dist older than src still passes. That is
 // deliberate: a freshness check needs a heuristic (mtimes, hashes) that is wrong
 // often enough to be ignored, and `pnpm release` rebuilds unconditionally anyway.
 // This catches the failure that actually ships broken packages: nothing built.

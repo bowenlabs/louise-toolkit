@@ -1,15 +1,15 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the one-click SEO backfill (#106 Phase 2c). A pages-side
+// louise-toolkit/editor—the one-click SEO backfill (#106 Phase 2c). A pages-side
 // companion to the media route's alt backfill: generate an SEO title/description
 // for published pages missing them, via Workers AI (louise-toolkit/ai `suggestSeo`).
 //
 //   POST /api/louise/pages/generate-seo   (editor-only) → { fixed, results }
 //
 // Config-driven and best-effort: 503 when no AI runner is wired; only the missing
-// field(s) are filled (an existing seoTitle is never overwritten); a page whose
+// fields are filled (an existing seoTitle is never overwritten); a page whose
 // content is empty, or where the model returns nothing, is skipped, not failed.
-// Mount BEFORE pagesRoute — its `/:id` matcher would else claim `/generate-seo`.
+// Mount BEFORE pagesRoute: its `/:id` matcher would else claim `/generate-seo`.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import {
@@ -37,7 +37,7 @@ export interface SeoFixRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> 
   table: SQLiteTable;
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
-  /** The Workers AI runner — typically `(env) => env.AI`. `undefined` → 503. */
+  /** The Workers AI runner—typically `(env) => env.AI`. `undefined` → 503. */
   ai: (env: Env) => AiRunner | undefined;
   /** Columns concatenated (HTML-stripped) as the model's content. Default `["title","body"]`. */
   contentColumns?: string[];
@@ -113,7 +113,7 @@ export function seoFixRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const seo = await suggestSeo(runner, content, opts);
       if (!seo) continue; // model returned nothing → leave for a manual fill
 
-      // Fill ONLY the missing field(s) — never clobber an existing value.
+      // Fill ONLY the missing fields; never clobber an existing value.
       const sets: string[] = [];
       const binds: (string | number)[] = [];
       if (isBlank(row.seo_title) && seo.title) {

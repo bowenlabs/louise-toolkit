@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Default Inquiries panel — the package-provided body for the Inquiries
+// Default Inquiries panel—the package-provided body for the Inquiries
 // collection tab. Contact-form submissions are created by the public site; the
 // Settings only reviews and clears them, so this is read-mostly: list newest-first
 // (GET /api/louise/inquiries), delete one by id. `inquiries` is a Louise base
 // table, but how a site displays a submission varies, so this is a *tab* a site
-// registers (in the bottom group) and can customize via `renderRow` — not a
+// registers (in the bottom group) and can customize via `renderRow`—not a
 // fixed framework panel like Pages/Media/Settings.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
@@ -17,7 +17,7 @@ import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
 export type InquiryRow = Record<string, unknown> & { id: number };
 
 const str = (v: unknown) => (v == null ? "" : String(v));
-/** First non-empty value among candidate keys — inquiry column names vary. */
+/** First non-empty value among candidate keys—inquiry column names vary. */
 const pick = (row: InquiryRow, keys: string[]) => {
   for (const k of keys) {
     const v = str(row[k]).trim();

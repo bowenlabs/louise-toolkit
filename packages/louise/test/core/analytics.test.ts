@@ -1,4 +1,4 @@
-// #106 CWV — Core Web Vitals on Analytics Engine: thresholds/summary, beacon
+// #106 CWV—Core Web Vitals on Analytics Engine: thresholds/summary, beacon
 // payload validation + data-point shape, the AE p75 SQL + row parsing, the
 // public ingestion route (same-origin, best-effort write), and the beacon script.
 

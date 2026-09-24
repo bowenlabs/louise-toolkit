@@ -8,8 +8,8 @@ import { mountRichText } from "../../src/client/RichText.jsx";
 // `set:html`, so persisting a transform URL would bake a fixed width and crop
 // into the document and defeat re-cropping later.
 //
-// The separation is structural — the node view is display, `DOMSerializer` reads
-// the node's attrs — but "structural" is exactly the kind of guarantee a later
+// The separation is structural—the node view is display, `DOMSerializer` reads
+// the node's attrs—but "structural" is exactly the kind of guarantee a later
 // refactor quietly breaks, and the symptom (a CDN URL in stored content) would
 // only surface long after the change.
 
@@ -18,8 +18,8 @@ const MASTER = "https://media.example.com/originals/master.jpg";
 const hosts: HTMLElement[] = [];
 function mount(html: string) {
   const el = document.createElement("div");
-  // `mountRichText` seeds from the host's existing markup when no doc is passed
-  // — the same path a site's `set:html` value takes into the editor.
+  // `mountRichText` seeds from the host's existing markup when no doc is
+  // passed—the same path a site's `set:html` value takes into the editor.
   el.innerHTML = html;
   document.body.appendChild(el);
   hosts.push(el);
@@ -36,7 +36,7 @@ describe("RichText image round-trip", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Both halves in one test on purpose. Asserting only the serialized side
-    // would still pass if the node view stopped transforming altogether — which
+    // would still pass if the node view stopped transforming altogether—which
     // is the regression that reintroduces the 6 MB fetch this fixed.
     const displayed = document.querySelector("img")?.getAttribute("src") ?? "";
     expect(displayed).toContain("/cdn-cgi/image/");
@@ -60,7 +60,7 @@ describe("RichText image round-trip", () => {
 
     expect(twice).toContain(MASTER);
     expect(twice).not.toContain("/cdn-cgi/image/");
-    // Alt survives too — it is the reason the node gained a custom attr at all.
+    // Alt survives too—it is the reason the node gained a custom attr at all.
     expect(twice).toContain('alt="A print drying"');
   });
 });

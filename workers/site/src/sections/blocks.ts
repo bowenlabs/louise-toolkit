@@ -1,6 +1,6 @@
 import type { BlockCatalog } from "louise-toolkit/content";
 
-// The site's catalog of block types — the block-level analogue of ./catalog.ts
+// The site's catalog of block types—the block-level analogue of ./catalog.ts
 // (SCHEMA ONLY; the bespoke render lives in the section components). A block is
 // one item of a section's first-class `blocks` layer (ADR 0005); block fields
 // reuse `SectionField`, so they validate exactly like a section's fields.
@@ -11,8 +11,8 @@ import type { BlockCatalog } from "louise-toolkit/content";
 // (dock/inspector fields), so the exact look stays the site's call.
 //
 // `cta` + `install` are the hero's action row (#182 reference slice): unlike
-// featureGrid's homogeneous cards, the hero promotes a **mixed** ordered list —
-// a button and an install-command chip — into `blocks`, so the catalog carries
+// featureGrid's homogeneous cards, the hero promotes a **mixed** ordered list—a
+// button and an install-command chip—into `blocks`, so the catalog carries
 // two block types and the section renders each by `_type`. The CTA's label is
 // edited in place; the link target + the command are dock fields (no clean
 // visible node to click).

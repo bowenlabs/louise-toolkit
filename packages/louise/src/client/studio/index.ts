@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/client/studio` — the Louise editor as a full-page admin app.
+// `louise-toolkit/client/studio`—the Louise editor as a full-page admin app.
 //
 // Its own subpath rather than an export of `client/settings`, because the two
 // are alternative presentations and a site loads exactly one: a marketing page
 // that only ever opens the drawer should not pull the studio into its bundle,
 // and a studio route should not pull the drawer's scrim and focus trap into its.
 //
-// The panels themselves are shared — see `client/settings/surface`.
+// The panels themselves are shared; see `client/settings/surface`.
 
 export {
   mountStudio,

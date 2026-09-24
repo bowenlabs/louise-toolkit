@@ -136,7 +136,7 @@ describe("louiseSecurityHeaders — noindex", () => {
 
 describe("majorToCents", () => {
   it("rounds exactly where Math.round(x * 100) drifts", () => {
-    // 1.005 * 100 === 100.49999999999999 — the naive version gives 100.
+    // 1.005 * 100 === 100.49999999999999—the naive version gives 100.
     expect(Math.round(1.005 * 100)).toBe(100);
     expect(majorToCents(1.005)).toBe(101);
     expect(majorToCents(8.345)).toBe(835);

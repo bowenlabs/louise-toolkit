@@ -3,7 +3,7 @@
 // The publish Workflow (#88): the durable, multi-step pipeline that runs when a
 // page is published. `versionsRoute`'s `deferReindex` starts it (worker.ts), so
 // publish returns as soon as the live row is written and the derived work runs
-// off the request path — each step retried independently and resumable mid-way.
+// off the request path—each step retried independently and resumable mid-way.
 //
 // Steps: load the published row → reindex FTS → warm the OG share card in the
 // Cache API → notify an optional webhook. Reindex moves off the fire-and-forget
@@ -52,7 +52,7 @@ const runPublish = defineWorkflow<CloudflareEnv, PublishParams, PublishState>([
       return { slug: row?.slug, title: row?.seoTitle || row?.title || "" };
     },
   },
-  // FTS reindex — durable + retried (was the fire-and-forget Queue job in #77).
+  // FTS reindex—durable + retried (was the fire-and-forget Queue job in #77).
   {
     name: "reindex",
     config: { retries: { limit: 5, delay: "10 seconds" } },
@@ -76,7 +76,7 @@ const runPublish = defineWorkflow<CloudflareEnv, PublishParams, PublishState>([
   // Drop the just-published page's cached render (#95/#163) so the update shows
   // sooner than its `maxAge`. Best-effort inside invalidatePageCache (never
   // throws); `caches.default.delete` is per-colo, so this only clears the data
-  // center this run executes in — the short `maxAge` is the global freshness
+  // center this run executes in—the short `maxAge` is the global freshness
   // floor. Needs the slug (from the load step), which the URL cache key is built
   // from; skipped if the row had no slug.
   {

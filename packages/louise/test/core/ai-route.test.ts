@@ -4,7 +4,7 @@ import type { EditorSession } from "../../src/core/auth/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { aiRoute, seoFixRoute } from "../../src/core/editor/index.js";
 
-// aiRoute never touches D1, but EditorRouteEnv requires the binding — a no-op is
+// aiRoute never touches D1, but EditorRouteEnv requires the binding—a no-op is
 // enough. The real model calls are covered by the core/ai helper tests; here we
 // assert routing, the editor guard, opt-in/degrade (503), validation, and the
 // pass-through to the helpers.
@@ -183,12 +183,12 @@ describe("aiRoute — the LOUISE_AI kill switch (#334)", () => {
 });
 
 // A COMPILE-TIME assertion, not a runtime one. `aiRunner` is passed as a route's
-// `ai` accessor, whose parameter is that route's own `Env` — so typing it to
+// `ai` accessor, whose parameter is that route's own `Env`—so typing it to
 // describe the env it reads (`{ AI?, LOUISE_AI? }`) makes it unassignable there:
 // TypeScript sees no properties in common with `EditorRouteEnv` and rejects it.
 //
 // The first version of this shipped exactly that signature. Every unit test
-// passed, because they all declared envs that happened to include `AI` — the
+// passed, because they all declared envs that happened to include `AI`—the
 // break only appeared in the scaffold smoke job, which type-checks a generated
 // worker against the built library. These lines fail `tsgo` locally instead.
 describe("aiRunner is usable as a route accessor", () => {

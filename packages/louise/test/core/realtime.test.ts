@@ -106,7 +106,7 @@ describe("realtimeRoute", () => {
     expect(fake.namedId()).toBe("pages:42"); // one DO per page
     const fwd = fake.forwarded();
     // The original request is forwarded (upgrade preserved), re-pointed at a URL
-    // carrying the server-resolved identity — id/name AND email/role so the DO can
+    // carrying the server-resolved identity—id/name AND email/role so the DO can
     // attribute the coalesced flush to a complete EditorSession.
     expect(fwd?.headers.get("upgrade")).toBe("websocket");
     const params = new URL(fwd?.url ?? "").searchParams;
@@ -141,7 +141,7 @@ function socket(session: EditorSession) {
   return { ws, sent, msgs: () => sent.map((m) => JSON.parse(m) as { t: string }) };
 }
 
-/** In-memory `DurableObjectStorage` — the transactional KV + alarm surface the
+/** In-memory `DurableObjectStorage`—the transactional KV + alarm surface the
  *  session uses. */
 function fakeStorage() {
   const map = new Map<string, unknown>();
@@ -258,7 +258,7 @@ describe("createEditSession — presence + handshake", () => {
 
     expect(a.ws.close).toHaveBeenCalled();
     expect(a.sent).toHaveLength(0); // the leaver got nothing
-    // b got a presence frame (only b) and a locks frame (now empty — a's freed).
+    // b got a presence frame (only b) and a locks frame (now empty—a's freed).
     const bMsgs = b.msgs();
     expect(bMsgs.map((m) => m.t)).toEqual(["presence", "locks"]);
     expect(parse(b.sent[0])).toMatchObject({ t: "presence", peers: [{ id: "u2", name: "Bo" }] });

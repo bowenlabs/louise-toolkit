@@ -1,4 +1,4 @@
-// Headless <Form> render helper — happy-dom Solid component tests (#46, Tier 2).
+// Headless <Form> render helper—happy-dom Solid component tests (#46, Tier 2).
 // Covers rendering from the catalog, the client-side validation mirror (reusing
 // the shared Rule engine), a successful POST, and mapping a server 422.
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — the `defineForm` entry point. One definition is the single
+// louise-toolkit/forms—the `defineForm` entry point. One definition is the single
 // source of truth: it derives the submission table, the review columns, and
 // (via `formRoute` in louise-toolkit/editor) the public capture route + validation.
 
@@ -11,7 +11,7 @@ import type { FormConfig, FormDefinition, FormReviewColumn } from "./types.js";
 const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
- * Define a form. Returns the config plus everything derived from it — the
+ * Define a form. Returns the config plus everything derived from it—the
  * Drizzle `columns`/`table` and the `reviewColumns` the Settings renders. Pass the
  * result's `table` to `formRoute` (capture) and to the submissions review route.
  *

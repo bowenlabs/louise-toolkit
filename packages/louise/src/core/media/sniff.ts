@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/media — image type sniffing.
+// louise-toolkit/media—image type sniffing.
 //
 // Security-critical: the real image type is read from the leading magic bytes,
 // never from the client-supplied `file.type`. A file with a spoofed
 // `image/png` MIME would otherwise be stored *and served* as an image from a
 // public media domain. Keeping this in the package (rather than copy-pasted per
-// site) means one fix covers every Louise site — the same class as
+// site) means one fix covers every Louise site—the same class as
 // `louise-toolkit/security`'s sanitizer.
 
 /** The image MIME types Louise verifies and serves. SVG is intentionally

@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce — checking a stored cart against the live catalog,
+// louise-toolkit/commerce—checking a stored cart against the live catalog,
 // and repairing it.
 //
 // A cart outlives the catalog it was built from: a price changes, an item is
-// retired, an add-on is deleted. Refusing the checkout is right — the server
-// must never charge a number the customer didn't see — but refusing with only
+// retired, an add-on is deleted. Refusing the checkout is right—the server
+// must never charge a number the customer didn't see—but refusing with only
 // the FIRST problem is how a customer ends up in a loop: fix one line, retry,
 // get refused over the next. So `cartIssues` reports every problem at once, with
 // what the catalog says now, and `repairCart` applies all of them in one step.
 //
 // Both are pure. Fetching the live prices / stock / add-ons is the provider's
-// job (e.g. `retrieveVariationPrices` + `retrieveLiveCatalogObjectIds` in
+// job (for example, `retrieveVariationPrices` + `retrieveLiveCatalogObjectIds` in
 // `louise-toolkit/commerce/square`); wording the result for a customer is the
 // site's. Nothing here assumes a currency, a quantity cap or a language.
 
@@ -20,7 +20,7 @@ export interface CartLine<M extends { id: string } = { id: string }> {
   variantId: string;
   quantity: number;
   /**
-   * The unit price the customer was shown, in minor units — compared against
+   * The unit price the customer was shown, in minor units—compared against
    * the live price as given. If modifiers are priced by the provider (Square
    * does), this is the BASE price and modifier prices are not compared.
    */
@@ -56,7 +56,7 @@ export interface CatalogSnapshot {
 }
 
 /**
- * Every way `lines` disagrees with the live catalog — not just the first — in
+ * Every way `lines` disagrees with the live catalog—not just the first—in
  * cart order, one issue per variant or add-on however many lines share it.
  * An empty array means the cart can be charged as shown.
  *
@@ -98,12 +98,12 @@ export function cartIssues(lines: readonly CartLine[], catalog: CatalogSnapshot)
   return issues;
 }
 
-/** Every add-on id across `lines`, de-duplicated — what to ask the provider about. */
+/** Every add-on id across `lines`, de-duplicated—what to ask the provider about. */
 export function cartModifierIds(lines: readonly CartLine[]): string[] {
   return [...new Set(lines.flatMap((l) => (l.modifiers ?? []).map((m) => m.id)))];
 }
 
-/** What {@link repairCart} did, as data — the site words it for its customers. */
+/** What {@link repairCart} did, as data—the site words it for its customers. */
 export type CartChange<L extends CartLine> =
   | { kind: "repriced"; line: L; fromCents: number; toCents: number }
   | { kind: "removed"; line: L; reason: "unavailable" | "out-of-stock" }
@@ -116,7 +116,7 @@ export type CartChange<L extends CartLine> =
 
 export interface RepairCartOptions<L extends CartLine> {
   /**
-   * What makes two lines "the same thing" — merged after an add-on is
+   * What makes two lines "the same thing"—merged after an add-on is
    * removed. Default: the variant plus its sorted add-on ids.
    */
   key?: (line: L) => string;
@@ -132,7 +132,7 @@ const defaultKey = (line: CartLine) =>
 
 /**
  * Apply `issues` to `lines`: reprice changed variants, remove unavailable and
- * sold-out ones, strip deleted add-ons — then fold together any lines that
+ * sold-out ones, strip deleted add-ons—then fold together any lines that
  * became identical. Returns the new lines (inputs are not mutated) and every
  * change made, in order, for the site to tell the customer about.
  */
