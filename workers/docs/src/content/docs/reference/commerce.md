@@ -329,6 +329,34 @@ const square = { accessToken, environment, retry: { attempts: 3 } };
 
 A 4xx other than 429 is never retried: that is our bug, not Square's weather.
 
+Every non-2xx answer throws a `SquareApiError` (an `Error`) carrying `status` and
+Square's `code`. Check `err.status === 404` to tell "not found" from a failure,
+since a 404 is often a real answer.
+
+### Accounts: customers, cards, loyalty
+
+| Export                                               | Purpose                                                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `ensureCustomer(config, { email, …, phoneNumber? })` | Find-or-create by email. The names and phone apply only when creating.                         |
+| `updateCustomer(config, id, fields)`                 | Change fields on an existing customer. Sends only the fields you pass; `null` clears one.      |
+| `listCards(config, { customerId })`                  | A customer's cards on file, following the cursor. Enabled cards only unless `includeDisabled`. |
+| `disableCard(config, cardId, { customerId })`        | Remove a card, **only** if it's on file for that customer. Returns `false` otherwise.          |
+| `retrieveLoyaltyProgram(config)`                     | The seller's program (earn rules, reward tiers, terminology), or `null` when there isn't one.  |
+| `retrieveLoyaltyAccountByCustomer(config, id)`       | A customer's points balance and lifetime points, or `null`.                                    |
+| `squareApplicationIdEnvironment(appId)`              | `"sandbox"`, `"production"`, or `null`, read from the application id's format.                 |
+
+`disableCard` reads the card first and checks that its customer matches, so a
+guessed card id from one signed-in customer can't remove another's.
+`retrieveLoyaltyProgram` returns the program as Square has it, inactive ones
+included—check `status` before advertising it. It invents no terminology when
+Square sends none. Only a 404 means "no program"; any other failure throws, so a
+transient error isn't cached as an answer.
+
+Compare `squareApplicationIdEnvironment(PUBLIC_SQUARE_APPLICATION_ID)` with the
+environment your server uses before mounting the card form. A placeholder id, or
+an id from the other environment, otherwise fails inside the payment SDK with an
+error a customer can't act on.
+
 ### Editing an existing object
 
 Square documents a silent data-loss hazard, verbatim: _"If a client reads an

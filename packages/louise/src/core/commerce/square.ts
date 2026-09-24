@@ -47,6 +47,25 @@ export interface SquareRetryConfig {
 // (BaseClient sends `Square-Version: 2026-01-22`). Bump deliberately.
 export const SQUARE_VERSION = "2026-01-22";
 
+/**
+ * Which Square environment an application id belongs to, from its format —
+ * `sandbox-sq0idb-…` or `sq0idp-…` — or `null` when it is neither (a
+ * placeholder, a typo, an access token pasted into the wrong variable).
+ *
+ * The Web Payments SDK rejects a malformed id with "…not in the correct
+ * format" and an id from the other environment with an opaque error at
+ * checkout. Compare the result with the environment the server uses and
+ * show a clear "payments not available" state instead.
+ */
+export function squareApplicationIdEnvironment(
+  applicationId: string | null | undefined,
+): SquareEnvironment | null {
+  const id = applicationId?.trim() ?? "";
+  if (/^sandbox-sq0idb-[\w-]+$/.test(id)) return "sandbox";
+  if (/^sq0idp-[\w-]+$/.test(id)) return "production";
+  return null;
+}
+
 const HOSTS: Record<SquareEnvironment, string> = {
   production: "https://connect.squareup.com",
   sandbox: "https://connect.squareupsandbox.com",
@@ -79,10 +98,37 @@ interface SquareErrorBody {
   errors?: { code?: string; detail?: string; category?: string }[];
 }
 
+/**
+ * A non-2xx answer from Square. The message is unchanged from before this
+ * class existed; `status` and `code` are what let a caller tell "not found"
+ * (a 404 is often an answer — no loyalty program, no such card) from a failure
+ * without matching on the message.
+ */
+export class SquareApiError extends Error {
+  readonly status: number;
+  /** Square's first error code, e.g. `"NOT_FOUND"`, when it sent one. */
+  readonly code: string | null;
+  constructor(path: string, status: number, body: SquareErrorBody) {
+    const first = body.errors?.[0];
+    super(`Square ${path} ${status}: ${first?.detail ?? first?.code ?? "error"}`);
+    this.name = "SquareApiError";
+    this.status = status;
+    this.code = first?.code ?? null;
+  }
+}
+
 function squareError(path: string, status: number, body: SquareErrorBody): Error {
-  const first = body.errors?.[0];
-  const detail = first?.detail ?? first?.code ?? "error";
-  return new Error(`Square ${path} ${status}: ${detail}`);
+  return new SquareApiError(path, status, body);
+}
+
+/** Run a read, turning Square's 404 into `null`; every other error still throws. */
+async function orNotFound<T>(read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (err) {
+    if (err instanceof SquareApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /** Retryable = Square's weather, not our bug: rate limiting and server faults.
@@ -2205,16 +2251,47 @@ export async function createCustomer(
 }
 
 /**
- * Find-or-create a Square customer by email — used to (optionally) link a
- * coracle account to Square. Returns the customer and whether it was created.
+ * Find-or-create a Square customer by email — used to (optionally) link a site
+ * account to Square. Returns the customer and whether it was created. The
+ * names and phone apply only when creating; to change a customer that already
+ * exists, use {@link updateCustomer}.
  */
 export async function ensureCustomer(
   config: SquareConfig,
-  input: { email: string; givenName?: string; familyName?: string },
+  input: { email: string; givenName?: string; familyName?: string; phoneNumber?: string },
 ): Promise<{ customer: SquareCustomer; created: boolean }> {
   const existing = await searchCustomersByEmail(config, input.email);
   if (existing[0]) return { customer: existing[0], created: false };
   return { customer: await createCustomer(config, input), created: true };
+}
+
+/**
+ * Change fields on an existing customer. PUT /v2/customers/{id}. Sparse: only
+ * the fields you pass are sent, so an omitted one is left as it is — pass
+ * `null` to clear it.
+ */
+export async function updateCustomer(
+  config: SquareConfig,
+  customerId: string,
+  input: {
+    email?: string | null;
+    givenName?: string | null;
+    familyName?: string | null;
+    phoneNumber?: string | null;
+  },
+): Promise<SquareCustomer> {
+  const body: Record<string, string | null> = {};
+  if (input.email !== undefined) body.email_address = input.email;
+  if (input.givenName !== undefined) body.given_name = input.givenName;
+  if (input.familyName !== undefined) body.family_name = input.familyName;
+  if (input.phoneNumber !== undefined) body.phone_number = input.phoneNumber;
+  const res = await sqPut<{ customer?: RawCustomer }>(
+    config,
+    `/v2/customers/${encodeURIComponent(customerId)}`,
+    body,
+  );
+  if (!res.customer) throw new Error("Square customer update returned no customer");
+  return mapCustomer(res.customer);
 }
 
 // ── Cards on file (for subscriptions) ─────────────────────────────────────────
@@ -2225,6 +2302,32 @@ export interface SquareCard {
   cardBrand: string | null;
   expMonth: number | null;
   expYear: number | null;
+  /** The customer the card is on file for, when Square says. */
+  customerId?: string | null;
+  /** `false` once disabled. */
+  enabled?: boolean;
+}
+
+interface RawCard {
+  id?: string;
+  last_4?: string;
+  card_brand?: string;
+  exp_month?: number;
+  exp_year?: number;
+  customer_id?: string;
+  enabled?: boolean;
+}
+
+function mapCard(c: RawCard): SquareCard {
+  return {
+    id: c.id ?? "",
+    last4: c.last_4 ?? null,
+    cardBrand: c.card_brand ?? null,
+    expMonth: c.exp_month ?? null,
+    expYear: c.exp_year ?? null,
+    customerId: c.customer_id ?? null,
+    enabled: c.enabled !== false,
+  };
 }
 
 /**
@@ -2240,28 +2343,56 @@ export async function createCard(
     verificationToken?: string;
   },
 ): Promise<SquareCard> {
-  const res = await sqPost<{
-    card?: {
-      id?: string;
-      last_4?: string;
-      card_brand?: string;
-      exp_month?: number;
-      exp_year?: number;
-    };
-  }>(config, "/v2/cards", {
+  const res = await sqPost<{ card?: RawCard }>(config, "/v2/cards", {
     idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
     source_id: input.sourceId,
     verification_token: input.verificationToken,
     card: { customer_id: input.customerId },
   });
   if (!res.card) throw new Error("Square card creation returned no card");
-  return {
-    id: res.card.id ?? "",
-    last4: res.card.last_4 ?? null,
-    cardBrand: res.card.card_brand ?? null,
-    expMonth: res.card.exp_month ?? null,
-    expYear: res.card.exp_year ?? null,
-  };
+  return mapCard(res.card);
+}
+
+/**
+ * A customer's cards on file, following the cursor. GET /v2/cards. Enabled
+ * cards only unless `includeDisabled`.
+ */
+export async function listCards(
+  config: SquareConfig,
+  input: { customerId: string; includeDisabled?: boolean; maxPages?: number },
+): Promise<SquareCard[]> {
+  const cards: SquareCard[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < (input.maxPages ?? 10); page++) {
+    const q = new URLSearchParams({
+      customer_id: input.customerId,
+      include_disabled: String(input.includeDisabled ?? false),
+    });
+    if (cursor) q.set("cursor", cursor);
+    const res = await sqGet<{ cards?: RawCard[]; cursor?: string }>(config, `/v2/cards?${q}`);
+    cards.push(...(res.cards ?? []).map(mapCard));
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  return cards;
+}
+
+/**
+ * Disable (remove) a card on file — but only if it is on file for
+ * `customerId`. Returns `false`, without disabling anything, when the card
+ * doesn't exist or belongs to someone else, so a guessed card id from one
+ * signed-in customer can't remove another's. POST /v2/cards/{id}/disable.
+ */
+export async function disableCard(
+  config: SquareConfig,
+  cardId: string,
+  input: { customerId: string },
+): Promise<boolean> {
+  const id = encodeURIComponent(cardId);
+  const card = await orNotFound(() => sqGet<{ card?: RawCard }>(config, `/v2/cards/${id}`));
+  if (!card?.card || card.card.customer_id !== input.customerId) return false;
+  await sqPost(config, `/v2/cards/${id}/disable`, {});
+  return true;
 }
 
 // ── Loyalty ───────────────────────────────────────────────────────────────────
@@ -2307,6 +2438,88 @@ export async function retrieveLoyaltyAccountByCustomer(
   );
   const account = res.loyalty_accounts?.[0];
   return account ? mapLoyalty(account) : null;
+}
+
+export interface SquareLoyaltyAccrualRule {
+  /** `"SPEND"`, `"VISIT"`, `"ITEM_VARIATION"` or `"CATEGORY"` — as Square sends it. */
+  type: string;
+  points: number;
+  /** SPEND: points are earned per this much spend. */
+  spendMoney: SquareMoney | null;
+  /** VISIT: the minimum purchase for a visit to count. */
+  visitMinimumMoney: SquareMoney | null;
+  /** ITEM_VARIATION: the variation that earns. */
+  itemVariationId: string | null;
+  /** CATEGORY: the category that earns. */
+  categoryId: string | null;
+}
+
+export interface SquareLoyaltyProgram {
+  id: string;
+  /** `"ACTIVE"` or `"INACTIVE"`. An inactive program earns nothing. */
+  status: string;
+  /** What the seller calls points, as set in the Dashboard, e.g. Star / Stars. */
+  terminology: { one: string; other: string } | null;
+  accrualRules: SquareLoyaltyAccrualRule[];
+  /** Cheapest first. */
+  rewardTiers: { id: string; name: string; points: number }[];
+}
+
+interface RawLoyaltyProgram {
+  id?: string;
+  status?: string;
+  terminology?: { one?: string; other?: string };
+  reward_tiers?: { id?: string; name?: string; points?: number }[];
+  accrual_rules?: {
+    accrual_type?: string;
+    points?: number;
+    spend_data?: { amount_money?: { amount?: number; currency?: string } };
+    visit_data?: { minimum_amount_money?: { amount?: number; currency?: string } };
+    item_variation_data?: { item_variation_id?: string };
+    category_data?: { category_id?: string };
+  }[];
+}
+
+function mapLoyaltyProgram(p: RawLoyaltyProgram): SquareLoyaltyProgram {
+  const optMoney = (m?: { amount?: number; currency?: string }) => (m ? money(m) : null);
+  return {
+    id: p.id ?? "",
+    status: p.status ?? "",
+    terminology:
+      p.terminology?.one && p.terminology.other
+        ? { one: p.terminology.one, other: p.terminology.other }
+        : null,
+    accrualRules: (p.accrual_rules ?? []).map((r) => ({
+      type: r.accrual_type ?? "",
+      points: r.points ?? 0,
+      spendMoney: optMoney(r.spend_data?.amount_money),
+      visitMinimumMoney: optMoney(r.visit_data?.minimum_amount_money),
+      itemVariationId: r.item_variation_data?.item_variation_id ?? null,
+      categoryId: r.category_data?.category_id ?? null,
+    })),
+    rewardTiers: (p.reward_tiers ?? [])
+      .map((t) => ({ id: t.id ?? "", name: t.name ?? "", points: t.points ?? 0 }))
+      .sort((a, b) => a.points - b.points),
+  };
+}
+
+/**
+ * The seller's loyalty program — its earn rules, reward tiers and what it
+ * calls points — or `null` when the seller has none (Square answers 404).
+ * GET /v2/loyalty/programs/main (`main` is Square's alias for the seller's one
+ * program). Any other failure throws, so a transient error isn't mistaken for
+ * "no program" and cached as one.
+ *
+ * Returned as Square has it, inactive programs included: check `status` before
+ * advertising it.
+ */
+export async function retrieveLoyaltyProgram(
+  config: SquareConfig,
+): Promise<SquareLoyaltyProgram | null> {
+  const res = await orNotFound(() =>
+    sqGet<{ program?: RawLoyaltyProgram }>(config, "/v2/loyalty/programs/main"),
+  );
+  return res?.program ? mapLoyaltyProgram(res.program) : null;
 }
 
 // ── Subscriptions (Coracle Club) ───────────────────────────────────────────────
