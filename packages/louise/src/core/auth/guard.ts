@@ -56,15 +56,52 @@ export interface EditorContext {
   locals: { editor?: EditorSession | null };
 }
 
+/** Methods that read. Everything else is treated as a write. */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 /**
  * Context adapter over {@link requireEditor}: bridges a framework `context`
  * (`{ request, locals.editor }`) to the package's `{ request, editor }` shape,
  * so an editor-gated framework route is a one-liner —
  * `const denied = requireEditorFromContext(context); if (denied) return denied;`
  * — instead of each site re-declaring the same bridge in its own `lib/guard`.
+ * A framework's route context fits as-is once its locals declare `editor`.
+ *
+ * `mutation` defaults to the request's method: a write (anything but
+ * GET/HEAD/OPTIONS) gets the same-origin check, a read does not. Pass it
+ * explicitly to override — e.g. `true` for a GET that has side effects.
  */
-export function requireEditorFromContext(ctx: EditorContext, mutation = true): Response | null {
+export function requireEditorFromContext(
+  ctx: EditorContext,
+  mutation: boolean = !SAFE_METHODS.has(ctx.request.method.toUpperCase()),
+): Response | null {
   return requireEditor({ request: ctx.request, editor: ctx.locals.editor ?? null }, mutation);
+}
+
+/**
+ * A post-sign-in `?next=` target reduced to a same-origin path, or `fallback`.
+ *
+ * Handing `next` to `location.assign` or a redirect unchecked is an open
+ * redirect (`?next=https://evil.example`) and, in a browser, script execution
+ * (`?next=javascript:…`). A regex over the raw string is not enough: browsers
+ * strip tab and newline characters and read `\` as `/`, so `/%09/evil.example`
+ * and `/\evil.example` both become `//evil.example` — protocol-relative, i.e.
+ * off-site. This resolves `raw` with the WHATWG URL parser, the same algorithm
+ * the browser will apply, against a placeholder origin, and accepts it only if
+ * it stayed on that origin. What comes back is the normalized path + query +
+ * hash, never the caller's original string.
+ *
+ * `fallback` is required: where a user lands by default is the site's call.
+ */
+export function safeNextPath(raw: string | null | undefined, fallback: string): string {
+  if (typeof raw !== "string" || !raw.startsWith("/")) return fallback;
+  const base = "https://next.invalid";
+  try {
+    const url = new URL(raw, base);
+    return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 /** True when `role` is one of `allowed`. Roles are arbitrary, site-defined
