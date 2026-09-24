@@ -136,6 +136,12 @@ Write new prose to the guide from the start. The details that trip people up:
 - **Dashes:** `word—word`, never `word — word`, in comments too.
 - **Contractions:** use them ("isn't," "doesn't").
 - **Voice:** second person and present tense, with no "we," "will," or "simply."
+- **Examples:** use Google's [example conventions](https://developers.google.com/style/examples)
+  as written: `example.com` domains, "Example Organization" for a company, names
+  from Google's list (Alex, Kai, Quinn), `800-555-0100` through `0199` for phone
+  numbers, and `192.0.2.0/24` for IP addresses. No real brands, characters, or
+  pop-culture references; they don't translate, and a trademark in a sample can
+  read as an endorsement.
 
 `corepack pnpm run lint:docs` runs [Vale](https://vale.sh) with the Google
 style plus the house style in `vale/styles/Louise`. Run
