@@ -1,5 +1,78 @@
 # louise-toolkit
 
+## 0.30.0
+
+### Minor Changes
+
+- 4f0ed19: `createLouiseMiddleware({ apiGate })`: the deny-by-default editor API gate for routes mounted as Astro API routes (ADR 0012, slice 2).
+
+  **What's new.** `composeWorker({ gate })` protects routes the worker dispatches. A site that mounts the editor routes as Astro API routes through `runEditorRoute` never reaches that gate. Pass `apiGate: true` to the middleware and every request under `/api/louise` must come from a signed-in editor before any route runs. Writes and WebSocket upgrades are origin-checked, and gated responses get `Cache-Control: no-store` unless the route set its own. If `resolveEditor` throws, pages still render publicly as before, but the API **refuses** rather than serving an anonymous request.
+
+  **Public routes are declared by path here.** Middleware runs before Astro knows which route file will answer, so a route can't mark itself public the way `publicRoute` does for `composeWorker`. The toolkit's own public routes are exempt at their default paths (`/api/louise/forms/*`, `/api/louise/vitals`); add your own with `apiGate: { isPublic: (pathname) => … }`. `louise-toolkit/worker` now exports those default paths (`LOUISE_FORMS_PATH`, `LOUISE_VITALS_PATH`, `isLouisePublicPath`), which `formRoute` and `vitalsRoute` build their defaults from, so the exemption can't drift from where the routes answer. It also exports `underPrefix`.
+
+  **What you have to do.** Nothing until you turn it on. Before you do, list any Astro route under `/api/louise` that must answer without an editor session (a webhook, for example) and name it in `isPublic`, or it starts returning 401. Behind `composeWorker({ gate })` it's a second check on requests the worker already let through, and costs nothing: the middleware resolves the editor on every request anyway.
+
+- 34d502b: `composeWorker({ gate })` makes the editor API deny by default (ADR 0012).
+
+  **What's new.** Pass `gate: { resolveEditor }` and every request under `/api/louise` must come from a signed-in editor unless it's headed for a route wrapped in the new `publicRoute`. Until now each route checked for itself, so a route that forgot to was open to anyone. The gate also origin-checks WebSocket upgrades: they're `GET`s, so a method-only check would let a cross-site page open the realtime socket with the editor's cookie. And route responses now get the security headers your middleware adds to pages (`nosniff`, `X-Frame-Options`, and the rest of `louiseSecurityHeaders`), plus `Cache-Control: no-store` on gated responses. `composeWorker` routes run before the middleware, so until now they got none. `louiseApiGate` is the same check as a standalone function.
+
+  **What changed without `gate`.** `formRoute` and `vitalsRoute` now return routes marked with `publicRoute`. They behave exactly as before. `guardEditor` caches the `resolveEditor` result for the request, so the gate and the route's own check share one session lookup. Without `gate`, `composeWorker` is unchanged.
+
+  **What you have to do.** Nothing, until you turn it on. Before you do, check whether any route under `/api/louise` is meant to be reachable without an editor session: a webhook receiver, a public endpoint. Wrap it in `publicRoute`, or it starts returning 401. The three client sites have none; all 38 of their routes there already require an editor. Pass the gate the same `resolveEditor` function the editor routes get, so the session is looked up once.
+
+- ba58f54: Three auth and editor-route fixes. Each closes a hole, and each can change what an existing site sees.
+
+  **`editorsRoute` now lists and deletes only editors (`role = 'admin'`).** It shares Better Auth's `user` table with customer accounts. GET listed every row, so any editor saw every customer's name and email. DELETE removed any row by `?id=`, customers included. Now GET returns only editors, and a DELETE for an id that isn't an editor returns **404** and changes nothing. _Do:_ nothing, unless your UI relied on seeing non-editor rows through this route. It shouldn't have.
+
+  **`getLouiseAuth` sends magic links only to the allowlist, on every instance.** `handleAuthRequest` gated magic-link requests, but only on the route that calls it, and only at the exact path `/api/auth/sign-in/magic-link`. A second instance on its own `basePath` (a customer portal served straight from `auth.handler`) would mail a working sign-in link to any address that was typed in. Clicking it created an account even with `disableSignUp: true`. Now the factory itself sends a link only to addresses `resolveAdmins` returns, and `handleAuthRequest` matches `sign-in/magic-link` under any base path, with or without a trailing slash. _Do:_ check that the `resolveAdmins` you pass to `getLouiseAuth` is the same list you pass to `handleAuthRequest`. If the factory's list is narrower, editors missing from it stop receiving sign-in email. Customers never used magic links, so portals lose nothing.
+
+  **`getLouiseAuth` refuses the `DUMMY_REPLACE_ME` placeholder as `SESSION_SECRET`.** A deploy that still carried the scaffold sentinel would have signed sessions with a publicly known key. Off `localhost` it now throws, like a missing secret. _Do:_ if a deployed site is running on that value, set a real one (`openssl rand -base64 32`, then `wrangler secret put SESSION_SECRET`) **before** upgrading. After the upgrade, every auth request on that site returns 500 until the secret is set. Rotating the secret signs out existing sessions.
+
+- 403126f: Webhook and form-notify URLs are checked on every redirect hop (ADR 0012, slice 5).
+
+  **What's new.** `fetchPublicUrl` in `louise-toolkit/security` is `upstreamFetch` for a URL someone else chose, such as a webhook endpoint or a form's notify target. It refuses (with a `BlockedUrlError`) any URL that:
+
+  - isn't https on the default port;
+  - has credentials in it;
+  - uses an IP address in any form, including `2130706433` or `0x7f.1`, which both mean `127.0.0.1`;
+  - is a single-label name, `localhost`, or a private-network name (`.local`, `.internal`, `.home.arpa`, …);
+  - matches your `blockHosts`.
+
+  Every redirect hop is checked the same way. A `POST` follows only a `307` or `308`: a `301`, `302` or `303` would turn it into an empty `GET` that looks like success. Cross-origin hops drop `Authorization` and `Cookie`. `publicUrlProblem(url)` runs the same checks without fetching, for validating a URL when it's saved.
+
+  **What changed.** `deliverWebhookMessage` and `notifySubmission` now use it. Content webhooks used to check the hostname against a regex, followed redirects, and had no timeout. The regex missed CGNAT, IPv4-mapped IPv6 and resolved names, and nothing re-checked a redirect. Form-notify webhooks had no check at all. Webhook errors now name the endpoint's **origin only**, because a hook's path is often its credential (Slack and Discord hook URLs are). `deliverWebhookMessage(message, policy?)` takes an optional second argument for `blockHosts` and `allowHttp`.
+
+  **What you have to do:**
+
+  - **A webhook URL that's plain `http`, uses an IP address, or has a non-default port is now refused.** Content webhooks throw, so the queue retries until the message reaches your dead-letter queue. Form notifications are skipped silently, and the submission still succeeds. Move the endpoint to https on a hostname. If it really must be http, pass `{ allowHttp: true }` to `deliverWebhookMessage`.
+  - **Consider adding your site's own host to `blockHosts`,** and setting the `global_fetch_strictly_public` compatibility flag in `wrangler.jsonc`. Without the flag, a Worker's fetch to its own zone goes straight to the origin, skipping the WAF. The flag changes how _every_ same-zone fetch is routed, so check anything that fetches your own domain (a link checker, for example) on a preview deploy first.
+
+- 25b6645: Provider errors are safe to show, and every provider call has a timeout and follows no redirects (ADR 0012, slice 4).
+
+  **What changed.** Square, Fourthwall (Storefront and Platform), Stripe and Turnstile now all call out through the new `upstreamFetch` in `louise-toolkit/security`, which adds three things:
+
+  - **A timeout.** The default is 10 seconds. `SquareConfig` and `FourthwallPlatformConfig` take `timeoutMs`.
+  - **`redirect: "manual"`.** A provider API doesn't redirect, so a redirect now comes back as a failed response instead of being followed.
+  - **A new error type, `UpstreamError`.** Its `message` is safe to show a user, for example `Square request failed (404 NOT_FOUND)`. What the provider actually wrote is on `detail`, which `JSON.stringify(err)` and `{ ...err }` leave out.
+
+  Before this, the provider's own text went into `Error.message`, and routes that returned `err.message` sent it to the browser. That text can include a customer's card details, an HTML error page (the `SyntaxError` from `res.json()` quotes it), or a Fourthwall response echoing the storefront token.
+
+  `SquareApiError` now extends `UpstreamError` and adds `category`. `PAYMENT_METHOD_ERROR` means a decline, which is the buyer's to fix. Stripe errors carry `decline_code` (or `code`) as `code`. `retrievePaymentIntent` now URL-encodes the id it's given.
+
+  **What you have to do:**
+
+  - **Messages changed.** If you log `err.message` for a provider failure, you now get the short, safe version. Log with `upstreamLogLine(err)` to keep the provider's detail: `console.error("checkout failed:", upstreamLogLine(err))`. If you parsed messages (for example matching `/ 404: /`), switch to `err instanceof UpstreamError && err.status === 404`. The toolkit's own two message matches are converted.
+  - **A timeout is a new way to fail.** A timed-out request may still have gone through. That's harmless for Square (every write takes an idempotency key), but a Fourthwall `createExternalOrder` has no idempotency key, so check before you retry one.
+  - **A slow bulk call** (a large Square catalog upsert, an image upload) may need `timeoutMs` raised.
+
+### Patch Changes
+
+- eb9e111: `defineImageProxy` no longer serves SVG, and no longer follows redirects.
+
+  **What changed.** The proxy accepted any `image/*` response and served it from your site's origin. An SVG is a document: opened directly, its scripts run on your origin, the same risk that makes media uploads refuse SVG. Cloudflare sanitizes SVG when the resize runs, but locally and on a zone without Image Resizing the upstream bytes came back untouched. The proxy now serves only JPEG, PNG, GIF, WebP and AVIF, and adds `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox` to every response. The upstream fetch also no longer follows redirects, so an allowed host that redirects (an open redirect, a moved bucket) can't send the fetch to a host you never listed.
+
+  **What you have to do.** Nothing for raster sources such as Fourthwall's. A source that now fails either check (an SVG, or a URL that redirects) takes the existing failure path: a 302 to the original URL, or a 502 with `onFailure: "error"`. The image still displays, from its own host instead of yours. If your allowed host serves images through a redirect, list the final host in `allowHosts` and pass the final URL.
+
 ## 0.29.0
 
 ### Minor Changes
