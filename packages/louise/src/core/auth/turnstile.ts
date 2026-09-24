@@ -33,3 +33,23 @@ export function activeCaptchaSecret(env: LouiseAuthEnv, secret: string | null): 
   const siteKeyReady = !!siteKey && siteKey !== TURNSTILE_TEST_SITE_KEY;
   return secret && siteKeyReady ? secret : null;
 }
+
+/**
+ * Is captcha on — and if so, the key to render the widget with and the secret
+ * to verify its token against, together. `null` means OFF: render no widget and
+ * check no token.
+ *
+ * One decision for both halves, because a split decision takes sign-in down.
+ * A site key that stops resolving (say, after moving Cloudflare accounts)
+ * renders no widget; if the server still holds a real secret, it keeps
+ * demanding a token no visitor can produce, and every sign-in fails. Deciding
+ * the widget and the check from the same call makes that state unreachable.
+ * On only when both halves are real — see {@link activeCaptchaSecret}.
+ */
+export async function activeCaptcha(
+  env: LouiseAuthEnv,
+): Promise<{ siteKey: string; secret: string } | null> {
+  const siteKey = turnstileSiteKey(env);
+  const secret = activeCaptchaSecret(env, await turnstileSecret(env));
+  return siteKey && secret ? { siteKey, secret } : null;
+}

@@ -80,6 +80,40 @@ function verifyTurnstileToken(
 ): Promise<boolean>;
 ```
 
+### The widget: `renderTurnstile(el, options)`
+
+The browser half. Decide whether captcha is on with `activeCaptcha(env)` (from
+`louise-toolkit/auth`) on the server, pass its `siteKey` to the page, and render:
+
+```ts
+import { renderTurnstile } from "louise-toolkit/forms";
+
+const widget = await renderTurnstile(el, {
+  siteKey,
+  appearance: "interaction-only", // this widget only
+});
+
+// after ANY failed submit, not just a captcha failure:
+widget.reset();
+```
+
+It loads Turnstile's script once and renders **explicitly**. Turnstile's automatic
+mode scans the page once, when its script runs, so a widget created by a component
+that hydrates later is never found. Explicit rendering works whichever loads first.
+If the script doesn't load within `timeoutMs` (10 seconds by default), the promise
+rejects, so the form can say so instead of submitting without a token.
+
+The widget returns `{ token, reset, remove }`. The token also goes into the
+enclosing form as `cf-turnstile-response`, so building `FormData` from the form
+carries it. A token is **single-use**: a submit that fails for any reason, such as
+validation or a 429, has still spent it. Call `reset()`, or the retry posts the spent
+token and fails every time.
+
+Set `appearance` here rather than in the Cloudflare dashboard. The dashboard's
+invisible mode belongs to the site key, so it changes every form that shares the
+key, sign-in included. Only the options you pass are sent. Add Turnstile's origins
+to your CSP with `turnstileCsp()`.
+
 ## Notifications
 
 ```ts

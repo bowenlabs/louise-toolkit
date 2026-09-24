@@ -230,7 +230,13 @@ const next = safeNextPath(url.searchParams.get("next"), "/account");
 
 - `defaultResolveAdmins(env)`—`OWNER_EMAIL` + optional `ENGINEER_EMAIL`, lowercased.
 - `isAllowedSignInEmail(admins, email)`—case-insensitive membership test.
-- `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the both-halves-real captcha activation gate.
+- `activeCaptcha(env)`—whether captcha is on: `{ siteKey, secret }`, or `null` for
+  off. It's one decision for the widget and the check. If they're decided apart, a
+  site key that stops resolving renders no widget while the server still demands a
+  token, and every sign-in fails. Render the widget with
+  [`renderTurnstile`](/reference/forms/#the-widget-renderturnstileel-options).
+- `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the
+  lower-level halves `activeCaptcha` combines.
 
 ## Generating the auth schema
 
