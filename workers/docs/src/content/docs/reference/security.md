@@ -8,6 +8,9 @@ sidebar:
 ```ts
 import {
   sanitizeRichHtml,
+  plainText,
+  metaDescription,
+  hasRichText,
   rateLimit,
   matchRateRule,
   getSessionSecret,
@@ -43,6 +46,39 @@ media-hosted images are kept. Omit it to keep any safe `http(s)`/relative `src`
 (the default). See [strict media](/guide/media/#strict-media-every-image-from-the-library).
 
 `ALLOWED_TAGS` and `ATTR_ALLOW` are exported for composing a variant.
+
+## Rich text as text
+
+```ts
+plainText(html, { maxPasses? }): string
+metaDescription(html, { maxLength?, maxPasses? }): string | undefined
+hasRichText(html): boolean
+stripEmptyHeadings(html): string
+```
+
+Editor HTML ends up in places that **print** it rather than render it, and an
+emptied field is still a truthy string. These four cover both. Each returns
+text, not HTML. None of them sanitizes, so escape the result on output as you
+would any string.
+
+- **`plainText`** flattens markup to one line. Tags become spaces, so
+  `<p>One</p><p>Two</p>` reads "One Two". Entities are decoded, including copy
+  stored double-encoded (`&lt;p&gt;`). A literal `5 &lt; 6 and 7 &gt; 2` survives
+  intact, because only tag-shaped text is removed.
+- **`metaDescription`** is `plainText` clamped on a word boundary—160 characters
+  by default, about where search results truncate. It returns `undefined`, not
+  `""`, for markup-only input, so the caller falls back to a default instead of
+  emitting `content=""`.
+- **`hasRichText`** is `false` for leftovers such as `<h3></h3>`, `<p><br></p>`,
+  and `<p>&nbsp;</p>`. It's `true` for any text, or for an image, video, iframe,
+  or SVG with no text around it. Use it instead of a truthiness check before
+  rendering a field.
+- **`stripEmptyHeadings`** removes headings with nothing in them. A screen reader
+  announces an empty one as a nameless heading. Run it on sanitized output:
+
+```ts
+const body = stripEmptyHeadings(sanitizeRichHtml(page.body));
+```
 
 ## `rateLimit(kv, key, limit, windowSec)` · `matchRateRule(rules, method, path)`
 
