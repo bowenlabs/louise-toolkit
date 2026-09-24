@@ -46,21 +46,42 @@ workspace is blind to a symbol that exists in `src/` and was never re-exported �
 the bug that only bites someone installing the package. Three such symbols were
 found this way while extracting the Astro adapter.
 
-The full set, roughly in the order CI runs it:
+The full set, mirroring `.github/workflows/ci.yml` job by job. When that file
+gains a step, this list gains it too; a step missing here is one nobody runs
+before pushing.
 
 ```sh
-corepack pnpm -C packages/louise run typecheck
-corepack pnpm -C packages/louise run test
-corepack pnpm -C packages/louise run check     # lint + format + type-aware rules
+# Lint & dead code
+corepack pnpm -C packages/louise run check        # lint + format + type-aware rules
 corepack pnpm -C packages/louise-astro run check
-corepack pnpm run fmt:check                    # everything the two above don't reach
+corepack pnpm run fmt:check                       # everything the two above don't reach
 corepack pnpm run lint:astro
 corepack pnpm run lint:solid
-corepack pnpm run knip                         # dead code
+corepack pnpm run lint:arch                       # ast-grep invariants
+corepack pnpm run lint:core                       # no Astro in the core
+corepack pnpm run lint:docs                       # Vale
+corepack pnpm run knip                            # dead code
+corepack pnpm run lint:release
+corepack pnpm audit --prod
+
+# Type-check & unit tests
+corepack pnpm -C packages/louise run typecheck
+corepack pnpm -C packages/louise run test
+corepack pnpm -C packages/louise-astro run test
+
+# Build & pack — in this order: the adapter type-checks against the BUILT library
+corepack pnpm -C packages/louise run build
+node scripts/ci/checks/export-map.mjs
+corepack pnpm -C packages/louise-astro run typecheck
+corepack pnpm -C packages/louise-astro run build
+
+# Build the site — the reference site, against both built packages
+corepack pnpm run build:site
 ```
 
-Then the builds plus the export-map check, which catch what nothing above can —
-an export map that omits a new subpath, or a `dist/` that never emitted it.
+The last block catches what nothing above can: an export map that omits a new
+subpath, a `dist/` that never emitted it, or an adapter that compiles against
+`src/` but not against what actually ships.
 
 ## Astroid lives in another repo
 
