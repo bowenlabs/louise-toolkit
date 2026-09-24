@@ -44,3 +44,18 @@ export {
   type UploadOutcome,
   uploadMediaFiles,
 } from "../settings/upload.js";
+
+// Navigation for a routed studio, with no router: the basepath for a studio
+// served under a path on one host and at the root of another, links to pages
+// outside the router, per-screen titles, and focus after navigation.
+// `client/studio-shell` wires these to TanStack Router.
+export {
+  activeNavItem,
+  focusScreenHeading,
+  revealActiveNavLink,
+  type ScreenTitleOptions,
+  screenTitle,
+  studioBasepath,
+  studioHref,
+  type StudioNavItem,
+} from "./navigation.js";

@@ -1,6 +1,6 @@
 # ADR 0011: TanStack adapters on Solid—adopt Query and Form, constrain Table, decline Pacer
 
-- **Status:** Accepted (2026-07-29). **Query adopted (in use), Form adopted with a caveat, Table read-only only, Pacer declined, Router adopted.** Revisit per adapter under the triggers below. Amended 2026-07-31 after the #316 and #317 spikes.
+- **Status:** Accepted (2026-07-29). **Query adopted (in use), Form adopted with a caveat, Table read-only only, Pacer declined, Router adopted.** Revisit per adapter under the triggers below. Amended 2026-07-31 after the #316 and #317 spikes, and 2026-09-24 with how the router ships (#488).
 - **Deciders:** Baylee (solo maintainer)
 - **Issues:** #313 (form scaffold), #314 (table limits), #315 (pacer decision), #316 (form array bugs, spiked), #317 (router spike, done)
 - **Related:** ADR 0001 (opinionated Astro + Cloudflare), ADR 0007 (why the Solid client lints separately)
@@ -150,6 +150,27 @@ of thing that works in development and returns a 404 in production.
 **Serving the studio from its own subdomain sidesteps `basepath` entirely.** With
 the tenancy rewrite (#307) mapping `studio.example.com/` to an internal prefix,
 the browser only ever sees root paths, so `basepath` is `/`.
+
+**Amended 2026-09-24 (#488): how it ships.** Adopting the router left open whether
+the toolkit depends on it. It does, as an **optional peer** on its own subpath,
+`louise-toolkit/client/studio-shell`, the same arrangement as `@tanstack/solid-query`.
+A site without a routed studio never installs it. The subpath holds `StudioShell`,
+the frame every routed studio had rebuilt by hand: a title per screen, a skip link,
+and focus moved to the new screen's heading after a navigation.
+
+The rejected alternative was a router-agnostic shell that each site binds to its own
+router. It would have left the route wiring, the basepath and the frame to every
+site, which is the ~150 lines one client studio already hand-rolled. The behaviour
+itself is still router-agnostic: `screenTitle`, `focusScreenHeading`,
+`revealActiveNavLink`, `studioBasepath` and `studioHref` live in
+`louise-toolkit/client/studio` with no router dependency, as `unsavedChanges` does.
+`StudioShell` only connects them to TanStack Router, so a site on another router
+loses the component, not the behaviour.
+
+**A studio served on two hosts computes its basepath in the browser.** Under a path
+on the main host and at the root of a subdomain, the browser sees different paths
+for the same screen, so `studioBasepath(prefix)` reads the loaded URL rather than a
+build-time setting.
 
 **Not TanStack Start**, in any case. Start owns its own Vite build graph on
 Cloudflare and therefore wants its own Worker, which is incompatible with the

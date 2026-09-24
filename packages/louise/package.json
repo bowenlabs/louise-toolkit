@@ -61,6 +61,11 @@
       "import": "./dist/client/studio/index.js",
       "default": "./dist/client/studio/index.js"
     },
+    "./client/studio-shell": {
+      "types": "./dist/client/studio-shell/index.d.ts",
+      "import": "./dist/client/studio-shell/index.js",
+      "default": "./dist/client/studio-shell/index.js"
+    },
     "./content": {
       "types": "./dist/core/content/index.d.ts",
       "import": "./dist/core/content/index.js",
@@ -230,6 +235,7 @@
     "@prosekit/pm": "^0.1.19",
     "@resvg/resvg-wasm": "^2.6.2",
     "@tanstack/solid-query": "^5.102.8",
+    "@tanstack/solid-router": "^1.170.36",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vercel/stega": "^1.1.0",
     "@vitest/coverage-v8": "4.1.11",
@@ -250,6 +256,7 @@
     "@prosekit/pm": "^0.1.18",
     "@resvg/resvg-wasm": "^2.6.2",
     "@tanstack/solid-query": "^5.101.2",
+    "@tanstack/solid-router": "^1.170.0",
     "@vercel/stega": "^1.1.0",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.0",
@@ -289,6 +296,9 @@
       "optional": true
     },
     "solid-js": {
+      "optional": true
+    },
+    "@tanstack/solid-router": {
       "optional": true
     }
   },
