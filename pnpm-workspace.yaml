@@ -59,6 +59,15 @@ overrides:
   # exactly the mistake the js-yaml entry above documents.
   brace-expansion@1: "^1.1.18"
 
+  # sharp — GHSA-rgj7-g3m4-5g8c, two libheif vulnerabilities bundled into the
+  # prebuilt binaries (GHSA-g89c-p67h-r497, GHSA-2jg2-4ch7-h545). Fixed in
+  # 0.35.4. Dev-only: it reaches us through miniflare (wrangler and
+  # @cloudflare/vite-plugin) under workers/sandbox and workers/site, and its
+  # native build is disallowed below, so no vulnerable binary is ever installed —
+  # `pnpm audit --prod` flags the resolution regardless. astro had already
+  # resolved 0.35.4, so like the esbuild pin this UNIFIES two copies onto one.
+  sharp: "^0.35.4"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
