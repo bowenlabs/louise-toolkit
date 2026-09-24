@@ -12,6 +12,7 @@ import { Icon } from "../icons.jsx";
 import { thumb } from "../thumb.js";
 import { usePanelActions } from "./panel-actions.jsx";
 import { apiGet, louiseQueryKeys } from "./query.js";
+import { describeUploadFailures, uploadMediaFiles } from "./upload.js";
 
 /** A tracked media asset (a `media` table row + its resolved public `url`). */
 export interface MediaItem {
@@ -63,19 +64,8 @@ export function MediaPanel() {
     if (files.length === 0) return;
     setError(null);
     setUploading(true);
-    for (const file of files) {
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/louise/media", { method: "POST", body: fd });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(body.error || `Upload failed (${res.status})`);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed");
-      }
-    }
+    // Every failure is reported, not just the last one to overwrite the alert.
+    setError(describeUploadFailures(await uploadMediaFiles(files)));
     setUploading(false);
     input.value = "";
     await qc.invalidateQueries({ queryKey: louiseQueryKeys.media });

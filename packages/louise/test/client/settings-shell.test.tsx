@@ -432,6 +432,39 @@ describe("PagesPanel — list + built-in pages", () => {
   });
 });
 
+describe("MediaPanel — upload errors", () => {
+  it("reports EVERY failed file, not just the last one", async () => {
+    // The bug: each failure overwrote one alert, so two refused files out of
+    // three surfaced as one — or none, when the last file succeeded.
+    stubFetch((url, method, init) => {
+      if (method === "POST" && url.endsWith("/api/louise/media")) {
+        const name = ((init?.body as FormData).get("file") as File).name;
+        if (name === "ok.jpg") return jsonResponse({ url: "https://cdn/web/ok.jpg" });
+        if (name === "huge.jpg") return jsonResponse({ error: "Too large" }, 413);
+        return jsonResponse({ error: "Not an image" }, 415);
+      }
+      return jsonResponse({ media: [] });
+    });
+    mount(() => <MediaPanel />);
+    const input = await vi.waitFor(() => {
+      const el = host.querySelector<HTMLInputElement>("input[type=file]");
+      if (!el) throw new Error("no file input yet");
+      return el;
+    });
+    const files = ["huge.jpg", "notes.txt", "ok.jpg"].map((n) => new File(["x"], n));
+    Object.defineProperty(input, "files", { value: files, configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      const alert = host.querySelector('[role="alert"]')?.textContent ?? "";
+      expect(alert).toContain("huge.jpg (Too large)");
+      expect(alert).toContain("notes.txt (Not an image)");
+      expect(alert).toContain("2 of 3");
+      expect(alert).not.toContain("ok.jpg");
+    });
+  });
+});
+
 describe("MediaPanel — list", () => {
   it("lists the media library from the generic { media } response", async () => {
     stubFetch((url, method) => {
