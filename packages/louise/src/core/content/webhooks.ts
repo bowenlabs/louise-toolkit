@@ -11,6 +11,7 @@
 
 import { LouiseQueueError } from "../errors.js";
 import { enqueue } from "../queues/index.js";
+import { BlockedUrlError, fetchPublicUrl, type PublicUrlPolicy } from "../security/public-url.js";
 import type { CollectionHooks } from "./types.js";
 
 export interface WebhookConfig {
@@ -59,41 +60,6 @@ export function createWebhookHook(
   };
 }
 
-// Defense-in-depth, not the primary control: `global_fetch_strictly_public`
-// (set in both Workers' wrangler.jsonc) already blocks `fetch()` to
-// private/reserved IP literals at the platform level, and `WEBHOOK_URL` is
-// operator-supplied config, not attacker input. This catches the case that
-// guard doesn't: a hostname that *resolves* to a private address (or a
-// non-HTTP(S) scheme) rather than being one literally, plus a clear error
-// instead of a platform-level network failure when a deploy is
-// misconfigured.
-const BLOCKED_HOSTNAME_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\.0\.0\.0$/,
-  /^169\.254\./, // link-local, including the cloud-metadata address
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^\[?::1\]?$/,
-  /^\[?fc/i,
-  /^\[?fd/i,
-  /^\[?fe80/i,
-];
-
-function isAllowedWebhookUrl(url: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return false;
-  }
-  return !BLOCKED_HOSTNAME_PATTERNS.some((pattern) => pattern.test(parsed.hostname));
-}
-
 async function hmacSha256Hex(payload: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -107,18 +73,20 @@ async function hmacSha256Hex(payload: string, secret: string): Promise<string> {
 }
 
 /**
- * Delivers a single `WebhookMessage` via `fetch()`. Throws
- * `LouiseQueueError` on any non-2xx response or network failure — meant
- * to be called from inside `processBatch`'s handler, where a thrown error
- * becomes a `message.retry()`.
+ * Delivers a single `WebhookMessage`. Throws `LouiseQueueError` on a refused
+ * URL, a non-2xx response, or no response at all — meant to be called from
+ * inside `processBatch`'s handler, where a thrown error becomes a
+ * `message.retry()`.
+ *
+ * The URL goes through `fetchPublicUrl`: https only, no IP addresses or
+ * private-network names, every redirect hop checked, a timeout. The error
+ * names the endpoint's origin, never its path — a webhook path is often the
+ * credential (a Slack or Discord hook URL is one).
  */
-export async function deliverWebhookMessage(message: WebhookMessage): Promise<void> {
-  if (!isAllowedWebhookUrl(message.url)) {
-    throw new LouiseQueueError(
-      `Webhook URL "${message.url}" is not allowed (must be http(s) and not target a private/reserved/loopback address)`,
-    );
-  }
-
+export async function deliverWebhookMessage(
+  message: WebhookMessage,
+  policy: PublicUrlPolicy = {},
+): Promise<void> {
   const body = JSON.stringify({
     event: message.event,
     doc: message.doc,
@@ -131,15 +99,32 @@ export async function deliverWebhookMessage(message: WebhookMessage): Promise<vo
     headers["X-Louise-Signature"] = await hmacSha256Hex(body, message.secret);
   }
 
+  const endpoint = originOf(message.url);
   let response: Response;
   try {
-    response = await fetch(message.url, { method: "POST", headers, body });
+    response = await fetchPublicUrl(message.url, {
+      ...policy,
+      provider: "Webhook",
+      method: "POST",
+      headers,
+      body,
+    });
   } catch (cause) {
-    throw new LouiseQueueError(`Webhook delivery to "${message.url}" failed`, cause);
+    const why = cause instanceof BlockedUrlError ? `: ${cause.reason}` : "";
+    throw new LouiseQueueError(`Webhook delivery to ${endpoint} failed${why}`, cause);
   }
   if (!response.ok) {
     throw new LouiseQueueError(
-      `Webhook delivery to "${message.url}" returned status ${response.status}`,
+      `Webhook delivery to ${endpoint} returned status ${response.status}`,
     );
+  }
+}
+
+/** The endpoint's origin, for an error message — never the path. */
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "an invalid URL";
   }
 }

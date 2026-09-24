@@ -20,6 +20,8 @@ import {
   upstreamFetch,
   UpstreamError,
   upstreamLogLine,
+  fetchPublicUrl,
+  publicUrlProblem,
 } from "louise-toolkit/security";
 ```
 
@@ -309,6 +311,49 @@ try {
   return Response.json({ error: "Payment failed. Please try again." }, { status: 502 });
 }
 ```
+
+## `fetchPublicUrl(input, init?)` · `publicUrlProblem(url, policy?)`
+
+```ts
+function fetchPublicUrl(
+  input: string | URL,
+  init?: RequestInit & {
+    provider?: string; // names the error; default "Remote"
+    timeoutMs?: number;
+    maxRedirects?: number; // default 3
+    allowHttp?: boolean; // default false
+    blockHosts?: string[]; // ".example.com" matches the domain and subdomains
+  },
+): Promise<Response>;
+```
+
+`upstreamFetch` for a URL someone else chose: a webhook endpoint, a form's
+notify target, anything from content or a config a user can edit. It refuses,
+with a `BlockedUrlError`, any URL that:
+
+- isn't https (unless `allowHttp`) on the default port;
+- has a username or password in it;
+- uses an IP address instead of a hostname, in any form the URL parser
+  accepts (`2130706433` and `0x7f.1` both mean `127.0.0.1`);
+- is a single-label name, `localhost`, or a private-network name such as
+  `.local` or `.internal`;
+- matches a host in `blockHosts`.
+
+Every redirect hop is checked the same way. Only a `GET` or `HEAD` follows any
+redirect. Other methods follow only a `307` or `308`, which keep the method and
+body; a `301`, `302`, or `303` would turn a webhook `POST` into an empty `GET`
+that "succeeds" with nothing delivered, so it's returned as the non-ok response
+it is. A redirect to another origin drops `Authorization` and `Cookie`.
+
+`publicUrlProblem(url, policy)` runs the same checks without fetching. It
+returns the reason as a string, or `null` when the URL is allowed, so you can
+validate a URL when someone saves it.
+
+This checks the URL, not where its hostname resolves, because a Worker can't
+look that up. Add your site's own hostname to `blockHosts`, and set the
+`global_fetch_strictly_public` compatibility flag: without it, a Worker's
+`fetch` to its own zone goes straight to the origin, skipping the WAF and any
+Worker on that route.
 
 ## Types
 

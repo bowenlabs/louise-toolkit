@@ -6,6 +6,7 @@
 // email transport is the site's (a `FormMailer`), so Louise stays decoupled from
 // any one email binding.
 
+import { fetchPublicUrl } from "../security/public-url.js";
 import type { FormConfig, FormMailer } from "./types.js";
 
 /** Render a submission as a plain-text `key: value` block for an email/webhook. */
@@ -31,8 +32,11 @@ export async function notifySubmission(
 
   const jobs: Promise<unknown>[] = [];
   if (notify.webhook) {
+    // `fetchPublicUrl`: the target is in a form config a site can edit, so it
+    // gets the public-URL policy and a timeout, like any URL someone else chose.
     jobs.push(
-      fetch(notify.webhook, {
+      fetchPublicUrl(notify.webhook, {
+        provider: "Form webhook",
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ form: config.name, values }),
