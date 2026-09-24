@@ -34,6 +34,44 @@ import {
 | `hmacSha256Hex` / `hmacSha256Base64` | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
 | `safeEqual(a, b)`                    | Constant-time-ish compare—use it to check a computed signature against a header value.   |
 
+### Checking a cart against the live catalog
+
+A stored cart outlives the catalog it was built from. Refuse a checkout that
+disagrees with the catalog—but report **every** problem at once. A check that
+stops at the first leaves the customer fixing one line per retry.
+
+```ts
+import { cartIssues, cartModifierIds, repairCart } from "louise-toolkit/commerce";
+import {
+  retrieveLiveCatalogObjectIds,
+  retrieveVariationPrices,
+} from "louise-toolkit/commerce/square";
+
+const prices = await retrieveVariationPrices(
+  config,
+  lines.map((l) => l.variantId),
+);
+const issues = cartIssues(lines, {
+  prices: new Map([...prices].map(([id, m]) => [id, m.amount])),
+  liveModifierIds: await retrieveLiveCatalogObjectIds(config, cartModifierIds(lines), {
+    type: "MODIFIER",
+  }),
+});
+if (issues.length) return json({ issues }, 409); // the client repairs, then retries
+```
+
+`cartIssues` returns one entry per variant or add-on: `price-changed` (with the
+price now), `unavailable`, `out-of-stock` (checked before price, since a sold-out
+variant is usually still priced), or `modifier-unavailable`. It compares a cart
+you have already validated; it doesn't police input.
+
+On the client, `repairCart(lines, issues, { maxQuantity?, key? })` applies all of
+them in one step. It reprices, removes, strips deleted add-ons, and combines any
+two lines that became identical. It returns `{ lines, changes }`, where `changes`
+is data—`repriced`, `removed`, `modifier-removed`, `merged` (with any quantity the
+cap cut off)—for you to word for your customers. It never mutates its input, and
+it applies no quantity cap unless you pass one.
+
 ## `louise-toolkit/commerce/stripe`
 
 ```ts
