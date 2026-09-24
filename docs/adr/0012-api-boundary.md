@@ -1,6 +1,6 @@
 # ADR 0012 — API boundary: a deny-by-default inbound gate and one outbound client
 
-- **Status:** Proposed (2026-09-23)
+- **Status:** Accepted (2026-09-23)
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
