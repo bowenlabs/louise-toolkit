@@ -47,6 +47,15 @@ from the request, so a multi-tenant deployment gets the correct origin-bound
 relying party per tenant. Better Auth 1.5+ speaks D1 natively; the binding is
 passed straight to `database` (no adapter).
 
+Two guarantees hold on every instance, whatever route serves it:
+
+- **Magic links go only to the allowlist.** The instance sends a sign-in email
+  only to an address `resolveAdmins` returns. A customer portal mounted on its own
+  `basePath` with `resolveAdmins: () => []` sends none, so nobody can use it to
+  mail sign-in links, or create accounts past `disableSignUp`.
+- **`SESSION_SECRET` must be real.** Off `localhost`, a missing, empty, or
+  `DUMMY_REPLACE_ME` value throws rather than signing sessions with a known key.
+
 ### `LouiseAuthConfig`
 
 | field                  | purpose                                                                                                                                                                             |
@@ -174,7 +183,8 @@ The Better Auth catch-all with the editor magic-link allowlist gate. A non-admin
 magic-link request is rejected **before** Better Auth runs—no token, no mail,
 no user row—and returns the same enumeration-safe response a real send does.
 Use it in your `/api/auth/[...all]` route. `admins` is the resolved allowlist
-(the same source `resolveAdmins` uses).
+(the same source `resolveAdmins` uses). The gate matches `sign-in/magic-link`
+under any `basePath`, so it works the same for an instance mounted elsewhere.
 
 ## `requireEditor(ctx, mutation?)` · `isSameOrigin(request)`
 

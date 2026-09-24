@@ -122,6 +122,17 @@ describe("handleAuthRequest (magic-link allowlist gate)", () => {
     expect(calls).toEqual(["/api/auth/sign-in/magic-link"]);
   });
 
+  it("gates an instance on its own basePath, and a trailing slash, the same way", async () => {
+    const calls: string[] = [];
+    for (const path of ["/api/shop-auth/sign-in/magic-link", "/api/auth/sign-in/magic-link/"]) {
+      const res = await handleAuthRequest(stub(calls), post(path, { email: "nope@x.com" }), [
+        "owner@x.com",
+      ]);
+      expect(await res.json(), path).toEqual({ status: true });
+    }
+    expect(calls).toEqual([]);
+  });
+
   it("delegates non-magic-link routes unconditionally", async () => {
     const calls: string[] = [];
     await handleAuthRequest(stub(calls), post("/api/auth/sign-up/email", { email: "cust@x.com" }), [
@@ -406,6 +417,62 @@ describe("passkey rpID (#312)", () => {
     ).options;
     expect(options.advanced?.cookiePrefix).toBe("louise-studio");
     expect(options.advanced?.crossSubDomainCookies).toBeUndefined();
+  });
+});
+
+describe("magic-link allowlist in the factory", () => {
+  // The route-level gate only covers routes that call handleAuthRequest. An
+  // instance served straight from auth.handler (a customer portal) must not
+  // mail a sign-in link to an arbitrary address either.
+  const sendMagicLink = async (baseURL: string, over: Record<string, unknown> = {}) => {
+    const auth = await getLouiseAuth(authEnv, baseURL, { ...authBase, ...over } as never);
+    const plugins = (
+      auth as unknown as {
+        options: { plugins: { id?: string; options?: { sendMagicLink: Function } }[] };
+      }
+    ).options.plugins;
+    return plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink as (data: {
+      email: string;
+      url: string;
+      token: string;
+    }) => Promise<void>;
+  };
+
+  it("sends nothing to an address off the allowlist, on any instance", async () => {
+    const render = vi.fn(() => ({ subject: "", html: "", text: "" }));
+    // resolveAdmins: () => [] is how a customer portal instance is configured.
+    const send = await sendMagicLink("https://shop.example.com", {
+      renderMagicLinkEmail: render,
+      resolveAdmins: () => [],
+    });
+    await send({ email: "anyone@x.com", url: "https://shop.example.com/verify", token: "t" });
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("still delivers to an allowlisted editor", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const send = await sendMagicLink("http://localhost:4321", {
+      resolveAdmins: () => ["Owner@X.com"],
+    });
+    await send({ email: "owner@x.com", url: "http://localhost:4321/verify", token: "t" });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("owner@x.com"));
+    log.mockRestore();
+  });
+});
+
+describe("session secret", () => {
+  it("fails closed on the scaffold placeholder off localhost", async () => {
+    const placeholderEnv = { ...authEnv, SESSION_SECRET: TURNSTILE_PLACEHOLDER } as LouiseAuthEnv;
+    await expect(
+      getLouiseAuth(placeholderEnv, "https://example.com", authBase as never),
+    ).rejects.toThrow(/SESSION_SECRET is not configured/);
+  });
+
+  it("falls back to the dev secret for the placeholder on localhost", async () => {
+    const placeholderEnv = { ...authEnv, SESSION_SECRET: TURNSTILE_PLACEHOLDER } as LouiseAuthEnv;
+    await expect(
+      getLouiseAuth(placeholderEnv, "http://localhost:4321", authBase as never),
+    ).resolves.toBeDefined();
   });
 });
 

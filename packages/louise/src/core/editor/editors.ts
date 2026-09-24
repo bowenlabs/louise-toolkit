@@ -57,7 +57,8 @@ interface EditorRow {
 /**
  * Build the `editors` editor route. GET (read) lists editors oldest-first;
  * POST (mutation) invites one by `{ name?, email }`; DELETE (mutation) removes
- * one by `?id=` but never the last. Returns `undefined` for a non-matching
+ * one by `?id=` but never the last. "Editor" means `role = 'admin'` throughout:
+ * other rows in the table (customers) are neither listed nor deletable here. Returns `undefined` for a non-matching
  * path so `composeWorker` falls through to the next route / SSR.
  *
  * ```ts
@@ -83,8 +84,11 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (request.method === "GET") {
       const g = await guardEditor(request, env, config.resolveEditor, false);
       if ("response" in g) return g.response;
+      // Editors only. The table is Better Auth's `user`, which on a site with
+      // customer accounts holds every customer too — unfiltered, this listed
+      // their names and emails to anyone with editor access.
       const { results } = await env.DB.prepare(
-        `SELECT id, firstName, lastName, name, email, role, createdAt FROM ${table} ORDER BY createdAt ASC`,
+        `SELECT id, firstName, lastName, name, email, role, createdAt FROM ${table} WHERE role = 'admin' ORDER BY createdAt ASC`,
       ).all<EditorRow>();
       return json({ editors: results ?? [] });
     }
@@ -142,7 +146,12 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if ((count?.n ?? 0) <= 1) {
         return json({ error: "You can't remove the last editor." }, 400);
       }
-      await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+      // `role = 'admin'` again: this route removes editors, and an id alone
+      // would let it delete any row in the table — a customer's account included.
+      const res = await env.DB.prepare(`DELETE FROM ${table} WHERE id = ? AND role = 'admin'`)
+        .bind(id)
+        .run();
+      if (!res.meta?.changes) return json({ error: "No such editor." }, 404);
       return json({ ok: true });
     }
 

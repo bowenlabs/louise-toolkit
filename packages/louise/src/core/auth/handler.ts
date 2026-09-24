@@ -19,8 +19,12 @@ export async function handleAuthRequest(
   request: Request,
   admins: readonly string[],
 ): Promise<Response> {
-  const url = new URL(request.url);
-  if (request.method === "POST" && url.pathname === "/api/auth/sign-in/magic-link") {
+  // Matched by suffix, not the default mount: an instance on its own
+  // `basePath` gets the same gate, and a trailing slash doesn't slip past it.
+  // (The factory refuses to mail a non-admin too; this keeps the token from
+  // being minted at all, and the response enumeration-safe.)
+  const path = new URL(request.url).pathname.replace(/\/+$/, "");
+  if (request.method === "POST" && path.endsWith("/sign-in/magic-link")) {
     const body = (await request
       .clone()
       .json()
