@@ -21,6 +21,9 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { stringsDocument } from "./copy-extract.mjs";
 
 const VALE = ["--package=@vvago/vale@3.17.1", "dlx", "vale"];
 const BASELINE = "vale/baseline.json";
@@ -31,8 +34,17 @@ const EXCLUDE = new Set(["packages/louise/THIRD_PARTY_NOTICES.md"]);
 const PROSE = /\.(md|mdx)$/;
 const CODE = /\.(ts|tsx|js|mjs)$/;
 
+// User-facing strings (ADR 0013 §5) come from the code a site or an editor
+// user runs: the two packages and the workers. Their findings are counted
+// under the source file with this suffix, so a file has one baseline entry for
+// its comments and another for its strings.
+const STRING_SOURCES =
+  /^(packages\/louise\/src|packages\/louise-astro\/src|workers\/[^/]+\/src)\/.*\.tsx?$/;
+const STRINGS = " (strings)";
+
 /** Area names group the report; the gate itself is per file. */
 function areaOf(file) {
+  if (file.endsWith(STRINGS)) return "User-facing strings";
   if (PROSE.test(file)) {
     if (file.startsWith("workers/docs/src/content/docs/")) return "Starlight docs";
     if (file.startsWith("docs/adr/")) return "ADRs";
@@ -67,6 +79,39 @@ function runVale(files) {
   return byFile;
 }
 
+/**
+ * Lints each source file's user-facing strings as a Markdown document (see
+ * copy-extract.mjs) and maps every finding back to its source line. Keys are
+ * the source path plus STRINGS.
+ */
+function runValeOnStrings(files) {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vale-strings-")));
+  const docs = new Map();
+  try {
+    for (const file of files) {
+      if (!STRING_SOURCES.test(file) || file.endsWith(".d.ts")) continue;
+      const doc = stringsDocument(file, fs.readFileSync(file, "utf8"));
+      if (doc.count === 0) continue;
+      const docPath = path.join(dir, `${file.replaceAll("/", "__")}.md`);
+      fs.writeFileSync(docPath, doc.markdown);
+      docs.set(docPath, { file, sourceLine: doc.sourceLine });
+    }
+    const raw = docs.size > 0 ? runVale([...docs.keys()]) : {};
+    const byFile = {};
+    for (const [docPath, list] of Object.entries(raw)) {
+      const doc = docs.get(docPath) ?? docs.get(fs.realpathSync(docPath));
+      if (!doc) continue;
+      byFile[doc.file + STRINGS] = list.map((a) => ({
+        ...a,
+        Line: doc.sourceLine[a.Line - 1] ?? a.Line,
+      }));
+    }
+    return byFile;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const update = process.argv.includes("--update");
 // With no baseline file yet, `--update` seeds one from the current counts. That
 // is the only time it records findings rather than lowering them.
@@ -74,7 +119,7 @@ const seeding = update && !fs.existsSync(BASELINE);
 const baseline = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : {};
 
 const files = lintedFiles();
-const alerts = runVale(files);
+const alerts = { ...runVale(files), ...runValeOnStrings(files) };
 const counts = Object.fromEntries(
   Object.entries(alerts).map(([file, list]) => [file, list.length]),
 );
@@ -90,7 +135,10 @@ for (const file of new Set([...Object.keys(counts), ...Object.keys(baseline)])) 
 
 // The report, grouped by area.
 const areas = {};
-for (const file of files) {
+const stringKeys = new Set(
+  [...Object.keys(counts), ...Object.keys(baseline)].filter((k) => k.endsWith(STRINGS)),
+);
+for (const file of [...files, ...stringKeys]) {
   const area = areaOf(file);
   areas[area] ??= { files: 0, baseline: 0, now: 0 };
   areas[area].files++;

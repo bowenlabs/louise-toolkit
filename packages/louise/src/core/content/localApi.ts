@@ -225,7 +225,7 @@ export function getRegisteredApi<TContext>(
   const api = registry?.apis?.[slug];
   if (!api) {
     throw new LouiseContentError(
-      `No LocalApi registered for collection "${slug}" — pass a ContentRegistry whose "apis" map has been populated with every collection a hook needs to reach (see ContentRegistry's doc comment for the late-binding build order)`,
+      `No LocalApi registered for collection "${slug}". Pass a ContentRegistry whose "apis" map has been populated with every collection a hook needs to reach (see ContentRegistry's doc comment for the late-binding build order)`,
     );
   }
   return api;
@@ -267,7 +267,7 @@ async function resolveRelationships<TContext>(
     const relatedTable = registry.tables[relationTo];
     if (!relatedConfig || !relatedTable) {
       throw new LouiseContentError(
-        `Collection "${config.slug}" field "${key}" relates to unknown collection "${relationTo}" — not present in the registry`,
+        `Collection "${config.slug}" field "${key}" relates to unknown collection "${relationTo}", which isn't in the registry`,
       );
     }
 
@@ -577,7 +577,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       await checkAccess(config, "read", context);
       if (!config.search?.fields.length) {
         throw new LouiseContentError(
-          `Collection "${config.slug}" has no "search" config — cannot run search()`,
+          `Collection "${config.slug}" has no "search" config, so search() can't run`,
         );
       }
       const fts = sql.identifier(collectionSearchTableName(config));
