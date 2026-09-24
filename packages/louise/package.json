@@ -219,7 +219,7 @@
     "prepublishOnly": "node ../../scripts/ci/checks/dist-present.mjs",
     "dev": "NODE_PATH=node_modules vp pack --watch",
     "check": "vp check",
-    "test": "vp test",
+    "test": "vp test --coverage",
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
@@ -232,6 +232,7 @@
     "@tanstack/solid-query": "^5.102.8",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vercel/stega": "^1.1.0",
+    "@vitest/coverage-v8": "4.1.11",
     "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "happy-dom": "^20.11.15",
