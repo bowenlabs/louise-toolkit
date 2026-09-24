@@ -10,23 +10,16 @@
 import { getTableConfig, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { requireEditor } from "../auth/guard.js";
 import type { EditorSession } from "../auth/types.js";
+import { type ResolveEditor, resolveEditorOnce } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
+
+export type { ResolveEditor };
 
 /** The minimum a Worker `env` must expose for the editor routes: the D1 binding.
  *  Media routes widen this with the R2 bindings (see LouiseMediaEnv). */
 export interface EditorRouteEnv {
   DB: D1Database;
 }
-
-/**
- * Resolve the editor (admin) session for a request. The site wraps its own
- * auth — typically `resolveEditorSession(getLouiseAuth(env, url), request)`.
- * Returning `null` means "not an editor" and the route answers 401/403.
- */
-export type ResolveEditor<Env> = (
-  request: Request,
-  env: Env,
-) => EditorSession | null | Promise<EditorSession | null>;
 
 /** JSON response with a status + optional extra headers (thin wrapper over
  *  `Response.json`). */
@@ -51,7 +44,9 @@ export async function guardEditor<Env>(
   resolveEditor: ResolveEditor<Env>,
   mutation: boolean,
 ): Promise<{ editor: EditorSession } | { response: Response }> {
-  const editor = await resolveEditor(request, env);
+  // Memoized per request: behind `composeWorker({ gate })` the gate already
+  // looked this editor up, so the route's own check costs no second lookup.
+  const editor = await resolveEditorOnce(request, env, resolveEditor);
   const denied = requireEditor({ request, editor }, mutation);
   if (denied) return { response: denied };
   // requireEditor only returns null when editor is set, so this is sound.

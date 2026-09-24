@@ -19,6 +19,7 @@ import {
 } from "../forms/index.js";
 import { s, standardValidate } from "../schema/index.js";
 import { type RateLimitBackend, rateLimit } from "../security/rate-limit.js";
+import { publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, ident, json, matchPath } from "./shared.js";
 
@@ -86,7 +87,8 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
   const path = config.path ?? `/api/louise/forms/${form.name}`;
   const fieldKeys = Object.keys(form.fields);
 
-  return async (request, env, ctx) => {
+  // Public: an anonymous visitor submits it, so the API gate lets it through.
+  return publicRoute(async (request, env, ctx) => {
     if (!matchPath(request, path)) return undefined;
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
     if (!isSameOrigin(request)) return json({ error: "Forbidden" }, 403);
@@ -162,5 +164,5 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
     else void announce();
 
     return json({ ok: true }, 201);
-  };
+  });
 }
