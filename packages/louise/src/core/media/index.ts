@@ -38,4 +38,5 @@ export {
   transformImage,
   type TransformImageOptions,
 } from "./transform.js";
+export { defineImageProxy, type ImageProxy, type ImageProxyConfig } from "./proxy.js";
 export type { LouiseMediaEnv } from "./types.js";
