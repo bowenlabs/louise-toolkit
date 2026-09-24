@@ -104,7 +104,10 @@ while returning warnings.
 ## Webhooks, migrations, visual editing
 
 - `createWebhookHook` / `deliverWebhookMessage`—afterChange-style outbound
-  webhooks.
+  webhooks. Delivery goes through [`fetchPublicUrl`](/reference/security/): the
+  endpoint must be https on the default port, with a hostname rather than an IP
+  address, and every redirect is checked the same way. Pass a policy as the
+  second argument to add your own site's host to `blockHosts`.
 - `defineMigration` / `runMigration`—content migrations over collections.
 - `buildEditorStructure`, `getCollectionsMeta`—drive the Louise Editor UI.
 - `mountVisualEditing` / `mountPreviewSync` / `editAttr`—live preview and

@@ -7,7 +7,10 @@
   "name": "louise-sandbox",
   "account_id": "c3e97bc9169c1a57894dae15e6b39304",
   "compatibility_date": "2026-06-20",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public: a fetch to this Worker's own zone goes
+  // through Cloudflare's front door like any Internet request, instead of
+  // straight to the origin past the WAF (ADR 0012 §3).
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "main": "src/worker.ts",
   "routes": [{ "pattern": "sandbox.louisetoolkit.com", "custom_domain": true }],
 

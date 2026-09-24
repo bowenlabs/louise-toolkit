@@ -32,8 +32,12 @@ Returns the config plus everything derived from it—the Drizzle `columns`/
 | `name`         | form + table name (a bare SQL identifier, `^[A-Za-z_][A-Za-z0-9_]*$`) |
 | `fields`       | `Record<string, FormField>`                                           |
 | `spam?`        | opt-in anti-spam (below)                                              |
-| `notify?`      | `{ webhook?, email? }`—where a submission is announced                |
+| `notify?`      | `{ webhook?, email? }`—where a submission is announced (below)        |
 | `submitLabel?` | button label for the render helper (default `"Send"`)                 |
+
+`notify.webhook` is fetched with [`fetchPublicUrl`](/reference/security/), so it
+must be a public https URL; a target the policy refuses is skipped, and the
+submission still succeeds.
 
 A `FormField` is `{ type, label, required?, options?, placeholder?, help?,
 validation? }`. `type` is `text | email | tel | url | textarea | number | select

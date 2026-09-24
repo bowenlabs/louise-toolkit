@@ -60,3 +60,12 @@ export {
   upstreamFetch,
   upstreamLogLine,
 } from "./upstream";
+// Fetching a URL someone else chose — a webhook, a form's notify target — with
+// a policy on the URL and on every redirect hop (ADR 0012 §3).
+export {
+  BlockedUrlError,
+  type FetchPublicUrlInit,
+  fetchPublicUrl,
+  type PublicUrlPolicy,
+  publicUrlProblem,
+} from "./public-url";
