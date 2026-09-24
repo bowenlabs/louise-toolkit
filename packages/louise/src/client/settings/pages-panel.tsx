@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework Pages panel — CRUD over Louise-managed content pages (Terms,
+// Framework Pages panel—CRUD over Louise-managed content pages (Terms,
 // Privacy, and anything the owner creates), served publicly by the site's
 // catch-all route. List ⇄ detail via an `editing` signal; the body is the
 // shared RichText editor and stores sanitized HTML like every other rich field.
 // Talks to the generic louise-toolkit/editor `pages` route. Opened from the
 // file-text icon in the Settings' top framework strip.
 //
-// A site may pass `builtInPages` — its code-defined routes (Home, About, …)
+// A site may pass `builtInPages`—its code-defined routes (Home, About, …)
 // that aren't `pages` rows but belong in the same list, each with an
 // "Edit on page" deep link into inline edit mode.
 
@@ -27,7 +27,7 @@ export interface BuiltInPageRef {
   path: string;
 }
 
-/** A starter layout offered under "New page from template" — canned block HTML
+/** A starter layout offered under "New page from template"—canned block HTML
  *  (sanitized on save like any page body); no schema change. */
 export interface PageTemplate {
   /** Stable id. */
@@ -92,7 +92,7 @@ export function PagesPanel(props: {
       apiSend<{ page: PageRow }>("POST", "/api/louise/pages", input),
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.pages });
-      // Jump straight to the new page's canvas — content is built in place, not
+      // Jump straight to the new page's canvas—content is built in place, not
       // in the Settings.
       window.location.href = `/${data.page.slug}?louise`;
     },
@@ -224,7 +224,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   const [ogImage, setOgImage] = createSignal(p.ogImage ?? "");
   const [noindex, setNoindex] = createSignal(Boolean(p.noindex));
   const [error, setError] = createSignal<string | null>(null);
-  // Page body HTML, kept only to feed the AI SEO suggestion (#75/#166) — not an
+  // Page body HTML, kept only to feed the AI SEO suggestion (#75/#166)—not an
   // editable field here (content is edited on the canvas). Refreshed from the row.
   const [bodyHtml, setBodyHtml] = createSignal(p.body ?? "");
   // AI SEO "suggest" (#75/#166): opt-in, degrade-gracefully. `seoAvailable` starts
@@ -242,7 +242,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
     };
 
   // Populate the settings fields from a fresh row (the cached list item may be
-  // stale). The body is intentionally not read here — content lives on the canvas.
+  // stale). The body is intentionally not read here—content lives on the canvas.
   useQuery(() => ({
     queryKey: louiseQueryKey("pages", p.id),
     queryFn: async () => {
@@ -268,7 +268,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   const save = async () => {
     setError(null);
     try {
-      // Settings only — the body is edited (and saved) on the page canvas, so it
+      // Settings only—the body is edited (and saved) on the page canvas, so it
       // is intentionally omitted here to never clobber in-place content edits.
       await apiSend(`PATCH`, `/api/louise/pages/${p.id}`, {
         title: title(),
@@ -299,7 +299,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
 
   // AI SEO suggestion (#75/#166): POST the page's title + body text to
   // /api/louise/ai/seo and pre-fill the SEO fields for review. The fields are
-  // set through `edited(...)` so they mark the form dirty — the suggestion is
+  // set through `edited(...)` so they mark the form dirty—the suggestion is
   // never auto-committed; the owner still presses Save. Degrades quietly: a 503
   // (no AI binding) retires the button; a 502/model hiccup shows a soft notice.
   const suggestSeo = async () => {

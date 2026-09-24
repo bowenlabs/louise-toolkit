@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework Settings panel — edits the structured `site_settings` singleton
+// Framework Settings panel—edits the structured `site_settings` singleton
 // (identity, appearance, navigation, contact, SEO) that every Louise site
 // shares, and exposes an extension slot for site-specific settings. Talks to
 // the generic louise-toolkit/editor `settings` route (GET current, POST patch)
@@ -9,7 +9,7 @@
 // The panel is fixed and framework-owned, but its contents = a common base
 // (mapping 1:1 to `siteSettingsColumns`) PLUS a site's declarative extension
 // groups. Base keys patch their structured columns; extension keys (site-
-// declared) merge into the `custom` JSON — the server allowlist is authoritative,
+// declared) merge into the `custom` JSON—the server allowlist is authoritative,
 // so a key the site didn't declare is ignored, never written.
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
@@ -24,7 +24,7 @@ import { type SaveStatus, usePanelActions } from "./panel-actions.jsx";
 import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
 
 /**
- * The framework-common settings groups — mapped 1:1 to the owner-facing
+ * The framework-common settings groups—mapped 1:1 to the owner-facing
  * `siteSettingsColumns`. Rendered by default; a site that only uses some of them
  * (or wants them reordered) passes its own selection as `baseGroups`, so no
  * empty framework fields show. Exported so a site can cherry-pick from them.
@@ -94,7 +94,7 @@ export interface SettingsPanelProps {
    *  base groups and persisted to `custom` via the site's declared keys. */
   extension?: SettingsFieldGroup[];
   /** Escape hatch for bespoke sections that manage their own persistence
-   *  (e.g. a passkey enrollment section) — rendered after the save action. */
+   *  (for example, a passkey enrollment section), rendered after the save action. */
   extras?: () => JSX.Element;
 }
 
@@ -102,7 +102,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const qc = useQueryClient();
   const actions = usePanelActions();
   const [values, setValues] = createSignal<Record<string, unknown>>({});
-  // The last-loaded (or last-saved) snapshot — the target Revert restores to,
+  // The last-loaded (or last-saved) snapshot—the target Revert restores to,
   // and the baseline the dirty flag is measured against.
   const [loaded, setLoaded] = createSignal<Record<string, unknown>>({});
   const [dirty, setDirty] = createSignal(false);
@@ -124,7 +124,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
       const settings = data.settings ?? {};
       const seeded: Record<string, unknown> = {};
       // Custom-render fields get the raw stored value (they own their own shape,
-      // e.g. an array of rows); typed fields are coerced to a controlled default.
+      // for example, an array of rows); typed fields are coerced to a controlled default.
       for (const def of allFields()) {
         seeded[def.key] = def.render ? settings[def.key] : coerce(settings[def.key], def.type);
       }

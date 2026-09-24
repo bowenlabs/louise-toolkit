@@ -5,9 +5,9 @@
 // any order, and a host may mount only some of them. Where one has to reach another
 // they do it through window events keyed by the constants here.
 //
-// These live in their own module rather than beside their consumers so that, e.g.,
+// These live in their own module rather than beside their consumers so that, for example,
 // the sections surface can listen for a Settings signal without importing the
-// settings shell — which would pull the whole drawer bundle in behind it.
+// settings shell—which would pull the whole drawer bundle in behind it.
 
 /** Fired by the drawer's History icon to open the sections **version-history
  *  drawer** (coracle.coffee#36). History is deliberately NOT a Settings panel:
@@ -17,7 +17,7 @@
 export const OPEN_HISTORY_EVENT = "louise:open-history";
 
 /** Fired by `mountSettings` so an already-mounted sections surface can drop its own
- *  fallback History button. The two mount in either order — a sections surface that
+ *  fallback History button. The two mount in either order—a sections surface that
  *  mounts second instead detects `#louise-drawer-root` directly. */
 export const SETTINGS_READY_EVENT = "louise:settings-ready";
 

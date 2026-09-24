@@ -5,7 +5,7 @@
 // Thin wrapper over Cloudflare Queues' `Queue`/`MessageBatch` bindings.
 // Producer side is a single `enqueue()` call; consumer side is a batch
 // runner that acks each message on success and calls `retry()` on
-// failure. Cloudflare Queues — not this module — owns the actual
+// failure. Cloudflare Queues—not this module—owns the actual
 // redelivery/backoff schedule and DLQ routing: once a message exceeds the
 // queue's configured `max_retries`, CF routes it to that queue's
 // `dead_letter_queue` automatically (set in wrangler.jsonc, not here).
@@ -14,7 +14,7 @@ import { LouiseQueueError } from "../errors.js";
 
 /**
  * A deferred post-write side-effect drained by a Worker's `queue()` consumer
- * (#77) — keeps the write path to just the DB mutation while derived work runs
+ * (#77)—keeps the write path to just the DB mutation while derived work runs
  * async. An extensible discriminated union; match on `kind`. `reindex` (the
  * first member) re-syncs one collection row's FTS entry: it's enqueued by
  * `versionsRoute`'s `deferReindex` and drained with `reindexDoc`
@@ -23,7 +23,7 @@ import { LouiseQueueError } from "../errors.js";
  */
 export type SideEffectJob = {
   kind: "reindex";
-  /** Collection slug — the consumer maps it to a table + config. */
+  /** Collection slug—the consumer maps it to a table + config. */
   collection: string;
   /** The changed row's id (the FTS rowid). */
   id: number;
@@ -50,7 +50,7 @@ export type QueueMessageHandler<T> = (
 
 /**
  * Drains a `MessageBatch`, running `handler` once per message. Each
- * message is acked or retried independently — one failing message
+ * message is acked or retried independently—one failing message
  * doesn't block the rest of the batch from acking. Never throws itself;
  * a handler's own errors are caught and turned into a `retry()` so a
  * Worker's `queue()` export can call this directly as its entire body.

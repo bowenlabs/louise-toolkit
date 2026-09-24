@@ -7,7 +7,7 @@
 // astro:env) because the framework-agnostic media route (louise-toolkit/editor
 // `mediaRoute`, whose `MediaRouteEnv` requires it) reads it off this runtime env.
 // The editor-gate config (OWNER_EMAIL, LOUISE_SESSION_SECRET,
-// LOUISE_EDITOR_PASSWORD) IS typed + validated by the astro:env schema — see
+// LOUISE_EDITOR_PASSWORD) IS typed + validated by the astro:env schema—see
 // astro.config.mjs, consumed via `astro:env/server`. The OG card is rendered
 // with resvg/WASM now (#85), so there's no Browser Rendering binding.
 type CloudflareEnv = {
@@ -26,23 +26,23 @@ type CloudflareEnv = {
   // Analytics Engine (#106 CWV): the real-user web-vitals RUM dataset. Beacons
   // write via vitalsRoute; the health cron reads p75 back over the AE SQL API.
   ANALYTICS: AnalyticsEngineDataset;
-  // Vectorize (#86): semantic search alongside the FTS5 index. Optional — absent
+  // Vectorize (#86): semantic search alongside the FTS5 index. Optional—absent
   // the binding, embed-on-publish (workflows/publish.ts) and the searchRoute
   // semantic layer cleanly no-op and search stays FTS-only. The wrangler.jsonc
   // `vectorize` binding is commented until the index is provisioned (an unbound-
   // but-referenced index fails the deploy); see the note there to activate.
   VECTORIZE?: VectorizeIndex;
   // Per-page live editing session Durable Object (#71): the realtime WebSocket
-  // route (worker.ts `realtimeRoute`) forwards upgrades here. Optional — the
-  // route 503s (realtime cleanly off) when the binding is absent. Class exported
+  // route (worker.ts `realtimeRoute`) forwards upgrades here. Optional—the
+  // route returns 503 (realtime cleanly off) when the binding is absent. Class exported
   // from worker.ts; namespace from wrangler.jsonc `durable_objects`.
   EDIT_SESSION?: DurableObjectNamespace;
   // Cloudflare Queue (#77): deferred post-write side-effects (FTS reindex).
-  // Optional so publish still works — and falls back to inline sync — if the
+  // Optional so publish still works—and falls back to inline sync—if the
   // queue isn't provisioned. Producer binding from wrangler.jsonc `queues`.
   QUEUE?: Queue<import("louise-toolkit/queues").SideEffectJob>;
-  // Durable publish pipeline (#88): reindex → warm OG → webhook. Optional —
-  // publish falls back to the reindex Queue (then inline) when unbound. Binding
+  // Durable publish pipeline (#88): reindex → warm OG → webhook. Optional—publish
+  // falls back to the reindex Queue (then inline) when unbound. Binding
   // from wrangler.jsonc `workflows`; the class is exported from worker.ts.
   PUBLISH_WORKFLOW?: Workflow<import("./workflows/publish.js").PublishParams>;
   // Optional outbound webhook the publish Workflow POSTs to on publish (rebuild
@@ -62,8 +62,8 @@ declare module "*.wasm" {
 }
 
 // `caches.default` is Cloudflare's per-Worker cache. The tsconfig `lib` includes
-// DOM (Astro needs it for client code), and lib.dom's `CacheStorage` — which has
-// no `default` — wins the global merge over @cloudflare/workers-types', so re-add
+// DOM (Astro needs it for client code), and lib.dom's `CacheStorage`—which has
+// no `default`—wins the global merge over @cloudflare/workers-types', so re-add
 // it here to match the real runtime.
 interface CacheStorage {
   default: Cache;
@@ -72,7 +72,7 @@ interface CacheStorage {
 // Type the bindings the whole site reads via `import { env } from "cloudflare:workers"`
 // (Astro v6+ removed Astro.locals.runtime.env). `@cloudflare/workers-types` types
 // that `env` as the augmentable `Cloudflare.Env` interface, so we extend it here
-// rather than re-declaring the module — which would shadow the rest of the module's
+// rather than re-declaring the module—which would shadow the rest of the module's
 // exports (WorkflowEntrypoint, MessageBatch, …). Requires @cloudflare/workers-types
 // to be a devDependency so `tsconfig`'s `types` entry resolves.
 declare namespace Cloudflare {

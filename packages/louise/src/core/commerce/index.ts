@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce — shared primitives for the provider clients: money helpers
+// louise-toolkit/commerce—shared primitives for the provider clients: money helpers
 // and webhook-signature crypto (HMAC-SHA256 + a constant-time compare). The
 // provider glue lives in the sibling subpaths:
 //   louise-toolkit/commerce/stripe · /square · /fourthwall
@@ -11,10 +11,10 @@ import { parseJson, type StandardParseResult, type StandardSchemaV1 } from "../s
 /**
  * Parse a signature-verified webhook body against its event schema. Run this
  * AFTER the provider's `verify…Signature` returns true: the HMAC proves the
- * sender, this proves the *shape* — a signature can't tell you the provider
+ * sender, this proves the *shape*—a signature can't tell you the provider
  * didn't change the payload. Malformed JSON or a shape mismatch both come back
  * as violations (never a throw), so a handler can reject uniformly. Each
- * provider module exports its schema — {@link
+ * provider module exports its schema—{@link
  * import("./stripe.js").stripeWebhookEventSchema},
  * {@link import("./square.js").squareWebhookEventSchema},
  * {@link import("./fourthwall.js").fourthwallOrderEventSchema}.
@@ -26,15 +26,15 @@ export function parseWebhookEvent<Schema extends StandardSchemaV1>(
   return parseJson(schema, rawBody);
 }
 
-/** A money amount, expressed in a currency's minor unit (e.g. cents). */
+/** A money amount, expressed in a currency's minor unit (for example, cents). */
 export interface Money {
-  /** Amount in the currency's minor unit — cents for USD. */
+  /** Amount in the currency's minor unit—cents for USD. */
   amount: number;
-  /** ISO 4217 currency code, e.g. "USD". */
+  /** ISO 4217 currency code, for example, "USD". */
   currency: string;
 }
 
-/** Minor units (cents) → major units — `2500` → `25`. */
+/** Minor units (cents) → major units—`2500` → `25`. */
 export function centsToMajor(cents: number): number {
   return cents / 100;
 }
@@ -81,7 +81,7 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// Cart verification + repair against the live catalog — provider-neutral and pure.
+// Cart verification + repair against the live catalog—provider-neutral and pure.
 export {
   type CartChange,
   type CartIssue,

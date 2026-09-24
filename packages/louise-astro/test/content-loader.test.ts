@@ -76,7 +76,7 @@ describe("collectionToAstroSchema", () => {
 
 /**
  * A stand-in for the LoaderContext, recording the store + logger calls
- * `louiseLoader.load` makes. Identity `parseData` — the schema is covered above.
+ * `louiseLoader.load` makes. Identity `parseData`—the schema is covered above.
  */
 function makeContext() {
   const set = vi.fn(() => true);

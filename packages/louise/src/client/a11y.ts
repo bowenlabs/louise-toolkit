@@ -1,15 +1,15 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/client — modal-dialog accessibility, shared by every Louise
+// louise-toolkit/client—modal-dialog accessibility, shared by every Louise
 // overlay (the Settings drawer, the version-history drawer, the inspector
 // popover). A modal must, per WCAG 2.4.3 / 2.1.2 / 4.1.2: move focus into itself
 // on open, keep Tab within it (so the page behind can't be reached), close on
 // Escape, and restore focus to whatever opened it on close. `wireDialogA11y`
 // installs all four on a raw element and returns a disposer, so a Solid view can
 // wire it from a `ref` + `onCleanup` without pulling in a dialog library. Pure
-// DOM — unit-testable without mounting a framework.
+// DOM—unit-testable without mounting a framework.
 
-/** Turn a field key (`heroTitle`) into a human label ("Hero Title") — the fallback
+/** Turn a field key (`heroTitle`) into a human label ("Hero Title")—the fallback
  *  accessible name for an inline editable with no authored label. */
 export function humanizeFieldKey(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
@@ -18,7 +18,7 @@ export function humanizeFieldKey(key: string): string {
 /**
  * Name an inline `contenteditable` region for assistive tech. A bare
  * contenteditable announces as "edit text" with no identity, and the empty-state
- * hint is CSS `::before` content, which is not a reliable accessible name — so
+ * hint is CSS `::before` content, which is not a reliable accessible name—so
  * give the region a textbox role and a real name (WCAG 1.3.1 / 4.1.2). Never
  * overwrites a name the author already supplied.
  */
@@ -47,12 +47,12 @@ const FOCUSABLE = [
 
 /** The tabbable elements inside `root`, in DOM order. Skips `hidden` elements and
  *  the content of a collapsed `<details>` (which the browser omits from the tab
- *  order natively — the Settings groups rely on it). Layout-independent, so it
+ *  order natively—the Settings groups rely on it). Layout-independent, so it
  *  behaves the same under a real browser and a headless test DOM. */
 function tabbables(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => {
     if (el.hasAttribute("hidden")) return false;
-    // Read `.open` rather than matching `details:not([open])` — the property is
+    // Read `.open` rather than matching `details:not([open])`—the property is
     // the reliable signal across DOM implementations.
     const details = el.closest("details") as HTMLDetailsElement | null;
     if (details && !details.open) return el === details.querySelector("summary");
@@ -99,7 +99,7 @@ export interface PopoverDismissOptions {
 }
 
 /**
- * Dismiss a non-modal popup — a menu, palette, or swatch panel: Escape from
+ * Dismiss a non-modal popup—a menu, palette, or swatch panel: Escape from
  * inside it (or from its trigger), and a pointer press anywhere outside. Unlike
  * {@link wireDialogA11y} this deliberately does NOT trap focus: these panels are
  * transient and their items stay in the normal tab order.
@@ -138,7 +138,7 @@ export interface DialogA11yOptions {
 /**
  * Make `dialog` behave as an accessible modal: mark it `aria-modal`, move focus
  * in, trap Tab, close on Escape, and restore focus to the opener on dispose.
- * Returns a disposer — call it when the dialog unmounts (e.g. Solid `onCleanup`).
+ * Returns a disposer—call it when the dialog unmounts (for example, Solid `onCleanup`).
  */
 export function wireDialogA11y(dialog: HTMLElement, opts: DialogA11yOptions): () => void {
   const doc = dialog.ownerDocument;
@@ -166,7 +166,7 @@ export function wireDialogA11y(dialog: HTMLElement, opts: DialogA11yOptions): ()
     if (e.key !== "Tab") return;
     const items = tabbables(dialog);
     if (items.length === 0) {
-      // Nothing to tab to — keep focus on the dialog itself.
+      // Nothing to tab to—keep focus on the dialog itself.
       e.preventDefault();
       dialog.focus();
       return;
@@ -189,7 +189,7 @@ export function wireDialogA11y(dialog: HTMLElement, opts: DialogA11yOptions): ()
     dialog.removeEventListener("keydown", onKeyDown);
     dialog.removeAttribute("aria-modal");
     // Restore focus to the opener if it's still around (it may have been removed,
-    // e.g. the on-canvas ⚙ that opened the inspector unmounts with the chrome).
+    // for example, the on-canvas ⚙ that opened the inspector unmounts with the chrome).
     if (opener && doc.contains(opener) && opener !== doc.body) opener.focus();
   };
 }

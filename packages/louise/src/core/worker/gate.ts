@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/worker — the API gate (ADR 0012).
+// louise-toolkit/worker—the API gate (ADR 0012).
 //
 // Every editor route guards itself, and so far every one has remembered to.
 // The gate makes that true by construction: under the protected prefix a
@@ -9,7 +9,7 @@
 //
 // It sits in front of the per-route guards, not instead of them. The routes
 // still need the `EditorSession` itself, and `runEditorRoute` runs a factory
-// with no `composeWorker` — and so no gate — at all. The gate answers "may this
+// with no `composeWorker`, and so no gate, at all. The gate answers "may this
 // request enter the API"; the route answers "may this editor do this".
 
 import { requireEditor } from "../auth/guard.js";
@@ -19,7 +19,7 @@ import type { WorkerRoute } from "./index.js";
 
 /**
  * Resolve the editor (admin) session for a request. The site wraps its own
- * auth — typically `resolveEditorSession(getLouiseAuth(env, url), request)`.
+ * auth—typically `resolveEditorSession(getLouiseAuth(env, url), request)`.
  * Returning `null` means "not an editor".
  */
 export type ResolveEditor<Env> = (
@@ -49,11 +49,11 @@ export const LOUISE_VITALS_PATH = `${LOUISE_API_PREFIX}/vitals`;
 
 /**
  * Whether `pathname` is where one of the toolkit's own public routes mounts
- * by default — a form submission or the vitals beacon.
+ * by default—a form submission or the vitals beacon.
  *
  * `composeWorker` doesn't need this: it can see a {@link publicRoute} mark
- * before the route runs. A gate that can't — framework middleware, which runs
- * before it knows which file will answer — exempts these paths instead, so an
+ * before the route runs. A gate that can't—framework middleware, which runs
+ * before it knows which file will answer—exempts these paths instead, so an
  * anonymous visitor can still submit a form mounted as a framework route.
  */
 export function isLouisePublicPath(pathname: string): boolean {
@@ -100,8 +100,8 @@ export function resolveEditorOnce<Env>(
 const PUBLIC = Symbol.for("louise-toolkit.publicRoute");
 
 /**
- * Mark a route as reachable without an editor session under the gated prefix
- * — a contact form, a vitals beacon. The route that is public says so here,
+ * Mark a route as reachable without an editor session under the gated prefix:
+ * a contact form, a vitals beacon. The route that is public says so here,
  * rather than a path list in the site's config that drifts from the code.
  * A public route still does its own checks (origin, validation, rate limit).
  */
@@ -122,14 +122,14 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
  * Decide whether `request` may enter the editor API. Returns `null` to let it
- * through — including every request outside the prefix, which isn't the gate's
- * business — or the 401/403 `Response` to send instead.
+ * through—including every request outside the prefix, which isn't the gate's
+ * business—or the 401/403 `Response` to send instead.
  *
  * Credentials are the session cookie, so every unsafe method is origin-checked
  * (CSRF). So is a WebSocket upgrade: it's a GET, and a cross-site page can open
  * a socket that carries the editor's cookie, so method alone would let it by.
- * Bearer tokens (ADR 0009) will skip the origin check — a browser can't attach
- * one cross-site — decided by which credential authenticated, never by a
+ * Bearer tokens (ADR 0009) will skip the origin check—a browser can't attach
+ * one cross-site—decided by which credential authenticated, never by a
  * missing `Origin`.
  */
 export async function louiseApiGate<Env>(
@@ -148,7 +148,7 @@ export async function louiseApiGate<Env>(
 
 /**
  * Give a route's response the baseline security headers the site's middleware
- * would have — `composeWorker` routes run before it and never pass through.
+ * would have—`composeWorker` routes run before it and never pass through.
  * Only headers the route didn't set itself (the image proxy sets its own CSP),
  * plus `Cache-Control: no-store` on a gated response unless the route chose a
  * policy, so an editor's JSON can't land in a shared cache.

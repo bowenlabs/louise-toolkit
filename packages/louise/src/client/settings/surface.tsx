@@ -4,7 +4,7 @@
 // a drawer over the live page or as a full-page admin app.
 //
 // Extracted rather than copied. Which panels exist, which framework buttons show,
-// how a dashboard card deep-links to one — all of that is the surface's real
+// how a dashboard card deep-links to one—all of that is the surface's real
 // content, and a second presentation that reimplemented it would drift the moment
 // either gained a panel. The presentations differ only in CHROME: the drawer adds
 // a scrim, a dialog role, a focus trap and a close button; the page adds none of
@@ -25,7 +25,7 @@ import type { OgCardOptions } from "../../core/browser/og-card.js";
 import type { JSX } from "solid-js";
 
 /** A site-registered collection tab (the BOTTOM group). The framework panels are
- *  not `CollectionTab`s — they're fixed in the top strip and can't be added here. */
+ *  not `CollectionTab`s: they're fixed in the top strip and can't be added here. */
 export interface CollectionTab {
   /** Stable id (sites typically reuse it as a query-key segment). */
   id: string;
@@ -90,8 +90,8 @@ export function surfaceCards(config: SurfaceConfig): DashboardCard[] {
   ];
 }
 
-/** Which panel a presentation should land on when it first opens: Home, or —
- *  with Home disabled — Pages when there are no tabs, else the first tab. */
+/** Which panel a presentation should land on when it first opens: Home, or,
+ *  with Home disabled, Pages when there are no tabs, else the first tab. */
 export function initialPanel(config: SurfaceConfig): FrameworkPanel | null {
   if (config.home !== false) return "home";
   return (config.tabs ?? []).length === 0 ? "pages" : null;
@@ -150,7 +150,7 @@ export function SurfaceTabs(props: {
 }
 
 /**
- * The panel body — the substantial half, and the reason this module exists.
+ * The panel body—the substantial half, and the reason this module exists.
  *
  * Every panel a Louise editor has, switched on the active overlay, with the
  * registered tabs underneath. A presentation supplies the surrounding chrome and

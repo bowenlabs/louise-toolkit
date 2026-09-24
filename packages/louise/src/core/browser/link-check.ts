@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // Scheduled link-checking (issue #5). Crawls a set of pages, extracts their
-// links, and reports the ones that don't resolve — driven from a Cron Trigger.
+// links, and reports the ones that don't resolve—driven from a Cron Trigger.
 // Pure `fetch` (no browser session needed to read anchors), with an injectable
 // `fetch` so it's unit-testable without the network.
 
@@ -23,16 +23,16 @@ export function extractLinks(html: string, base: string): string[] {
     try {
       out.add(new URL(href, base).href);
     } catch {
-      // Unparseable href — ignore.
+      // Unparseable href—ignore.
     }
   }
   return [...out];
 }
 
 export interface CheckLinksOptions {
-  /** Origin the pages are served from, e.g. `https://louisetoolkit.com`. */
+  /** Origin the pages are served from, for example, `https://louisetoolkit.com`. */
   base: string;
-  /** Page paths to crawl, e.g. `["/docs/", "/docs/guide/"]`. */
+  /** Page paths to crawl, for example, `["/docs/", "/docs/guide/"]`. */
   paths: string[];
   /** Injectable fetch (defaults to the global). */
   fetch?: typeof fetch;

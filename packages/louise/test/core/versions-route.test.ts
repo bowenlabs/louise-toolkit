@@ -11,9 +11,9 @@ import { latestPendingDraft, versionsRoute } from "../../src/core/editor/index.j
 //
 // One behaviour that path guards and this file cannot: `applySaveDraft` now
 // converts a `LouiseValidationError` thrown by the collection's `beforeChange`
-// hook (e.g. an unknown section `_type`) into a 422, not the unhandled 500 it
-// used to be. Reaching that throw needs a real D1 (a mock 404s on the current-row
-// SELECT first), so it's asserted served, in CI's scaffold live-smoke leg
+// hook (for example, an unknown section `_type`) into a 422, not the unhandled 500 it
+// used to be. Reaching that throw needs a real D1 (a mock returns 404 on the
+// current-row SELECT first), so it's asserted served, in CI's scaffold live-smoke leg
 // ("versionsRoute answers 422 for a bad section").
 const noopD1 = {
   prepare: () => ({

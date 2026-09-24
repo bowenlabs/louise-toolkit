@@ -1,8 +1,8 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/content — afterChange-style outbound webhooks. The
+// louise-toolkit/content—afterChange-style outbound webhooks. The
 // `afterChange` hook itself only enqueues (via `louise-toolkit/queues`'
-// `enqueue`) — it never calls `fetch()` directly, so a slow or down
+// `enqueue`)—it never calls `fetch()` directly, so a slow or down
 // receiving endpoint can't add latency to a write request or get lost on
 // a single failed attempt. `deliverWebhookMessage` is the consumer-side
 // counterpart: a separate queue consumer calls it per message, and
@@ -20,8 +20,8 @@ export interface WebhookConfig {
   /** Restricts delivery to these operations. Default: both. */
   events?: Array<"create" | "update">;
   /**
-   * When set, every delivery carries an `X-Louise-Signature` header —
-   * HMAC-SHA256 (hex) over the raw JSON body — so the receiver can verify
+   * When set, every delivery carries an `X-Louise-Signature` header—HMAC-SHA256
+   * (hex) over the raw JSON body—so the receiver can verify
    * the payload actually came from this Louise instance.
    */
   secret?: string;
@@ -39,7 +39,7 @@ export interface WebhookMessage {
 
 /**
  * Builds an `afterChange` hook that enqueues a `WebhookMessage` for every
- * matching write — append the result to a collection's
+ * matching write—append the result to a collection's
  * `hooks.afterChange` array. `queue` is whatever `Queue<WebhookMessage>`
  * binding the caller's Worker has configured for webhook dispatch (see
  * wrangler.jsonc's webhook queue producer binding).
@@ -74,13 +74,13 @@ async function hmacSha256Hex(payload: string, secret: string): Promise<string> {
 
 /**
  * Delivers a single `WebhookMessage`. Throws `LouiseQueueError` on a refused
- * URL, a non-2xx response, or no response at all — meant to be called from
+ * URL, a non-2xx response, or no response at all—meant to be called from
  * inside `processBatch`'s handler, where a thrown error becomes a
  * `message.retry()`.
  *
  * The URL goes through `fetchPublicUrl`: https only, no IP addresses or
  * private-network names, every redirect hop checked, a timeout. The error
- * names the endpoint's origin, never its path — a webhook path is often the
+ * names the endpoint's origin, never its path—a webhook path is often the
  * credential (a Slack or Discord hook URL is one).
  */
 export async function deliverWebhookMessage(
@@ -120,7 +120,7 @@ export async function deliverWebhookMessage(
   }
 }
 
-/** The endpoint's origin, for an error message — never the path. */
+/** The endpoint's origin, for an error message—never the path. */
 function originOf(url: string): string {
   try {
     return new URL(url).origin;

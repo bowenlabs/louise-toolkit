@@ -1,7 +1,7 @@
 // The external section's source-settings group (ADR 0010 Phase B / #375).
 //
 // A yellow section's wrench opens TWO kinds of knobs: the mirror's
-// configuration (which category, which items hidden — site settings, shared by
+// configuration (which category, which items hidden—site settings, shared by
 // every page, saved immediately) and the section's own layout (page-owned,
 // staged into the draft like always). The split write path is the whole design:
 // a source change must PATCH the settings route and must NOT stage a page
@@ -45,7 +45,7 @@ const CATALOG: SectionCatalog = {
   },
 };
 
-/** A def whose ONLY knobs are its source settings — no fields, no layouts. The
+/** A def whose ONLY knobs are its source settings—no fields, no layouts. The
  *  wrench must still appear, or the yellow ring leads nowhere. */
 const SOURCE_ONLY: SectionCatalog = {
   mirror: {
@@ -205,7 +205,7 @@ describe("external section — the source-settings group (#375)", () => {
     select.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
 
-    // The merged object, whole — the settings route stores it under one key.
+    // The merged object, whole—the settings route stores it under one key.
     expect(settingsPatches(calls).at(-1)?.body).toEqual({
       shop: { categoryId: "cat2", hiddenItemIds: ["i2"] },
     });

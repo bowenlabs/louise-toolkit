@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/realtime — per-page live editing session over a Durable Object
+// louise-toolkit/realtime—per-page live editing session over a Durable Object
 // (ADR 0002 / #71). This is the change-broadcast + coalesced-persistence slice
 // (tasks 2 + 3): the session now owns authoritative field state, broadcasts field
 // changes, mediates a rich-text soft-lock, and flushes coalesced edits to D1 on a
@@ -38,9 +38,9 @@ import type { WorkerRoute } from "../worker/index.js";
 /** WS envelope version; bump if the message shape changes (clients check `v`). */
 export const REALTIME_PROTOCOL_VERSION = 1;
 
-/** Who is in a session — broadcast for presence. Resolved from the editor session
+/** Who is in a session—broadcast for presence. Resolved from the editor session
  *  by the route (see {@link realtimeRoute}), never trusted from the client. Only
- *  the display slice ({@link RealtimePeer}) is fanned out — email/role stay in the
+ *  the display slice ({@link RealtimePeer}) is fanned out—email/role stay in the
  *  socket's attachment and never leave the DO. */
 export interface RealtimePeer {
   id: string;
@@ -76,11 +76,11 @@ export type RealtimeClientMessage =
   | { v?: number; t: "bye" };
 
 // The route stamps these on the forwarded upgrade URL so the DO can attach the
-// server-resolved identity — the client never provides its own presence. Carried
+// server-resolved identity—the client never provides its own presence. Carried
 // as query params (not headers): forwarding a WebSocket upgrade must reuse the
-// original request so its `Upgrade`/`Connection` headers survive — those are
-// forbidden header names, so they can't be re-set on a reconstructed request —
-// and the DO is only reachable through this authed route, never by the client.
+// original request so its `Upgrade`/`Connection` headers survive—those are
+// forbidden header names, so they can't be re-set on a reconstructed request—and
+// the DO is only reachable through this authed route, never by the client.
 const EDITOR_ID_PARAM = "_eid";
 const EDITOR_NAME_PARAM = "_ename";
 const EDITOR_EMAIL_PARAM = "_eemail";
@@ -102,7 +102,7 @@ const REV_KEY = "rev";
 const TARGET_KEY = "target";
 const LAST_WRITER_KEY = "lastWriter";
 
-/** Which page a session persists to — parsed from the upgrade path, stashed so the
+/** Which page a session persists to—parsed from the upgrade path, stashed so the
  *  alarm flush (no request in scope) knows where to write. */
 export interface EditSessionTarget {
   slug: string;
@@ -118,16 +118,16 @@ export type EditSessionPersist = (
 ) => void | Promise<void>;
 
 export interface EditSessionConfig {
-  /** Allowlist — a `change` for any other field is dropped (mirrors the collection
+  /** Allowlist—a `change` for any other field is dropped (mirrors the collection
    *  config; the persist path re-validates, so this is a cheap first gate). */
   fields: readonly string[];
-  /** Fields under the rich-text soft-lock (e.g. `["body"]`): only the lock holder
+  /** Fields under the rich-text soft-lock (for example, `["body"]`): only the lock holder
    *  may `change` them and their values are NOT fanned out to peers (peers render
    *  them read-only and reload on release), so raw rich-text never crosses sockets. */
   lockFields?: readonly string[];
   /** Coalesced flush to D1. Omit for a presence-only session (no persistence). */
   persist?: EditSessionPersist;
-  /** Alarm cadence, ms. Default {@link DEFAULT_FLUSH_MS} (10s). */
+  /** Alarm cadence, ms. Default {@link DEFAULT_FLUSH_MS} (10 seconds). */
   flushMs?: number;
   /** Injectable clock for tests. Default `Date.now`. */
   now?: () => number;
@@ -147,7 +147,7 @@ function peerOf(ws: WebSocket): RealtimePeer {
 }
 
 /** The last two non-empty path segments are `<slug>/<id>` regardless of the mount
- *  base — robust to a re-pointed base. */
+ *  base, robust to a re-pointed base. */
 function targetFromUrl(rawUrl: string): { slug?: string; id?: string } {
   const parts = new URL(rawUrl).pathname.split("/").filter(Boolean);
   const id = parts.pop();
@@ -201,7 +201,7 @@ export interface EditSession {
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void>;
   webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void>;
   webSocketError(ws: WebSocket, error: unknown): Promise<void>;
-  /** Fires on the coalescing alarm — flushes dirty fields through `config.persist`. */
+  /** Fires on the coalescing alarm—flushes dirty fields through `config.persist`. */
   alarm(): Promise<void>;
 }
 
@@ -217,11 +217,11 @@ export interface EditSession {
  *    broadcast to peers (except lock-guarded fields), and arm the coalescing alarm;
  *  - **`claim`/`release`** → acquire/release a rich-text soft-lock, broadcast locks;
  *  - **`alarm`** → flush the coalesced dirty snapshot through `config.persist`
- *    (the existing `applySaveDraft` path — one write path), re-arm if still dirty;
+ *    (the existing `applySaveDraft` path—one write path), re-arm if still dirty;
  *  - **disconnect** → release that editor's locks, re-broadcast presence + locks.
  *
  * All authoritative state (fields, rev, locks, target, last writer) lives in
- * `ctx.storage`, so it survives hibernation — presence itself is rebuilt from
+ * `ctx.storage`, so it survives hibernation—presence itself is rebuilt from
  * `ctx.getWebSockets()` + each socket's `serializeAttachment`.
  */
 export function createEditSession(ctx: DurableObjectState, config: EditSessionConfig): EditSession {
@@ -264,7 +264,7 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
   const broadcastLocks = async (sockets: readonly WebSocket[]): Promise<void> => {
     broadcast(sockets, { v: REALTIME_PROTOCOL_VERSION, t: "locks", locks: await readLocks() });
   };
-  // Arm the coalescing alarm on the first dirtying edit and leave it — so it fires
+  // Arm the coalescing alarm on the first dirtying edit and leave it—so it fires
   // `flushMs` after the burst STARTED, coalescing everything in between into one
   // flush (resetting on every edit would starve a continuous typer's saves).
   const armAlarm = async (): Promise<void> => {
@@ -279,7 +279,7 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
   };
 
   const onChange = async (ws: WebSocket, field: string, value: unknown): Promise<void> => {
-    if (!fields.has(field)) return; // unknown field — drop (persist path re-validates)
+    if (!fields.has(field)) return; // unknown field—drop (persist path re-validates)
     const me = peerOf(ws).id;
     const locked = lockFields.has(field);
     if (locked) {
@@ -306,7 +306,7 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
     const holder = await storage.get<string>(`${LOCK_PREFIX}${field}`);
     if (holder === me) return;
     if (holder) {
-      await broadcastLocks([ws]); // already held — tell the asker who has it
+      await broadcastLocks([ws]); // already held—tell the asker who has it
       return;
     }
     await storage.put(`${LOCK_PREFIX}${field}`, me);
@@ -343,7 +343,7 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
         name: params.get(EDITOR_NAME_PARAM) || "Editor",
         role: params.get(EDITOR_ROLE_PARAM) ?? "",
       };
-      // Hibernatable accept — the DO can sleep between messages without dropping
+      // Hibernatable accept—the DO can sleep between messages without dropping
       // this client. Attach identity so presence rebuilds after a wake.
       ctx.acceptWebSocket(server);
       server.serializeAttachment(editor);
@@ -424,10 +424,10 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
         if (target) {
           try {
             await config.persist(snapshot, editor, target);
-            // Clear only what we flushed — edits that arrived mid-flush stay dirty.
+            // Clear only what we flushed—edits that arrived mid-flush stay dirty.
             await storage.delete(keys);
           } catch {
-            // Persist failed — leave the snapshot dirty and re-arm below to retry.
+            // Persist failed—leave the snapshot dirty and re-arm below to retry.
           }
         }
       }
@@ -442,7 +442,7 @@ export interface RealtimeRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
   /**
-   * The DO namespace binding — typically `(env) => env.EDIT_SESSION`. Return
+   * The DO namespace binding—typically `(env) => env.EDIT_SESSION`. Return
    * `undefined` (binding not provisioned) and the route answers 503, so realtime
    * is cleanly absent rather than erroring.
    */
@@ -483,8 +483,8 @@ export function realtimeRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
 
     // One DO per page. Forward the *original* request (so the WebSocket upgrade
-    // headers survive), just re-pointed at a URL carrying the resolved identity —
-    // the full session (id/name/email/role) so the coalesced flush is attributed.
+    // headers survive), just re-pointed at a URL carrying the resolved identity—the
+    // full session (id/name/email/role) so the coalesced flush is attributed.
     const stub = ns.get(ns.idFromName(`${slug}:${id}`));
     const doUrl = new URL(url);
     doUrl.searchParams.set(EDITOR_ID_PARAM, g.editor.userId);

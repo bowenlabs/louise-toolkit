@@ -5,7 +5,7 @@ import { qrDataUri, qrSvg } from "../../src/core/qr/svg.js";
 // There is no independent QR implementation in this repo to diff against, and a
 // subtly-wrong encoder produces codes that LOOK right and fail on a real phone.
 // So the core test is a round trip: re-read the finished matrix the way a
-// scanner does — recover the mask from the format bits, unmask, walk the same
+// scanner does—recover the mask from the format bits, unmask, walk the same
 // zigzag, de-interleave the blocks, and parse the byte-mode segment back out.
 // That exercises data placement, masking, block splitting, interleaving and the
 // format-info BCH together; anything misaligned in any of them fails to decode.
@@ -288,7 +288,7 @@ describe("qr svg", () => {
 
   it("omits the background when light is null, and sizes only when asked", () => {
     expect(qrSvg("x", { light: null })).not.toContain("<rect");
-    // Only the <svg> tag itself should be unsized — it scales with its
+    // Only the <svg> tag itself should be unsized—it scales with its
     // container. The background <rect> legitimately carries width/height.
     const svgTag = (s: string) => s.slice(0, s.indexOf(">") + 1);
     expect(svgTag(qrSvg("x"))).not.toContain("width=");

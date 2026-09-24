@@ -84,7 +84,7 @@ describe("unsavedChanges", () => {
     expect(guard.dirty()).toBe(false);
     form.title = "Basking!";
     expect(guard.dirty()).toBe(true);
-    form.title = "Basking"; // typed then deleted — not a change
+    form.title = "Basking"; // typed then deleted—not a change
     expect(guard.dirty()).toBe(false);
   });
 

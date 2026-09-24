@@ -1,19 +1,19 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Stega (steganographic) auto-tagging (issue #23) — a companion to the manual
+// Stega (steganographic) auto-tagging (issue #23)—a companion to the manual
 // `editAttr()` path in `visual-editing.ts`. `editAttr` tags an *element*; stega
 // tags the *string*: an invisible, zero-width payload rides inside a field's
 // rendered text, so any occurrence of that text traces back to its
 // `{ collection, id, field }` with no wrapper element and no author discipline
 // (the sharpest footgun in the manual path). Same primitive Sanity's visual
-// editing uses. Built on `@vercel/stega` (~1 KB, pure JS, runs on workerd) —
-// declared an OPTIONAL peer, so only sites that opt into stega pull it in.
+// editing uses. Built on `@vercel/stega` (~1 KB, pure JS, runs on workerd)—declared
+// an OPTIONAL peer, so only sites that opt into stega pull it in.
 //
 // Hybrid, not a replacement: keep `editAttr` for text-less targets (images,
 // whole blocks, buttons); use stega for prose. Reuses the existing `EditRef` /
 // `encodeEditRef` / `decodeEditRef` contract, so the editor side is unchanged.
 //
-// ⚠️ Preview-only. Never encode production HTML — zero-width chars would leak
+// ⚠️ Preview-only. Never encode production HTML; zero-width chars would leak
 // into <title>, meta/OG tags and search indexes. Gate `encodeDocument` behind
 // the same preview/edit flag that controls `data-louise-field` rendering, and
 // always `stegaClean()` a value before persisting it (see `stega-clean.ts`).

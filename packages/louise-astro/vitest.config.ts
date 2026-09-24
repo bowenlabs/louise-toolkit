@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-// The adapter's own suite. Everything here is pure Node — schema bridges, a
-// content-layer loader, Action wrappers — so there is no DOM project.
+// The adapter's own suite. Everything here is pure Node—schema bridges, a
+// content-layer loader, Action wrappers—so there is no DOM project.
 export default defineConfig({
   resolve: {
     alias: {
@@ -14,7 +14,7 @@ export default defineConfig({
       // opposed to type-only) needs an entry. Miss one and the suite passes on a
       // machine with a stale `packages/louise/dist` lying around and fails in CI.
       // `scripts/ci/checks/export-map.mjs` is the counterpart that verifies these
-      // same subpaths actually exist in the PUBLISHED map — the alias makes tests
+      // same subpaths actually exist in the PUBLISHED map—the alias makes tests
       // fast, the check makes them honest.
       "louise-toolkit/content": new URL("../louise/src/core/content/index.ts", import.meta.url)
         .pathname,

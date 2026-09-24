@@ -5,7 +5,7 @@
 //
 //   louise gen-auth-schema [--config <path>] [--table-prefix <p>] [--out <file>]
 //
-// Regenerates a site's Better Auth migration SQL from config (issue #15) — no
+// Regenerates a site's Better Auth migration SQL from config (issue #15)—no
 // hand-written auth DDL. `--config` points at a module default-exporting an
 // AuthSchemaConfig (`{ customers?, additionalFields?, tablePrefix? }`) that
 // mirrors the site's `LouiseAuthConfig`; the schema is derived from the same
@@ -33,7 +33,7 @@ async function loadConfig(path) {
 async function genAuthSchema(args) {
   // Import the generator from this package's own built output (bin/ and dist/
   // are siblings under the package root), so the CLI always uses the same
-  // version it ships in — no dependency on node_modules layout.
+  // version it ships in—no dependency on node_modules layout.
   const { generateAuthSchemaSql } = await import(
     new URL("../dist/core/auth/index.js", import.meta.url).href
   );

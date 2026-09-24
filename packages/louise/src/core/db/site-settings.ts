@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Framework-owned `site_settings` — the singleton config row a Louise site
+// Framework-owned `site_settings`—the singleton config row a Louise site
 // keeps (identity, appearance, structural colors, contact, nav, SEO, domain,
 // feature toggles). It's entirely framework-generic, so owning it here stops it
 // drifting between client sites (pt#83). Import `siteSettingsColumns` to compose
@@ -61,7 +61,7 @@ export const siteSettingsColumns = {
   defaultOgImageUrl: text("default_og_image_url"),
   disableIndexing: integer("disable_indexing", { mode: "boolean" }).notNull().default(false),
 
-  // domain — populated by your provisioning tooling if you automate domain
+  // domain—populated by your provisioning tooling if you automate domain
   // setup; left blank/manual otherwise.
   primaryDomain: text("primary_domain"),
   domainProvider: text("domain_provider", {
@@ -80,14 +80,14 @@ export const siteSettingsColumns = {
   // common base every Louise site shares; a site's own settings fields (that
   // don't map to a framework column) live here as a JSON object. The generic
   // settings handler (louise-toolkit/editor) patches known framework columns for the
-  // base and merges a site's declared extra keys into `custom` — so a site adds
+  // base and merges a site's declared extra keys into `custom`—so a site adds
   // its own settings without a package schema change. Keys are allowlisted by
   // the site's handler config, never written wholesale.
   custom: text("custom", { mode: "json" }).$type<JsonValue>(),
 };
 
 /**
- * The ready-made `site_settings` singleton table — `id = 1` enforced by a
+ * The ready-made `site_settings` singleton table—`id = 1` enforced by a
  * CHECK. Use this directly when the generic column set is enough; otherwise
  * compose your own table from {@link siteSettingsColumns}.
  */

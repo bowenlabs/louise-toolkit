@@ -7,7 +7,7 @@ import {
 import { squareWebhookEventSchema } from "../../src/core/commerce/square.js";
 import { stripeWebhookEventSchema } from "../../src/core/commerce/stripe.js";
 
-// These schemas run AFTER the HMAC check — they prove the payload's *shape*,
+// These schemas run AFTER the HMAC check—they prove the payload's *shape*,
 // which the signature alone does not. parseWebhookEvent folds JSON.parse +
 // validation so a handler branches once on `ok`.
 

@@ -1,8 +1,8 @@
-// ADR 0001, layer 3 — a Solid island that calls the typed `savePage` Action.
+// ADR 0001, layer 3—a Solid island that calls the typed `savePage` Action.
 // The argument to `actions.louise.savePage` is inferred straight from
 // `pageEditInput` (via `astro:actions` codegen), so the client and server agree
 // on the shape with zero hand-maintained types. This is the same
-// island → action pattern the sites already use (e.g. themidwestartist's
+// island → action pattern the sites already use (for example, themidwestartist's
 // ContactForm → `actions.inquiry`), now end-to-end typed.
 import { actions } from "astro:actions";
 import { createSignal } from "solid-js";
@@ -16,7 +16,7 @@ export default function SavePageFields(props: { page: PageEditInput }) {
   const save = async () => {
     setState("saving");
     // Fully inferred: the object below must match `pageEditInput`. A wrong shape
-    // is a compile error — see the type-proof at the bottom of this file.
+    // is a compile error—see the type-proof at the bottom of this file.
     const { error } = await actions.louise.savePage({
       id: props.page.id,
       title: title(),
@@ -48,7 +48,7 @@ export default function SavePageFields(props: { page: PageEditInput }) {
 // regressed (the arg went `any`), the `@ts-expect-error` would become unused and
 // `astro check` would fail. Never executed.
 async function _typeProof() {
-  // @ts-expect-error — id must be a number and title a string
+  // @ts-expect-error—id must be a number and title a string
   await actions.louise.savePage({ id: "nope", title: 123 });
 }
 void _typeProof;

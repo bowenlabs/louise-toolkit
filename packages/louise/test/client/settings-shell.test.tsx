@@ -1,4 +1,4 @@
-// Slice-2 Settings shell — happy-dom Solid component tests. Covers the two-group
+// Slice-2 Settings shell—happy-dom Solid component tests. Covers the two-group
 // registry split (framework panels on top, site collections as bottom tabs),
 // tab switching, and each framework/default panel wiring against the generic
 // louise-toolkit/editor endpoints.
@@ -31,7 +31,7 @@ function mount(ui: () => JSX.Element) {
 }
 
 // A framework panel mounted outside the full shell still needs the action-footer
-// provider (it pushes Save/Revert there) — wrap it like the shell does, with the
+// provider (it pushes Save/Revert there)—wrap it like the shell does, with the
 // footer rendered after the body, so tests can assert against the real footer.
 function mountPanel(ui: () => JSX.Element) {
   mount(() => (
@@ -172,7 +172,7 @@ describe("Settings shell — two-group registry split", () => {
     stubFetch(() => jsonResponse({}));
     mount(() => <Settings userName="Baylee" />);
     openDrawer();
-    // Home is the default landing — the traffic-light summary, not a CRUD panel.
+    // Home is the default landing—the traffic-light summary, not a CRUD panel.
     await vi.waitFor(() => expect(host.querySelector(".louise-dashboard")).not.toBeNull());
     expect(host.textContent).toContain("Your site is healthy");
   });
@@ -202,7 +202,7 @@ describe("Settings shell — two-group registry split", () => {
     openDrawer();
     frameButton("Settings")!.click();
     await vi.waitFor(() => expect(host.textContent).toContain("Site config"));
-    // The site's baseGroups replace the framework defaults — no empty base fields.
+    // The site's baseGroups replace the framework defaults—no empty base fields.
     expect(host.textContent).not.toContain("Appearance");
     expect(host.textContent).not.toContain("Identity");
   });
@@ -435,7 +435,7 @@ describe("PagesPanel — list + built-in pages", () => {
 describe("MediaPanel — upload errors", () => {
   it("reports EVERY failed file, not just the last one", async () => {
     // The bug: each failure overwrote one alert, so two refused files out of
-    // three surfaced as one — or none, when the last file succeeded.
+    // three surfaced as one—or none, when the last file succeeded.
     stubFetch((url, method, init) => {
       if (method === "POST" && url.endsWith("/api/louise/media")) {
         const name = ((init?.body as FormData).get("file") as File).name;
@@ -541,7 +541,7 @@ describe("MediaPanel — list", () => {
     await vi.waitFor(() => expect(host.querySelectorAll(".louise-media-edit").length).toBe(1));
     expect(altButtons().length).toBe(1);
 
-    // Opening the other closes the first — still exactly one editor, one footer.
+    // Opening the other closes the first—still exactly one editor, one footer.
     altButtons()[0]!.click();
     expect(host.querySelectorAll(".louise-media-edit").length).toBe(1);
     expect(host.querySelectorAll('.louise-drawer-foot [data-action="save"]').length).toBe(1);

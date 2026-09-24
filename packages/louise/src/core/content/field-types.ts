@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The field-type registry (ADR 0010, Phase A2 — epic #341, slice #342).
+// The field-type registry (ADR 0010, Phase A2—epic #341, slice #342).
 //
 // One registration per field type, replacing the places a type used to be spelled
 // out separately: the `SectionFieldType` union, the validator's if/else ladder,
-// and the hardcoded inline-vs-inspector list — which `describe-node.ts` had
+// and the hardcoded inline-vs-inspector list—which `describe-node.ts` had
 // already been forced to duplicate, because it needed the same answer to decide
 // whether a node gets a wrench.
 //
 // ## Why the editor isn't here
 //
-// ADR 0010 sketches `defineFieldType({ name, validate, editor, inline, options? })`
-// — one call carrying its own editor component. That cannot survive the boundary
+// ADR 0010 sketches `defineFieldType({ name, validate, editor, inline, options? })`,
+// one call carrying its own editor component. That cannot survive the boundary
 // this module sits on. `core/content` is deliberately server-safe: `sections.ts`
 // won't even import the `./validation.js` barrel, because that half pulls in
 // `drizzle-orm` and would drag an optional peer into every consumer. The layer
@@ -20,9 +20,9 @@
 // A Solid component in these objects would put the client framework in that
 // bundle. So the split is by what each side can actually hold:
 //
-//   • here — the SCHEMA facts: does it validate, is it edited in place. Both the
+//   • here, the SCHEMA facts: does it validate, is it edited in place. Both the
 //     server validator and the client read them, so they cannot disagree.
-//   • the client — the editor control, keyed by the names below. It can't invent
+//   • the client, the editor control, keyed by the names below. It can't invent
 //     a type the schema doesn't know, and a type with no bespoke control falls
 //     back to the scalar input.
 //
@@ -36,7 +36,7 @@ import type { ValidationViolation } from "../errors.js";
 import type { SectionField } from "./sections.js";
 
 /** One choice in a closed set. `label` is what the editor reads; `value` is what
- *  is stored — a token differs from its presentation for the usual reason. */
+ *  is stored; a token differs from its presentation for the usual reason. */
 export interface FieldOption {
   value: string;
   label?: string;
@@ -45,8 +45,8 @@ export interface FieldOption {
 /**
  * Choices fetched at edit time rather than declared in the catalog.
  *
- * The reason this exists is ADR 0010's: a picker whose choices come from an API —
- * Square locations, a product catalog — could not be expressed at all. `options`
+ * The reason this exists is ADR 0010's: a picker whose choices come from an API—Square
+ * locations, a product catalog—could not be expressed at all. `options`
  * took a literal array, so the only way to build one was the settings drawer's
  * `render` escape hatch, which the section inspector doesn't have.
  *
@@ -68,7 +68,7 @@ export function isOptionsResolver(
 
 /** What a validator is told about the value it's checking. */
 export interface FieldValidateContext {
-  /** The field's own definition — `select` reads `options`, and a custom type can
+  /** The field's own definition—`select` reads `options`, and a custom type can
    *  read whatever it declared. */
   field: SectionField;
   /** Dotted path to this value, for the violation message. */
@@ -82,7 +82,7 @@ export interface FieldValidateContext {
  * One field type. `validate` returns violations for a stored value; returning
  * nothing means the value is acceptable.
  *
- * A validator sees the value only when it is present — `undefined` and `null` are
+ * A validator sees the value only when it is present—`undefined` and `null` are
  * filtered out by {@link validateFieldType}, because "is this field required" is
  * the `validation` rule chain's job, not the type's. Every type would otherwise
  * repeat the same two guards, and one of them would eventually forget.
@@ -91,8 +91,8 @@ export interface FieldTypeDef {
   name: string;
   /**
    * Edited in place on the bespoke render (a visible text node) rather than in
-   * the inspector. A field may override it — a heading rendered as an image's alt
-   * text has no node to click — but this is the default the type carries.
+   * the inspector. A field may override it—a heading rendered as an image's alt
+   * text has no node to click—but this is the default the type carries.
    */
   inline: boolean;
   /** Check a present value. Omit for a type whose shape is structural and checked
@@ -106,7 +106,7 @@ const registry = new Map<string, FieldTypeDef>();
  *  (a test restoring a built-in it replaced, say). The built-ins below call this
  *  for its effect alone.
  *
- *  Re-registering a name replaces it — a site may sharpen a built-in's validation
+ *  Re-registering a name replaces it—a site may sharpen a built-in's validation
  *  without forking the catalog. */
 export function defineFieldType(def: FieldTypeDef): FieldTypeDef {
   registry.set(def.name, def);
@@ -132,11 +132,11 @@ export function fieldTypeNames(): string[] {
  * catalog could write, so the test that proved "one registration is enough" had
  * to reach for a cast.
  *
- * The intersection is the standard trick for keeping both — TypeScript won't
+ * The intersection is the standard trick for keeping both—TypeScript won't
  * collapse the union to `string`, so editors still complete the ten built-ins,
  * while a registered name type-checks. What's lost is the typo check: `"txet"` is
  * now legal to write, and an unregistered type validates as nothing rather than
- * failing — which is why {@link unknownFieldTypes} exists for a catalog that
+ * failing—which is why {@link unknownFieldTypes} exists for a catalog that
  * wants the stricter guarantee back.
  */
 export type FieldTypeName =
@@ -160,7 +160,7 @@ export type FieldTypeName =
  * The escape hatch for what the widened {@link FieldTypeName} gives up. A site
  * that registers its own types but still wants a typo to fail early calls this
  * over its catalog at boot: it is the check the closed union used to perform, now
- * opt-in and covering site-defined types too — which the union never could.
+ * opt-in and covering site-defined types too—which the union never could.
  */
 export function unknownFieldTypes(defs: Iterable<{ type: string }>): string[] {
   const missing = new Set<string>();
@@ -173,7 +173,7 @@ export function unknownFieldTypes(defs: Iterable<{ type: string }>): string[] {
  * the type decides.
  *
  * This is the single answer to a question that used to be asked in two places
- * with two copies of the same list — `sections.tsx`'s `isInline` and
+ * with two copies of the same list—`sections.tsx`'s `isInline` and
  * `describe-node.ts`'s `isInlineField`. They agreed only because they were
  * written together.
  */
@@ -183,7 +183,7 @@ export function isInlineField(field: Pick<SectionField, "type" | "inline">): boo
 
 /**
  * Run a field type's own check. Absent values are skipped here rather than in
- * each validator, and an unregistered type is NOT an error — a catalog may name a
+ * each validator, and an unregistered type is NOT an error—a catalog may name a
  * type this build doesn't know (mid-migration, or a site's own), and the field's
  * `validation` chain still runs on it.
  */
@@ -200,13 +200,13 @@ const bad = (path: string, message: string): ValidationViolation[] => [
   { path, message: `${path} ${message}`, severity: "error" },
 ];
 
-/** The string check text/textarea/richText share. Empty string is allowed —
+/** The string check text/textarea/richText share. Empty string is allowed:
  *  "cleared" is a value, and presence is the rule chain's business. */
 const mustBeString = (value: unknown, { path }: FieldValidateContext) =>
   typeof value === "string" ? undefined : bad(path, "must be a string");
 
 /** Schemes a `link` may name. Deliberately the SAME allowlist the HTML sanitizer
- *  applies to markup `href`s (`core/security/sanitize.ts`) — a destination should
+ *  applies to markup `href`s (`core/security/sanitize.ts`)—a destination should
  *  be no more permissive because it was typed into the inspector instead of pasted
  *  into rich text. Duplicated rather than imported to keep `core/content` free of
  *  a `core/security` dependency; the two are asserted identical in test. */
@@ -219,7 +219,7 @@ const SAFE_LINK_URL = /^(?:https?:|mailto:|\/|#|\.)/i;
  * Exported because a stored destination is not only a section field: site
  * settings hold `navLinks` / `socialLinks`, rendered into the site chrome on
  * every page. Nothing checked those until an editor could have planted
- * `javascript:` in one — so the two paths now share a predicate rather than a
+ * `javascript:` in one—so the two paths now share a predicate rather than a
  * convention.
  *
  * Empty is safe: "no link yet" is a value, and what an unset link renders is the
@@ -234,8 +234,8 @@ export function isSafeLinkUrl(value: unknown): boolean {
  *
  *  Inlined rather than imported from `core/media/storage.ts`, on the same grounds
  *  as `SAFE_LINK_URL` above and with the same test asserting the two agree. This
- *  module is imported by the CLIENT — it's what tells the inspector whether a
- *  field is edited in place — and `isMediaUrl` sits behind ~600 lines of image
+ *  module is imported by the CLIENT—it's what tells the inspector whether a
+ *  field is edited in place—and `isMediaUrl` sits behind ~600 lines of image
  *  byte-sniffing and dimension parsing. Registration is a module-scope side
  *  effect, so a bundler can't shake that back out: the editor would ship a JPEG
  *  header parser to answer a string-prefix question. */
@@ -276,7 +276,7 @@ defineFieldType({
 });
 
 /** A media URL. With `mediaBase`, a non-empty value must be served from the media
- *  library — an external hotlink is rejected. */
+ *  library; an external hotlink is rejected. */
 defineFieldType({
   name: "image",
   inline: false,
@@ -290,7 +290,7 @@ defineFieldType({
 });
 
 /**
- * A closed choice. Empty string means "cleared" — the picker's blank option,
+ * A closed choice. Empty string means "cleared"—the picker's blank option,
  * which hands the decision back to the site component's own default. Anything
  * else must be a declared option.
  *
@@ -306,7 +306,7 @@ defineFieldType({
   validate: (value, { field, path }) => {
     if (value === "") return undefined;
     // A RESOLVED option set is deliberately not checked here. Doing so would mean
-    // a network call on the write path — a page save failing because Square is
+    // a network call on the write path—a page save failing because Square is
     // down is a worse failure than an unrecognised token, and it hands an
     // external service the ability to block publishing. The value is still checked
     // as a string, and a field that wants the closed-set guarantee back declares
@@ -315,7 +315,7 @@ defineFieldType({
     // Phase B is where this gets a real answer: an `external` source is MIRRORED
     // by definition (ADR 0010), and a local mirror is something the write path can
     // check without leaving the Worker.
-    // `multiple` (Phase B): the value is a string ARRAY — any number of the
+    // `multiple` (Phase B): the value is a string ARRAY—any number of the
     // options. Same resolver exemption as the single form, member-wise.
     if (field.multiple) {
       if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
@@ -343,12 +343,12 @@ defineFieldType({
 });
 
 /**
- * A destination. Empty means "no link yet" — the site component decides what an
+ * A destination. Empty means "no link yet"—the site component decides what an
  * unset CTA renders.
  *
  * The scheme check is the point of the type. A link value is rendered straight
  * into `href={…}` by the site's own component, which never passes through the
- * HTML sanitizer (that only sees rich-text markup) — so before this existed a
+ * HTML sanitizer (that only sees rich-text markup)—so before this existed a
  * `text`-typed href could hold `javascript:alert(1)` and would validate, persist,
  * and render as a working XSS vector for every visitor.
  */
@@ -383,7 +383,7 @@ defineFieldType({
 // and are above. One list now, so "which surface is this for" stops being a
 // property of the type.
 
-/** A CSS colour. Free-form, unlike `select` — a brand colour is picked, not
+/** A CSS colour. Free-form, unlike `select`—a brand colour is picked, not
  *  chosen from a closed set, which is exactly why a token `select` couldn't serve
  *  and the drawer needed its own type.
  *
@@ -401,7 +401,7 @@ defineFieldType({
 });
 
 /**
- * An ordered list of `{ label, href }` rows — nav links, social links, footer
+ * An ordered list of `{ label, href }` rows—nav links, social links, footer
  * CTAs.
  *
  * Structurally this is an `array` whose items are a `text` and a `link`, and

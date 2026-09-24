@@ -8,7 +8,7 @@ import { mountSections } from "../../src/client/sections.jsx";
 import { louiseNavigation } from "../../src/client/lifecycle.js";
 
 const CATALOG: SectionCatalog = {
-  // `textarea` is the declaration that a field holds more than one line — the
+  // `textarea` is the declaration that a field holds more than one line—the
   // render used to say so with a `data-louise-multiline` stamp (ADR 0010 A2).
   hero: { label: "Hero", fields: { title: { type: "text" }, tagline: { type: "textarea" } } },
 };
@@ -123,7 +123,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
     const node = el.querySelector<HTMLElement>("[data-louise-node]");
     if (!node) throw new Error("sfield not wired");
     type(node, "Swept heading");
-    // A soft nav fires before-swap (not pagehide) — the dock must flush the
+    // A soft nav fires before-swap (not pagehide)—the dock must flush the
     // pending draft before its DOM is swapped away, or the in-flight edit is lost.
     louiseNavigation.beforeSwap();
     await vi.advanceTimersByTimeAsync(0);
@@ -151,7 +151,7 @@ describe("mountSections — auto-save (sections drafts)", () => {
     if (!node) throw new Error("sfield not wired");
     type(node, "torn down");
     // The page-load bootstrap tears the old dock down before re-mounting the
-    // next page's — its listeners (incl. before-swap) must go with it.
+    // next page's—its listeners (incl. before-swap) must go with it.
     teardown();
     dispose = undefined;
 

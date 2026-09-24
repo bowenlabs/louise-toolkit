@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-// Request-scoped Better Auth factory for Louise sites. Built PER REQUEST — the
+// Request-scoped Better Auth factory for Louise sites. Built PER REQUEST—the
 // D1 binding and Secrets-Store secret only exist at request time on Workers, so
 // this can never be a module-level singleton. Better Auth 1.5+ speaks D1
 // natively: pass the binding straight to `database` (it uses D1's batch() for
 // atomicity; D1 has no interactive transactions).
 //
 // Plugins, always on: magic-link (editor sign-in, allowlist-gated in the route
-// handler), admin (owner/editor roles), passkey (WebAuthn — rpID is derived
+// handler), admin (owner/editor roles), passkey (WebAuthn—rpID is derived
 // per request from `baseURL`, so passkeys bind to the site's own origin, dev
 // and prod alike). Captcha (Turnstile) mounts only when configured. Customer
 // email/password + extra user fields are opt-in.
@@ -31,7 +31,7 @@ import type { LouiseAuthEnv } from "./types.js";
 type BetterAuthOptions = Parameters<typeof betterAuth>[0];
 type AdditionalFields = NonNullable<NonNullable<BetterAuthOptions["user"]>["additionalFields"]>;
 
-/** Workers KV shape the session cache needs — `get`/`put` (from KVLike) + delete. */
+/** Workers KV shape the session cache needs—`get`/`put` (from KVLike) + delete. */
 export interface SessionKV extends KVLike {
   delete(key: string): Promise<void>;
 }
@@ -49,7 +49,7 @@ export interface MagicLinkEmail {
  * and optional teams. Enabling it adds the `organization`/`member`/`invitation`
  * tables (plus `team`/`teamMember` when `teams` is on) and an
  * `activeOrganizationId` column on `session`, so the SAME shape MUST be set on
- * `AuthSchemaConfig.organizations` when regenerating the migration — otherwise
+ * `AuthSchemaConfig.organizations` when regenerating the migration—otherwise
  * the committed schema drifts from what the runtime queries ("always generate,
  * never hand-roll"). Editor access for members is gated by `resolveOrgEditor`
  * (org role), a second axis beside the global admin allowlist.
@@ -60,13 +60,13 @@ export interface LouiseOrganizationsConfig {
   teams?: boolean;
   /** Let any signed-in user create an organization (Better Auth's default).
    *  Set false to restrict creation to your own server-side/provisioning flow.
-   *  Runtime-only — does not affect the generated schema. */
+   *  Runtime-only—does not affect the generated schema. */
   allowUserToCreateOrganization?: boolean;
   /** Render the member-invitation email body (site branding), mirroring
    *  `renderMagicLinkEmail`. Wiring it turns on invite emails: the factory
    *  builds the accept `url` from the invitation id + `acceptInvitationPath`,
    *  renders via this, and sends over the `EMAIL` binding (dev logs the link).
-   *  Omit to skip invite emails — invitations are still created and acceptable
+   *  Omit to skip invite emails—invitations are still created and acceptable
    *  through the API/client. Reuses the {@link MagicLinkEmail} rendered shape. */
   renderInvitationEmail?: (args: {
     /** The accept-invitation link to embed (see `invitationAcceptUrl`). */
@@ -77,7 +77,7 @@ export interface LouiseOrganizationsConfig {
     organizationName: string;
     /** The email of the member who sent the invite. */
     inviterEmail: string;
-    /** The org role the invitee is being granted (e.g. "member", "admin"). */
+    /** The org role the invitee is being granted (for example, "member", "admin"). */
     role: string;
   }) => MagicLinkEmail;
   /** Path the invitation accept `url` points at, joined to the site origin with
@@ -86,7 +86,7 @@ export interface LouiseOrganizationsConfig {
 }
 
 export interface LouiseAuthConfig {
-  /** Passkey relying-party display name, e.g. "Meg Bowen Studio". */
+  /** Passkey relying-party display name, for example, "Meg Bowen Studio". */
   rpName: string;
   /**
    * Passkey relying-party ID. Defaults to the request origin's hostname, which
@@ -98,8 +98,8 @@ export interface LouiseAuthConfig {
    * because a credential registered for a domain is usable on its subdomains.
    *
    * **The sessions stay separate, and that is the point.** Sharing a credential
-   * is not sharing a login. Pair this with **host-only cookies** — no `Domain`
-   * attribute, `crossSubDomainCookies` off (the default) — and a distinct
+   * is not sharing a login. Pair this with **host-only cookies**—no `Domain`
+   * attribute, `crossSubDomainCookies` off (the default)—and a distinct
    * {@link LouiseAuthConfig.cookiePrefix} per instance. Widening the cookie to
    * the parent domain would broadcast the admin session to every sibling
    * subdomain, including untrusted tenant storefronts, which is the failure this
@@ -115,13 +115,13 @@ export interface LouiseAuthConfig {
   /** Render the magic-link email body (site branding). */
   renderMagicLinkEmail: (args: { url: string; toEmail: string }) => MagicLinkEmail;
   /** Resolve the admin allowlist. Defaults to `OWNER_EMAIL`/`ENGINEER_EMAIL`
-   *  from env; override to source it elsewhere (e.g. a DB lookup). */
+   *  from env; override to source it elsewhere (for example, a DB lookup). */
   resolveAdmins?: (env: LouiseAuthEnv) => string[] | Promise<string[]>;
   /** Enable customer email/password sign-in/up. Omit for an admin-only editor. */
   customers?: {
     minPasswordLength?: number;
     requireEmailVerification?: boolean;
-    /** Close public sign-up — accounts are provisioned by staff instead. */
+    /** Close public sign-up—accounts are provisioned by staff instead. */
     disableSignUp?: boolean;
     /** Revoke existing sessions when a password is reset. Default `true`: a
      *  reset usually means the old credentials are compromised. */
@@ -133,7 +133,7 @@ export interface LouiseAuthConfig {
    * Mount point for this instance's routes. Default `/api/auth`.
    *
    * The reason this is configurable: a site can run TWO instances on one origin
-   * — the editor studio and a customer portal — and they must not share a mount.
+   * (the editor studio and a customer portal), and they must not share a mount.
    * The studio keeps the default, because the Louise editor client hardcodes it;
    * a second instance takes its own.
    */
@@ -145,9 +145,9 @@ export interface LouiseAuthConfig {
    * collide and signing into one silently signs you out of the other.
    */
   cookiePrefix?: string;
-  /** Extra Better Auth user columns (e.g. `squareCustomerId`). */
+  /** Extra Better Auth user columns (for example, `squareCustomerId`). */
   additionalFields?: AdditionalFields;
-  /** Table-name prefix for a same-D1 auth boundary (issue #15, Option B), e.g.
+  /** Table-name prefix for a same-D1 auth boundary (issue #15, Option B), for example,
    *  `"auth_"`. Renames the auth tables so they're a visible namespace in one
    *  database; MUST match the prefix passed to `generateAuthSchemaSql`. Omit for
    *  default table names (identical to prior behavior). */
@@ -158,13 +158,13 @@ export interface LouiseAuthConfig {
    *  stays the source of truth, KV is the global read cache. Omit for D1-only. */
   sessionCacheKv?: SessionKV;
   /**
-   * Where single-use verification values — magic links, password resets — are
+   * Where single-use verification values—magic links, password resets—are
    * stored and consumed. Only meaningful alongside {@link sessionCacheKv};
    * without it there is no secondary storage and these always live in D1.
    *
    * Defaults to `"database"`, and that default is a security one. Better Auth
    * 1.7 requires `SecondaryStorage.getAndDelete` to be atomic precisely so one
-   * of these values cannot be consumed twice. Over KV it cannot be — there is
+   * of these values cannot be consumed twice. Over KV it cannot be—there is
    * no atomic primitive, and KV's cross-colo convergence widens the replay
    * window well past a simple race. D1 is strongly consistent and deletes
    * atomically, so consuming from there closes it, and KV stays what it is
@@ -181,13 +181,13 @@ export interface LouiseAuthConfig {
    * Wire this and rate limiting stops going through KV entirely: Better Auth
    * checks `rateLimit.customStorage` BEFORE secondary storage, so the KV
    * `increment` is never called. That matters because a DO is the only atomic
-   * counter on Workers — it handles one request at a time, so read-decide-write
+   * counter on Workers—it handles one request at a time, so read-decide-write
    * inside it cannot race. The KV path can undercount under a burst, and
    * Cloudflare's native Rate Limiting binding is documented as permissive,
    * eventually consistent, and scoped PER LOCATION, so an attacker spread across
    * colos gets one budget per colo. Acceptable for form spam; weak for sign-in.
    *
-   * The site owns the `DurableObject` subclass and the wrangler binding — see
+   * The site owns the `DurableObject` subclass and the wrangler binding—see
    * `createRateLimiter` in `louise-toolkit/security` for the shape. One object
    * per key, so no single object becomes a bottleneck.
    *
@@ -211,15 +211,15 @@ export interface LouiseAuthConfig {
 const KV_MIN_TTL_SEC = 60;
 
 /**
- * KV-backed Better Auth `secondaryStorage`. Clamps TTL to KV's 60s minimum so
- * a short-lived write (e.g. Better Auth's internal rate limiter) can't error.
+ * KV-backed Better Auth `secondaryStorage`. Clamps TTL to KV's 60-second minimum so
+ * a short-lived write (for example, Better Auth's internal rate limiter) can't error.
  *
  * Better Auth 1.7 added two methods to this interface, both specified as
  * *atomic*. Cloudflare KV has no atomic primitives and is eventually consistent,
- * so neither can be honoured exactly — the same constraint `security/rate-limit`
+ * so neither can be honoured exactly—the same constraint `security/rate-limit`
  * documents for its own KV counters. What each one does here, and what it costs:
  *
- *   - `increment` — a fixed-window counter, bucketed by `floor(now / ttl)` the
+ *   - `increment`—a fixed-window counter, bucketed by `floor(now / ttl)` the
  *     way `security/rate-limit` does it, rather than one long-lived key. A clock
  *     bucket is what makes the window actually *reset*: KV cannot set a value
  *     without also setting a TTL, so a single key would have its expiry pushed
@@ -227,9 +227,9 @@ const KV_MIN_TTL_SEC = 60;
  *     read→write gap can undercount under a burst, which lets a few extra
  *     requests through but never wrongly blocks; a client can also get up to ~2x
  *     the budget across a bucket boundary. Both fail safe for legitimate users.
- *     Note the TTL floor above interacts with Better Auth's default 10s window:
- *     the bucket key still rotates every 10s, so the limit is enforced over the
- *     intended window and only the spent bucket lingers (unread) for 60s.
+ *     Note the TTL floor above interacts with Better Auth's default 10-second window:
+ *     the bucket key still rotates every 10 seconds, so the limit is enforced over the
+ *     intended window and only the spent bucket lingers (unread) for 60 seconds.
  *
  *     **This is the fallback, not the recommendation.** Set
  *     {@link LouiseAuthConfig.rateLimitDo} and none of the above applies: Better
@@ -238,7 +238,7 @@ const KV_MIN_TTL_SEC = 60;
  *     genuinely atomic. This path remains for sites that have not provisioned
  *     one.
  *
- *   - `getAndDelete` — a read followed by a delete. Better Auth requires this to
+ *   - `getAndDelete`—a read followed by a delete. Better Auth requires this to
  *     be atomic so a single-use verification value (magic link, password reset)
  *     cannot be consumed twice; over KV it cannot be, and KV's cross-colo
  *     convergence widens the replay window well past a simple race.
@@ -263,7 +263,7 @@ export function kvSecondaryStorage(
     delete: (key) => kv.delete(key),
     getAndDelete: async (key) => {
       const value = await kv.get(key);
-      // Skip the delete when there was nothing there — a miss is the common case
+      // Skip the delete when there was nothing there—a miss is the common case
       // on a replayed or expired link, and KV writes are the metered operation.
       if (value !== null) await kv.delete(key);
       return value;
@@ -335,8 +335,8 @@ export async function getLouiseAuth(
   // renamed `<prefix><model>` so it queries the same tables the namespaced
   // `generateAuthSchemaSql` emits. Empty prefix → default names, no overrides.
   const prefix = config.tablePrefix ?? "";
-  // Keep single-use verification values on D1 even when KV is caching sessions
-  // — see `verificationStorage`. Only set when there IS a secondary storage to
+  // Keep single-use verification values on D1 even when KV is caching sessions;
+  // see `verificationStorage`. Only set when there IS a secondary storage to
   // divert them from; without `sessionCacheKv` the option is a no-op and
   // emitting it would just be noise in the Better Auth config.
   const verificationOptions = {
@@ -438,12 +438,12 @@ export async function getLouiseAuth(
           // `handleAuthRequest` refuses everyone else before Better Auth runs,
           // but only on the route that calls it: an instance served straight
           // from `auth.handler` (a customer portal on its own `basePath`) would
-          // otherwise mail a working sign-in link — one that creates the
-          // account, `disableSignUp` or not — to any address anyone typed. The
+          // otherwise mail a working sign-in link—one that creates the
+          // account, `disableSignUp` or not—to any address anyone typed. The
           // token Better Auth has already stored is never delivered, so it's
           // inert.
           if (!isAdmin(email)) return;
-          // Local dev has no EMAIL binding — log the link instead.
+          // Local dev has no EMAIL binding—log the link instead.
           if (isDev) {
             console.log(`[dev] Magic link for ${email}: ${link}`);
             return;
@@ -461,7 +461,7 @@ export async function getLouiseAuth(
             // The request's own hostname, not a build-time flag: with no EMAIL
             // binding on localhost the magic link is printed to the console, which
             // is the only way to sign in locally. A better signal than the
-            // bundler's `import.meta.env` too — it reflects THIS request.
+            // bundler's `import.meta.env` too—it reflects THIS request.
             { dev: isDev },
           );
         },
@@ -469,7 +469,7 @@ export async function getLouiseAuth(
       admin(),
       // rpID is domain-bound: a localhost-enrolled passkey won't work on prod.
       // Defaults to this origin's hostname; an explicit value (typically the
-      // apex) lets one passkey cover an admin subdomain too — see the option.
+      // apex) lets one passkey cover an admin subdomain too—see the option.
       passkey({
         rpID: config.rpID ?? host,
         rpName: config.rpName,
@@ -487,7 +487,7 @@ export async function getLouiseAuth(
         : []),
       // Multi-editor tenancy (issue #100). The `schema` model-name overrides
       // keep the org tables inside the same-D1 auth namespace when `tablePrefix`
-      // is set — the same way user/session/passkey are prefixed above — so the
+      // is set—the same way user/session/passkey are prefixed above—so the
       // runtime queries the exact tables `generateAuthSchemaSql` emits.
       ...(config.organizations
         ? [
@@ -499,7 +499,7 @@ export async function getLouiseAuth(
                       config.organizations.allowUserToCreateOrganization,
                   }
                 : {}),
-              // Invite email: mirror `sendMagicLink` — dev logs the accept link,
+              // Invite email: mirror `sendMagicLink`—dev logs the accept link,
               // prod renders (site branding) + sends over the EMAIL binding.
               // Better Auth returns only the invitation id; we build the URL.
               sendInvitationEmail: renderInvite

@@ -1,4 +1,4 @@
-// Edge-network globe for the marketing hero — a faithful three.js port of the
+// Edge-network globe for the marketing hero—a faithful three.js port of the
 // design mock's `edge-globe.js`. A Fibonacci-sphere field of gold nodes inside a
 // faint blue wireframe shell, with orange "request" arcs that travel between
 // edge locations, rotating slowly with a little pointer parallax. Decorative and

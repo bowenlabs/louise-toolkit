@@ -56,7 +56,7 @@ describe("sendEmail with no binding", () => {
   // The floor: a missing EMAIL binding must LOUDLY SIMULATE in dev, not crash the
   // request that triggered it. A hand-rolled contact route calling
   // `sendEmail(env.EMAIL, …)` with no localhost guard used to throw on `env.EMAIL`
-  // being undefined locally — a dead contact form in dev, a 500 in prod misconfig.
+  // being undefined locally—a dead contact form in dev, a 500 in prod misconfig.
   const link = "https://acme.coffee/api/auth/magic?token=abc";
 
   it("logs a simulated send and returns { simulated } instead of throwing", async () => {
@@ -111,7 +111,7 @@ describe("dev — the host says, rather than the bundler", () => {
   it("simulates instead of throwing when the host says dev", async () => {
     const log = vi.fn();
     expect(await sendEmail(null, input, { dev: true, log })).toEqual({ simulated: true });
-    // The body IS the point in dev — it carries the sign-in link.
+    // The body IS the point in dev—it carries the sign-in link.
     expect(log.mock.calls[0]?.[0]).toContain("magic");
   });
 
@@ -129,7 +129,7 @@ describe("dev — the host says, rather than the bundler", () => {
   });
 
   it("`dev` beats the NODE_ENV fallback in both directions", async () => {
-    // The fallback reads NODE_ENV, which vitest sets to "test" — so without an
+    // The fallback reads NODE_ENV, which vitest sets to "test"—so without an
     // explicit flag this suite would look like development. The host's answer wins.
     const log = vi.fn();
     await sendEmail(null, input, { dev: false, simulateWhenUnconfigured: true, log });

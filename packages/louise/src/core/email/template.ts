@@ -1,13 +1,13 @@
-// louise-toolkit/email — transactional email *templating* (the frame; sending lives in
+// louise-toolkit/email—transactional email *templating* (the frame; sending lives in
 // ./index). Built for email clients, not browsers: every colour is an inlined
-// hex (no CSS variables / no <style> block), and the fragile bits — the page
-// frame and the header colour band — are tables so Outlook's Word engine
+// hex (no CSS variables / no <style> block), and the fragile bits—the page
+// frame and the header colour band—are tables so Outlook's Word engine
 // renders them.
 //
 // A site supplies a {@link MailTheme} (its palette, colour band, fonts, and a
 // couple of layout tokens) and composes each email from these primitives:
 // {@link renderEmailShell} (the frame), {@link mailButton}, and
-// {@link mailFallbackLink}. Per-email COPY stays in the site — this module owns
+// {@link mailFallbackLink}. Per-email COPY stays in the site—this module owns
 // only the brand-agnostic structure both louise sites were duplicating.
 
 /** Semantic colour slots, flattened to hex for mail clients. A site maps its
@@ -26,7 +26,7 @@ export interface MailPalette {
   onDark: string;
 }
 
-/** Font stacks (already client-safe strings, e.g. `'Fraunces', Georgia, serif`). */
+/** Font stacks (already client-safe strings, for example, `'Fraunces', Georgia, serif`). */
 export interface MailFonts {
   serif: string;
   sans: string;
@@ -40,9 +40,9 @@ export interface MailTheme {
   band: string[];
   fonts: MailFonts;
   brand: {
-    /** Wordmark drawn over the band, e.g. `"Coracle Coffee"`. */
+    /** Wordmark drawn over the band, for example, `"Coracle Coffee"`. */
     name: string;
-    /** First footer line — tagline/location, e.g. `"Coracle Coffee · on the water"`. */
+    /** First footer line—tagline/location, for example, `"Coracle Coffee · on the water"`. */
     footerLead: string;
   };
   /** Card corner radius in px. Default 6. */
@@ -93,7 +93,7 @@ export type MailButtonShape = "pill" | "rounded";
 
 export interface MailButtonOptions {
   href: string;
-  /** Button label — trusted HTML (may include entities like `&rarr;`). */
+  /** Button label—trusted HTML (may include entities like `&rarr;`). */
   label: string;
   /** Override the theme's default shape for this button. */
   shape?: MailButtonShape;
@@ -119,7 +119,7 @@ export function mailButton(theme: MailTheme, opts: MailButtonOptions): string {
 }
 
 /**
- * The "button not working? paste this link" fallback block — a mono, wrapped,
+ * The "button not working? paste this link" fallback block—a mono, wrapped,
  * copy-pasteable rendering of the same URL. Identical on every site, so it
  * lives here.
  */
@@ -135,17 +135,17 @@ export function mailFallbackLink(theme: MailTheme, url: string): string {
 // ── the frame ─────────────────────────────────────────────────────────────────
 
 export interface EmailShellOptions {
-  /** `<title>` — plain text. */
+  /** `<title>`—plain text. */
   title: string;
   /** Hidden inbox-preview text. Escape any user-supplied values before passing. */
   preheader: string;
-  /** Small mono kicker above the headline — trusted HTML (may include entities). */
+  /** Small mono kicker above the headline—trusted HTML (may include entities). */
   eyebrow: string;
-  /** The serif headline — trusted HTML. */
+  /** The serif headline—trusted HTML. */
   headline: string;
-  /** The email body — trusted HTML (compose with the helpers above). */
+  /** The email body—trusted HTML (compose with the helpers above). */
   bodyHtml: string;
-  /** Second footer line — trusted HTML (escape user values first). */
+  /** Second footer line—trusted HTML (escape user values first). */
   footerNote: string;
 }
 

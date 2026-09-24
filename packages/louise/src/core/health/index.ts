@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/health — the site-health co-pilot's data layer (#106). Composes
+// louise-toolkit/health—the site-health co-pilot's data layer (#106). Composes
 // the primitives Louise already has into one owner-facing snapshot: broken links
 // (core/browser/link-check), images missing alt text, and pages with SEO gaps.
 //
@@ -14,7 +14,7 @@
 import type { CwvSummary } from "../analytics/index.js";
 import type { BrokenLink } from "../browser/link-check.js";
 
-/** The KV surface the health store needs — structural so the real `KVNamespace`
+/** The KV surface the health store needs—structural so the real `KVNamespace`
  *  fits without importing Workers types (mirrors `DraftBufferKV`). */
 export interface HealthKV {
   get(key: string): Promise<string | null>;
@@ -42,20 +42,20 @@ export interface HealthSummary {
   checkedAt: string;
   /** A capped sample of the broken links found, for a detail view. */
   brokenLinkDetails?: BrokenLink[];
-  /** Real-visitor Core Web Vitals (#106 CWV) — present once the scan folds in a
+  /** Real-visitor Core Web Vitals (#106 CWV)—present once the scan folds in a
    *  p75 snapshot from Analytics Engine; absent → the panel shows "not measured yet". */
   cwv?: CwvSummary;
 }
 
 /** The raw parts of a scan, assembled by {@link summarizeHealth}. */
 export interface HealthInput {
-  /** Broken links from `checkLinks` — the length is the count, a capped slice the detail. */
+  /** Broken links from `checkLinks`—the length is the count, a capped slice the detail. */
   brokenLinks: BrokenLink[];
   /** Count of media assets / images with no alt text. */
   missingAlt: number;
   /** Count of published pages missing an SEO title or description. */
   seoGaps: number;
-  /** Scan time (defaults to now) — injectable so tests are deterministic. */
+  /** Scan time (defaults to now)—injectable so tests are deterministic. */
   now?: Date;
 }
 
@@ -74,7 +74,7 @@ export function summarizeHealth(input: HealthInput): HealthSummary {
   };
 }
 
-/** Total number of issues in a summary — the dashboard's "N things need attention". */
+/** Total number of issues in a summary—the dashboard's "N things need attention". */
 export function healthIssueCount(summary: HealthSummary): number {
   return summary.brokenLinks + summary.missingAlt + summary.seoGaps;
 }
@@ -92,8 +92,8 @@ export async function writeHealthSummary(
   );
 }
 
-/** Read the persisted summary, or `null` when none is stored (or it's unparseable
- *  — a corrupt blob degrades to "no data" rather than throwing). */
+/** Read the persisted summary, or `null` when none is stored (or it's unparseable;
+ *  a corrupt blob degrades to "no data" rather than throwing). */
 export async function readHealthSummary(
   kv: HealthKV,
   key = HEALTH_KV_KEY,

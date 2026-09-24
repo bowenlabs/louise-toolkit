@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/media — intrinsic image dimensions from the file header.
+// louise-toolkit/media—intrinsic image dimensions from the file header.
 //
 // Reads width/height out of the leading bytes without decoding the pixels, so an
 // upload can record its dimensions cheaply on a Worker (no image library). Pairs
@@ -49,8 +49,8 @@ export async function imageInfo(
 
 /**
  * Parse intrinsic pixel dimensions from an image's header bytes (PNG, GIF,
- * JPEG, WebP, AVIF/HEIF, TIFF). Pass enough of the file to include the header —
- * the first few KB is always plenty; the whole buffer is fine. Returns `null`
+ * JPEG, WebP, AVIF/HEIF, TIFF). Pass enough of the file to include the header—the
+ * first few KB is always plenty; the whole buffer is fine. Returns `null`
  * when the size can't be read (unsupported format, or a truncated/odd header).
  */
 export function imageDimensions(bytes: Uint8Array): ImageDimensions | null {
@@ -60,7 +60,7 @@ export function imageDimensions(bytes: Uint8Array): ImageDimensions | null {
   return d && d.width > 0 && d.height > 0 ? d : null;
 }
 
-// PNG: 8-byte signature, then the IHDR chunk — 4-byte length, "IHDR", then
+// PNG: 8-byte signature, then the IHDR chunk—4-byte length, "IHDR", then
 // width and height as big-endian u32 at offsets 16 and 20.
 function png(b: Uint8Array): ImageDimensions | null {
   if (b.length < 24) return null;
@@ -76,7 +76,7 @@ function gif(b: Uint8Array): ImageDimensions | null {
   return { width: u16le(b, 6), height: u16le(b, 8) };
 }
 
-// WebP: "RIFF"…"WEBP", then a chunk fourcc at offset 12 — VP8 (lossy), VP8L
+// WebP: "RIFF"…"WEBP", then a chunk fourcc at offset 12—VP8 (lossy), VP8L
 // (lossless), or VP8X (extended), each packing the size differently.
 function webp(b: Uint8Array): ImageDimensions | null {
   if (b.length < 30) return null;
@@ -146,13 +146,13 @@ function jpeg(b: Uint8Array): ImageDimensions | null {
 // AVIF / HEIF (ISO base media / box format): the pixel size lives in an `ispe`
 // (image spatial extents) property, nested meta → iprp → ipco → ispe. Walk the
 // box tree to it rather than scanning for the "ispe" fourcc (which could collide
-// with payload bytes). A file may carry several `ispe` boxes (e.g. a thumbnail
-// alongside the primary image); take the largest by area — the full-resolution
-// one — without resolving the full pitm/ipma item graph. Best-effort: returns
+// with payload bytes). A file may carry several `ispe` boxes (for example, a thumbnail
+// alongside the primary image); take the largest by area—the full-resolution
+// one—without resolving the full pitm/ipma item graph. Best-effort: returns
 // `null` if the structure isn't found.
 function avif(b: Uint8Array): ImageDimensions | null {
   // Cheap guard: an ISOBMFF file opens with an `ftyp` box (type at offset 4).
-  // The brand ("avif"/"heic"/"mif1"/…) isn't checked — the `ispe` walk is the
+  // The brand ("avif"/"heic"/"mif1"/…) isn't checked—the `ispe` walk is the
   // real test, and it covers every ftyp brand that carries one.
   if (b.length < 12 || b[4] !== 0x66 || b[5] !== 0x74 || b[6] !== 0x79 || b[7] !== 0x70)
     return null;
@@ -215,7 +215,7 @@ function firstBox(b: Uint8Array, from: number, to: number, type: string): Box | 
 
 // TIFF: an "II" (little-endian) or "MM" (big-endian) byte-order mark, the magic
 // 42, then the offset to the first IFD. Read ImageWidth (tag 0x0100) and
-// ImageLength (tag 0x0101) from that IFD — both are SHORT or LONG values that fit
+// ImageLength (tag 0x0101) from that IFD—both are SHORT or LONG values that fit
 // in the entry's 4-byte value field, so no second seek is needed.
 function tiff(b: Uint8Array): ImageDimensions | null {
   if (b.length < 8) return null;

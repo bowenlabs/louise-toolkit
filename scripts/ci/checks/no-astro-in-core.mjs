@@ -7,13 +7,13 @@
 // defensible and collectively they meant the claim was not true.
 //
 // They are all gone now. This keeps them gone, which matters more than it sounds:
-// the pressure to write "e.g. `astro dev`" in a comment is constant, because Astro
+// the pressure to write "for example, `astro dev`" in a comment is constant, because Astro
 // IS the reference host and it is genuinely the clearest example to reach for. The
 // point is that a library making a portability claim should not be able to reach
 // for it without noticing.
 //
 // Deliberately a text scan, not an AST rule. The failure this prevents is not a
-// bad import — `lint:arch` catches those with better messages — it is Astro
+// bad import—`lint:arch` catches those with better messages—it is Astro
 // knowledge leaking back in through prose, and prose has no AST worth matching.
 //
 //   node scripts/ci/checks/no-astro-in-core.mjs

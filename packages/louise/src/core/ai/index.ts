@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/ai — optional Workers AI editorial assists (#75).
+// louise-toolkit/ai—optional Workers AI editorial assists (#75).
 //
 // A minimal, model-catalog-agnostic runner contract plus best-effort helpers that
 // DEGRADE GRACEFULLY: given no binding (or on any model error) they return `null`,
 // so a save / upload / publish is never blocked or broken by AI. The binding
-// (`env.AI`) is passed in, and the module takes the model id as a string — it has
+// (`env.AI`) is passed in, and the module takes the model id as a string—it has
 // no opinion on which models exist, so it isn't pinned to a `@cloudflare/workers-types`
 // model catalog. That keeps the door open for routing `run` through AI Gateway
 // later (#87) without touching callers.
 
 /** The one capability these helpers need from a Workers AI binding: `run(model,
- *  inputs)`. `env.AI` satisfies this structurally — pass it directly. Hand-defined
+ *  inputs)`. `env.AI` satisfies this structurally—pass it directly. Hand-defined
  *  (rather than importing the workers-types `Ai` generic) so the module stays
  *  catalog-agnostic; a test double is just `{ run }`. */
 export interface AiRunner {
@@ -34,7 +34,7 @@ export interface AiEnv {
  * Values that mean "off", matched case-insensitively.
  *
  * Deliberately more than just `"off"`. The failure mode of strictness is a kill
- * switch that silently doesn't engage — someone writes `LOUISE_AI="false"`,
+ * switch that silently doesn't engage—someone writes `LOUISE_AI="false"`,
  * redeploys, believes generation is off, and it isn't. Every other value
  * (including unset) means on, so there is no way to accidentally *disable* AI
  * by typo, only to accidentally spell "off" correctly in more than one way.
@@ -55,7 +55,7 @@ export function aiGenerationDisabled(env: unknown): boolean {
 }
 
 /**
- * The runner to hand a generation route — the binding, unless this deploy has
+ * The runner to hand a generation route—the binding, unless this deploy has
  * turned generation off.
  *
  * ```ts
@@ -64,7 +64,7 @@ export function aiGenerationDisabled(env: unknown): boolean {
  *
  * **One definition, not four.** Every consumer reached the runner through its
  * own `ai: (env) => env.AI`, so a flag expressed at each call site would be four
- * chances to get it wrong — and a kill switch you don't trust is worse than none.
+ * chances to get it wrong—and a kill switch you don't trust is worse than none.
  *
  * **`LOUISE_AI` cannot turn AI on.** It only ever subtracts: with no binding
  * there is nothing to enable, which keeps the env var a ceiling rather than a
@@ -72,14 +72,14 @@ export function aiGenerationDisabled(env: unknown): boolean {
  *
  * **Embeddings are deliberately NOT gated by this.** They power site search and
  * generate no content, so folding them in would mean "disable AI writing"
- * silently breaks search — a consequence nobody predicts from the flag's name,
+ * silently breaks search—a consequence nobody predicts from the flag's name,
  * surfacing as "search returns nothing" long after the flag was flipped. A site
  * that genuinely wants everything off can still unprovision the binding.
  *
  * Takes `unknown` for the same reason {@link aiGenerationDisabled} does, and it
  * matters more here: this is passed *as* a route's `ai` accessor, whose parameter
  * is that route's own `Env`. An `AiEnv` parameter shares no properties with an
- * `EditorRouteEnv`, so TypeScript rejects the assignment outright — the helper
+ * `EditorRouteEnv`, so TypeScript rejects the assignment outright—the helper
  * would be typed to describe the env it reads and unusable in the one position it
  * exists for.
  */
@@ -89,7 +89,7 @@ export function aiRunner(env: unknown): AiRunner | undefined {
 }
 
 /**
- * Why a generation route has no runner — so "off by choice" and "never
+ * Why a generation route has no runner—so "off by choice" and "never
  * configured" can read differently.
  *
  * Both produce a 503 and both hide the button, which is right for an
@@ -103,8 +103,8 @@ export function aiUnavailableReason(env: unknown): "disabled" | "unconfigured" {
 
 /**
  * Run a model best-effort: returns its raw output, or `null` when `runner` is
- * absent (binding not provisioned) or the call throws. **Never throws** — AI is
- * an assist, never a gate — so callers wire it inline and keep their non-AI
+ * absent (binding not provisioned) or the call throws. **Never throws**—AI is
+ * an assist, never a gate—so callers wire it inline and keep their non-AI
  * fallback (empty alt, the original prose, no SEO suggestion).
  */
 export async function runAi(
@@ -119,7 +119,7 @@ export async function runAi(
   } catch (err) {
     // Best-effort still, but not *silent*: a bare swallow hid two real prod
     // failures (a retired model; an unmet JSON schema). Log so the cause shows in
-    // `wrangler tail` — the return contract (null on failure) is unchanged.
+    // `wrangler tail`—the return contract (null on failure) is unchanged.
     console.error(`[louise-toolkit/ai] model run failed (${model})`, err);
     return null;
   }
@@ -129,8 +129,8 @@ export async function runAi(
  * Route a Workers AI call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
  * (#87). Passed to `run` as `options.gateway`, so a gateway `id` puts response
  * caching (identical prompts are free on repeat), cost caps / rate limits,
- * provider fallback, retries, and request logging in front of every call —
- * without changing this module's contract. Omit it and calls go direct.
+ * provider fallback, retries, and request logging in front of every call—without
+ * changing this module's contract. Omit it and calls go direct.
  * Hand-defined (a subset of workers-types' `GatewayOptions`) to stay decoupled.
  */
 export interface AiGatewayOptions {
@@ -138,7 +138,7 @@ export interface AiGatewayOptions {
   id: string;
   /** Custom cache key. Gateway caching already keys on the full request (model +
    *  inputs), so identical calls dedupe by default; set this only to *widen* a
-   *  cache entry (e.g. a content hash) across incidental request variance. */
+   *  cache entry (for example, a content hash) across incidental request variance. */
   cacheKey?: string;
   /** Cache TTL in seconds. Caching is on by default; `0` disables it. */
   cacheTtl?: number;
@@ -146,13 +146,13 @@ export interface AiGatewayOptions {
   skipCache?: boolean;
 }
 
-/** The `run` options object for a gateway config, or `undefined` when unset — so
+/** The `run` options object for a gateway config, or `undefined` when unset—so
  *  callers thread it inline: `runAi(runner, model, inputs, gatewayRun(gateway))`. */
 function gatewayRun(gateway?: AiGatewayOptions): Record<string, unknown> | undefined {
   return gateway ? { gateway } : undefined;
 }
 
-/** Default vision model for {@link generateAltText} — image bytes + a prompt in,
+/** Default vision model for {@link generateAltText}—image bytes + a prompt in,
  *  a text `description` out. Overridable per call so a site can swap models
  *  without a code change here. */
 export const DEFAULT_ALT_TEXT_MODEL = "@cf/llava-hf/llava-1.5-7b-hf";
@@ -162,7 +162,7 @@ const DEFAULT_ALT_TEXT_PROMPT =
   "Describe only what is visibly in the image. Do not begin with 'an image of', " +
   "'a photo of', or similar.";
 
-/** Alt text should be short — long descriptions defeat the purpose for screen
+/** Alt text should be short—long descriptions defeat the purpose for screen
  *  readers. Trimmed to this many characters (with an ellipsis). */
 export const MAX_ALT_TEXT_LENGTH = 240;
 
@@ -173,13 +173,13 @@ export interface AltTextOptions {
   prompt?: string;
   /** Output token cap. Default 128 (alt text is short). */
   maxTokens?: number;
-  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
 }
 
 /**
  * Generate concise alt text for an image via Workers AI. Best-effort: returns
- * `null` when the runner is absent, the model errors, or it yields no text — the
+ * `null` when the runner is absent, the model errors, or it yields no text—the
  * caller keeps its empty-alt fallback, which an editor can fill in by hand. The
  * result is tidied: whitespace-collapsed, common "an image of…" lead-ins
  * stripped, sentence-cased, and length-capped ({@link MAX_ALT_TEXT_LENGTH}).
@@ -226,7 +226,7 @@ function extractText(out: unknown): string | null {
 function tidyAltText(raw: string): string {
   let s = raw.trim().replace(/\s+/g, " ");
   // Models often still prepend "An image of …" / "A photo showing …" despite the
-  // prompt — strip a single such lead-in.
+  // prompt—strip a single such lead-in.
   s = s.replace(
     /^(an?|the)\s+(image|picture|photo(?:graph)?)\s+(of|showing|shows|that shows|depicting|depicts)\s+/i,
     "",
@@ -248,7 +248,7 @@ export const DEFAULT_TEXT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 /** How {@link rewriteText} should transform the passage. */
 export type RewriteMode = "tighten" | "rephrase" | "simplify" | "fix";
 
-/** The four rewrite modes, in menu order — export so a toolbar can list them. */
+/** The four rewrite modes, in menu order—export so a toolbar can list them. */
 export const REWRITE_MODES: readonly RewriteMode[] = ["tighten", "rephrase", "simplify", "fix"];
 
 const REWRITE_INSTRUCTIONS: Record<RewriteMode, string> = {
@@ -266,14 +266,14 @@ export interface RewriteOptions {
   model?: string;
   /** Output token cap. Default 512. */
   maxTokens?: number;
-  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
 }
 
 /**
  * Rewrite a passage of text (tighten / rephrase / simplify / fix) via Workers AI.
  * Best-effort: returns `null` when the runner is absent, the input is blank, or
- * the model errors / returns nothing — the caller keeps the original text. The
+ * the model errors / returns nothing—the caller keeps the original text. The
  * result is stripped of any wrapping quotes or "Here is the rewrite:" preamble
  * the model may add.
  */
@@ -316,7 +316,7 @@ export interface SeoOptions {
   maxTokens?: number;
   /** Max chars of `content` sent to the model (keeps the prompt bounded). Default 4000. */
   maxContentChars?: number;
-  /** Route through AI Gateway (#87) — caching, cost caps, fallbacks, logging. */
+  /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
 }
 
@@ -354,8 +354,8 @@ export async function suggestSeo(
       max_tokens: opts.maxTokens ?? 256,
       // JSON mode (Workers AI structured outputs): force a valid
       // `{title, description}` object regardless of the model's prose habits.
-      // Without it, `parseJsonObject` had to salvage JSON from freeform text —
-      // which silently broke on a model swap (a chattier model wrapped/annotated
+      // Without it, `parseJsonObject` had to salvage JSON from freeform text—which
+      // silently broke on a model swap (a chattier model wrapped/annotated
       // the JSON). The system prompt is kept as a belt-and-braces hint.
       response_format: {
         type: "json_schema",
@@ -430,7 +430,7 @@ function capLength(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
-// Semantic search (embeddings + Vectorize, #86) — same module surface
+// Semantic search (embeddings + Vectorize, #86)—same module surface
 // (`louise-toolkit/ai`), same degrade-gracefully contract. Kept in its own file
 // (embeddings.ts) since it adds the Vectorize index contract on top of the
 // Workers AI runner these editorial assists use.

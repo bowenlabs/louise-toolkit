@@ -42,7 +42,7 @@ describe("collectionTools", () => {
 
   it("omits a hidden collection entirely", () => {
     // A system/log table a human never browses is not one an agent should
-    // browse either — same hint the Structure Builder reads.
+    // browse either—same hint the Structure Builder reads.
     expect(collectionTools({ ...pages, admin: { hidden: true } })).toEqual([]);
   });
 

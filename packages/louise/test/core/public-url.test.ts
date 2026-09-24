@@ -52,12 +52,12 @@ describe("publicUrlProblem", () => {
       "https://hooks.example.com:8443/", // non-default port
       "https://user:pw@hooks.example.com/", // credentials in the URL
       "https://127.0.0.1/",
-      "https://2130706433/", // decimal 127.0.0.1 — the parser normalizes it
+      "https://2130706433/", // decimal 127.0.0.1—the parser normalizes it
       "https://0x7f.1/", // hex/short form, same address
       "https://169.254.169.254/latest/meta-data", // cloud metadata
       "https://[::1]/",
       "https://[::ffff:7f00:1]/", // IPv4-mapped loopback
-      "https://100.64.0.1/", // CGNAT — the old regex missed it
+      "https://100.64.0.1/", // CGNAT—the old regex missed it
       "https://localhost/",
       "https://localhost./",
       "https://intranet/", // single label

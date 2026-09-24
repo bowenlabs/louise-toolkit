@@ -1,7 +1,7 @@
 // Every cron declared in wrangler.jsonc must be dispatched by the generated
 // scheduled handler. Cloudflare fires ONE handler for all triggers and
 // identifies which by `controller.cron`, so a string that appears in one and not
-// the other is a job that silently never runs — no error, no log, just a scan or
+// the other is a job that silently never runs—no error, no log, just a scan or
 // a re-sync that quietly stopped.
 //
 // Usage: node crons-dispatched.mjs <scaffold-dir>

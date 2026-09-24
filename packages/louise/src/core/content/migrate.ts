@@ -5,11 +5,11 @@ import { computePatch, type Patch } from "./patch.js";
 import type { JsonValue } from "./types.js";
 
 /**
- * Content-migration runner (issue #18) — adopts Sanity's `sanity/migrate`
+ * Content-migration runner (issue #18)—adopts Sanity's `sanity/migrate`
  * idea (pattern, not code): a versioned, repeatable transform over a
  * collection's stored documents, for reshaping content when a block/field
  * type changes (distinct from Drizzle *schema* migrations, which only touch
- * columns — this reshapes the JSON content inside them).
+ * columns—this reshapes the JSON content inside them).
  *
  * A migration declares a per-document `document(doc)` transform; the runner
  * streams every document, computes the {@link Patch} from old→new (reusing
@@ -22,17 +22,17 @@ import type { JsonValue } from "./types.js";
 type Doc = Record<string, JsonValue>;
 
 export interface Migration<TDoc extends Doc = Doc> {
-  /** Stable identifier — name the checked-in migration file after this. */
+  /** Stable identifier—name the checked-in migration file after this. */
   name: string;
   /**
    * Transform one document. Return the reshaped document, or `undefined`
-   * (or the unchanged doc) to leave it as-is. Must be pure and idempotent —
-   * applying it twice yields the same result as once.
+   * (or the unchanged doc) to leave it as-is. Must be pure and idempotent—applying
+   * it twice yields the same result as once.
    */
   document: (doc: TDoc) => TDoc | undefined | Promise<TDoc | undefined>;
 }
 
-/** Identity helper — gives a migration definition its type + a greppable call site. */
+/** Identity helper—gives a migration definition its type + a greppable call site. */
 export function defineMigration<TDoc extends Doc = Doc>(
   migration: Migration<TDoc>,
 ): Migration<TDoc> {
@@ -49,7 +49,7 @@ export interface MigrationResult {
   dryRun: boolean;
   scanned: number;
   changed: number;
-  /** Per-document patches (always populated — the dry-run report). */
+  /** Per-document patches (always populated—the dry-run report). */
   changes: MigrationChange[];
   errors: string[];
 }
@@ -78,7 +78,7 @@ function patchToUpdate(patch: Patch): Record<string, JsonValue | null> {
  * Run a migration over every document in a collection. Reads all documents
  * through `api.find`, applies `migration.document`, and (unless `dryRun`)
  * writes the resulting patch through `api.update`. Returns a report of what
- * changed — run it `dryRun` first, then apply.
+ * changed—run it `dryRun` first, then apply.
  */
 export async function runMigration<TContext>(
   migration: Migration,

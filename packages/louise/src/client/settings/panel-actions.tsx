@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The Louise drawer's action footer — a shell-owned, always-visible bar where
+// The Louise drawer's action footer—a shell-owned, always-visible bar where
 // the active panel/editor declares its save / cancel / publish / delete actions,
 // so they're never scattered inline and scrolled off. A push/pop STACK (not a
 // single setter) is what makes nested editors work: the deepest mounted view
-// (e.g. a per-asset media editor) owns the footer and restores the parent's
+// (for example, a per-asset media editor) owns the footer and restores the parent's
 // actions when it unmounts. Auto-saving surfaces push a status instead of
 // buttons, so "did it save?" has one consistent home.
 //
@@ -30,16 +30,16 @@ export type ActionKind = "primary" | "ghost" | "danger";
 export interface PanelAction {
   /** Stable id (dedupe / test hook). */
   id: string;
-  /** Button label, e.g. "Save", "Cancel", "Publish", "Delete". */
+  /** Button label, for example, "Save", "Cancel", "Publish", "Delete". */
   label: string;
   /** Visual treatment; defaults to `ghost`. */
   kind?: ActionKind;
-  /** Runs on click / on Cmd+S when this is the enabled primary. May be async —
+  /** Runs on click / on Cmd+S when this is the enabled primary. May be async:
    *  while its promise is pending the button shows {@link busyLabel} + disables. */
   onClick: () => void | Promise<void>;
-  /** Reactive disabled predicate, e.g. `() => !dirty()`. */
+  /** Reactive disabled predicate, for example, `() => !dirty()`. */
   disabled?: () => boolean;
-  /** Label shown while `onClick`'s promise is pending, e.g. "Saving…". */
+  /** Label shown while `onClick`'s promise is pending, for example, "Saving…". */
   busyLabel?: string;
 }
 
@@ -73,7 +73,7 @@ const PanelActionsCtx = createContext<PanelActionsCtxValue>();
 /**
  * Hosts the footer frame stack and the Cmd/Ctrl+S shortcut. Wrap the drawer
  * body + {@link DrawerFooter} in one of these. The stack is a plain signal (not
- * a store) so pushed frames keep referential identity — the disposer pops by
+ * a store) so pushed frames keep referential identity—the disposer pops by
  * identity, which a store's proxying would silently break.
  */
 export function PanelActionsProvider(props: { children: JSX.Element }): JSX.Element {

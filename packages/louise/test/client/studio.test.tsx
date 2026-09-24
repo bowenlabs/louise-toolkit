@@ -5,7 +5,7 @@ import { mountStudio } from "../../src/client/studio/index.js";
 const disposers: (() => void)[] = [];
 
 beforeEach(() => {
-  // Every panel fetches its own data on mount — that is the design, and it is
+  // Every panel fetches its own data on mount—that is the design, and it is
   // what keeps the shell free of baked-in state. Stub it so the assertions are
   // about the shell rather than about a network that isn't there.
   vi.stubGlobal(
@@ -132,7 +132,7 @@ describe("mountStudio — an expired session", () => {
 
   it("redirects to sign-in rather than rendering an empty app", async () => {
     // A full-page studio can't degrade to "show the public page" the way the
-    // drawer can — there is no page underneath it. An expired session has to
+    // drawer can—there is no page underneath it. An expired session has to
     // become a navigation, or the editor stares at panels that silently fail.
     expect(await run()).toContain("/signin");
   });

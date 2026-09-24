@@ -1,4 +1,4 @@
-// #106 Phase 2c — the one-click AI SEO backfill route
+// #106 Phase 2c—the one-click AI SEO backfill route
 // (POST /api/louise/pages/generate-seo). Fake D1 + AI runner exercise the wiring
 // without a real Workers AI binding (that's deploy-only).
 
@@ -113,7 +113,7 @@ describe("seoFixRoute — POST /generate-seo", () => {
     const upd = updates(calls)[0];
     expect(upd?.sql).toContain('"seo_description"');
     expect(upd?.sql).not.toContain('"seo_title"');
-    // Bound: [description, id] — the kept title is untouched.
+    // Bound: [description, id]—the kept title is untouched.
     expect(upd?.binds).toEqual(["A concise summary of the page.", 2]);
   });
 

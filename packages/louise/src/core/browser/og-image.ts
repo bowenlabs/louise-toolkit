@@ -4,7 +4,7 @@
 // is in the cache discipline: an OG card is deterministic for a given page +
 // content, so it's keyed by slug + a content hash and stored in R2/KV. The
 // second request for unchanged content is served from the store with NO browser
-// session — Browser Run only spins up on a cache miss (a real cost lever, since
+// session—Browser Run only spins up on a cache miss (a real cost lever, since
 // browser sessions are the expensive part).
 //
 // `ogImage` is transport- and backend-agnostic (inject the renderer + cache);
@@ -50,7 +50,7 @@ export async function ogCacheKey(
 export interface OgImageOptions {
   /** Stable, content-hashed cache key (see {@link ogCacheKey}). */
   cacheKey: string;
-  /** The card source markup fed to the renderer — SVG for
+  /** The card source markup fed to the renderer—SVG for
    *  {@link createResvgRenderer}, HTML for {@link createPuppeteerRenderer}. */
   markup: string;
   /** How to rasterize the markup to PNG bytes. */
@@ -67,8 +67,8 @@ export interface OgImageResult {
 
 /**
  * Return a page's OG image, rendering it only on a cache miss. On a hit the
- * stored bytes come back with `cached: true` and the renderer is never called —
- * so no Browser Run session spins up.
+ * stored bytes come back with `cached: true` and the renderer is never called—so
+ * no Browser Run session spins up.
  */
 export async function ogImage(options: OgImageOptions): Promise<OgImageResult> {
   if (options.cache) {
@@ -81,7 +81,7 @@ export async function ogImage(options: OgImageOptions): Promise<OgImageResult> {
 }
 
 export interface PuppeteerRendererOptions {
-  /** Viewport (card) size. Default 1200×630 — the standard OG card. */
+  /** Viewport (card) size. Default 1200×630—the standard OG card. */
   width?: number;
   height?: number;
   deviceScaleFactor?: number;
@@ -91,7 +91,7 @@ export interface PuppeteerRendererOptions {
  * An {@link OgRenderer} backed by Cloudflare Browser Run. Launches a session,
  * sets the card HTML, screenshots the viewport as PNG, and always closes the
  * browser. `@cloudflare/puppeteer` is imported dynamically so it's pulled in
- * only by sites that actually render — keeping it a truly optional peer.
+ * only by sites that actually render—keeping it a truly optional peer.
  */
 export function createPuppeteerRenderer(
   browser: BrowserWorker,

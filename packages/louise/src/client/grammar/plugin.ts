@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // The ProseMirror plugin for the grammar checker (#110). It debounce-lints each
-// textblock through Harper (client-side WASM — see `linter.ts`), underlines the
+// textblock through Harper (client-side WASM—see `linter.ts`), underlines the
 // issues with inline `Decoration`s, and on click shows a small popover to apply a
 // suggestion via a transaction. Added to the editor only when a site opts in
-// (see `louiseExtension`/`RichText`), so its `linter.ts` — and thus `harper.js` —
-// loads lazily and never ships to the bundle otherwise.
+// (see `louiseExtension`/`RichText`), so its `linter.ts`—and thus `harper.js`—loads
+// lazily and never ships to the bundle otherwise.
 //
 // Correctness notes: the decoration set is mapped through every transaction so
 // underlines track edits until the next lint replaces them; a per-edit generation
@@ -23,11 +23,11 @@ import {
   type GrammarSuggestion,
 } from "./offsets.js";
 
-/** Debounce before (re)linting — never per keystroke; wait for a typing pause. */
+/** Debounce before (re)linting—never per keystroke; wait for a typing pause. */
 const DEBOUNCE_MS = 600;
 
-// Once Harper can't be loaded — most often because the `harper.js` optional peer
-// isn't installed — no later attempt can succeed either. Latch that process-wide
+// Once Harper can't be loaded—most often because the `harper.js` optional peer
+// isn't installed—no later attempt can succeed either. Latch that process-wide
 // on the first failure so the checker degrades to a single log + zero grammar,
 // instead of re-importing (and re-failing) on every editor's every typing pause:
 // that flood spams the console AND does repeated rejected-promise work on the
@@ -38,7 +38,7 @@ let grammarUnavailable = false;
 const grammarKey = new PluginKey<DecorationSet>("louiseGrammar");
 
 // ── Suggestion popover ──────────────────────────────────────────────────────
-// A single, lightweight DOM popover (not a Solid island — this is ProseMirror
+// A single, lightweight DOM popover (not a Solid island—this is ProseMirror
 // land). Kept module-scoped so only one is ever open.
 
 let activePopover: HTMLElement | null = null;
@@ -130,7 +130,7 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
           );
           return DecorationSet.create(tr.doc, decos);
         }
-        // No new lint this transaction — carry underlines along with the edit.
+        // No new lint this transaction—carry underlines along with the edit.
         return old.map(tr.mapping, tr.doc);
       },
     },
@@ -181,7 +181,7 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
       };
 
       const schedule = (): void => {
-        if (grammarUnavailable) return; // checker latched off — do no hot-path work
+        if (grammarUnavailable) return; // checker latched off—do no hot-path work
         generation++; // invalidate any in-flight lint
         if (timer !== null) clearTimeout(timer);
         timer = setTimeout(() => void run(), DEBOUNCE_MS);
@@ -208,7 +208,7 @@ function createGrammarPlugin(): Plugin<DecorationSet> {
 
 /**
  * A ProseKit extension that adds the Harper-backed grammar checker to the editor.
- * Include it only when a site enables grammar checking — its presence is what
+ * Include it only when a site enables grammar checking—its presence is what
  * triggers the lazy `harper.js` load.
  */
 export function defineGrammarExtension() {

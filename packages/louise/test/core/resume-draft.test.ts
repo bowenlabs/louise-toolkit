@@ -24,7 +24,7 @@ interface Version {
 
 /**
  * A D1 stand-in that records each statement and answers the resume query by
- * actually applying its binds to `versions` — so the test checks behaviour
+ * actually applying its binds to `versions`—so the test checks behaviour
  * (which row comes back), not just a SQL string. The bind order is what
  * drizzle emits for this query: parentId, status, [publishedVersionId], limit.
  */
@@ -123,7 +123,7 @@ describe("resumeDraft", () => {
       { id: 7, publishedVersionId: null },
     );
     expect(draft).toMatchObject({ title: "newest pending" });
-    // parentId, status, limit — no id floor.
+    // parentId, status, limit—no id floor.
     expect(statements[0]?.params).toEqual([7, "draft", 1]);
   });
 

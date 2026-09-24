@@ -4,8 +4,8 @@ import type { StandardSchemaV1 } from "../schema/index.js";
 import type { ValidationBuilder } from "./rule.js";
 
 /**
- * Editor-only presentation hints for a single field (issue #16 follow-on) —
- * the field-level counterpart to {@link CollectionAdminConfig}. Purely about
+ * Editor-only presentation hints for a single field (issue #16 follow-on)—the
+ * field-level counterpart to {@link CollectionAdminConfig}. Purely about
  * how the editor renders the field; absent → sensible defaults (a humanized
  * key for the label, no help text, full width, always shown, editable). None
  * of this touches the DB schema or the Local API.
@@ -22,17 +22,17 @@ export interface FieldAdminConfig {
   /** Editor column width on >= md screens. Defaults to "full". */
   width?: "full" | "half";
   /**
-   * Show the field only when this predicate — given the whole in-progress
-   * form value — returns true (Payload's `admin.condition`). A function, so
+   * Show the field only when this predicate—given the whole in-progress
+   * form value—returns true (Payload's `admin.condition`). A function, so
    * it's evaluated by the editor directly from the imported config, not from
    * a serialized meta payload.
    */
   condition?: (values: Record<string, unknown>) => boolean;
   /**
    * Create-form only (issue #98). Reactively seed this field from another
-   * field's value — e.g. default a page `title` from the chosen `category`.
+   * field's value—for example, default a page `title` from the chosen `category`.
    * When the `field` source changes and this field is still *pristine* (empty,
-   * or still holding the value we last seeded — i.e. the user hasn't typed
+   * or still holding the value we last seeded—that is, the user hasn't typed
    * their own), this field is set to `map({ value, label })`. For a
    * `relationship` source, `label` is the selected option's label, and `map`
    * defaults to `label ?? value` when omitted. Overridable: a value the user
@@ -45,8 +45,8 @@ export interface FieldAdminConfig {
   /**
    * Create-form only (issue #98). **Array fields only.** When creating a new
    * row and `when(values)` holds, append `item(values)` to this array before
-   * submit — lets a "template" create-flow auto-insert a builder block
-   * bound to another field (e.g. push a `portfolioGallery` block bound to the
+   * submit—lets a "template" create-flow auto-insert a builder block
+   * bound to another field (for example, push a `portfolioGallery` block bound to the
    * chosen `category` into `blocks`). Runs once at submit; never on edit.
    */
   appendOnCreate?: {
@@ -63,21 +63,21 @@ export interface BaseFieldConfig {
   required?: boolean;
   unique?: boolean;
   defaultValue?: unknown;
-  /** Editor-only presentation hints — see {@link FieldAdminConfig}. */
+  /** Editor-only presentation hints—see {@link FieldAdminConfig}. */
   admin?: FieldAdminConfig;
   /**
    * Chainable validation rules (issue #16), Sanity's `defineField`
    * `validation` analogue: `validation: (rule) => rule.required().min(2)`.
    * Evaluated server-side by createLocalApi on every create/update (and by
    * the editor for client-side feedback). Independent of the `required`/
-   * `unique` flags above — those still drive the DB schema; these drive
+   * `unique` flags above—those still drive the DB schema; these drive
    * value-level checks with clear, per-field error messages. See
    * {@link ValidationBuilder} and `validation.ts`.
    */
   validation?: ValidationBuilder;
   /**
    * Bring-your-own validation (#98): any Standard Schema
-   * (https://standardschema.dev) — Zod, Valibot, ArkType, or the built-in
+   * (https://standardschema.dev): Zod, Valibot, ArkType, or the built-in
    * `louise-toolkit/schema` `s.*` builder. Evaluated by `validateDocument`
    * alongside the `validation` chain, on the field's (flattened) value, and
    * skipped when the value is empty so it doesn't double up with `required`.
@@ -113,7 +113,7 @@ export interface DateFieldConfig extends BaseFieldConfig {
   /**
    * `"now"` stamps the column with the current time on every write that runs
    * through the Local API's `update()` / versioned `publish()` (drizzle's
-   * `$onUpdateFn`) — the standard `updatedAt` pattern. Pair with
+   * `$onUpdateFn`)—the standard `updatedAt` pattern. Pair with
    * `defaultValue: "now"` so the column is also set on insert.
    */
   onUpdate?: "now";
@@ -129,12 +129,12 @@ export interface RichTextFieldConfig extends BaseFieldConfig {
 
 /**
  * The TS type every JSON-mode column (`richText`/`array` fields,
- * `versionData`) is given via drizzle's `.$type<JsonValue>()` — see
+ * `versionData`) is given via drizzle's `.$type<JsonValue>()`—see
  * codegen.ts's and schema-gen.ts's richText/array cases. Without it,
  * drizzle infers a JSON column as `unknown`, which TanStack Start's
  * server-function return-type validator rejects outright (`unknown`
  * doesn't structurally match its `Serializable` check the way a plain
- * object/array/primitive union does). Recursive on purpose — that's what
+ * object/array/primitive union does). Recursive on purpose—that's what
  * lets the validator recurse through it instead of bottoming out at
  * `unknown`.
  */
@@ -157,7 +157,7 @@ export interface RelationshipFieldConfig extends BaseFieldConfig {
   /**
    * `false` (default): a plain integer column on this collection's own
    * table storing the related row's id.
-   * `true`: no column on this table — represented by a generated join
+   * `true`: no column on this table—represented by a generated join
    * table instead (see codegen.ts's relationshipJoinTables).
    */
   hasMany?: boolean;
@@ -167,7 +167,7 @@ export interface RelationshipFieldConfig extends BaseFieldConfig {
  * `0` (default): a relationship field's column comes back as the bare
  * related-row id. `1`: `createLocalApi`'s `registry` param is used to
  * batch-resolve `hasMany: false` relationship fields into the related
- * row's full document — see localApi.ts's `resolveRelationships`. Depths
+ * row's full document—see localApi.ts's `resolveRelationships`. Depths
  * beyond 1 (resolving a relationship's own relationships) aren't
  * implemented; there's no nested-relationship fixture yet to validate
  * that design against.
@@ -177,22 +177,22 @@ export type RelationshipDepth = 0 | 1;
 export interface ArrayFieldConfig extends BaseFieldConfig {
   type: "array";
   /**
-   * Fields shown for every item, regardless of variant — must include
+   * Fields shown for every item, regardless of variant—must include
    * `discriminator.key`'s own field (typically a `select`) if set.
    */
   fields: Record<string, FieldConfig>;
   /**
-   * Lets one array field model a union of item shapes (e.g. builder
+   * Lets one array field model a union of item shapes (for example, builder
    * blocks: image vs hero vs richText vs...) instead of one fixed field
    * set for every item. `key` names a field already present in `fields`
    * (rendered as the item's type switcher); `variants` maps each of that
    * field's possible values to *additional* fields layered on top, shown
    * only for items whose `key` field currently holds that value. Fields
-   * not listed under any variant (i.e. everything in `fields`) render
-   * unconditionally — that's the place for fields shared across every
-   * variant (e.g. a `caption` every block type has).
+   * not listed under any variant (that is, everything in `fields`) render
+   * unconditionally—that's the place for fields shared across every
+   * variant (for example, a `caption` every block type has).
    *
-   * Storage is unaffected either way — `array` is always one JSON column
+   * Storage is unaffected either way—`array` is always one JSON column
    * (see codegen.ts); this only changes what `CollectionEdit` renders.
    */
   discriminator?: {
@@ -202,7 +202,7 @@ export interface ArrayFieldConfig extends BaseFieldConfig {
      * Optional per-variant presentation for the editor's "Add block" picker
      * (the visual block builder). `label` defaults to a humanized variant
      * name; `icon` is an opaque CSS class the editor applies to an `<i>`
-     * (e.g. a Phosphor `"ph ph-image"`), keeping louise-admin(legacy) icon-library-agnostic.
+     * (for example, a Phosphor `"ph ph-image"`), keeping louise-admin(legacy) icon-library-agnostic.
      */
     variantsAdmin?: Record<string, { label?: string; icon?: string }>;
   };
@@ -214,10 +214,10 @@ export interface UploadFieldConfig extends BaseFieldConfig {
 }
 
 /**
- * A freeform JSON-blob column — the `json` field type. Storage-identical to
+ * A freeform JSON-blob column—the `json` field type. Storage-identical to
  * `richText`/`array` (one `.$type<JsonValue>()` text column, see
- * codegen.ts's `fieldToColumn`) but with no TipTap/array-item connotation —
- * use this for genuinely unstructured data (webhook audit payloads, CRM
+ * codegen.ts's `fieldToColumn`) but with no TipTap/array-item connotation—use
+ * this for genuinely unstructured data (webhook audit payloads, CRM
  * activity metadata), not builder content.
  */
 export interface JsonFieldConfig extends BaseFieldConfig {
@@ -226,13 +226,13 @@ export interface JsonFieldConfig extends BaseFieldConfig {
 }
 
 /**
- * A fixed-shape, queryable sub-object — the `group` field type from Section
+ * A fixed-shape, queryable sub-object—the `group` field type from Section
  * 3. Unlike `array` (JSON-blob storage, variable length), `group` flattens
  * to real prefixed columns at the Drizzle level (`<key>_<subKey>`, see
  * codegen.ts's `collectionToTable` and `flattenFields` below) so SQL-level
- * querying/sorting on a subfield (e.g. `shippingAddress.city`) still works.
- * `required`/`unique`/`defaultValue` on the group itself are meaningless —
- * set them on the individual nested `fields` instead; codegen ignores them
+ * querying/sorting on a subfield (for example, `shippingAddress.city`) still works.
+ * `required`/`unique`/`defaultValue` on the group itself are meaningless—set
+ * them on the individual nested `fields` instead; codegen ignores them
  * at the group level.
  */
 export interface GroupFieldConfig extends BaseFieldConfig {
@@ -255,17 +255,17 @@ export type FieldConfig =
 
 /**
  * Expands every `group` field in `fields` into its flattened equivalents
- * (`<key>_<subKey>`, recursively — a group nested inside a group flattens
+ * (`<key>_<subKey>`, recursively—a group nested inside a group flattens
  * all the way down), and passes every other field through unchanged. This
  * is the single canonicalization step codegen, schema-gen, and the Local
  * API's field-shape validation (`validateRequiredFields`/
  * `rejectUnknownFields`) all run before touching `group` fields, so none of
- * them need their own group-aware branch — see localApi.ts's `flattenDoc`/
+ * them need their own group-aware branch—see localApi.ts's `flattenDoc`/
  * `nestDoc` for the matching document-level transform.
  *
  * Known limitation: a flattened key can collide if two different group
- * nestings produce the same combined name (e.g. a group `a_b` containing
- * field `c` collides with group `a` containing field `b_c`) — not guarded
+ * nestings produce the same combined name (for example, a group `a_b` containing
+ * field `c` collides with group `a` containing field `b_c`)—not guarded
  * against, since no current collection nests groups deeply enough to hit
  * it.
  */
@@ -284,12 +284,12 @@ export function flattenFields(fields: Record<string, FieldConfig>): Record<strin
 }
 
 /**
- * The document-level counterpart to `flattenFields` — turns a `group`
+ * The document-level counterpart to `flattenFields`—turns a `group`
  * field's nested object value (`{ shippingAddress: { city: "..." } }`) into
  * its flattened equivalent (`{ shippingAddress_city: "..." }`) for writing
  * to the DB, recursively. Fields not present in `doc` are simply omitted
- * from the result (lets `update()`'s partial inputs flatten correctly —
- * an absent group means every one of its flattened keys is absent too, not
+ * from the result (lets `update()`'s partial inputs flatten correctly—an
+ * absent group means every one of its flattened keys is absent too, not
  * `undefined`-valued). See `nestDoc` for the inverse, used on read.
  */
 export function flattenDoc(
@@ -312,7 +312,7 @@ export function flattenDoc(
 }
 
 /**
- * The inverse of `flattenDoc` — re-nests a flat DB row's `<key>_<subKey>`
+ * The inverse of `flattenDoc`—re-nests a flat DB row's `<key>_<subKey>`
  * columns back into `{ key: { subKey: ... } }` for everything the Local
  * API returns to a caller, so a `group` field's document shape always
  * matches its config shape regardless of how it's actually stored.
@@ -342,11 +342,11 @@ export function nestDoc(
 /**
  * Per-operation access check, modeled on Payload's own `access` shape.
  * @returns whether the operation is allowed. Implementations decide their
- * own context shape (auth/session info isn't standardized by Louise) — see
+ * own context shape (auth/session info isn't standardized by Louise)—see
  * {@link LocalApi}'s `TContext` generic, which every operation now requires
  * a value for.
  *
- * Enforced by `createLocalApi` since Section 2 — see
+ * Enforced by `createLocalApi` since Section 2—see
  * {@link CollectionConfig.access}.
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- the context shape is intentionally caller-defined; Louise doesn't standardize auth/session info
@@ -359,7 +359,7 @@ export interface CollectionAccess {
   delete?: AccessFn;
   /**
    * Gates `VersionedLocalApi.publish`/`unpublish` (see createVersionedLocalApi
-   * in localApi.ts). Separate from `update` — publishing is a distinct
+   * in localApi.ts). Separate from `update`—publishing is a distinct
    * privilege from editing a draft, matching Payload's own model.
    */
   publish?: AccessFn;
@@ -367,14 +367,14 @@ export interface CollectionAccess {
 
 /**
  * Lifecycle hooks, modeled on Payload's own hook points. Each is an
- * ordered array, run in sequence. Enforced by `createLocalApi` — see
+ * ordered array, run in sequence. Enforced by `createLocalApi`—see
  * {@link CollectionConfig.hooks}.
  */
 export interface CollectionHooks<TDoc = Record<string, unknown>> {
   beforeChange?: Array<(args: { data: Partial<TDoc> }) => Partial<TDoc> | Promise<Partial<TDoc>>>;
   /**
-   * `operation` distinguishes a freshly-inserted doc from an edited one —
-   * `publish()` (versioned collections) counts as `"update"`, since it
+   * `operation` distinguishes a freshly-inserted doc from an edited one—`publish()`
+   * (versioned collections) counts as `"update"`, since it
    * writes to an already-existing row rather than creating one. Lets
    * webhook config (see `content/webhooks.ts`) filter which events it fires
    * on without the hook itself tracking state.
@@ -391,42 +391,42 @@ export interface CollectionHooks<TDoc = Record<string, unknown>> {
 /**
  * Editor-presentation hints for a collection, modeled on Sanity's Structure
  * Builder (`sanity/structure`). Purely about how the admin sidebar/editor
- * *presents* a collection — never affects the DB schema, the Local API, or
+ * *presents* a collection—never affects the DB schema, the Local API, or
  * access control. Consumed by {@link buildEditorStructure} (see
  * `structure.ts`); a collection with no `admin` block falls back to sensible
  * defaults (visible, editable, listed, grouped under the default group,
  * label = capitalized slug). Plugin-injected collections can't carry an
  * `admin` block in hand-written config, so `buildEditorStructure` also
- * accepts per-slug overrides at the call site — see its `overrides` option.
+ * accepts per-slug overrides at the call site—see its `overrides` option.
  */
 export interface CollectionAdminConfig {
   /**
-   * Sidebar group heading this collection appears under (e.g. "Content",
+   * Sidebar group heading this collection appears under (for example, "Content",
    * "Store"). Collections without a group fall into the builder's default
    * group. Decoupling nav grouping from the raw collection list is the whole
    * point of the Structure Builder.
    */
   group?: string;
   /**
-   * Sort order within a group — lower sorts first. Ties (and the absence of
+   * Sort order within a group—lower sorts first. Ties (and the absence of
    * an explicit order) break by the collection's position in the config
    * array, so config order is the stable default.
    */
   order?: number;
   /**
    * Drop this collection from the sidebar entirely. For pure system/log
-   * tables a human never browses (e.g. `webhook_events`).
+   * tables a human never browses (for example, `webhook_events`).
    */
   hidden?: boolean;
   /**
-   * Mark as read-only in the editor — still navigable/viewable, but the UI
+   * Mark as read-only in the editor—still navigable/viewable, but the UI
    * suppresses create/edit/delete affordances. For machine-written tables a
-   * human should inspect but never edit (e.g. `payments`).
+   * human should inspect but never edit (for example, `payments`).
    */
   readOnly?: boolean;
   /**
    * Singleton: exactly one document. The sidebar links straight to its
-   * editor (`/admin/<slug>`) instead of a list-then-create flow — Sanity's
+   * editor (`/admin/<slug>`) instead of a list-then-create flow—Sanity's
    * singleton-document structure pattern. (Storage is unchanged; this only
    * changes navigation.)
    */
@@ -434,7 +434,7 @@ export interface CollectionAdminConfig {
   /** Display label override; defaults to a capitalized slug. */
   label?: string;
   /**
-   * Optional icon identifier passed through to the sidebar renderer (e.g. a
+   * Optional icon identifier passed through to the sidebar renderer (for example, a
    * Phosphor icon name). The builder treats it as an opaque string.
    */
   icon?: string;
@@ -447,7 +447,7 @@ export interface CollectionConfig {
   /**
    * Per-operation access control, enforced by `createLocalApi` (Section 2).
    * Reserved per issue #16 step 7 ("reserve typed config keys now,
-   * implementation deferred to Section 2+") — that deferral is over: every
+   * implementation deferred to Section 2+")—that deferral is over: every
    * `LocalApi` method now requires a `context` argument and runs the
    * matching access function (`read` for `find`/`findByID`, `create` for
    * `create`, etc.) before touching the database. No access function
@@ -463,7 +463,7 @@ export interface CollectionConfig {
    * `${slug}_versions` table and a nullable `published_version_id` pointer
    * column on the main table, and `createVersionedLocalApi` (localApi.ts)
    * becomes usable against it. Collections without this stay exactly as
-   * before — no versions table, no extra column, only `createLocalApi`.
+   * before—no versions table, no extra column, only `createLocalApi`.
    */
   versions?: {
     drafts?: boolean;
@@ -474,9 +474,9 @@ export interface CollectionConfig {
    * Opts this collection into real-time multi-editor sessions (ADR 0002 / #71):
    * a per-page Durable Object (the `EDIT_SESSION` binding) broadcasts presence +
    * field changes and coalesces edits to D1 as drafts. Requires
-   * `versions.drafts` (the DO persists through the versioned draft path) —
-   * `defineCollection` rejects `realtime` without it. Off by default; when a site
-   * hasn't provisioned the DO binding the realtime route 503s and the client
+   * `versions.drafts` (the DO persists through the versioned draft path)—`defineCollection`
+   * rejects `realtime` without it. Off by default; when a site
+   * hasn't provisioned the DO binding the realtime route returns 503 and the client
    * silently falls back to the debounced-fetch auto-save, so this stays a no-op
    * everywhere it isn't fully wired.
    */
@@ -484,12 +484,12 @@ export interface CollectionConfig {
   /**
    * Opts this collection into full-text search (issue #29). `fields` names
    * which of this collection's own `text`/`richText`/`upload` fields are
-   * indexed — `defineContentConfig`/`defineCollection` reject any other field
+   * indexed—`defineContentConfig`/`defineCollection` reject any other field
    * type or an unknown key. When set, codegen (see codegen.ts's
    * `collectionSearchTableSQL`) describes a companion `${slug}_fts` SQLite
    * FTS5 virtual table, and `createLocalApi` both becomes able to run
-   * `.search()` and keeps that table in sync on every create/update/delete
-   * — see localApi.ts's `syncSearchIndex`. `richText` fields are flattened
+   * `.search()` and keeps that table in sync on every create/update/delete;
+   * see localApi.ts's `syncSearchIndex`. `richText` fields are flattened
    * to plain text (TipTap JSON's `text` leaves, concatenated) before being
    * indexed; nested `array`/block content is out of scope for this phase.
    */
@@ -497,7 +497,7 @@ export interface CollectionConfig {
     fields: readonly string[];
   };
   /**
-   * Editor-presentation hints — grouping, ordering, hidden/read-only,
+   * Editor-presentation hints—grouping, ordering, hidden/read-only,
    * singleton, label, icon. Consumed only by {@link buildEditorStructure}
    * (the Structure Builder); never affects schema, Local API, or access.
    * See {@link CollectionAdminConfig}.
@@ -506,11 +506,11 @@ export interface CollectionConfig {
 }
 
 /**
- * A Louise plugin — a synchronous transform over the whole content config,
+ * A Louise plugin—a synchronous transform over the whole content config,
  * modeled on Payload's `plugins: [(config) => config]` shape. A plugin may
  * add or modify collections, inject fields, or register lifecycle hooks.
  * `defineContentConfig` runs plugins in array order, each receiving the output
- * of the previous one, *before* validation — so a plugin's output is held
+ * of the previous one, *before* validation—so a plugin's output is held
  * to the same rules as a hand-written config.
  *
  * Synchronous in Section 2 by design: the resolved config is consumed by

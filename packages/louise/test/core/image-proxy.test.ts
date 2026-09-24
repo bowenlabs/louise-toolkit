@@ -53,7 +53,7 @@ describe("defineImageProxy — handle", () => {
   });
 
   it("never serves SVG or another non-raster type from the site's origin", async () => {
-    // Where the resize doesn't run, upstream bytes come back untouched — an
+    // Where the resize doesn't run, upstream bytes come back untouched—an
     // SVG with a <script> would execute on the site's origin if opened.
     for (const type of [
       "image/svg+xml",

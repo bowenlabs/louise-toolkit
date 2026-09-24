@@ -2,7 +2,7 @@
 //
 // The invariant every case here defends: after any structural change, every
 // surviving marker must still address the item it renders. Markers drive the
-// store-write paths, so a drift here doesn't throw — it silently writes an edit
+// store-write paths, so a drift here doesn't throw—it silently writes an edit
 // into the wrong item.
 //
 // The point of the rewrite is that sections and blocks are the SAME code at
@@ -45,11 +45,11 @@ function page(n: number, blocksPer = 0): HTMLElement {
 
 const markers = (root: Element) =>
   [...root.querySelectorAll("[data-louise-node]")].map((e) => e.getAttribute("data-louise-node"));
-/** CONTAINER markers — sections and blocks. One attribute covers fields too
+/** CONTAINER markers—sections and blocks. One attribute covers fields too
  *  since A2, and the two are told apart by what the path ends in: a container
  *  ends at a position, a field at a key. */
 const nodes = (root: Element) => markers(root).filter((p) => /\d+$/.test(p ?? ""));
-/** The FIELD markers — one family now (ADR 0010 A2), so they're told from
+/** The FIELD markers—one family now (ADR 0010 A2), so they're told from
  *  container markers by their path ending in a key rather than an index. */
 const sfields = (root: Element) => markers(root).filter((p) => !/\d+$/.test(p ?? ""));
 
@@ -76,7 +76,7 @@ describe("moveNodeElement", () => {
 
     expect(nodes(root)).toEqual(["0", "1", "2"]);
     // The heading that was section 2's is now section 0's, and its marker must
-    // have followed — otherwise an edit to it writes into the wrong item. One
+    // have followed—otherwise an edit to it writes into the wrong item. One
     // family since A2, so this is the prefix rewrite doing its job at depth.
     expect(sfields(root)).toEqual(["0.heading", "1.heading", "2.heading"]);
   });
@@ -101,7 +101,7 @@ describe("moveNodeElement", () => {
     const movedBlockField = root.querySelectorAll('[data-louise-node="1.blocks.0.body"]')[0];
     moveNodeElement([], 1, 0, root);
 
-    // Same element, new address — the whole subtree was re-stamped by prefix.
+    // Same element, new address—the whole subtree was re-stamped by prefix.
     expect(movedBlockField.getAttribute("data-louise-node")).toBe("0.blocks.0.body");
   });
 
@@ -158,8 +158,8 @@ describe("insertNodeElement", () => {
     insertNodeElement(rendered(), [], 1, root);
 
     expect(nodes(root)).toEqual(["0", "1", "2"]);
-    // The inserted element arrives stamped at 0 and must be corrected to 1 —
-    // otherwise two sections claim index 0 and edits collide.
+    // The inserted element arrives stamped at 0 and must be corrected to 1—otherwise
+    // two sections claim index 0 and edits collide.
     expect(sfields(root)).toEqual(["0.heading", "1.heading", "2.heading"]);
   });
 

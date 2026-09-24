@@ -3,8 +3,8 @@
 // Vendored rather than depended on. `louise-toolkit` ships with ZERO runtime
 // dependencies, and the obvious candidates would each cost more than they save:
 // `qrcode` drags in pngjs plus Node `Buffer`/`fs` assumptions that don't hold in
-// a Worker, and `qrcode-svg` is unmaintained CommonJS. QR is also a frozen spec —
-// 18004 hasn't moved meaningfully since 2006 — so this is one of the few things
+// a Worker, and `qrcode-svg` is unmaintained CommonJS. QR is also a frozen spec—18004
+// hasn't moved meaningfully since 2006—so this is one of the few things
 // where vendoring has no upgrade treadmill and no supply-chain surface. The same
 // argument the codebase already makes for `core/browser/og-card.ts` (hand-rolled
 // SVG) and `core/media/dimensions.ts` (hand-rolled header sniffing).
@@ -153,8 +153,8 @@ class BitBuffer {
 /**
  * Encode `data` as a QR matrix.
  *
- * Throws only when the payload cannot fit version 40 at the chosen ECC level —
- * roughly 1.2KB even at H, far beyond any URL.
+ * Throws only when the payload cannot fit version 40 at the chosen ECC level—roughly
+ * 1.2KB even at H, far beyond any URL.
  */
 export function encodeQr(
   data: string,
@@ -325,7 +325,7 @@ function buildMatrix(codewords: Uint8Array, version: number, ecc: QrErrorCorrect
   }
 
   // Try all 8 masks and keep the lowest-penalty one. Fixing a mask would save
-  // ~60 lines and produce codes some scanners refuse — a failure you'd hear
+  // ~60 lines and produce codes some scanners refuse—a failure you'd hear
   // about from a shop, not from CI.
   let best = 0;
   let bestPenalty = Number.POSITIVE_INFINITY;
@@ -397,7 +397,7 @@ function writeFormatBits(
 function penaltyScore(m: boolean[][], size: number): number {
   let score = 0;
 
-  // Rule 1 — runs of 5+ identical modules, both directions.
+  // Rule 1—runs of 5+ identical modules, both directions.
   for (let i = 0; i < size; i++) {
     for (const horizontal of [true, false]) {
       let run = 1;
@@ -413,7 +413,7 @@ function penaltyScore(m: boolean[][], size: number): number {
     }
   }
 
-  // Rule 2 — 2x2 blocks of one color.
+  // Rule 2—2x2 blocks of one color.
   for (let y = 0; y < size - 1; y++) {
     for (let x = 0; x < size - 1; x++) {
       const v = m[y]![x]!;
@@ -421,7 +421,7 @@ function penaltyScore(m: boolean[][], size: number): number {
     }
   }
 
-  // Rule 3 — finder-lookalike 1011101 with 4 light modules on either side.
+  // Rule 3—finder-lookalike 1011101 with 4 light modules on either side.
   const PATTERN = [true, false, true, true, true, false, true];
   const hasAt = (i: number, j: number, horizontal: boolean, offset: number): boolean => {
     for (let k = 0; k < 7; k++) {
@@ -444,7 +444,7 @@ function penaltyScore(m: boolean[][], size: number): number {
     }
   }
 
-  // Rule 4 — deviation from a 50/50 dark ratio.
+  // Rule 4—deviation from a 50/50 dark ratio.
   let dark = 0;
   for (const row of m) for (const v of row) if (v) dark++;
   const percent = (dark * 100) / (size * size);

@@ -16,7 +16,7 @@ const config = defineCollection({
     body: { type: "richText" },
     sections: { type: "json" },
   },
-  // `json` is now allowed in search.fields — defineCollection would throw otherwise.
+  // `json` is now allowed in search.fields—defineCollection would throw otherwise.
   search: { fields: ["title", "body", "sections"] },
 });
 
@@ -58,7 +58,7 @@ describe("search config + indexing", () => {
   });
 });
 
-// --- reindexDoc (deferred FTS sync — #77) ----------------------------------
+// --- reindexDoc (deferred FTS sync—#77) ----------------------------------
 
 /** Fake async-drizzle db: `select().from().where()` resolves to `rows`; `run`
  *  records each FTS statement so we can count DELETE/INSERT without a real DB. */
@@ -71,7 +71,7 @@ function makeReindexDb(rows: Record<string, unknown>[]) {
       runs.push(q);
       return Promise.resolve();
     },
-    // A structural stand-in for BaseSQLiteDatabase — only select/run are used.
+    // A structural stand-in for BaseSQLiteDatabase—only select/run are used.
   } as unknown as Parameters<typeof reindexDoc>[0];
   return { db, runs, select };
 }
@@ -166,7 +166,7 @@ describe("searchRoute — routing", () => {
   });
 });
 
-// --- fuseRankings (RRF hybrid merge — #86) ---------------------------------
+// --- fuseRankings (RRF hybrid merge—#86) ---------------------------------
 
 describe("fuseRankings", () => {
   it("preserves keyword order when there's no semantic signal", () => {

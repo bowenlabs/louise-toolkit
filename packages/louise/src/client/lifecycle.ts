@@ -1,15 +1,15 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-// Page-lifecycle seam — the framework-neutral replacement for listening to a
+// Page-lifecycle seam—the framework-neutral replacement for listening to a
 // specific router's navigation events (#327 Phase 1).
 //
 // The editor needs to know two things about a SOFT navigation, where the host's
 // router swaps the DOM without a page load:
 //
-//   • before the swap — flush pending auto-saved edits, because none of the
+//   • before the swap—flush pending auto-saved edits, because none of the
 //     browser's own "leaving" signals (`pagehide`, `beforeunload`,
 //     `visibilitychange`) fire for one, so edits would be dropped (#74);
-//   • after the swap — drop the now-defunct editor, clear the mount guard, and
+//   • after the swap—drop the now-defunct editor, clear the mount guard, and
 //     close the realtime socket, so the next page mounts cleanly.
 //
 // This module used to get both by listening for one specific framework's
@@ -23,7 +23,7 @@
 //   document.addEventListener(<your router's after-swap event>, louiseNavigation.afterSwap);
 //
 // A worked example naming a real router's events is in the published reference
-// (guide: `reference/client`), which is the right place for it — a host-specific
+// (guide: `reference/client`), which is the right place for it—a host-specific
 // integration snippet is documentation, not library source.
 //
 // A host with no soft navigation calls neither, and everything still works: hard
@@ -42,7 +42,7 @@ const handlers: Record<LouiseNavigationPhase, Set<Handler>> = {
 /**
  * Subscribe to a navigation phase. Returns an unsubscribe.
  *
- * Internal to the client modules — a site wires {@link louiseNavigation}
+ * Internal to the client modules—a site wires {@link louiseNavigation}
  * instead. Exported because the section dock and the settings drawer are
  * separate entry points that each need the signal.
  */
@@ -61,7 +61,7 @@ function emit(phase: LouiseNavigationPhase): void {
     try {
       handler();
     } catch (error) {
-      // One subscriber failing must not stop the others — a swallowed flush in
+      // One subscriber failing must not stop the others—a swallowed flush in
       // the dock should never prevent the page-level editor being torn down,
       // which would leak a realtime socket across the navigation.
       console.error("[louise] navigation handler failed", error);
@@ -72,8 +72,8 @@ function emit(phase: LouiseNavigationPhase): void {
 /**
  * What a host calls when its router swaps the page.
  *
- * Both are safe to call when nothing is mounted, and safe to call repeatedly —
- * a host can wire them once for the document's lifetime.
+ * Both are safe to call when nothing is mounted, and safe to call repeatedly—a
+ * host can wire them once for the document's lifetime.
  */
 export const louiseNavigation = {
   /** The DOM is about to be replaced. Flushes pending edits. */

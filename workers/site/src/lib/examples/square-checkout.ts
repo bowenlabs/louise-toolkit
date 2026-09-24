@@ -1,8 +1,8 @@
 // A minimal Square checkout on Cloudflare Workers, built on louise-toolkit/commerce/square.
 // This is the real handler pattern a shop route uses: price the item from the live
 // catalog, then charge the card token the browser tokenized. It targets the current
-// louise-toolkit/commerce/square API. It isn't mounted on this marketing site — a live charge
-// needs your Square secret + location — so /examples/commerce simulates the same flow.
+// louise-toolkit/commerce/square API. It isn't mounted on this marketing site—a live charge
+// needs your Square secret + location—so /examples/commerce simulates the same flow.
 // The code below is sliced verbatim into that page's "checkout.ts" tab.
 
 // #region example:square-server
@@ -14,7 +14,7 @@ interface CheckoutEnv {
   SQUARE_ENV: "sandbox" | "production"; // sandbox honors test cards, moves no real money
 }
 
-// POST { sourceId, variationId } — charge the tokenized card for one catalog item.
+// POST { sourceId, variationId }—charge the tokenized card for one catalog item.
 export async function handleCheckout(request: Request, env: CheckoutEnv): Promise<Response> {
   const { sourceId, variationId } = (await request.json()) as {
     sourceId: string;
@@ -23,7 +23,7 @@ export async function handleCheckout(request: Request, env: CheckoutEnv): Promis
 
   const config: SquareConfig = { accessToken: env.SQUARE_TOKEN, environment: env.SQUARE_ENV };
 
-  // Price server-side from the live catalog — never trust an amount from the client.
+  // Price server-side from the live catalog—never trust an amount from the client.
   const catalog = await listCatalogItems(config);
   const variation = catalog.flatMap((item) => item.variations).find((v) => v.id === variationId);
   if (!variation) return Response.json({ error: "Unknown item" }, { status: 404 });

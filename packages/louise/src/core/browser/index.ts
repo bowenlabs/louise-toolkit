@@ -5,11 +5,11 @@
 // Edge rendering helpers shared across all Louise sites: per-page OG image
 // generation with a content-hashed cache (render only on a miss), and a
 // scheduled link-checker. Two OG renderers are offered behind one {@link
-// OgRenderer} contract — the resvg/WASM rasterizer (`createResvgRenderer`, the
+// OgRenderer} contract—the resvg/WASM rasterizer (`createResvgRenderer`, the
 // default hot path, issue #85) and the Browser-Rendering screenshot
 // (`createPuppeteerRenderer`, issue #5). Both peers (`@resvg/resvg-wasm`,
 // `@cloudflare/puppeteer`) are optional and dynamically imported only when a
-// render actually happens. Browser Rendering binding contract: `BROWSER` — see
+// render actually happens. Browser Rendering binding contract: `BROWSER`—see
 // {@link LouiseBrowserEnv}.
 
 export {

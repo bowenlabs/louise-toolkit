@@ -8,7 +8,7 @@
 import { readSecret } from "../security/index.js";
 import type { LouiseAuthEnv } from "./types.js";
 
-/** Sentinel for a not-yet-configured Turnstile secret — keeps captcha OFF. */
+/** Sentinel for a not-yet-configured Turnstile secret—keeps captcha OFF. */
 export const TURNSTILE_PLACEHOLDER = "DUMMY_REPLACE_ME";
 
 /** Cloudflare's always-passing Turnstile *test* site key. Its token will not
@@ -35,7 +35,7 @@ export function activeCaptchaSecret(env: LouiseAuthEnv, secret: string | null): 
 }
 
 /**
- * Is captcha on — and if so, the key to render the widget with and the secret
+ * Is captcha on—and if so, the key to render the widget with and the secret
  * to verify its token against, together. `null` means OFF: render no widget and
  * check no token.
  *
@@ -44,7 +44,7 @@ export function activeCaptchaSecret(env: LouiseAuthEnv, secret: string | null): 
  * renders no widget; if the server still holds a real secret, it keeps
  * demanding a token no visitor can produce, and every sign-in fails. Deciding
  * the widget and the check from the same call makes that state unreachable.
- * On only when both halves are real — see {@link activeCaptchaSecret}.
+ * On only when both halves are real—see {@link activeCaptchaSecret}.
  */
 export async function activeCaptcha(
   env: LouiseAuthEnv,

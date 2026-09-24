@@ -74,7 +74,7 @@ describe("turnstile activation", () => {
       siteKey: "0xREAL",
       secret: "real",
     });
-    // Each half-provisioned state is OFF for both — never a check with no
+    // Each half-provisioned state is OFF for both—never a check with no
     // widget (the sign-in outage) nor a widget that gates nothing.
     for (const e of [
       env({ siteKey: "0xREAL", secret: TURNSTILE_PLACEHOLDER }),
@@ -268,7 +268,7 @@ describe("safeNextPath", () => {
 
   it("refuses a tab or newline that a browser would strip into //", () => {
     // coracle's regex `^\/(?![/\\])` accepted these: the second character
-    // is a tab, not a slash — until the browser removes it.
+    // is a tab, not a slash—until the browser removes it.
     for (const raw of ["/\t/evil.example", "/\n/evil.example", "/\r\n/evil.example"]) {
       expect(safeNextPath(raw, "/home"), JSON.stringify(raw)).toBe("/home");
     }
@@ -348,7 +348,7 @@ describe("pick", () => {
 });
 
 // Better Auth initializes its adapter asynchronously on construction, so the
-// stub has to be D1-shaped enough to satisfy that — otherwise the assertions
+// stub has to be D1-shaped enough to satisfy that—otherwise the assertions
 // still pass and the RUN fails, on unhandled rejections rather than on any
 // assertion. Defined once and shared: it lived in two describe blocks, the copy
 // silently lost `exec`, and that is exactly the failure it produces.
@@ -478,7 +478,7 @@ describe("session secret", () => {
 
 describe("kvSecondaryStorage", () => {
   // A fake KV that records writes, so the tests can assert on TTLs as well as
-  // values — the TTL clamp is half of what this wrapper exists to do.
+  // values—the TTL clamp is half of what this wrapper exists to do.
   const fakeKv = () => {
     const store = new Map<string, string>();
     const puts: { key: string; value: string; ttl?: number }[] = [];
@@ -551,7 +551,7 @@ describe("kvSecondaryStorage", () => {
       // The reason for clock buckets over one long-lived key: KV cannot write a
       // value without also writing a TTL, so a single key would have its expiry
       // pushed forward on every increment and a busy client would never be
-      // unblocked. Crossing into the next 10s window must start over at 1.
+      // unblocked. Crossing into the next 10-second window must start over at 1.
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-01-01T00:00:05Z"));
       const { kv } = fakeKv();
@@ -575,9 +575,9 @@ describe("kvSecondaryStorage", () => {
     });
 
     it("clamps the bucket TTL to KV's floor without widening the window itself", async () => {
-      // A 10s window under a 60s TTL floor: the spent bucket lingers unread for
-      // 60s, but the key rotates every 10s, so the limit is still enforced over
-      // the window Better Auth asked for.
+      // A 10-second window under a 60-second TTL floor: the spent bucket lingers
+      // unread for 60 seconds, but the key rotates every 10 seconds, so the limit
+      // is still enforced over the window Better Auth asked for.
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
       const { kv, puts } = fakeKv();
@@ -628,7 +628,7 @@ describe("verification storage (single-use values stay on D1)", () => {
   });
 
   it("carries the table prefix alongside the storage choice", async () => {
-    // Both reasons to emit `verification` at once — the namespaced-table case
+    // Both reasons to emit `verification` at once—the namespaced-table case
     // (#15 Option B) must not drop the security default, or vice versa.
     expect(await verificationOf({ tablePrefix: "auth_", sessionCacheKv: kv })).toEqual({
       modelName: "auth_verification",

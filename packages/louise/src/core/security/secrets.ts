@@ -7,13 +7,13 @@ export type { SecretBinding };
 /**
  * Anything that can back a secret value: a Secrets Store binding, a plain `vars`
  * string (the shape a public key or a `wrangler secret put` value arrives in),
- * or nothing at all — the binding simply isn't provisioned yet.
+ * or nothing at all—the binding simply isn't provisioned yet.
  */
 export type SecretSource = SecretBinding | string | null | undefined;
 
 export interface ReadSecretOptions {
   /**
-   * Sentinel value(s) that mean "not configured yet" and are read as unset. The
+   * Sentinel values that mean "not configured yet" and are read as unset. The
    * caller supplies them: the package has no opinion about which string a site
    * seeds its unprovisioned secrets with.
    */
@@ -21,11 +21,11 @@ export interface ReadSecretOptions {
 }
 
 /**
- * Read a secret, returning `null` whenever it is not really configured — the
+ * Read a secret, returning `null` whenever it is not really configured—the
  * binding is absent, the store isn't provisioned (a declared-but-unset binding
  * throws on `.get()`), the value is empty, or it still holds a placeholder
- * sentinel. The point is that a caller can *degrade* — skip the integration,
- * run a simulated path — instead of throwing or calling an upstream API with a
+ * sentinel. The point is that a caller can *degrade*—skip the integration,
+ * run a simulated path—instead of throwing or calling an upstream API with a
  * dummy credential.
  *
  * Contrast {@link getSessionSecret}, which fails closed: a missing session
@@ -57,15 +57,15 @@ export async function readSecret(
  * any deployed hostname fails closed.
  *
  * "Not configured" here covers an unreadable binding, an empty value (a
- * misprovisioned Secrets Store returns `""`), and — when the caller names one —
- * a placeholder sentinel. That last case matters: a scaffold that seeds every
+ * misprovisioned Secrets Store returns `""`), and—when the caller names one—a
+ * placeholder sentinel. That last case matters: a scaffold that seeds every
  * secret with a public placeholder must never reach production still signing
  * sessions with it, which is exactly what a plain non-empty check would allow.
  *
- * @param secret     the binding or value (e.g. `env.SESSION_SECRET`)
+ * @param secret     the binding or value (for example, `env.SESSION_SECRET`)
  * @param url        the request URL (its hostname decides the dev fallback)
  * @param devSecret  the localhost-only fallback value; override per site
- * @param options    `placeholder` sentinel(s) to read as not-configured
+ * @param options    `placeholder` sentinels to read as not-configured
  */
 export async function getSessionSecret(
   secret: SecretSource,

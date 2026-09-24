@@ -43,7 +43,7 @@ const setGlobal = (value: unknown) => {
 };
 
 /**
- * Catch the injected <script> without letting happy-dom "load" it — it refuses
+ * Catch the injected <script> without letting happy-dom "load" it—it refuses
  * to fetch scripts and fires `error` at once, which is the test environment's
  * policy, not the race these tests are about. Returns the captured tags.
  */
@@ -88,7 +88,7 @@ describe("renderTurnstile", () => {
   });
 
   it("wins the load race: renders when api.js lands AFTER the call", async () => {
-    // The bug this exists for — the automatic scan runs once, before a
+    // The bug this exists for—the automatic scan runs once, before a
     // later-hydrating widget exists, and it's never rendered.
     vi.useFakeTimers();
     const scripts = interceptScripts();

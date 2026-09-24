@@ -2,13 +2,13 @@
 //
 // Why this exists: every test in the workspace resolves `louise-toolkit/*` to
 // source, because vitest aliases it. That is fast and convenient and it means the
-// suite is structurally blind to the one bug class that only bites consumers — a
+// suite is structurally blind to the one bug class that only bites consumers—a
 // symbol that exists in `src/` but was never re-exported from the public entry
 // point, or a subpath in `exports` whose `dist/` target was never emitted.
 //
 // That bug is not hypothetical here. Extracting the Astro adapter (#327) turned up
-// three symbols it needed — `applyFieldSave`, `applySettingsPatch`,
-// `SettingsPatchConfig` — that were reachable from `src/` and from nowhere a
+// three symbols it needed—`applyFieldSave`, `applySettingsPatch`,
+// `SettingsPatchConfig`—that were reachable from `src/` and from nowhere a
 // consumer could see. Nothing in CI could have caught it, because the only thing
 // exercising the real export map was astroid typechecking against the built
 // library, and that gate disappears when astroid moves to its own repo.
@@ -106,7 +106,7 @@ for (const [subpath, symbols] of Object.entries(required)) {
 // 3. Every public-looking module IS exported.
 //
 // Checks 1 and 2 both start from the `exports` map, so neither can see the one
-// failure mode that produced them: a module written, tested, changelogged — and
+// failure mode that produced them: a module written, tested, changelogged—and
 // never declared. `src/core/mcp/` shipped exactly that way in 0.27.0. Its own
 // header comment called it `louise-toolkit/mcp`, it had a passing test file, the
 // release notes announced it, and it reached npm in neither `exports` nor
@@ -133,7 +133,7 @@ for (const name of fs.readdirSync(coreDir)) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Entries that exist to avoid a dependency really do avoid it — as BUILT.
+// 4. Entries that exist to avoid a dependency really do avoid it—as BUILT.
 //
 // A few subpaths are split out of a barrel for exactly one reason: the barrel
 // imports an optional peer (`drizzle-orm`) that their callers shouldn't have to

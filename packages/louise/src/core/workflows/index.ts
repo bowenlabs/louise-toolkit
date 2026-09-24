@@ -2,7 +2,7 @@
 //
 // louise-toolkit/workflows
 //
-// Thin wrapper over Cloudflare Workflows — the durable, multi-step sibling of
+// Thin wrapper over Cloudflare Workflows—the durable, multi-step sibling of
 // louise-toolkit/queues. Where Queues is fire-and-forget (`enqueue` + a
 // `processBatch` ack/retry loop), Workflows persists each step's result and owns
 // per-step retries/backoff, so a flow can resume mid-way after a failure instead
@@ -12,10 +12,10 @@
 //
 // Producer side is a single `startWorkflow()` call. Consumer side is
 // `defineWorkflow()`, which turns an ordered list of named steps into a
-// `WorkflowEntrypoint.run` body — each step runs inside `step.do` (so its result
+// `WorkflowEntrypoint.run` body: each step runs inside `step.do` (so its result
 // is persisted and skipped on resume). The site owns the `WorkflowEntrypoint`
 // subclass + the wrangler `[[workflows]]` binding (it imports `cloudflare:workers`),
-// exactly as it owns the Queues `queue()` export — this module stays runtime-glue.
+// exactly as it owns the Queues `queue()` export; this module stays runtime-glue.
 
 import type { WorkflowEvent, WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import { LouiseWorkflowError } from "../errors.js";
@@ -25,7 +25,7 @@ import { LouiseWorkflowError } from "../errors.js";
  * the producer is one call, and a create failure is wrapped in
  * {@link LouiseWorkflowError}. `Workflow`/`WorkflowInstance` are the ambient
  * Cloudflare binding types. Pass `id` for idempotency (creating with an existing
- * id throws) — e.g. `publish:pages:42` so a double-publish coalesces.
+ * id throws)—for example, `publish:pages:42` so a double-publish coalesces.
  */
 export async function startWorkflow<P>(
   workflow: Workflow<P>,
@@ -43,11 +43,11 @@ export async function startWorkflow<P>(
  * One durable step in a Louise workflow pipeline. `run` does the work and returns
  * a patch merged into the shared `state` for later steps; the patch is the value
  * `step.do` persists, so on a retry/resume the stored patch is reused rather than
- * `run` being called again. Keep `name` stable — Workflows keys the persisted
+ * `run` being called again. Keep `name` stable—Workflows keys the persisted
  * result by it.
  */
 export interface WorkflowPipelineStep<Env, Params, State extends object> {
-  /** Durable step name — stable across deploys (the persisted-result key). */
+  /** Durable step name—stable across deploys (the persisted-result key). */
   name: string;
   /** Per-step retries/backoff/timeout (Cloudflare's `WorkflowStepConfig`). */
   config?: WorkflowStepConfig;

@@ -1,11 +1,11 @@
 // happy-dom coverage for the editor's block-layer wiring (#182 Phase 2): the
 // on-canvas toolbar (mounted by mountSections) drives moveBlock/removeBlock,
 // which reconcile the store AND mirror the change on the already-rendered page
-// (re-stamping block markers) — then stage a draft via autosave.
+// (re-stamping block markers)—then stage a draft via autosave.
 //
 // Since ADR 0010 there is no separate block toolbar to assert against: one chrome
 // serves every depth, and "this is a block" is a fact about the node's PATH
-// (`0.blocks.<j>`), not about which bar appeared. That is the point — these cases
+// (`0.blocks.<j>`), not about which bar appeared. That is the point—these cases
 // pass unchanged in substance while the layer they exercised stopped existing.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -25,7 +25,7 @@ const BLOCK_CATALOG: BlockCatalog = {
   feature: { label: "Feature", fields: { name: { type: "text" } } },
 };
 
-// A section accepting SEVERAL block types — `+` must open a picker rather than
+// A section accepting SEVERAL block types—`+` must open a picker rather than
 // guessing. `open` bounds nothing (no `allow`), so it takes the whole catalog.
 const MULTI_CATALOG: SectionCatalog = {
   grid: { label: "Grid", fields: {}, blocks: { allow: ["feature", "quote"] } },
@@ -238,7 +238,7 @@ describe("mountSections — multi-type block add-picker", () => {
     toolbarButtons()[3].click(); // + add block after A
     await flush();
 
-    // Nothing inserted yet — the picker asks which type first, bounded by `allow`
+    // Nothing inserted yet—the picker asks which type first, bounded by `allow`
     // (so `aside`, which the catalog has but the section disallows, is absent).
     expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote"]);
     expect(calls.some((c) => c.url === "/louise-fragment")).toBe(false);
@@ -247,7 +247,7 @@ describe("mountSections — multi-type block add-picker", () => {
     await flush();
     await flush();
 
-    // The chosen type landed at index 1 — after A, before B.
+    // The chosen type landed at index 1—after A, before B.
     expect(lastDraftBlocks(calls).map((b) => b._type)).toEqual(["feature", "quote", "feature"]);
     expect(domBlockMarkers(host)).toEqual(["0.blocks.0", "0.blocks.1", "0.blocks.2"]);
     expect(document.querySelector('[aria-label="Add a block"]')).toBeNull(); // picker closed
@@ -289,7 +289,7 @@ describe("mountSections — multi-type block add-picker", () => {
 // Defect 1 from ADR 0010's live QA: a freshly added block-capable section was a
 // dead end. Its `+` lived on a BLOCK's toolbar, and it had no blocks, so there was
 // no `+` anywhere on the page that could give it one. The fix isn't a special
-// case for empty sections — it's that a node with `children` and none of them
+// case for empty sections—it's that a node with `children` and none of them
 // offers its own add, at any depth.
 describe("mountSections — adding the FIRST child of an empty container", () => {
   it("inserts a block into a block-capable section that has none", async () => {
@@ -303,7 +303,7 @@ describe("mountSections — adding the FIRST child of an empty container", () =>
     await flush();
     await flush();
 
-    // It went in at index 0 — the only position an empty list has — and the
+    // It went in at index 0—the only position an empty list has—and the
     // section came back from the fragment route rendering it.
     expect(lastDraftBlocks(calls)).toHaveLength(1);
     expect(domBlockMarkers(host)).toEqual(["0.blocks.0"]);

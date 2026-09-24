@@ -11,8 +11,8 @@ import { pages, siteSettings } from "louise-toolkit/db";
 
 // Fake D1 mirroring test/core/editor.test.ts's makeD1, plus `.raw()`: drizzle's
 // `update().set().where().returning()` reads its rows via `stmt.bind(...).raw()`
-// (row-arrays, decoded by column index), so `handler` returns those row-arrays —
-// a non-empty result means "row updated", `[]` means "not found". Records SQL/binds
+// (row-arrays, decoded by column index), so `handler` returns those row-arrays—a
+// non-empty result means "row updated", `[]` means "not found". Records SQL/binds
 // so a test can assert an UPDATE was issued.
 function makeD1(handler: (sql: string, binds: unknown[]) => unknown[]) {
   const calls: { sql: string; binds: unknown[] }[] = [];
@@ -58,7 +58,7 @@ const collections = {
   pages: { table: pages, fields: ["title", "body"], richFields: ["body"] },
 };
 
-// The Worker `env` is injected via `getEnv` — Astro v6+ removed `locals.runtime.env`,
+// The Worker `env` is injected via `getEnv`—Astro v6+ removed `locals.runtime.env`,
 // so there is no context default (see resolveDeps). Each factory closes over the
 // per-test fake D1 exactly the way a site closes over `env` from `cloudflare:workers`,
 // so calling a handler only reaches D1 through the injected `getEnv`.
@@ -66,7 +66,7 @@ const saveActionFor = (db: D1Database) =>
   louiseSaveAction({ collections, ActionError: FakeActionError, getEnv: () => ({ DB: db }) });
 
 // A minimal Astro Action context: just the middleware-resolved editor off `locals`
-// (the handler's default `getEditor` reads here). No `runtime.env` — the env comes
+// (the handler's default `getEditor` reads here). No `runtime.env`—the env comes
 // from the injected `getEnv`, not the context.
 const makeCtx = (ed: unknown = editor): EditorActionContext => ({ locals: { editor: ed } });
 
@@ -99,7 +99,7 @@ describe("louiseSaveAction", () => {
       { collection: "pages", key: "1", field: "body", value: "<b>hi</b><script>x</script>" },
       makeCtx(),
     );
-    // The stored value is the sanitized HTML — the <script> is gone.
+    // The stored value is the sanitized HTML—the <script> is gone.
     const stored = String(calls[0].binds[0]);
     expect(stored).toContain("<b>hi</b>");
     expect(stored).not.toContain("<script>");
@@ -204,7 +204,7 @@ const saveDraftActionFor = (db: D1Database) =>
 
 // The merge-base / KV-buffer happy path saves a draft version to D1 and is
 // covered by the astro-preview E2E against a real local D1 (there is no async
-// in-memory SQLite harness in this repo) — mirroring versions-route.test.ts. These
+// in-memory SQLite harness in this repo)—mirroring versions-route.test.ts. These
 // cover the Action wrapper contract, which short-circuits before that machinery.
 describe("louiseSaveDraftAction", () => {
   it("input schema requires an integer id and a data object", () => {
@@ -232,7 +232,7 @@ describe("louiseSaveDraftAction", () => {
 
 // Regression for #138 / the Astro v6 `locals.runtime.env` removal: there is no
 // context default for the env, so a config that omits `getEnv` is a wiring error
-// that throws at construction — loudly, up front — instead of silently reading an
+// that throws at construction—loudly, up front—instead of silently reading an
 // `undefined` env and 500-ing per request (which the old `runtime.env` default did
 // under the peer-dep `astro ^7`). The `as unknown as …` casts drop `getEnv` the way
 // an untyped (JS) caller would, exercising the shared `resolveDeps` guard.

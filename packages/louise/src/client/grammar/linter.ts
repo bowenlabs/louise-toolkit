@@ -2,11 +2,11 @@
 //
 // The Harper linter wrapper for the grammar checker (#110). Harper is Automattic's
 // Rust→WASM grammar checker; `harper.js`'s `WorkerLinter` runs the WASM inside a
-// Web Worker, so linting never blocks the editor and — crucially — the text never
+// Web Worker, so linting never blocks the editor and—crucially—the text never
 // leaves the browser (no server, better privacy than a self-hosted service).
 //
 // `harper.js` is an OPTIONAL peer, pulled in via dynamic `import()` only when a
-// site enables grammar checking — so nothing (least of all a multi-MB WASM blob)
+// site enables grammar checking—so nothing (least of all a multi-MB WASM blob)
 // ships to the client bundle otherwise. The `binaryInlined` build base64-inlines
 // the WASM into the JS module, so there's no separate `.wasm` asset for a
 // bundler to resolve. All `harper.js` types are contained here: the wrapper hands

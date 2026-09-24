@@ -2,7 +2,7 @@
 //
 // The property under test is that the chrome has NO per-kind knowledge: given a
 // descriptor it draws the matching ring and buttons, and given a nesting it lights
-// the deepest node — without anything in it knowing what a section, block, or link
+// the deepest node—without anything in it knowing what a section, block, or link
 // is. Every case below drives it purely through `resolve`.
 //
 // It also pins the defect that motivated the model: a container with zero children
@@ -36,7 +36,7 @@ function tree(): { section: HTMLElement; block: HTMLElement; field: HTMLElement 
   return { section, block, field };
 }
 
-/** A resolve that mirrors today's three kinds, chosen purely by path shape — the
+/** A resolve that mirrors today's three kinds, chosen purely by path shape—the
  *  editor's job, which is exactly the point. */
 const resolveLikeToday = (path: NodePath): NodeDescriptor | null => {
   const s = formatNodePath(path);
@@ -95,7 +95,7 @@ describe("mountNodeChrome — deepest wins, with no per-kind knowledge", () => {
     expect(ringed()).toBe(block);
     over(section);
     expect(ringed()).toBe(section);
-    // Exactly one at a time — the old chrome needed 24 hand-written cross-clears
+    // Exactly one at a time—the old chrome needed 24 hand-written cross-clears
     // to hold this invariant; here it is a single assignment.
     expect(document.querySelectorAll(".louise-node-active")).toHaveLength(1);
   });
@@ -113,7 +113,7 @@ describe("mountNodeChrome — deepest wins, with no per-kind knowledge", () => {
 // Under A1 an unresolved node meant "clear", which was right while only
 // ring-worthy things carried a marker. A2 marks everything editable, so the
 // tightest marker under the pointer is usually an inline field that resolves to
-// no chrome by design — and stopping there would make the page feel dead
+// no chrome by design—and stopping there would make the page feel dead
 // wherever text sits (ADR 0010 A2, #346).
 describe("mountNodeChrome — walking outward past nodes with no chrome", () => {
   it("rings the anchor when the pointer is on its inline label", () => {
@@ -159,7 +159,7 @@ describe("mountNodeChrome — walking outward past nodes with no chrome", () => 
   });
 
   it("still prefers the deepest node that DOES resolve", () => {
-    // The walk must not weaken deepest-wins — it only skips what has no chrome.
+    // The walk must not weaken deepest-wins—it only skips what has no chrome.
     const { block, field } = tree();
     dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
 
@@ -192,7 +192,7 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
 
     over(field);
     // The pre-0010 link layer hand-built a separate wrench-only toolbar to get
-    // this. Here it is the absence of `ordered` and `children` — and the button
+    // this. Here it is the absence of `ordered` and `children`—and the button
     // is named after the field, since "Layout & settings" describes a container's
     // panel and this one opens a single field.
     expect(shownButtons()).toEqual(["link"]);
@@ -223,7 +223,7 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
 
     over(field);
     expect(field.getAttribute("data-louise-tone")).toBe("value");
-    // The bar re-tones with the node — the defect that shipped in 0.20.0 was a
+    // The bar re-tones with the node—the defect that shipped in 0.20.0 was a
     // link bar stuck on the section palette.
     expect(toolbar()?.getAttribute("data-louise-tone")).toBe("value");
   });
@@ -231,7 +231,7 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
   it("has a palette rule for every NodeTone, ring and bar", () => {
     // jsdom doesn't cascade injected stylesheets, so this pins the CSS text: a
     // tone that `describeNode` can return but the palette doesn't style renders
-    // an INVISIBLE selection (no ring, white glyphs on transparent) — a failure
+    // an INVISIBLE selection (no ring, white glyphs on transparent)—a failure
     // that looks like a resolver bug, which is why it gets a named test.
     const el = document.createElement("div");
     el.setAttribute("data-louise-node", "0");
@@ -334,8 +334,8 @@ describe("mountNodeChrome — the empty-container affordance", () => {
   });
 
   // Live QA on the deployed site, 2026-07-28. An empty ORDERED container shows
-  // both adds at once — its own list gets a sibling `+`, its children's list gets
-  // a child `+` — and they rendered as two identical glyphs, side by side,
+  // both adds at once—its own list gets a sibling `+`, its children's list gets
+  // a child `+`—and they rendered as two identical glyphs, side by side,
   // separable only by tooltip. Callbacks being distinct (above) says nothing about
   // what an editor can see.
   it("draws the two adds with different glyphs, not two identical pluses", () => {
@@ -390,7 +390,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
     });
 
     over(el);
-    // Better a vague name than a wrong one — the editor is about to be asked
+    // Better a vague name than a wrong one—the editor is about to be asked
     // which type anyway.
     expect(shownButtons()).toContain("Add the first one");
   });
@@ -420,7 +420,7 @@ describe("mountNodeChrome — actions carry the path", () => {
     byLabel("Add block after").click();
     byLabel("Layout & settings").click();
 
-    // Paths, not indices — nothing here needs re-deriving after a re-stamp.
+    // Paths, not indices—nothing here needs re-deriving after a re-stamp.
     expect(seen).toEqual([
       "move-1:0.blocks.1",
       "move1:0.blocks.1",

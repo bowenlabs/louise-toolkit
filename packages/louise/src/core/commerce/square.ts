@@ -1,6 +1,6 @@
-// louise-toolkit/commerce/square — Square API client (V8-native). Raw fetch +
+// louise-toolkit/commerce/square—Square API client (V8-native). Raw fetch +
 // crypto.subtle only, no `square` Node SDK (it assumes Node and won't run on
-// Workers). Square exposes a single versioned REST surface — everything lives
+// Workers). Square exposes a single versioned REST surface—everything lives
 // under the /v2/* namespace and the release is pinned with the `Square-Version`
 // header (there is no /v1 vs /v2 split like Stripe's; date-versioning rides on
 // top of v2). Mirrors the shape of commerce/index.ts (Stripe) and
@@ -8,7 +8,7 @@
 //
 // Read-first: this site treats Square as the source of truth for commerce, so
 // the bulk here is catalog/orders/customers/loyalty/subscriptions reads. The
-// one write path is checkout — verify prices against the live catalog, create
+// one write path is checkout—verify prices against the live catalog, create
 // an Order, then charge it with a Web Payments SDK card token via /v2/payments
 // (card data is tokenized in the browser and never reaches the Worker).
 
@@ -29,7 +29,7 @@ export interface SquareConfig {
   /** Transient-failure retry. OFF by default, so existing callers are byte-for-byte
    *  unchanged; turn it on for unattended paths (cron sync, queue consumers) where
    *  a 429 or a 5xx should cost a second rather than fail the job. Never retries a
-   *  4xx other than 429 — those are our bug, not Square's weather. */
+   *  4xx other than 429—those are our bug, not Square's weather. */
   retry?: SquareRetryConfig;
   /** Abandon a request after this long, per attempt. Default 10 s. Raise it for
    *  a slow bulk call (a large catalog upsert, an image upload). */
@@ -46,14 +46,14 @@ export interface SquareRetryConfig {
 }
 
 // Pin the API version so an account-default upgrade can't silently change
-// response shapes (Square best practice — mirrors what the SDKs pin at
+// response shapes (Square best practice—mirrors what the SDKs pin at
 // release). This matches the default baked into the square@44 SDK
 // (BaseClient sends `Square-Version: 2026-01-22`). Bump deliberately.
 export const SQUARE_VERSION = "2026-01-22";
 
 /**
- * Which Square environment an application id belongs to, from its format —
- * `sandbox-sq0idb-…` or `sq0idp-…` — or `null` when it is neither (a
+ * Which Square environment an application id belongs to, from its format—`sandbox-sq0idb-…`
+ * or `sq0idp-…`—or `null` when it is neither (a
  * placeholder, a typo, an access token pasted into the wrong variable).
  *
  * The Web Payments SDK rejects a malformed id with "…not in the correct
@@ -103,15 +103,15 @@ interface SquareErrorBody {
 }
 
 /**
- * A non-2xx answer from Square — an {@link UpstreamError}, so `message` is safe
+ * A non-2xx answer from Square—an {@link UpstreamError}, so `message` is safe
  * to show a user and Square's own `detail` stays in the logs. `status` and
- * `code` (Square's first error code, e.g. `"NOT_FOUND"`) are what let a caller
- * tell "not found" (a 404 is often an answer — no loyalty program, no such
+ * `code` (Square's first error code, for example, `"NOT_FOUND"`) are what let a caller
+ * tell "not found" (a 404 is often an answer—no loyalty program, no such
  * card) from a failure, and map a decline to its own copy.
  */
 export class SquareApiError extends UpstreamError {
-  /** Square's error category, e.g. `"PAYMENT_METHOD_ERROR"` — a decline, the
-   *  buyer's to fix — as opposed to `"INVALID_REQUEST_ERROR"`, which is ours. */
+  /** Square's error category, for example, `"PAYMENT_METHOD_ERROR"`—a decline, the
+   *  buyer's to fix—as opposed to `"INVALID_REQUEST_ERROR"`, which is ours. */
   readonly category: string | null;
   constructor(operation: string, status: number, body: SquareErrorBody, raw = "") {
     const first = body.errors?.[0];
@@ -159,7 +159,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * that never opt in. Idempotency is the caller's job and Square's model makes
  * that workable: every mutating endpoint here takes an `idempotency_key`, so a
  * retried POST that actually succeeded server-side collapses rather than
- * double-charging — which is exactly why retrying POSTs is safe at all.
+ * double-charging—which is exactly why retrying POSTs is safe at all.
  */
 async function sqFetch<T>(
   config: SquareConfig,
@@ -187,7 +187,7 @@ async function sqFetch<T>(
             : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
-      // No response (timeout, DNS, connection reset) — retryable in the same
+      // No response (timeout, DNS, connection reset)—retryable in the same
       // way a 5xx is, but there is no status to read.
       lastError = err;
       if (attempt === attempts) throw err;
@@ -239,7 +239,7 @@ function sqDelete<T>(config: SquareConfig, path: string): Promise<T> {
 
 // ── Money ────────────────────────────────────────────────────────────────────
 
-/** Square money is an integer amount in the currency's minor unit (cents) —
+/** Square money is an integer amount in the currency's minor unit (cents):
  *  the shared {@link Money} shape. */
 export type SquareMoney = Money;
 
@@ -251,15 +251,15 @@ export { centsToMajor };
 //
 // A Square Location is a place that sells. Multi-merchant sites map one merchant
 // to one Location: that is what buys per-merchant pricing (`location_overrides`)
-// and per-merchant stock off a single shared catalog, at no extra cost —
-// Locations are free, and the cap is 300.
+// and per-merchant stock off a single shared catalog, at no extra cost—Locations
+// are free, and the cap is 300.
 
 export interface SquareLocation {
   id: string;
   name: string;
   /** ACTIVE | INACTIVE. Inactive locations still resolve but should not be sold at. */
   status: string;
-  /** ISO 4217, e.g. "USD". A location's currency is fixed at creation. */
+  /** ISO 4217, for example, "USD". A location's currency is fixed at creation. */
   currency: string;
   timezone: string | null;
   /** Formatted single-line address, or null when the location has none. */
@@ -305,7 +305,7 @@ function mapLocation(raw: RawLocation): SquareLocation {
   };
 }
 
-/** Every location on the account. GET /v2/locations — unpaginated by design
+/** Every location on the account. GET /v2/locations—unpaginated by design
  *  (Square caps an account at 300 locations and returns them all). */
 export async function listLocations(config: SquareConfig): Promise<SquareLocation[]> {
   const res = await sqGet<{ locations?: RawLocation[] }>(config, "/v2/locations");
@@ -332,7 +332,7 @@ export async function retrieveLocation(
 }
 
 /** A location's editable fields. Structured, not the formatted single line
- *  {@link SquareLocation} reads back — Square needs the parts. */
+ *  {@link SquareLocation} reads back; Square needs the parts. */
 export interface SquareLocationInput {
   name: string;
   businessName?: string;
@@ -345,7 +345,7 @@ export interface SquareLocationInput {
     /** State / province. */
     region?: string;
     postalCode?: string;
-    /** ISO 3166-1 alpha-2, e.g. "US". */
+    /** ISO 3166-1 alpha-2, for example, "US". */
     country?: string;
   };
 }
@@ -372,14 +372,14 @@ function locationBody(input: Partial<SquareLocationInput>) {
 }
 
 /**
- * Create a location. POST /v2/locations. The onboarding call — a new merchant
+ * Create a location. POST /v2/locations. The onboarding call—a new merchant
  * joining a multi-location deploy needs one before anything can be sold there.
  *
  * **Currency is not settable and is not per-request.** Square derives it from
  * the seller account, so every location under one account shares it: an account
  * cannot mix USD and CAD. If a merchant needs a different currency they need a
  * different Square account, which is an onboarding constraint rather than a code
- * one — worth knowing before designing around it.
+ * one—worth knowing before designing around it.
  *
  * The cap is 300 locations per account, including deactivated ones.
  */
@@ -398,11 +398,11 @@ export async function createLocation(
  * Update a location. PUT /v2/locations/{id}.
  *
  * Sparse: only the fields you pass are sent, so this never clears a field by
- * omission — which matters because `address` is a nested object Square replaces
+ * omission—which matters because `address` is a nested object Square replaces
  * wholesale. Passing a partial address replaces the whole address with that
  * partial, so read first if you mean to change one line of it.
  *
- * A location cannot be deleted, only deactivated — set `status` through the
+ * A location cannot be deleted, only deactivated—set `status` through the
  * Square dashboard; the API does not expose it here.
  */
 export async function updateLocation(
@@ -508,7 +508,7 @@ interface CatalogSearchResponse {
 }
 
 /** Where a catalog object is sold. Square models this as "everywhere except" or
- *  "nowhere except" — {@link presentAt} collapses that to a single predicate so
+ *  "nowhere except"—{@link presentAt} collapses that to a single predicate so
  *  callers never re-derive the logic. */
 export interface SquarePresence {
   presentAtAllLocations: boolean;
@@ -546,12 +546,12 @@ export interface SquareVariation extends SquarePresence {
   name: string;
   sku: string | null;
   /** The BASE price. For what a given merchant charges, use
-   *  {@link priceAtLocation} — the override wins where one exists. */
+   *  {@link priceAtLocation}; the override wins where one exists. */
   priceCents: number;
   currency: string;
   /** Per-location price overrides, empty when the base price applies everywhere. */
   locationOverrides: SquareLocationOverride[];
-  /** Object version — pass back to {@link upsertCatalogItem} when updating. */
+  /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
 }
 
@@ -575,7 +575,7 @@ export interface SquareCatalogItem extends SquarePresence {
   description: string;
   imageUrl: string | null;
   variations: SquareVariation[];
-  /** Object version — pass back to {@link upsertCatalogItem} when updating. */
+  /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
 }
 
@@ -679,7 +679,7 @@ export async function retrieveCatalogItem(
 }
 
 /**
- * Batch-retrieve catalog objects by id — used at checkout to verify cart prices
+ * Batch-retrieve catalog objects by id—used at checkout to verify cart prices
  * against the live catalog before charging. POST /v2/catalog/batch-retrieve.
  * Returns a map of variationId → priceCents for the ITEM_VARIATION objects.
  */
@@ -706,8 +706,8 @@ export async function retrieveVariationPrices(
 const BATCH_RETRIEVE_LIMIT = 1000;
 
 /**
- * Which of `ids` still exist in the catalog — present and not deleted,
- * optionally only of one object `type` (e.g. `"MODIFIER"`, so a variation id
+ * Which of `ids` still exist in the catalog—present and not deleted,
+ * optionally only of one object `type` (for example, `"MODIFIER"`, so a variation id
  * can't pass for an add-on). A deleted or unknown id is simply absent. POST
  * /v2/catalog/batch-retrieve, chunked at Square's 1000-id limit; no request at
  * all for an empty list.
@@ -741,7 +741,7 @@ export async function retrieveLiveCatalogObjectIds(
 
 /**
  * Like {@link retrieveVariationPrices}, but resolves each price **at a specific
- * location** — the location's `location_overrides` price where one exists, else
+ * location**—the location's `location_overrides` price where one exists, else
  * the base price.
  *
  * This is the multi-merchant checkout guard. One shared catalog is sold at
@@ -798,7 +798,7 @@ export async function retrieveVariationPricesAt(
 export interface SquareCategory {
   id: string;
   name: string;
-  /** URL-safe slug (e.g. a shop's `?cat=` value). */
+  /** URL-safe slug (for example, a shop's `?cat=` value). */
   slug: string;
   /** Parent category id, or null for a top-level category. */
   parentId: string | null;
@@ -807,7 +807,7 @@ export interface SquareCategory {
   ordinal: number;
 }
 
-/** A single modifier (a size, a milk, an add-on) — name + price adjustment. */
+/** A single modifier (a size, a milk, an add-on)—name + price adjustment. */
 export interface SquareModifier {
   id: string;
   name: string;
@@ -855,7 +855,7 @@ function catalogSlug(name: string): string {
 /**
  * Like {@link listCatalogItems}, but ALSO returns each item's category refs, its
  * `reporting_category`, and its enabled modifier-list bounds. One walk of
- * `/v2/catalog/search` over ITEMs. Square uses -1 for an "unset" min/max — this
+ * `/v2/catalog/search` over ITEMs. Square uses -1 for an "unset" min/max—this
  * normalizes those to 0 (optional / unbounded).
  */
 export async function listCatalogDetailed(config: SquareConfig): Promise<DetailedCatalog> {
@@ -977,7 +977,7 @@ export async function listModifierLists(
 }
 
 export interface CatalogVariationInput {
-  /** Existing Square variation id — pass to update; omit to create a new one. */
+  /** Existing Square variation id—pass to update; omit to create a new one. */
   id?: string;
   /** Stable client key for a NEW variation, echoed back in `idMappings` so the
    *  caller can persist the id Square assigns (ignored when `id` is set). */
@@ -986,10 +986,10 @@ export interface CatalogVariationInput {
   sku?: string;
   priceCents: number;
   currency?: string;
-  /** Current Square version — required when UPDATING an existing variation
+  /** Current Square version—required when UPDATING an existing variation
    *  (Square uses optimistic concurrency; a stale/absent version is rejected). */
   version?: number;
-  /** Per-location price overrides — the multi-merchant pricing lever. Omit to
+  /** Per-location price overrides—the multi-merchant pricing lever. Omit to
    *  sell at the base price everywhere. */
   locationOverrides?: {
     locationId: string;
@@ -1013,7 +1013,7 @@ const MAX_VARIATIONS_PER_ITEM = 250;
 /**
  * Square's rule: a variation may only be present where its parent item is.
  *
- * Violating it does not error — it produces a silent partial state where the
+ * Violating it does not error—it produces a silent partial state where the
  * item renders at a location with no purchasable variation under it. That is
  * miserable to debug in the wild and trivial to catch here, so this throws
  * before the write rather than after.
@@ -1057,7 +1057,7 @@ function assertWritableItem(input: {
 /**
  * Serialize images and taxonomy for a write, omitting what the caller didn't
  * set. Same reasoning as {@link presenceBody}: an absent key means "leave it
- * alone", while an empty array means "clear it" — and sending `[]` by default
+ * alone", while an empty array means "clear it"—and sending `[]` by default
  * would strip every item's imagery on the first price update.
  */
 function presentationBody(input: CatalogPresentationInput) {
@@ -1112,13 +1112,13 @@ function overridesBody(overrides: CatalogVariationInput["locationOverrides"]) {
 
 /**
  * Create or update a catalog ITEM with its ITEM_VARIATIONs (fixed pricing).
- * POST /v2/catalog/object. This is the one catalog WRITE — sites where D1 owns
+ * POST /v2/catalog/object. This is the one catalog WRITE—sites where D1 owns
  * the product and pushes it up (vs. Square-as-source-of-truth reads above) call
  * this to mirror an item and its size/price variations into Square.
  *
  * Omit `id`s to create (Square assigns real ids, returned in `idMappings` keyed
  * by each variation's `clientId`/`#temp` id). To UPDATE, pass the item `id` +
- * each variation `id` AND its current `version` (from a prior retrieve) — Square
+ * each variation `id` AND its current `version` (from a prior retrieve)—Square
  * rejects a write with a stale version. Returns the normalized item with the
  * real ids resolved.
  */
@@ -1129,7 +1129,7 @@ export async function upsertCatalogItem(
     name: string;
     description?: string;
     variations: CatalogVariationInput[];
-    /** Current item version — required when updating an existing ITEM. */
+    /** Current item version—required when updating an existing ITEM. */
     version?: number;
     /** Where the ITEM is sold. Omit for "everywhere". */
     presence?: Partial<SquarePresence>;
@@ -1177,11 +1177,11 @@ export async function upsertCatalogItem(
   return { item: mapCatalogItem(res.catalog_object, new Map()), idMappings };
 }
 
-/** Taxonomy and imagery on a catalog write — the "same picture and category
+/** Taxonomy and imagery on a catalog write—the "same picture and category
  *  everywhere" half of a multi-merchant push. */
 export interface CatalogPresentationInput {
   /**
-   * Existing IMAGE object ids, in display order — the first is the primary.
+   * Existing IMAGE object ids, in display order—the first is the primary.
    * Upload with {@link createCatalogImage} to get one; there is no way to attach
    * raw bytes through this call.
    */
@@ -1190,7 +1190,7 @@ export interface CatalogPresentationInput {
   categoryIds?: string[];
   /**
    * The single category Square attributes this item to in its own sales
-   * reports. Must also appear in `categoryIds` — Square derives one from the
+   * reports. Must also appear in `categoryIds`—Square derives one from the
    * other inconsistently otherwise, and a reporting category the item isn't in
    * is how a product goes missing from a sales breakdown while looking correct
    * in the dashboard.
@@ -1214,8 +1214,8 @@ export interface CatalogItemInput extends CatalogPresentationInput {
  * Upsert many ITEMs in one call. POST /v2/catalog/batch-upsert.
  *
  * The per-object {@link upsertCatalogItem} costs one request per item, which
- * turns a full catalog push into a rate-limit problem. This batches them —
- * Square allows up to 1,000 objects per request across at most 10 batches, and
+ * turns a full catalog push into a rate-limit problem. This batches them—Square
+ * allows up to 1,000 objects per request across at most 10 batches, and
  * this splits the input accordingly.
  *
  * The whole request is atomic: if any object is rejected, none are written. That
@@ -1295,7 +1295,7 @@ export interface SquareCatalogImage {
 /**
  * Upload an image and get back a catalog IMAGE object. POST /v2/catalog/images.
  *
- * The only way to get an id for {@link CatalogPresentationInput.imageIds} — the
+ * The only way to get an id for {@link CatalogPresentationInput.imageIds}—the
  * catalog write takes ids, never bytes, so this runs first and its `id` feeds
  * the upsert.
  *
@@ -1304,7 +1304,7 @@ export interface SquareCatalogImage {
  * in a way that reads as a Square-side rejection.
  *
  * Pass `objectId` to attach the image to an existing ITEM in one call. Omit it
- * to create a free-standing image and attach it via a later write — which is
+ * to create a free-standing image and attach it via a later write—which is
  * what you want when pushing many items that share one picture, since uploading
  * the same bytes per item bills and stores per item.
  *
@@ -1352,7 +1352,7 @@ export async function createCatalogImage(
 /**
  * A catalog object exactly as Square returned it.
  *
- * Deliberately open — an index signature, not a modelled interface. The whole
+ * Deliberately open—an index signature, not a modelled interface. The whole
  * point of {@link readModifyWriteCatalog} is that fields this client does not
  * know about survive the round trip, and a closed type would invite callers to
  * rebuild the object from the parts it names, which is the bug being prevented.
@@ -1370,12 +1370,12 @@ export type SquareCatalogObject = {
  * Square documents this failure verbatim: *"If a client reads an object at an
  * older API version and writes it back at a newer version, fields that were
  * introduced between those two versions will be absent from the request, and the
- * server will interpret that absence"* — as an intentional clear. The same hazard
+ * server will interpret that absence"*—as an intentional clear. The same hazard
  * applies to any read-modify-write that reconstructs the object from the fields
  * it happens to model: whatever it didn't model is silently erased.
  *
  * So this never rebuilds. It reads the raw object, hands that object to
- * `mutate`, and writes back what it got — with the version Square returned (for
+ * `mutate`, and writes back what it got—with the version Square returned (for
  * optimistic concurrency) and the same pinned `Square-Version` on both calls,
  * which is what makes the round trip symmetrical.
  *
@@ -1387,7 +1387,7 @@ export type SquareCatalogObject = {
  * ```
  *
  * `mutate` may edit in place or return a replacement. Returning `null` or
- * `undefined` from an in-place edit is normal — only a returned object replaces.
+ * `undefined` from an in-place edit is normal—only a returned object replaces.
  *
  * Prefer {@link upsertCatalogItem} when creating or wholesale-replacing an item;
  * this is for touching one field of something that already exists, which is
@@ -1409,7 +1409,7 @@ export async function readModifyWriteCatalog(
 
   // Captured BEFORE the mutator runs: it edits in place, so reading this
   // afterwards would read whatever the mutator left there. The version must be
-  // the one THIS read returned — that is the whole optimistic-concurrency
+  // the one THIS read returned—that is the whole optimistic-concurrency
   // contract. A concurrent write bumps it and Square rejects ours rather than
   // silently overwriting someone else's change.
   const version = read.object.version;
@@ -1492,8 +1492,8 @@ export type SquareInventoryChange =
  * Apply inventory changes. POST /v2/inventory/changes/batch-create.
  *
  * Note the direction of truth: D1 owns price, presence and placement, but
- * **Square owns inventory counts**. This exists for the reconcile path — a
- * physical recount, or seeding a new merchant's opening stock — not for mirroring
+ * **Square owns inventory counts**. This exists for the reconcile path—a
+ * physical recount, or seeding a new merchant's opening stock—not for mirroring
  * a D1 number over Square's on every sync.
  */
 export async function batchChangeInventory(
@@ -1545,7 +1545,7 @@ export async function batchChangeInventory(
   }));
 }
 
-/** Set one variation's absolute on-hand count at one location — the common case
+/** Set one variation's absolute on-hand count at one location—the common case
  *  of {@link batchChangeInventory}, named for what it does. */
 export function setPhysicalCount(
   config: SquareConfig,
@@ -1566,16 +1566,16 @@ export function setPhysicalCount(
 // ── Orders ────────────────────────────────────────────────────────────────────
 
 /**
- * An order line item — either a catalog variation reference (Square applies the
+ * An order line item—either a catalog variation reference (Square applies the
  * catalog price + taxes) OR an ad-hoc line (explicit name + price), for charges
- * with no catalog object behind them (e.g. a manufacturing deposit).
+ * with no catalog object behind them (for example, a manufacturing deposit).
  */
 export type SquareOrderLineItem =
   | {
       catalogObjectId: string;
       quantity: number;
       /**
-       * Selected modifiers (catalog object ids — the modifier, not its list).
+       * Selected modifiers (catalog object ids—the modifier, not its list).
        * Square prices these into the line from the catalog, so they are
        * server-authoritative: pass ids through, never a client-quoted amount.
        */
@@ -1584,7 +1584,7 @@ export type SquareOrderLineItem =
   | { name: string; priceCents: number; quantity: number; currency?: string };
 
 /**
- * An order-level charge Square adds on top of the line items — shipping is the
+ * An order-level charge Square adds on top of the line items—shipping is the
  * usual one. Applied in the `SUBTOTAL_PHASE` (before taxes, so it can itself be
  * taxed) or the `TOTAL_PHASE` (after). Defaults to subtotal, untaxed, which is
  * a flat shipping fee.
@@ -1612,7 +1612,7 @@ export interface SquareAddress {
   /** State / province. */
   administrativeDistrictLevel1: string;
   postalCode: string;
-  /** ISO 3166-1 alpha-2, e.g. "US". */
+  /** ISO 3166-1 alpha-2, for example, "US". */
   country: string;
 }
 
@@ -1620,8 +1620,8 @@ export interface SquareAddress {
  * How the order reaches the customer. Created in the `PROPOSED` state; the
  * seller advances it from POS or the Dashboard.
  *
- * A pickup is either `asap` — Square computes the ready time from the prep
- * duration, the order-ahead café case — or `scheduled` at a specific instant,
+ * A pickup is either `asap`—Square computes the ready time from the prep
+ * duration, the order-ahead café case—or `scheduled` at a specific instant,
  * the "collect your beans Tuesday" case. Which of those a shop offers, and how
  * `pickupAt` is chosen, is policy that belongs to the caller.
  */
@@ -1632,7 +1632,7 @@ export type SquareFulfillment =
       schedule:
         | {
             type: "asap";
-            /** Minutes until the order is ready — the shop's prep time, a whole
+            /** Minutes until the order is ready: the shop's prep time, a whole
              *  number ≥ 1. Required: how long a kitchen takes is the shop's fact,
              *  and a guessed default would promise customers the wrong time. */
             prepMinutes: number;
@@ -1652,14 +1652,14 @@ export type SquareFulfillment =
  * Order-level pricing behaviour, sent as `order.pricing_options`.
  *
  * Square applies **nothing** by default to an API-created order. Dashboard tax
- * settings reach POS and Square Online on their own, but not `CreateOrder` — so
+ * settings reach POS and Square Online on their own, but not `CreateOrder`—so
  * a storefront that omits this charges pre-tax, silently, and the merchant
  * finds out at reconciliation. There is no error to notice.
  *
  * Two documented foot-guns:
  *
  *   - It must be nested INSIDE `order`. At the request root Square ignores it
- *     without complaint — the call succeeds and the total is simply wrong.
+ *     without complaint—the call succeeds and the total is simply wrong.
  *     That is why this is a field on the input rather than something a caller
  *     assembles into the body themselves.
  *   - Never combine `auto_apply_taxes` with an explicit `order.taxes[]`;
@@ -1673,7 +1673,7 @@ export interface SquarePricingOptions {
    * Whether Square filters those `tax_ids` by the order's `location_id` is
    * strongly implied by Square staff but never stated in the docs. A seller
    * with different rates per location should confirm it against their own
-   * catalog — two locations, two rates, one shared item — before trusting it.
+   * catalog—two locations, two rates, one shared item—before trusting it.
    * If both rates apply, that case needs an explicit location→tax-object map
    * rather than this flag (#392).
    */
@@ -1690,12 +1690,12 @@ export interface SquareOrder {
   totalTaxMoney: SquareMoney;
   /** Automatic + explicit discounts, as Square applied them. */
   totalDiscountMoney: SquareMoney;
-  /** The sum of {@link SquareServiceCharge}s (e.g. shipping). */
+  /** The sum of {@link SquareServiceCharge}s (for example, shipping). */
   totalServiceChargeMoney: SquareMoney;
   referenceId: string | null;
   customerId: string | null;
   createdAt: string | null;
-  /** When money settled — the accounting axis, and null until an order closes. */
+  /** When money settled—the accounting axis, and null until an order closes. */
   closedAt: string | null;
   updatedAt: string | null;
   lineItems: {
@@ -1759,7 +1759,7 @@ function mapOrder(o: RawOrder): SquareOrder {
  * the authoritative total + taxes). POST /v2/orders.
  */
 /** One line item in Square's wire shape. Shared by {@link createOrder} and
- *  {@link createPaymentLink} so the two can't drift — an ad-hoc item (no
+ *  {@link createPaymentLink} so the two can't drift—an ad-hoc item (no
  *  catalog object) must carry `base_price_money`, a catalog-backed one must
  *  NOT, since Square prices that from the catalog. */
 function orderLineItemBody(li: SquareOrderLineItem) {
@@ -1782,7 +1782,7 @@ function orderLineItemBody(li: SquareOrderLineItem) {
 
 /** `pricing_options` in Square's wire shape. Shared by {@link createOrder} and
  *  {@link calculateOrder} so a previewed total cannot be computed under
- *  different rules from the one that is charged — the single thing a preview
+ *  different rules from the one that is charged—the single thing a preview
  *  exists to guarantee. `undefined` when unset, so the key is omitted from the
  *  body rather than sent as null. */
 function pricingOptionsBody(pricing: SquarePricingOptions | undefined) {
@@ -1811,7 +1811,7 @@ function recipientBody(r: SquareFulfillmentRecipient) {
 }
 
 /** An ASAP pickup's prep time as the ISO 8601 duration Square wants. Refuses a
- *  value it would otherwise have to round or clamp — that would change the ready
+ *  value it would otherwise have to round or clamp—that would change the ready
  *  time the customer is shown without anyone noticing. */
 function prepDuration(minutes: number): string {
   if (!Number.isInteger(minutes) || minutes < 1) {
@@ -1859,7 +1859,7 @@ function fulfillmentBody(f: SquareFulfillment) {
 }
 
 /**
- * The pricing-relevant half of an order — everything Square actually computes
+ * The pricing-relevant half of an order—everything Square actually computes
  * a total from. Shared VERBATIM by {@link createOrder} and
  * {@link calculateOrder} so a quoted total cannot be computed under different
  * rules than the one charged. That is the single thing a preview exists to
@@ -1867,7 +1867,7 @@ function fulfillmentBody(f: SquareFulfillment) {
  *
  * Deliberately excludes `reference_id` and `fulfillments`: neither is a pricing
  * input, and a preview typically runs while the customer is still typing their
- * address — a half-filled SHIPMENT fulfillment would fail validation on a call
+ * address—a half-filled SHIPMENT fulfillment would fail validation on a call
  * whose only job is to quote a number.
  */
 function orderPricingBody(input: {
@@ -1898,7 +1898,7 @@ export async function createOrder(
     customerId?: string;
     referenceId?: string;
     idempotencyKey?: string;
-    /** Taxes and discounts are opt-in — see {@link SquarePricingOptions}.
+    /** Taxes and discounts are opt-in—see {@link SquarePricingOptions}.
      *  Omitting this charges exactly the line-item prices, pre-tax. */
     pricingOptions?: SquarePricingOptions;
     /** Order-level charges (shipping). Pass the same list to
@@ -1936,7 +1936,7 @@ export async function retrieveOrder(config: SquareConfig, orderId: string): Prom
 
 /**
  * Square's hard ceiling on `location_ids` in one `/v2/orders/search` call.
- * Documented, not discovered: an 11th id is a 400, not a truncation.
+ * Documented, not discovered: an eleventh id is a 400, not a truncation.
  */
 const SEARCH_ORDERS_LOCATION_LIMIT = 10;
 
@@ -1958,7 +1958,7 @@ function sortOrdersBy(
   return [...orders].sort((a, b) => {
     const x = a[dateField];
     const y = b[dateField];
-    // Nulls last in both directions — an order with no timestamp on the axis
+    // Nulls last in both directions—an order with no timestamp on the axis
     // you asked about (an OPEN order has no `closed_at`) is not the newest
     // thing that happened, which is where it would land unguarded.
     if (x === y) return 0;
@@ -1979,8 +1979,8 @@ export async function searchOrdersByCustomer(
   const limit = input.limit ?? 50;
   const orders: SquareOrder[] = [];
   // Same endpoint, same 10-location ceiling. It bites later here than in
-  // `searchOrders` — an account history is usually asked for one location at a
-  // time — but a multi-location portal asking "everywhere she's shopped" is
+  // `searchOrders`—an account history is usually asked for one location at a
+  // time—but a multi-location portal asking "everywhere she's shopped" is
   // exactly the request that trips it.
   for (const locationIds of chunkLocationIds(input.locationIds)) {
     const res = await sqPost<{ orders?: RawOrder[] }>(config, "/v2/orders/search", {
@@ -1996,7 +1996,7 @@ export async function searchOrdersByCustomer(
   }
   // `limit` is per request, so N chunks can return N×limit. Re-sort and trim so
   // the caller gets the newest `limit` orders overall, which is what they asked
-  // for — not the newest `limit` from each arbitrary group of ten.
+  // for—not the newest `limit` from each arbitrary group of ten.
   if (input.locationIds.length <= SEARCH_ORDERS_LOCATION_LIMIT) return orders;
   return sortOrdersBy(orders, "createdAt", "DESC").slice(0, limit);
 }
@@ -2006,7 +2006,7 @@ export async function searchOrdersByCustomer(
  * POST /v2/orders/search. The reporting rail: best-sellers, per-merchant sales
  * totals, reorder suggestions.
  *
- * Defaults to `COMPLETED` only. That matters for money questions — leaving the
+ * Defaults to `COMPLETED` only. That matters for money questions—leaving the
  * state filter open counts `OPEN` (unpaid) and `CANCELED` orders as revenue,
  * which quietly inflates every downstream report.
  *
@@ -2035,7 +2035,7 @@ export async function searchOrders(
 ): Promise<SquareOrder[]> {
   // An empty list would be a caller bug that Square answers with a 400 and a
   // message about `location_ids`, several layers from where it was introduced.
-  // Refusing here names it. (Not returning [] — a reporting call that silently
+  // Refusing here names it. (Not returning []—a reporting call that silently
   // yields no rows reads as "no sales", which is worse than an error.)
   if (input.locationIds.length === 0) {
     throw new Error("Square searchOrders needs at least one location id");
@@ -2117,7 +2117,7 @@ export async function calculateOrder(
     /** Must match what {@link createOrder} will be given, or the previewed
      *  total is not the total that gets charged. */
     pricingOptions?: SquarePricingOptions;
-    /** Likewise — the same list {@link createOrder} will be given. */
+    /** Likewise—the same list {@link createOrder} will be given. */
     serviceCharges?: SquareServiceCharge[];
   },
 ): Promise<SquareOrder> {
@@ -2269,7 +2269,7 @@ export async function createCustomer(
 }
 
 /**
- * Find-or-create a Square customer by email — used to (optionally) link a site
+ * Find-or-create a Square customer by email—used to (optionally) link a site
  * account to Square. Returns the customer and whether it was created. The
  * names and phone apply only when creating; to change a customer that already
  * exists, use {@link updateCustomer}.
@@ -2285,7 +2285,7 @@ export async function ensureCustomer(
 
 /**
  * Change fields on an existing customer. PUT /v2/customers/{id}. Sparse: only
- * the fields you pass are sent, so an omitted one is left as it is — pass
+ * the fields you pass are sent, so an omitted one is left as it is—pass
  * `null` to clear it.
  */
 export async function updateCustomer(
@@ -2349,7 +2349,7 @@ function mapCard(c: RawCard): SquareCard {
 }
 
 /**
- * Save a card on file from a Web Payments token, attached to a customer — the
+ * Save a card on file from a Web Payments token, attached to a customer—the
  * card id then seeds a subscription. POST /v2/cards.
  */
 export async function createCard(
@@ -2396,7 +2396,7 @@ export async function listCards(
 }
 
 /**
- * Disable (remove) a card on file — but only if it is on file for
+ * Disable (remove) a card on file—but only if it is on file for
  * `customerId`. Returns `false`, without disabling anything, when the card
  * doesn't exist or belongs to someone else, so a guessed card id from one
  * signed-in customer can't remove another's. POST /v2/cards/{id}/disable.
@@ -2459,7 +2459,7 @@ export async function retrieveLoyaltyAccountByCustomer(
 }
 
 export interface SquareLoyaltyAccrualRule {
-  /** `"SPEND"`, `"VISIT"`, `"ITEM_VARIATION"` or `"CATEGORY"` — as Square sends it. */
+  /** `"SPEND"`, `"VISIT"`, `"ITEM_VARIATION"` or `"CATEGORY"`—as Square sends it. */
   type: string;
   points: number;
   /** SPEND: points are earned per this much spend. */
@@ -2476,7 +2476,7 @@ export interface SquareLoyaltyProgram {
   id: string;
   /** `"ACTIVE"` or `"INACTIVE"`. An inactive program earns nothing. */
   status: string;
-  /** What the seller calls points, as set in the Dashboard, e.g. Star / Stars. */
+  /** What the seller calls points, as set in the Dashboard, for example, Star / Stars. */
   terminology: { one: string; other: string } | null;
   accrualRules: SquareLoyaltyAccrualRule[];
   /** Cheapest first. */
@@ -2522,8 +2522,8 @@ function mapLoyaltyProgram(p: RawLoyaltyProgram): SquareLoyaltyProgram {
 }
 
 /**
- * The seller's loyalty program — its earn rules, reward tiers and what it
- * calls points — or `null` when the seller has none (Square answers 404).
+ * The seller's loyalty program—its earn rules, reward tiers and what it
+ * calls points—or `null` when the seller has none (Square answers 404).
  * GET /v2/loyalty/programs/main (`main` is Square's alias for the seller's one
  * program). Any other failure throws, so a transient error isn't mistaken for
  * "no program" and cached as one.
@@ -2661,12 +2661,12 @@ export interface TeamMemberInput {
   familyName?: string;
   emailAddress?: string;
   phoneNumber?: string;
-  /** Your own id for this person (e.g. a portal_user id) — round-trips on the
+  /** Your own id for this person (for example, a portal_user id)—round-trips on the
    *  Square record so you can correlate without a separate lookup. */
   referenceId?: string;
   status?: "ACTIVE" | "INACTIVE";
   /** Assign to all current + future locations (the common default). Omit and
-   *  Square assigns none — you manage locations yourself. */
+   *  Square assigns none; you manage locations yourself. */
   assignAllLocations?: boolean;
 }
 
@@ -2727,7 +2727,7 @@ export async function retrieveTeamMember(
 /**
  * Search team members. POST /v2/team-members/search. The Team API has no email
  * filter, so pass `status`/`locationIds` and match the rest client-side (by
- * `referenceId` or `emailAddress`). Coffee teams are small — one page suffices,
+ * `referenceId` or `emailAddress`). Coffee teams are small—one page suffices,
  * so this returns the first page (up to `limit`, default 200).
  */
 export async function searchTeamMembers(
@@ -2752,7 +2752,7 @@ export interface SquareTimecard {
   startAt: string;
   endAt: string | null;
   status: string;
-  /** Optimistic-concurrency version — pass it back to update/close the card. */
+  /** Optimistic-concurrency version—pass it back to update/close the card. */
   version: number;
   /** Wage on the card (Square defaults it from the team member). An update is a
    *  full replace and Square requires a wage, so pass this back when closing. */
@@ -2837,7 +2837,7 @@ export async function createTimecard(
 }
 
 /**
- * Update a timecard — typically to close it (clock out) by setting `endAt`.
+ * Update a timecard—typically to close it (clock out) by setting `endAt`.
  * PUT /v2/labor/timecards/{id} REPLACES the record, so pass its full state
  * (location, team member, start) plus the current `version` from the prior
  * create/retrieve (Square rejects a stale version).
@@ -2872,7 +2872,7 @@ export async function updateTimecard(
   return mapTimecard(res.timecard);
 }
 
-/** Retrieve one timecard (e.g. to read its current version before closing).
+/** Retrieve one timecard (for example, to read its current version before closing).
  *  GET /v2/labor/timecards/{id}. */
 export async function retrieveTimecard(
   config: SquareConfig,
@@ -2887,7 +2887,7 @@ export async function retrieveTimecard(
 
 /**
  * Search timecards (labor reporting). POST /v2/labor/timecards/search. Filter
- * by team member(s), location(s), and/or a start-time window (RFC 3339).
+ * by team members, locations, and/or a start-time window (RFC 3339).
  * Returns the first page newest-first (up to `limit`, default 200).
  */
 export async function searchTimecards(
@@ -2929,7 +2929,7 @@ export interface SquareInvoice {
   version: number;
   status: string;
   orderId: string | null;
-  /** Square-hosted pay page — present after publishing with SHARE_MANUALLY. */
+  /** Square-hosted pay page—present after publishing with SHARE_MANUALLY. */
   publicUrl: string | null;
   paymentRequests: SquareInvoicePaymentRequest[];
 }
@@ -2983,8 +2983,8 @@ export interface InvoicePaymentRequestInput {
  * Create a DRAFT invoice for an existing OPEN Square Order (the order carries
  * the line items + total; the invoice adds the payment schedule + recipient).
  * POST /v2/invoices. Publish with {@link publishInvoice} to start collecting.
- * `deliveryMethod` "SHARE_MANUALLY" (default) yields a `publicUrl` after publish
- * — send your own email linking to it; "EMAIL" has Square email the customer.
+ * `deliveryMethod` "SHARE_MANUALLY" (default) yields a `publicUrl` after publish;
+ * send your own email linking to it; "EMAIL" has Square email the customer.
  */
 export async function createInvoice(
   config: SquareConfig,
@@ -3046,7 +3046,7 @@ export async function publishInvoice(
   return mapInvoice(res.invoice);
 }
 
-/** Retrieve one invoice — e.g. to read each payment request's completed amount
+/** Retrieve one invoice—for example, to read each payment request's completed amount
  *  when reconciling a webhook. GET /v2/invoices/{id}. */
 export async function retrieveInvoice(
   config: SquareConfig,
@@ -3063,23 +3063,23 @@ export async function retrieveInvoice(
 // ── Payment links (hosted checkout) ──────────────────────────────────────────
 //
 // A Square-hosted checkout page, created server-side and handed to the buyer as
-// a URL. The alternative rail — the Web Payments SDK card field in
-// `commerce/square-web` — keeps the buyer on your page but mounts a CARD FIELD
+// a URL. The alternative rail—the Web Payments SDK card field in
+// `commerce/square-web`—keeps the buyer on your page but mounts a CARD FIELD
 // ONLY. A hosted link gets Apple Pay / Google Pay / Cash App Pay from a config
 // flag, which is what a shopper standing in a shop with a phone actually wants.
 //
 // Prefer the `order` form over `quickPay`: it is the only one that carries a
 // `referenceId` onto the resulting Order, and the reference is how a sale is
 // attributed later (it survives into the merchant's own Square dashboard and
-// the Transactions export). Its line items may be ad-hoc — `SquareOrderLineItem`
-// already models the no-catalog-object variant — so a site can sell from its own
+// the Transactions export). Its line items may be ad-hoc—`SquareOrderLineItem`
+// already models the no-catalog-object variant—so a site can sell from its own
 // catalog without mirroring anything into Square first.
 
 export interface SquarePaymentLink {
   id: string;
   /** Optimistic-concurrency version; required to update the link. */
   version: number;
-  /** The short `square.link` URL — the one to put in front of a buyer. */
+  /** The short `square.link` URL—the one to put in front of a buyer. */
   url: string;
   /** The long `checkout.square.site` form. Absent on some responses. */
   longUrl: string | null;
@@ -3119,7 +3119,7 @@ export interface SquareAcceptedPaymentMethods {
 /** Optional presentation/behavior of the hosted checkout page. */
 export interface SquareCheckoutOptions {
   /** Absolute https URL Square returns the buyer to after payment. Carry your
-   *  own order/session id in its query string — this is the only hook you get
+   *  own order/session id in its query string—this is the only hook you get
    *  for a branded confirmation page. */
   redirectUrl?: string;
   /** Square collects and validates the shipping address on its own page. */
@@ -3155,7 +3155,7 @@ export interface PaymentLinkOrderInput {
  * Create a Square-hosted checkout page.
  * POST /v2/online-checkout/payment-links.
  *
- * Exactly one of `quickPay` or `order` — passing both is rejected here rather
+ * Exactly one of `quickPay` or `order`—passing both is rejected here rather
  * than by Square, so the mistake surfaces at the call site.
  *
  * `idempotencyKey` defaults to a random UUID, which is right for an interactive
@@ -3281,8 +3281,8 @@ export async function verifySquareSignature(
  * A Square webhook event, validated to the envelope this integration reads.
  * Run it via {@link import("./index.js").parseWebhookEvent} AFTER
  * {@link verifySquareSignature}. Square nests the changed resource under
- * `data.object`, keyed by `data.type` (e.g. `payment`, `invoice`, `order`) with
- * `data.id` the resource id — the handler switches on the top-level `type` and
+ * `data.object`, keyed by `data.type` (for example, `payment`, `invoice`, `order`) with
+ * `data.id` the resource id—the handler switches on the top-level `type` and
  * reads/re-fetches from there. The object stays an untyped record (its shape
  * depends on `data.type`); extra envelope keys (merchant_id, created_at, …) are
  * dropped.

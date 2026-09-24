@@ -1,5 +1,5 @@
 // happy-dom coverage for the fragment-render add path (#182 Phase 3): "+ Add
-// section" no longer save-and-reloads — it POSTs the new item to /louise-fragment,
+// section" no longer save-and-reloads—it POSTs the new item to /louise-fragment,
 // splices the returned server-rendered HTML into the page in place, re-stamps it
 // to the target index, wires its inline fields, and stages a draft via autosave.
 
@@ -73,7 +73,7 @@ function mount(host: HTMLElement, initial: SectionItem[]): () => void {
 }
 
 /** SECTION markers only. One attribute covers fields too since A2, so sections
- *  are the depth-1 paths — a bare index, no key after it. */
+ *  are the depth-1 paths—a bare index, no key after it. */
 const sectionMarkers = (host: HTMLElement) =>
   [...host.querySelectorAll("[data-louise-node]")]
     .map((s) => s.getAttribute("data-louise-node"))

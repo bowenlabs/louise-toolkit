@@ -1,10 +1,10 @@
-// Louise inline-editing chrome — styled to feel like a modern inline editor: soft blue
+// Louise inline-editing chrome—styled to feel like a modern inline editor: soft blue
 // accent, clean light surface, rounded corners, a small floating action bar.
 // Injected once at mount (only ever loaded in edit mode) so nothing ships to
 // public page loads.
 
-// The brand font (@font-face for Roboto Flex) is base64-inlined into this CSS —
-// no Google Fonts, no runtime fetch — and pulled in with `?raw` so it's baked
+// The brand font (@font-face for Roboto Flex) is base64-inlined into this CSS—no
+// Google Fonts, no runtime fetch—and pulled in with `?raw` so it's baked
 // into the bundle exactly like the Phosphor icons (see icons.tsx).
 import brandFontsCss from "../theme/fonts.css?raw";
 
@@ -1676,7 +1676,7 @@ html[data-louise-studio] body {
 export function injectStyles(): void {
   if (document.getElementById("louise-styles")) return;
   // Brand font (bundled @font-face, base64) + chrome CSS, injected only on Louise
-  // surfaces (edit mode) — never on public page loads. The font is self-contained
+  // surfaces (edit mode)—never on public page loads. The font is self-contained
   // in brandFontsCss, so there's no third-party request and nothing to preconnect.
   const style = document.createElement("style");
   style.id = "louise-styles";

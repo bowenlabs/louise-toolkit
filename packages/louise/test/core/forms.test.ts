@@ -53,7 +53,7 @@ describe("columnName", () => {
   });
 });
 
-// The fold: `inquiries` is now derived from `inquiriesForm` — assert its shape
+// The fold: `inquiries` is now derived from `inquiriesForm`—assert its shape
 // still matches the framework's long-standing table so no base migration is
 // forced (email + message NOT NULL, the rest nullable, id pk + created_at).
 describe("inquiriesForm (built-in default form)", () => {
@@ -186,7 +186,7 @@ describe("tanstackFormValidators", () => {
   it("returns a PROMISE, which is why these belong in TanStack's async slots", () => {
     // Verified against @tanstack/solid-form 1.33.2 (#316): a promise-returning
     // function in `onChange` is stored AS THE PROMISE, so `meta.errors` holds a
-    // pending Promise instead of a string — nothing throws, the message never
+    // pending Promise instead of a string—nothing throws, the message never
     // renders, and submit never disables. `onChangeAsync` resolves it correctly.
     //
     // Pinned here rather than upstream because the toolkit's own docs showed the

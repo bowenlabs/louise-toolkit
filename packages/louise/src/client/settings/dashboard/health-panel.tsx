@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// The site-health detail panel (#106 Phase 2) — the drill-in behind the Home
+// The site-health detail panel (#106 Phase 2)—the drill-in behind the Home
 // dashboard's Health card. It reads the full persisted HealthSummary (with the
 // broken-link details the card's count doesn't carry) from /api/louise/health
 // and lists what's wrong in plain language. Two issue classes offer a one-click
-// AI fix (Phase 2b/2c): image descriptions (alt text) and SEO title/description —
-// each with a manual "Review in …" fallback. It's a hidden framework panel:
+// AI fix (Phase 2b/2c): image descriptions (alt text) and SEO title/description—each
+// with a manual "Review in …" fallback. It's a hidden framework panel:
 // reachable from the card's action, not a top-strip button.
 
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
@@ -16,7 +16,7 @@ import { Icon } from "../../icons.jsx";
 import { apiGet, louiseQueryKeys } from "../query.js";
 import type { DashboardApi } from "./types.js";
 
-/** Compact relative-time ("2h ago"); falls back to the date for older scans. */
+/** Compact relative time ("just now", minutes or hours ago); falls back to the date for older scans. */
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";
@@ -129,7 +129,7 @@ export function HealthPanel(props: {
                 Last checked {timeAgo(s().checkedAt) || "recently"}.
               </p>
 
-              {/* Broken links — listed for review; nothing to auto-fix here. */}
+              {/* Broken links—listed for review; nothing to auto-fix here. */}
               <section class="louise-settings-group">
                 <h3 class="louise-settings-title">Broken links</h3>
                 <Show

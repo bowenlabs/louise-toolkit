@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/db — D1 Sessions API seam for read-your-writes across read
+// louise-toolkit/db—D1 Sessions API seam for read-your-writes across read
 // replicas (#69). With D1 read replication enabled, a read can land on a replica
 // that hasn't caught up to a just-committed write ("my edit vanished"). The
 // Sessions API fixes that: open a session anchored at a bookmark, run queries
@@ -9,7 +9,7 @@
 // The editor's resume read (loading the latest draft after an auto-save) is the
 // path that must never go stale. Since the write (auto-save POST) and the read
 // (edit-mode page load) are *separate* requests, the write's bookmark has to be
-// persisted and fed back on the read — we carry it in an HttpOnly cookie so it
+// persisted and fed back on the read—we carry it in an HttpOnly cookie so it
 // round-trips automatically across a same-origin POST and the next top-level
 // navigation, no client code required. Writes always target the primary, so
 // this only shapes the read path.
@@ -19,24 +19,24 @@
  *  implements, so either flows through {@link db} unchanged. */
 export type D1Client = D1Database | D1DatabaseSession;
 
-/** The cookie the editor persists its latest D1 bookmark in. HttpOnly — only the
+/** The cookie the editor persists its latest D1 bookmark in. HttpOnly—only the
  *  server-side resume read consumes it; no client script needs it. */
 export const D1_BOOKMARK_COOKIE = "louise_d1_bookmark";
 
-/** How long the bookmark cookie lives, in seconds: 8 hours — an editing
+/** How long the bookmark cookie lives, in seconds: 8 hours—an editing
  *  session. Past that, a resume read simply starts unconstrained. */
 export const D1_BOOKMARK_MAX_AGE = 60 * 60 * 8;
 
 /**
  * Open a D1 Sessions-API session for read-your-writes across read replicas,
  * degrading to the raw binding when the runtime predates the Sessions API (or a
- * test double lacks `withSession`) — behaviour is then identical to a single,
+ * test double lacks `withSession`)—behaviour is then identical to a single,
  * un-replicated D1. Pass:
  *  - `"first-primary"` on a write path (the first query hits the primary, so the
  *    bookmark it returns reflects the write), then persist {@link d1Bookmark};
  *  - a persisted bookmark on a resume read, to anchor reads at that write;
  *  - `"first-unconstrained"` (the default) to start a read session with no
- *    bookmark yet — the first query may hit any replica.
+ *    bookmark yet—the first query may hit any replica.
  */
 export function openD1Session(
   DB: D1Database,

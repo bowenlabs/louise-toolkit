@@ -1,6 +1,6 @@
 import type { SectionCatalog } from "louise-toolkit/client";
 
-// The site's catalog of preconfigured section types — SCHEMA ONLY (field defs);
+// The site's catalog of preconfigured section types—SCHEMA ONLY (field defs);
 // the bespoke render components live in ./*.astro and are wired in
 // ../components/Sections.astro. This fields-only catalog is what the on-page
 // block-builder (SectionsMount → mountSections) reads to render each section's
@@ -8,8 +8,8 @@ import type { SectionCatalog } from "louise-toolkit/client";
 export const SECTIONS: SectionCatalog = {
   // The action row (button + install chip) is now a first-class `blocks` layer
   // (#182 / ADR 0005): a mixed, ordered list of `cta` / `install` blocks (see
-  // ./blocks.ts), each on-canvas (blue ring/toolbar), reorderable in place —
-  // rather than the flat ctaLabel/ctaHref/installCommand fields. badge/heading/
+  // ./blocks.ts), each on-canvas (blue ring/toolbar), reorderable in place—rather
+  // than the flat ctaLabel/ctaHref/installCommand fields. badge/heading/
   // headingAccent/tagline stay direct section fields.
   hero: {
     label: "Hero",
@@ -28,7 +28,7 @@ export const SECTIONS: SectionCatalog = {
   },
   // Reference slice for the first-class block layer (#182 / ADR 0005): the grid's
   // cards are now `feature` blocks (see ./blocks.ts) rather than a homogeneous
-  // `items` array — each card is an on-canvas block (blue ring/toolbar), reordered
+  // `items` array—each card is an on-canvas block (blue ring/toolbar), reordered
   // and deleted in place. `heading`/`headingLine2` stay direct section fields.
   featureGrid: {
     label: "Feature grid",
@@ -95,7 +95,7 @@ export const SECTIONS: SectionCatalog = {
       heading: { type: "text", label: "Heading", placeholder: "Add a heading" },
       body: { type: "textarea", label: "Body", placeholder: "Add supporting text" },
       ctaLabel: { type: "text", label: "Button label", placeholder: "Button text" },
-      // Edited in the dock — a link target has no visible text to click on.
+      // Edited in the dock—a link target has no visible text to click on.
       ctaHref: { type: "text", label: "Button link", placeholder: "https://…", inline: false },
     },
   },
@@ -122,12 +122,12 @@ export const SECTIONS: SectionCatalog = {
     fields: {
       // Uploaded via the dock upload/clear control; renders a placeholder until set.
       image: { type: "image", label: "Image" },
-      // Edited in the dock — alt text has no visible node to edit in place.
+      // Edited in the dock—alt text has no visible node to edit in place.
       alt: { type: "text", label: "Alt text", placeholder: "Describe the image", inline: false },
       caption: { type: "text", label: "Caption", placeholder: "Add a caption" },
     },
   },
-  // Contact form — only the surrounding copy is section-edited; the inputs come
+  // Contact form—only the surrounding copy is section-edited; the inputs come
   // from the built-in `inquiries` form (louise-toolkit/forms), which owns validation.
   contact: {
     label: "Contact form",

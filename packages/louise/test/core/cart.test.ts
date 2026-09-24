@@ -171,7 +171,7 @@ describe("repairCart", () => {
   });
 
   it("takes a custom key", () => {
-    // e.g. a shop where a gift note makes two otherwise-identical lines distinct.
+    // for example, a shop where a gift note makes two otherwise-identical lines distinct.
     const cart = [
       { ...line("V1", "Mug", 1800), note: "For Sam" },
       { ...line("V1", "Mug", 1800), note: "For Alex" },

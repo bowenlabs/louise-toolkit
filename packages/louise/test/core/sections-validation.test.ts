@@ -32,7 +32,7 @@ const catalog: SectionCatalog = {
       },
     },
   },
-  // A discriminated array *field* (named `items` — `blocks` is reserved for the
+  // A discriminated array *field* (named `items`—`blocks` is reserved for the
   // first-class block layer, ADR 0005): each item is one of several variants,
   // keyed by `kind`. `itemFields` (caption) is shared; each variant layers its own.
   gallery: {
@@ -62,7 +62,7 @@ const catalog: SectionCatalog = {
   // Opts into the first-class block layer (ADR 0005): `blocks` on a `page` item
   // is a validated, ordered list of catalog blocks (heading | image), bounded to
   // 1..3. Coexists with `gallery`, whose discriminated *field* is named `items`
-  // (not `blocks`) — the field path and the block layer never collide.
+  // (not `blocks`)—the field path and the block layer never collide.
   page: {
     label: "Page",
     fields: { title: { type: "text" } },
@@ -93,7 +93,7 @@ const blockCatalog: BlockCatalog = {
   heading: {
     label: "Heading",
     fields: { text: { type: "text", validation: (r) => r.required().max(120) } },
-    // Block-level inspector settings (ADR 0005 §5) — `align` is required.
+    // Block-level inspector settings (ADR 0005 §5)—`align` is required.
     settings: { align: { type: "text", inline: false, validation: (r) => r.required() } },
   },
   image: {
@@ -103,7 +103,7 @@ const blockCatalog: BlockCatalog = {
       caption: { type: "text" },
     },
   },
-  // A block whose own field is a discriminated array — proves block fields reuse
+  // A block whose own field is a discriminated array—proves block fields reuse
   // `SectionField` verbatim (nested `array` + `discriminator` still validated).
   carousel: {
     label: "Carousel",
@@ -432,7 +432,7 @@ describe("validateSections — first-class blocks layer (ADR 0005)", () => {
   });
 
   it("treats every block as unknown when no block catalog is supplied", async () => {
-    // A section opts into blocks but the caller omits `blockCatalog` — surfaces
+    // A section opts into blocks but the caller omits `blockCatalog`—surfaces
     // the misconfiguration rather than silently passing.
     const e = (
       await validateSections(catalog, [
@@ -541,7 +541,7 @@ describe("validateSections — select (closed choice)", () => {
 
   it("rejects a value outside the option set, naming what was expected", async () => {
     // The failure this type exists to prevent: as `text`, a typo was not an
-    // error at all — it degraded silently to a default at render time.
+    // error at all—it degraded silently to a default at render time.
     const e = await selErrors([{ _type: "band", tone: "chartreuse" }]);
     expect(e).toHaveLength(1);
     expect(e[0].path).toBe("sections[0].tone");
@@ -590,13 +590,13 @@ describe("validateSections — select (closed choice)", () => {
     const stray = await errs([{ _type: "grid", hidden: ["a", "z"] }]);
     expect(stray).toHaveLength(1);
     expect(stray[0].message).toContain('unknown value "z"');
-    // The single-select shape is not valid for a multiple field — an editor
+    // The single-select shape is not valid for a multiple field—an editor
     // bug, not a degraded mode.
     expect(await errs([{ _type: "grid", hidden: "a" }])).toHaveLength(1);
   });
 
   it("rejects everything when a select declares no options", async () => {
-    // A select with no options can't accept any value — better a loud rejection
+    // A select with no options can't accept any value—better a loud rejection
     // than silently behaving like a text field.
     const empty: SectionCatalog = { x: { label: "X", fields: { k: { type: "select" } } } };
     const e = (await validateSections(empty, [{ _type: "x", k: "anything" }])).filter(
@@ -610,7 +610,7 @@ describe("sanitizeSectionsRichText — nested array item fields", () => {
   // `SectionField` lets an `array` declare a richText item field, and a real
   // catalog does: Astroid's `faq.items[].answer` is richText rendered with
   // `set:html`. The sanitizer walked one level, so that value was stored exactly
-  // as an editor typed it — the "never store raw HTML" invariant held everywhere
+  // as an editor typed it—the "never store raw HTML" invariant held everywhere
   // except the one place a catalog author would naturally reach for it.
   const nested: SectionCatalog = {
     faq: {
@@ -640,7 +640,7 @@ describe("sanitizeSectionsRichText — nested array item fields", () => {
     expect(out[0].intro).toBe("SANITIZED");
     const items = out[0].items as Record<string, unknown>[];
     expect(items[0].answer).toBe("SANITIZED");
-    // A non-richText sibling is left exactly as stored — sanitizing it would
+    // A non-richText sibling is left exactly as stored—sanitizing it would
     // corrupt legitimate text containing angle brackets.
     expect(items[0].question).toBe(PAYLOAD);
   });
@@ -738,7 +738,7 @@ describe("validateSections — link (destination)", () => {
   it("accepts booleans for a toggle and rejects a stringly one", async () => {
     expect(await linkErrors([{ _type: "cta", newTab: true }])).toEqual([]);
     expect(await linkErrors([{ _type: "cta", newTab: false }])).toEqual([]);
-    // "false" would be truthy in the site render — coercing here would turn a bad
+    // "false" would be truthy in the site render—coercing here would turn a bad
     // write into a wrong page instead of an error.
     expect(await linkErrors([{ _type: "cta", newTab: "false" }])).toHaveLength(1);
   });

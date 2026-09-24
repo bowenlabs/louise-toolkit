@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
 // A query-free media-library picker for surfaces mounted OUTSIDE the Settings'
-// TanStack Query provider — chiefly the sections dock (`mountSections` renders
+// TanStack Query provider—chiefly the sections dock (`mountSections` renders
 // its own Solid root with no QueryClient, so the Settings' `MediaUrlPicker`,
 // which uses `useQuery`, can't be reused there). Lazily fetches the same
 // `/api/louise/media` list the Media panel uses and calls `onPick` with the
@@ -38,7 +38,7 @@ export function MediaPicker(props: { onPick: (url: string) => void; label?: stri
   const toggle = () => {
     const next = !open();
     setOpen(next);
-    // Fetch once, on first open — the dock is often opened without ever browsing.
+    // Fetch once, on first open—the dock is often opened without ever browsing.
     if (next && items() === null) void load();
   };
 
@@ -61,7 +61,7 @@ export function MediaPicker(props: { onPick: (url: string) => void; label?: stri
                     type="button"
                     title={item.key}
                     // The thumbnail is decorative inside this button (alt=""), so
-                    // the button itself has to carry the name — `title` alone is
+                    // the button itself has to carry the name—`title` alone is
                     // not a reliable accessible name (WCAG 4.1.2).
                     aria-label={`Use ${item.key}`}
                     onClick={() => {

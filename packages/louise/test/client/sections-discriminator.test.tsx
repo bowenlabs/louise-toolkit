@@ -12,7 +12,7 @@ const CATALOG: SectionCatalog = {
   gallery: {
     label: "Gallery",
     fields: {
-      // A discriminated array *field* — named `items`, not `blocks`: `blocks` is
+      // A discriminated array *field*—named `items`, not `blocks`: `blocks` is
       // reserved for the first-class block layer on `SectionItem` (ADR 0005).
       items: {
         type: "array",
@@ -84,8 +84,8 @@ const cog = () =>
       .querySelector(".louise-chrome-toolbar:not(.louise-block-toolbar)")
       ?.querySelectorAll("button") ?? []),
   ].find((b) => b.getAttribute("aria-label") === "Layout & settings") ?? null;
-/** Hover the section and click its ⚙ to open the inspector (where the array UI —
- *  per-variant add buttons + per-item switcher — now lives). */
+/** Hover the section and click its ⚙ to open the inspector (where the array
+ *  UI—per-variant add buttons + per-item switcher—now lives). */
 const openInspector = () => {
   over(document.querySelector("[data-louise-node]") as Node);
   click(cog());

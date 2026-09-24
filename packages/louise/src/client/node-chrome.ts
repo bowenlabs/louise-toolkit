@@ -2,7 +2,7 @@
 //
 // The on-canvas chrome, rebuilt on the editable-node model (ADR 0010).
 //
-// One ring, one toolbar, one keyboard path — for every kind of node. What the
+// One ring, one toolbar, one keyboard path—for every kind of node. What the
 // chrome draws is entirely a function of the {@link NodeDescriptor} the editor
 // returns from `resolve`:
 //
@@ -15,7 +15,7 @@
 // is the point: the pre-0010 version hardcoded three layers with three attributes
 // and 24 hand-written cross-clear calls, and every new kind of node cost another
 // arm in a hit-test ladder plus another O(n) of suppression. Here a new kind of
-// node — a shared value, an external source (Phase B) — is a change in the
+// node—a shared value, an external source (Phase B)—is a change in the
 // EDITOR's resolve, and nothing here moves.
 
 import {
@@ -28,13 +28,13 @@ import {
   samePath,
 } from "./node.js";
 
-// Toolbar glyphs — phosphor SVGs (currentColor → monochrome), not unicode/emoji,
+// Toolbar glyphs—phosphor SVGs (currentColor → monochrome), not unicode/emoji,
 // so they render consistently everywhere.
 import arrowUp from "@phosphor-icons/core/assets/regular/arrow-up.svg?raw";
 import arrowDown from "@phosphor-icons/core/assets/regular/arrow-down.svg?raw";
 import plusIcon from "@phosphor-icons/core/assets/regular/plus.svg?raw";
 // Deliberately NOT a second bare plus. An empty ordered container shows both add
-// buttons at once — one for a sibling, one for its first child — and live QA on
+// buttons at once—one for a sibling, one for its first child—and live QA on
 // 2026-07-28 found them rendering as two identical `+` glyphs side by side,
 // distinguishable only by tooltip. `list-plus` reads as "put an item in this
 // list", which is exactly what the child add does.
@@ -42,12 +42,12 @@ import listPlus from "@phosphor-icons/core/assets/regular/list-plus.svg?raw";
 import xIcon from "@phosphor-icons/core/assets/regular/x.svg?raw";
 import wrench from "@phosphor-icons/core/assets/regular/wrench.svg?raw";
 
-/** What the chrome can do to a node. Every callback receives the node's path —
- *  the chrome holds no indices of its own, so nothing here needs re-deriving
+/** What the chrome can do to a node. Every callback receives the node's path—*
+  the chrome holds no indices of its own, so nothing here needs re-deriving
  *  after a re-stamp. */
 export interface NodeChromeActions {
   /** Resolve a path to what that node can do. Return `null` for a path the editor
-   *  doesn't recognise — the chrome then treats the element as unmarked. */
+   *  doesn't recognise—the chrome then treats the element as unmarked. */
   resolve: ResolveNode;
   /** Reorder within the parent list. Only reachable for an `ordered` node. */
   onMove: (path: NodePath, delta: -1 | 1) => void;
@@ -55,7 +55,7 @@ export interface NodeChromeActions {
   onDelete: (path: NodePath) => void;
   /** Add a sibling next to this node. Only reachable for an `ordered` node. */
   onAddSibling: (path: NodePath) => void;
-  /** Add the FIRST child of an empty container — the affordance that did not
+  /** Add the FIRST child of an empty container—the affordance that did not
    *  exist before 0010, which made a freshly added block-capable section a dead
    *  end (no child to hover, so no `+` anywhere). */
   onAddChild: (path: NodePath) => void;
@@ -63,7 +63,7 @@ export interface NodeChromeActions {
   onInspect: (path: NodePath) => void;
 }
 
-/** Every marked node. One selector, built once — the outward walk uses it per
+/** Every marked node. One selector, built once—the outward walk uses it per
  *  step, and per-hover string concatenation is not free on a big page. */
 const SELECTOR = `[${NODE_MARKER_ATTR}]`;
 
@@ -76,20 +76,20 @@ const CHROME_KEYSHORTCUTS = "Enter Alt+ArrowUp Alt+ArrowDown Delete";
  *  glyphs, which need 4.5:1 (WCAG 1.4.3), while the ring is a non-text graphic and
  *  stays on brand at 3:1. Each `--*-strong` below is measured against white.
  *  (Pre-0010 the link layer had no background rule at all and its bar rendered
- *  orange — a defect that could only happen because each layer hand-built its own
+ *  orange—a defect that could only happen because each layer hand-built its own
  *  chrome.)
  *
- *  The Phase B tones (`shared` green, `external` yellow — ADR 0010) each use ONE
+ *  The Phase B tones (`shared` green, `external` yellow—ADR 0010) each use ONE
  *  value for both roles: `#15803d` is 5.02:1 and `#a16207` is 4.92:1 against
  *  white, so both clear the toolbar's 4.5:1 without a darker variant. Yellow is
- *  deliberately NOT `--louise-yellow` (`#ca8a04`): that value is 2.94:1 — it
- *  fails the ring's 3:1 as well as the bar's 4.5:1 — and the token is already
+ *  deliberately NOT `--louise-yellow` (`#ca8a04`): that value is 2.94:1—it
+ *  fails the ring's 3:1 as well as the bar's 4.5:1—and the token is already
  *  loaded with save/publish semantics. Same reasoning gives `shared` its own
  *  token rather than `--louise-green`.
  *
  *  The base rules carry a slate fallback so a tone this palette doesn't know
  *  degrades to a visible neutral ring and a legible bar (slate-500 4.76:1 /
- *  slate-600 7.0:1) — without it, an unhandled tone rendered NO ring and white
+ *  slate-600 7.0:1)—without it, an unhandled tone rendered NO ring and white
  *  glyphs on transparent, which reads as a resolver bug and sends you debugging
  *  the wrong file. */
 const TONE_CSS = `
@@ -173,7 +173,7 @@ function makeChromeFocusable(el: HTMLElement): void {
   el.dataset.louiseKbd = "1";
 }
 
-/** A marker rendered with `display: contents` generates NO box — the ring can't
+/** A marker rendered with `display: contents` generates NO box—the ring can't
  *  paint and the toolbar, measured from a zero rect, lands at the viewport origin.
  *  Silent and confusing, so name it once. The fix is on the SITE. */
 let warnedBoxlessMarker = false;
@@ -259,8 +259,8 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
       [addSibling, !!ordered],
       // Only when EMPTY: a container with children is added to via a child's own
       // sibling `+`, so showing it too would put two adds on the same bar for the
-      // same list. (An empty ORDERED container still shows two — one for its own
-      // list, one for its children's — which is why they carry different glyphs.)
+      // same list. (An empty ORDERED container still shows two—one for its own
+      // list, one for its children's—which is why they carry different glyphs.)
       [addChild, !!desc.children && desc.children.count === 0],
       [cog, !!desc.fields],
     ] as const) {
@@ -279,21 +279,21 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     name(addSibling, `Add ${what} after`);
     // "Layout & settings" describes a CONTAINER's panel. A value node has no
     // position and no children, so its wrench is the whole toolbar and opens a
-    // single field — naming it "Layout & settings" describes neither what it
+    // single field—naming it "Layout & settings" describes neither what it
     // opens nor what it opens it on. Under A2 this is the common case, since
     // every non-inline field is now a node.
     const valueOnly = !ordered && !desc.children;
     name(cog, valueOnly && desc.label ? desc.label : "Layout & settings");
     // The CHILD's name, never the container's. `desc.label` describes this node,
     // so reusing it here produced "Add the first Hero" on a hero whose children
-    // are CTAs — right next to "Add Hero after", which means something else
+    // are CTAs—right next to "Add Hero after", which means something else
     // entirely. The editor supplies the child's name, or none when the container
     // takes several types and there is no singular answer to give.
     name(addChild, `Add the first ${desc.children?.label ?? "one"}`);
   };
 
   const activate = (path: NodePath, el: HTMLElement, desc: NodeDescriptor): void => {
-    // One active node, so suppression is assignment — not a cross-clear per layer.
+    // One active node, so suppression is assignment—not a cross-clear per layer.
     if (active && active.el !== el) {
       active.el.classList.remove("louise-node-active");
       active.el.removeAttribute("data-louise-tone");
@@ -313,8 +313,8 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
    *
    * Under A1 an unresolved node meant "clear", which was correct while only
    * ring-worthy things carried a marker. Now the render marks everything editable,
-   * so the tightest marker under the pointer is usually an inline field — a
-   * heading, a CTA's label — which resolves to no chrome by design. Stopping
+   * so the tightest marker under the pointer is usually an inline field—a
+   * heading, a CTA's label—which resolves to no chrome by design. Stopping
    * there would mean hovering a button's text clears the ring instead of ringing
    * the button, and the whole page would feel dead wherever text sits.
    *
@@ -379,7 +379,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   /** After a delete the focused node is gone; move focus to whatever now sits at
    *  that spot so keyboard flow isn't dropped to <body>. */
   const refocusAfterDelete = (path: NodePath): void => {
-    // Read the position BEFORE clearing — `clear()` nulls `active`.
+    // Read the position BEFORE clearing—`clear()` nulls `active`.
     const idx = active?.desc.ordered?.index ?? 0;
     clear();
     // Siblings share this node's parent path and its depth. Comparing the parent
@@ -395,7 +395,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   const onFocusIn = (e: FocusEvent): void => {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
-    // Focus inside the toolbar keeps the node active — the keyboard analogue of
+    // Focus inside the toolbar keeps the node active—the keyboard analogue of
     // hovering it.
     if (toolbar.contains(t)) return;
     if (t.hasAttribute(NODE_MARKER_ATTR)) return activateFrom(t);

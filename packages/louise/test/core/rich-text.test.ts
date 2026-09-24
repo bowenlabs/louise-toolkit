@@ -7,10 +7,10 @@ import {
   stripEmptyHeadings,
 } from "../../src/core/security/index.js";
 
-// Ported from themidwestartist.com, where each case was a production bug —
-// `content="<div><p>Don't be a stranger.</p></div>"` in a meta tag, and an
-// emptied `<h3></h3>` hero heading in every screen reader's heading list —
-// plus the three things the port fixed on the way up (marked "fixed").
+// Ported from themidwestartist.com, where each case was a production bug—`content="<div><p>Don't
+// be a stranger.</p></div>"` in a meta tag, and an
+// emptied `<h3></h3>` hero heading in every screen reader's heading list—plus
+// the three things the port fixed on the way up (marked "fixed").
 
 describe("plainText", () => {
   it("flattens the markup that shipped to production", () => {
@@ -41,7 +41,7 @@ describe("plainText", () => {
   });
 
   it("fixed: an out-of-range numeric escape is dropped, not thrown", () => {
-    // String.fromCodePoint(99999999) throws a RangeError — one bad stored
+    // String.fromCodePoint(99999999) throws a RangeError—one bad stored
     // string would take the page down.
     expect(plainText("<p>ok&#99999999;&#x110000; still</p>")).toBe("ok still");
   });

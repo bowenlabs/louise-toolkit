@@ -8,7 +8,7 @@ import {
 } from "../../src/core/db/session.js";
 
 /** A D1 binding whose `withSession` returns a session that echoes a fixed
- *  bookmark — the minimum the Sessions-API seam touches. */
+ *  bookmark—the minimum the Sessions-API seam touches. */
 function makeSessioned(bookmark: string | null = "bk-1"): D1Database {
   const session = {
     prepare: () => ({}) as never,
@@ -25,7 +25,7 @@ describe("openD1Session / d1Bookmark", () => {
   });
 
   it("degrades to the raw binding when the runtime has no Sessions API", () => {
-    // A test double / older runtime without `withSession` — behaviour is then
+    // A test double / older runtime without `withSession`—behaviour is then
     // identical to a single, un-replicated D1.
     const raw = { prepare: () => ({}) } as unknown as D1Database;
     const client = openD1Session(raw);

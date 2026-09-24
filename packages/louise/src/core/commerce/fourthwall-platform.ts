@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce/fourthwall-platform — the Fourthwall **Platform** API
+// louise-toolkit/commerce/fourthwall-platform—the Fourthwall **Platform** API
 // (Open API v1.0). Raw fetch only, no SDK, V8-native.
 //
 // ── Why this is a separate module from `commerce/fourthwall` ─────────────────
 //
 // Different base URL and different auth, but the reason it is a hard split is
 // the TRUST BOUNDARY. `commerce/fourthwall` speaks the Storefront API with a
-// `storefront_token` that is public-safe by design — it reads the catalog and
+// `storefront_token` that is public-safe by design: it reads the catalog and
 // builds a cart, and shipping it to a browser is the intended use. The
 // credentials here are HTTP Basic, they create products and place at-cost
 // fulfillment orders, and they must never leave a Worker.
@@ -20,7 +20,7 @@
 //
 // ── The absent surface, stated up front ─────────────────────────────────────
 //
-// **There is no product UPDATE, and there never will be — the API has none.**
+// **There is no product UPDATE, and there never will be: the API has none.**
 // See {@link createProduct}. This is the single most surprising thing about the
 // Platform API and the reason that comment is where it is.
 
@@ -34,7 +34,7 @@ const PLATFORM_API = "https://api.fourthwall.com/open-api/v1.0";
 export interface FourthwallPlatformConfig {
   /** API username from the Fourthwall dashboard. Server-only. */
   username: string;
-  /** API password. Server-only — never ship this to a browser. */
+  /** API password. Server-only—never ship this to a browser. */
   password: string;
   /**
    * Which shop these credentials belong to, for rate-limit accounting.
@@ -42,13 +42,13 @@ export interface FourthwallPlatformConfig {
    * Fourthwall counts its limits **per shop**, not per API user, so adding
    * users does not buy you more budget. The limiter keys its buckets on this
    * value; it defaults to `username`, which is right for the common
-   * one-user-per-shop case and WRONG if you have several users on one shop —
-   * there each would get its own bucket and the pair would overrun the real
+   * one-user-per-shop case and WRONG if you have several users on one shop—there
+   * each would get its own bucket and the pair would overrun the real
    * limit together. Give every client for a shop the same string.
    */
   rateLimitKey?: string;
   /**
-   * Client-side rate limiting. On by default — see {@link FourthwallRateLimits}
+   * Client-side rate limiting. On by default—see {@link FourthwallRateLimits}
    * for what it does and, more importantly, what it cannot do. Pass `false` to
    * opt out when you coordinate limits yourself.
    */
@@ -57,7 +57,7 @@ export interface FourthwallPlatformConfig {
    * Transient-failure retry. OFF by default, matching `commerce/square`: turn it
    * on for unattended paths (a cron sync, a queue consumer) where a 429 or a 5xx
    * should cost a second rather than fail the job. Never retries a 4xx other
-   * than 429 — those are our bug, not Fourthwall's weather.
+   * than 429—those are our bug, not Fourthwall's weather.
    *
    * **Not safe to enable blindly on order creation.** Unlike Square, Fourthwall
    * has no idempotency-key header, so a retried `POST /external-orders` that
@@ -69,7 +69,7 @@ export interface FourthwallPlatformConfig {
    * Abandon a request after this long, per attempt. Default 10 s.
    *
    * A timed-out request has not necessarily failed: Fourthwall may have
-   * received and applied it. For an order create — no idempotency key — treat
+   * received and applied it. For an order create—no idempotency key—treat
    * a timeout like the 5xx in {@link retry}: look before you try again.
    */
   timeoutMs?: number;
@@ -101,14 +101,14 @@ export interface FourthwallRateLimits {
 // ── Rate limiting ────────────────────────────────────────────────────────────
 //
 // A token bucket per shop, refilling continuously rather than resetting on a
-// window boundary — a fixed window lets 2× the limit through across a boundary,
+// window boundary—a fixed window lets 2× the limit through across a boundary,
 // which is exactly the burst a limiter is for.
 //
 // ⚠️ WHAT THIS CANNOT DO. The buckets live in module state, so they are per
 // ISOLATE. Two Workers isolates, or a cron and a queue consumer running
 // concurrently, each get a full bucket and can together exceed the shop's real
-// budget. This prevents the failure that actually happens — one loop hammering
-// `POST /products` and tripping a limit it could have paced itself under — and
+// budget. This prevents the failure that actually happens—one loop hammering
+// `POST /products` and tripping a limit it could have paced itself under—and
 // does not pretend to be distributed coordination. If you need that, put the
 // calls behind a Durable Object and let it own the pacing.
 
@@ -117,7 +117,7 @@ class TokenBucket {
   private last = Date.now();
   /** Serializes acquisition. Without it, N concurrent callers all observe the
    *  same empty bucket, all sleep the same interval, and all take a token at
-   *  the end — which is the burst this class exists to prevent. */
+   *  the end—which is the burst this class exists to prevent. */
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -180,7 +180,7 @@ function bucketsFor(config: FourthwallPlatformConfig): ShopBuckets | null {
 /**
  * Drop every cached rate-limit bucket.
  *
- * For tests, and for a long-lived process that rotates credentials — the map is
+ * For tests, and for a long-lived process that rotates credentials—the map is
  * keyed by shop and would otherwise hold a bucket per key seen. Not needed in a
  * Worker, where the isolate's lifetime already bounds it.
  */
@@ -278,7 +278,7 @@ async function fwFetch<T>(
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       });
     } catch (err) {
-      // No response (timeout, DNS, connection reset) — retryable like a 5xx,
+      // No response (timeout, DNS, connection reset)—retryable like a 5xx,
       // but with no status to read.
       lastError = err;
       if (attempt === attempts) throw err;
@@ -286,7 +286,7 @@ async function fwFetch<T>(
       continue;
     }
 
-    // 204 and an empty 200 both mean "done, nothing to say" — `res.json()`
+    // 204 and an empty 200 both mean "done, nothing to say"—`res.json()`
     // throws on an empty body, so it must not be the unconditional path.
     const { json, text } = await readUpstreamBody(res);
 
@@ -308,7 +308,7 @@ async function fwFetch<T>(
 // ── Money ────────────────────────────────────────────────────────────────────
 
 /** Fourthwall money: major units (25 = $25.00), matching the Storefront API's
- *  `FwMoney`. Kept separate from `commerce`'s minor-unit `Money` on purpose —
+ *  `FwMoney`. Kept separate from `commerce`'s minor-unit `Money` on purpose:
  *  the two are not interchangeable and a shared name invites a 100× error. */
 export interface FwPlatformMoney {
   value: number;
@@ -319,7 +319,7 @@ export interface FwPlatformMoney {
 //
 // The at-cost fulfillment rail: you sell wherever you like, Fourthwall
 // manufactures and ships, and you pay cost rather than retail. That makes
-// `validate` the important call — it returns the money BEFORE anything is
+// `validate` the important call—it returns the money BEFORE anything is
 // committed, and skipping it means finding out what an order costs by being
 // charged for it.
 
@@ -336,7 +336,7 @@ export interface FwExternalOrderAddress {
   city: string;
   /** State / province. */
   state?: string;
-  /** ISO 3166-1 alpha-2, e.g. "US". */
+  /** ISO 3166-1 alpha-2, for example, "US". */
   country: string;
   zip: string;
   phone?: string;
@@ -425,7 +425,7 @@ function mapOrder(raw: unknown): FwExternalOrder {
 }
 
 /** Some endpoints wrap results as `{ results: [...] }`, others return a bare
- *  array — the same defensiveness the Storefront client carries. */
+ *  array; this is the same defensiveness the Storefront client carries. */
 function unwrap<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   const wrapped = data as { results?: unknown; data?: unknown } | null | undefined;
@@ -437,9 +437,9 @@ function unwrap<T>(data: unknown): T[] {
 /**
  * Price an external order **without creating it**.
  *
- * Call this first, always. It is the only place the at-cost numbers —
- * `manufacturingCost`, `fulfillmentFee`, `shippingCost`, `totalCreatorCost` —
- * are available before money is committed, and an order you did not validate is
+ * Call this first, always. It is the only place the at-cost numbers—`manufacturingCost`,
+ * `fulfillmentFee`, `shippingCost`, `totalCreatorCost`—are
+ * available before money is committed, and an order you did not validate is
  * an order whose cost you learn by being billed for it. Shipping in particular
  * is not knowable up front: it depends on the destination and on how Fourthwall
  * splits the items across facilities.
@@ -462,7 +462,7 @@ export async function validateExternalOrder(
     : [];
   return {
     // Fourthwall answers 200 for a validation that FAILED, with the reasons in
-    // the body — so `res.ok` is not the answer and treating it as one would
+    // the body—so `res.ok` is not the answer and treating it as one would
     // submit an order that was just told it wouldn't work.
     valid: body.valid === true || (body.valid === undefined && problems.length === 0),
     problems,
@@ -527,7 +527,7 @@ export async function getExternalOrder(
     return raw ? mapOrder(raw) : null;
   } catch (err) {
     // A missing order is a legitimate answer, not an exception the caller
-    // should have to catch — same treatment as `retrieveLocation` in the Square
+    // should have to catch—same treatment as `retrieveLocation` in the Square
     // client.
     if (err instanceof UpstreamError && err.status === 404) return null;
     throw err;
@@ -538,8 +538,8 @@ export async function getExternalOrder(
  * Cancel an external order.
  *
  * **Only possible early.** Once Fourthwall has moved the order to `PACKAGED` or
- * `SHIPPED` the goods physically exist and are moving, and the API refuses —
- * which surfaces here as the request throwing, not as a `false`. Check
+ * `SHIPPED` the goods physically exist and are moving, and the API refuses—which
+ * surfaces here as the request throwing, not as a `false`. Check
  * {@link getExternalOrder} first if you want to branch rather than catch.
  *
  * POST /external-orders/{id}/cancel
@@ -571,7 +571,7 @@ export interface FwInventoryEntry {
 }
 
 /**
- * Stock for one product's variants. **Read-only — Fourthwall has no inventory
+ * Stock for one product's variants. **Read-only—Fourthwall has no inventory
  * write endpoint**, so a mirror can reflect stock but never push it.
  *
  * There is also **no inventory webhook**, which is the operationally important
@@ -603,7 +603,7 @@ export async function getProductInventory(
 // ── Products ─────────────────────────────────────────────────────────────────
 
 /**
- * A physical product. Priced by **`profitMargin`, not by retail price** — you
+ * A physical product. Priced by **`profitMargin`, not by retail price**—you
  * choose what you make per unit and Fourthwall derives the price from that plus
  * its own cost. Setting an absolute price is not expressible, so a "price" field
  * copied over from another provider's model is silently ignored.
@@ -619,7 +619,7 @@ export interface FwPhysicalProductInput {
   [key: string]: unknown;
 }
 
-/** A digital product — the only kind that takes an absolute {@link price}. */
+/** A digital product—the only kind that takes an absolute {@link price}. */
 export interface FwDigitalProductInput {
   kind: "digital";
   name: string;
@@ -654,19 +654,19 @@ function mapProduct(raw: unknown): FwPlatformProduct {
 /**
  * Create a product.
  *
- * ## There is no update. Not "not yet" — none.
+ * ## There is no update. Not "not yet"—none.
  *
  * The Platform API exposes no endpoint to change a product's name, description,
  * price, or variants after creation. {@link setProductAvailability} and
  * {@link setProductState} toggle whether an existing product is purchasable, and
  * {@link addProductImages} appends; nothing edits. If a detail is wrong, the
- * only remedy is {@link deleteProduct} and create again — which mints a NEW id,
+ * only remedy is {@link deleteProduct} and create again—which mints a NEW id,
  * so anything of yours keyed on the old one (a catalog mirror row, a saved cart,
  * an order line) has to be reconciled.
  *
  * Two consequences worth designing around:
  *
- *   * Get it right the first time. Validate your own inputs before calling —
+ *   * Get it right the first time. Validate your own inputs before calling;
  *     there is no correction pass.
  *   * Do not treat product ids as stable across an edit. They are stable across
  *     time and unstable across a "change", because a change is a re-create.
@@ -675,7 +675,7 @@ function mapProduct(raw: unknown): FwPlatformProduct {
  *
  * This is the throttled endpoint: **5 per minute per shop**, and it also runs a
  * synchronous mockup render, so it is slow as well as rare. The client paces
- * itself (see {@link FourthwallRateLimits}) rather than failing — a bulk import
+ * itself (see {@link FourthwallRateLimits}) rather than failing—a bulk import
  * of 50 products takes ten minutes by design, and the alternative is 45 of them
  * erroring.
  *
@@ -695,7 +695,7 @@ export async function createProduct(
 }
 
 /**
- * Delete a product. Permanent, and the only way to "edit" one — see
+ * Delete a product. Permanent, and the only way to "edit" one—see
  * {@link createProduct}. DELETE /products/{id}
  */
 export async function deleteProduct(
@@ -725,7 +725,7 @@ export async function setProductAvailability(
   return mapProduct(raw);
 }
 
-/** Set a product's lifecycle state (e.g. `"AVAILABLE"`, `"UNAVAILABLE"`).
+/** Set a product's lifecycle state (for example, `"AVAILABLE"`, `"UNAVAILABLE"`).
  *  POST /products/{id}/state */
 export async function setProductState(
   config: FourthwallPlatformConfig,
@@ -740,7 +740,7 @@ export async function setProductState(
 }
 
 /**
- * Append images to a product. **Appends** — there is no replace, and no update
+ * Append images to a product. **Appends**—there is no replace, and no update
  * (see {@link createProduct}), so an image added by mistake stays.
  *
  * POST /products/{id}/images
@@ -762,8 +762,8 @@ export async function addProductImages(
 /**
  * Verify a Platform API webhook signature.
  *
- * Identical scheme to the Storefront webhooks — base64 HMAC-SHA256 of the raw
- * body in `X-Fourthwall-Hmac-SHA256` — but re-exported here so a server that
+ * Identical scheme to the Storefront webhooks—base64 HMAC-SHA256 of the raw
+ * body in `X-Fourthwall-Hmac-SHA256`—but re-exported here so a server that
  * only imports the Platform module doesn't have to reach into the storefront
  * one, which is the import this module's whole split exists to discourage.
  *

@@ -1,5 +1,5 @@
 // happy-dom coverage for swap-type via the fragment route (#182 Phase 3): the
-// inspector's variant type-switcher no longer save-and-reloads — it swaps the
+// inspector's variant type-switcher no longer save-and-reloads—it swaps the
 // item's variant in the store and re-renders the whole section in place through
 // /louise-fragment (the same seam as block add / array item add-remove). The
 // switcher lives in the ⚙ inspector (the dock is gone, #182), so the test opens

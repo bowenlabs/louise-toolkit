@@ -1,9 +1,9 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the registry-less `media` route. The default `mediaRoute`
+// louise-toolkit/editor—the registry-less `media` route. The default `mediaRoute`
 // (see ./media) tracks uploads in a `media` D1 table. This variant lists the R2
-// bucket directly via `listMedia` — for sites with no media registry table —
-// and accepts a per-request upload `scope` (allowlisted) instead of a fixed one:
+// bucket directly via `listMedia`—for sites with no media registry table—and
+// accepts a per-request upload `scope` (allowlisted) instead of a fixed one:
 //   GET    /api/louise/media          list the bucket newest-first (listMedia)
 //   POST   /api/louise/media          upload a verified image (scope from form)
 //   DELETE /api/louise/media?key=…     delete after a delete-safety reference scan

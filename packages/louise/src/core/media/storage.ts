@@ -1,11 +1,11 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/media — R2 storage helpers.
+// louise-toolkit/media—R2 storage helpers.
 //
 // Transport-agnostic building blocks for a Louise media library: verified
 // uploads, paged listing, deletion, and a delete-safety reference scan. Each
 // takes its binding explicitly (the R2 bucket, and for the scan a raw
-// `D1Database`), so a site names its bindings whatever it likes — Louise pins
+// `D1Database`), so a site names its bindings whatever it likes—Louise pins
 // the *shape*, not the wiring. The HTTP route that guards these with an editor
 // session lives in the generic editor surface (louise-toolkit/worker), not here.
 
@@ -17,7 +17,7 @@ import { sniffImageType } from "./sniff.js";
 export const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface PutMediaOptions {
-  /** Key prefix grouping uploads by purpose (e.g. `"web"`). Default `"web"`. */
+  /** Key prefix grouping uploads by purpose (for example, `"web"`). Default `"web"`. */
   scope?: string;
   /** Max accepted size in bytes. Default {@link DEFAULT_MAX_BYTES} (10 MB). */
   maxBytes?: number;
@@ -62,7 +62,7 @@ export async function putMedia(
   opts: PutMediaOptions = {},
 ): Promise<PutMediaResult> {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-  // Size cap first — reject before buffering anything large.
+  // Size cap first—reject before buffering anything large.
   if (file.size > maxBytes) {
     return { ok: false, status: 413, error: `File too large (max ${maxBytes / 1024 / 1024} MB)` };
   }
@@ -80,7 +80,7 @@ export async function putMedia(
 
   // Read intrinsic dimensions. With an Images binding, `.info()` sizes every
   // format (incl. AVIF/TIFF, which the header parser can't); otherwise fall back
-  // to the header parser — a larger slice than the sniff needs, since a JPEG's
+  // to the header parser—a larger slice than the sniff needs, since a JPEG's
   // SOF can sit past several segments. `.info()` failures fall back too.
   const dims =
     (opts.images && (await imageInfo(opts.images, buffer))) ||
@@ -119,7 +119,7 @@ export function mediaUrl(base: string, key: string): string {
 }
 
 /**
- * Whether `value` is a URL served from this site's media base (`MEDIA_URL`) — an
+ * Whether `value` is a URL served from this site's media base (`MEDIA_URL`)—an
  * asset in the media library rather than an external hotlink. A prefix match on
  * the normalized base (what {@link mediaUrl} builds is always `base` + `/` +
  * key). The empty string is NOT media; a caller that treats "unset" as valid
@@ -157,7 +157,7 @@ export async function listMedia(bucket: R2Bucket, base: string): Promise<MediaIt
 }
 
 /** Remove one object from the bucket. Delete-safety (the reference scan) is the
- *  caller's decision — run {@link findMediaReferences} first when appropriate. */
+ *  caller's decision; run {@link findMediaReferences} first when appropriate. */
 export async function deleteMedia(bucket: R2Bucket, key: string): Promise<void> {
   await bucket.delete(key);
 }
@@ -179,7 +179,7 @@ export interface MediaMeta {
  * table name, `base` its `MEDIA_URL`.
  *
  * Pass `urls` (the specific public URLs a render actually needs) to scope the
- * query to just those rows — a bounded `IN (…)` lookup instead of a full-table
+ * query to just those rows—a bounded `IN (…)` lookup instead of a full-table
  * scan, so this stays cheap even on a large library. Omit `urls` to load the
  * whole registry (only sensible for a small table).
  */

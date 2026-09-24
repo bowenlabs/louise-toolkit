@@ -12,7 +12,7 @@ export interface SecurityHeaderOptions {
   permissionsPolicy?: string;
   /** Override `Strict-Transport-Security`; default is 1y + includeSubDomains. */
   hsts?: string;
-  /** Send `X-Robots-Tag: noindex` — for a preview or admin host. See {@link isNoindexHost}. */
+  /** Send `X-Robots-Tag: noindex`—for a preview or admin host. See {@link isNoindexHost}. */
   noindex?: boolean;
 }
 
@@ -36,9 +36,9 @@ export function louiseSecurityHeaders(response: Response, opts: SecurityHeaderOp
 
 /**
  * Whether `hostname` should be kept out of search indexes: any host ending in
- * one of `suffixes` — by default `.workers.dev`, where Workers preview and
- * per-version URLs live — or starting with one of `prefixes` (your own
- * convention, e.g. `["preview.", "studio."]`; none by default).
+ * one of `suffixes`—by default `.workers.dev`, where Workers preview and
+ * per-version URLs live—or starting with one of `prefixes` (your own
+ * convention, for example, `["preview.", "studio."]`; none by default).
  *
  * A preview deploy is a complete copy of the site, so an indexed one competes
  * with production for its own content. Send the answer as a header from
@@ -62,9 +62,9 @@ export function isNoindexHost(
  * Rewrite only the `style-src` directive of an existing `Content-Security-Policy`
  * header, leaving every other directive (script hashes, etc.) verbatim. A host's
  * `security.csp` hashes its own inline island `<style>`, and a hash in style-src
- * voids `'unsafe-inline'` — which data-driven `style=""` attributes need. Call
+ * voids `'unsafe-inline'`—which data-driven `style=""` attributes need. Call
  * this with the site's desired style-src to restore inline styles. No-op when no
- * CSP header is present (e.g. a dev server).
+ * CSP header is present (for example, a dev server).
  */
 export function rewriteCspStyleSrc(response: Response, styleSrc: string): Response {
   const csp = response.headers.get("content-security-policy");
@@ -85,15 +85,15 @@ function allowsDataScheme(directive: string): boolean {
 }
 
 /**
- * Ensure the response CSP allows `data:` fonts, so Louise's bundled brand font —
- * an inlined `data:` `@font-face` (see `theme/fonts.css`), loaded on every edit
- * surface — isn't blocked by a strict `font-src`. `createLouiseMiddleware` calls
+ * Ensure the response CSP allows `data:` fonts, so Louise's bundled brand font—an
+ * inlined `data:` `@font-face` (see `theme/fonts.css`), loaded on every edit
+ * surface—isn't blocked by a strict `font-src`. `createLouiseMiddleware` calls
  * this for you, so consuming sites need no `font-src` change.
  *
  * Adds `data:` to an existing `font-src`; if the policy has no `font-src` but a
  * `default-src` (which fonts fall back to), it appends a `font-src` derived from
  * `default-src` + `data:` so nothing else is loosened. No-op when there is no CSP
- * header (e.g. a dev server) or when fonts are already unrestricted (neither
+ * header (for example, a dev server) or when fonts are already unrestricted (neither
  * directive present). Idempotent.
  */
 export function allowCspDataFonts(response: Response): Response {

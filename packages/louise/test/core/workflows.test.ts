@@ -27,7 +27,7 @@ const event = (payload: PublishParams): Readonly<WorkflowEvent<PublishParams>> =
   }) as WorkflowEvent<PublishParams>;
 
 // A fake `step` whose `do(name, config?, cb)` just records the call and runs the
-// callback synchronously — enough to exercise the runner without a real Workflows
+// callback synchronously—enough to exercise the runner without a real Workflows
 // runtime (there is no in-repo Workflows harness; live execution needs wrangler).
 function fakeStep() {
   const calls: { name: string; config?: WorkflowStepConfig }[] = [];

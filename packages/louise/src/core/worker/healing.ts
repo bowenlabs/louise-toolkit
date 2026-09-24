@@ -1,9 +1,9 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/worker — `withHealing`: self-healing recovery for Worker
+// louise-toolkit/worker—`withHealing`: self-healing recovery for Worker
 // routes.
 //
-// Louise primitives never throw a raw `Error` — every failure is a typed
+// Louise primitives never throw a raw `Error`—every failure is a typed
 // `LouiseError` carrying a machine-readable `.code` (DB_ERROR, CACHE_ERROR,
 // STORAGE_ERROR, …). That typed surface is exactly what a recovery layer needs:
 // `withHealing` wraps a route and, when it throws a `LouiseError`, consults a
@@ -11,18 +11,18 @@
 //
 // Three deterministic strategies, composable per error code:
 //
-//   - **retry**      — re-run the route (with optional exponential backoff).
-//                      For transient infrastructure blips (D1/R2/KV hiccups).
-//   - **fallback**   — serve a degraded/stale Response instead of throwing.
-//                      Fails *soft*: a stale cache hit beats an error page.
-//   - **escalate**   — hand the failure off out-of-band via `ctx.waitUntil`,
-//                      so recovery never blocks (or breaks) the response.
+//   - **retry**: re-run the route (with optional exponential backoff).
+//     For transient infrastructure blips (D1/R2/KV hiccups).
+//   - **fallback**: serve a degraded/stale Response instead of throwing.
+//     Fails *soft*: a stale cache hit beats an error page.
+//   - **escalate**: hand the failure off out-of-band via `ctx.waitUntil`,
+//     so recovery never blocks (or breaks) the response.
 //
 // The escalation hook is the seam a future *self-updating* loop plugs into:
 // today `escalate` might enqueue the failure for a human or a deterministic
 // job; tomorrow it can enqueue `describeFailure(...)` onto a queue that an
 // agent drains, reproduces, and opens a fix PR against. Nothing here depends on
-// that — `withHealing` is pure library code with no AI or network coupling. It
+// that; `withHealing` is pure library code with no AI or network coupling. It
 // just turns typed errors into structured, actionable signals and gives you the
 // place to route them.
 //
@@ -34,14 +34,14 @@
 //     so tests exercise backoff without wall-clock delay.
 //   - **Retries re-run the whole route.** Safe for idempotent reads; unsafe for
 //     non-idempotent writes (a retried POST can double-write). `retries`
-//     defaults to 0 — opt in only for codes whose route is safe to repeat.
+//     defaults to 0; opt in only for codes whose route is safe to repeat.
 
 import { LouiseError } from "../errors.js";
 import type { WorkerRoute } from "./index.js";
 
 /**
  * The subset of `LouiseError.code`s that represent *transient* infrastructure
- * failures — the ones generally safe to retry, given an idempotent route.
+ * failures—the ones generally safe to retry, given an idempotent route.
  * Provided as guidance for building a policy; `withHealing` itself matches on
  * whatever codes your `rules` declare, not on this list.
  */
@@ -58,7 +58,7 @@ export interface HealingContext<Env = unknown> {
   readonly ctx: ExecutionContext;
   /** The typed error that triggered healing (the last one, if retried). */
   readonly error: LouiseError;
-  /** `error.code` — the key matched against the policy (e.g. "DB_ERROR"). */
+  /** `error.code`—the key matched against the policy (for example, "DB_ERROR"). */
   readonly code: string;
   /** How many times the route was invoked before giving up (>= 1). */
   readonly attempts: number;
@@ -78,8 +78,8 @@ export interface HealingRule<Env = unknown> {
    */
   readonly backoffMs?: number;
   /**
-   * Serve this Response instead of throwing once retries are exhausted — the
-   * "stale-fallback" strategy. Return e.g. a cached copy or a graceful
+   * Serve this Response instead of throwing once retries are exhausted—the
+   * "stale-fallback" strategy. Return for example, a cached copy or a graceful
    * degraded page. If omitted (and nothing else handles it), the error
    * re-throws.
    */
@@ -87,7 +87,7 @@ export interface HealingRule<Env = unknown> {
   /**
    * Hand the failure off out-of-band. Runs via `ctx.waitUntil`, so it never
    * blocks the response and its own errors can't break the request. This is
-   * where a self-updating pipeline hooks in — e.g. `enqueue(env.HEAL_QUEUE,
+   * where a self-updating pipeline hooks in—for example, `enqueue(env.HEAL_QUEUE,
    * describeFailure(ctx))`.
    */
   readonly escalate?: (ctx: HealingContext<Env>) => void | Promise<void>;
@@ -98,7 +98,7 @@ export interface HealingOptions<Env = unknown> {
   readonly rules: Readonly<Record<string, HealingRule<Env>>>;
   /**
    * Applied when a caught `LouiseError`'s code has no explicit rule. Omit to
-   * re-throw unrecognized codes (the safe default — never heal what you didn't
+   * re-throw unrecognized codes (the safe default—never heal what you didn't
    * plan for).
    */
   readonly fallbackRule?: HealingRule<Env>;
@@ -118,12 +118,12 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
  * On each invocation the wrapped route runs. If it returns (a `Response` or
  * `undefined` pass-through) that value is returned unchanged. If it throws:
  *
- *   1. Non-`LouiseError`s re-throw immediately — we only heal typed errors.
+ *   1. Non-`LouiseError`s re-throw immediately—we only heal typed errors.
  *   2. The error's `code` selects a rule (`rules[code]`, else `fallbackRule`).
  *      No matching rule ⇒ re-throw.
  *   3. While attempts remain under the rule's `retries`, back off and re-run.
  *   4. Once retries are exhausted: `escalate` (fire-and-forget via
- *      `waitUntil`), then `fallback` (return its Response) — or re-throw the
+ *      `waitUntil`), then `fallback` (return its Response)—or re-throw the
  *      last error if the rule has neither.
  *
  * @example
@@ -155,12 +155,12 @@ export function withHealing<Env = unknown>(
       try {
         return await route(request, env, ctx);
       } catch (err) {
-        // Only typed Louise failures are healable — anything else is a real
+        // Only typed Louise failures are healable—anything else is a real
         // bug and must propagate untouched.
         if (!(err instanceof LouiseError)) throw err;
 
         const rule = options.rules[err.code] ?? options.fallbackRule;
-        if (!rule) throw err; // no policy for this code — surface it
+        if (!rule) throw err; // no policy for this code—surface it
 
         const retries = rule.retries ?? 0;
         if (attempts <= retries) {
@@ -169,7 +169,7 @@ export function withHealing<Env = unknown>(
           continue; // re-run the route
         }
 
-        // Retries exhausted — heal deterministically.
+        // Retries exhausted—heal deterministically.
         const healingCtx: HealingContext<Env> = {
           request,
           env,
@@ -194,13 +194,13 @@ export function withHealing<Env = unknown>(
 }
 
 /**
- * A serializable snapshot of a healed failure — the payload you'd hand to an
+ * A serializable snapshot of a healed failure—the payload you'd hand to an
  * out-of-band recovery job (a queue message, a log line, a self-updating
  * agent's work item). Deliberately flat and dependency-free so it survives
  * `JSON.stringify` across a queue boundary.
  */
 export interface FailureReport {
-  /** `LouiseError.code`, e.g. "DB_ERROR". */
+  /** `LouiseError.code`, for example, "DB_ERROR". */
   readonly code: string;
   readonly message: string;
   readonly method: string;
@@ -212,7 +212,7 @@ export interface FailureReport {
 }
 
 /**
- * Build a {@link FailureReport} from a {@link HealingContext} — the concrete
+ * Build a {@link FailureReport} from a {@link HealingContext}—the concrete
  * thing an `escalate` hook enqueues. `now` is injectable for deterministic
  * tests.
  */

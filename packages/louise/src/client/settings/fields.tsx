@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// Shared Settings form primitives — the collapsible <details> Section, the
+// Shared Settings form primitives—the collapsible <details> Section, the
 // label/href LinkListEditor, the media-library picker, and a declarative
 // SettingsField renderer. The framework Settings panel and site extension
 // groups render through the same field renderer, so a site's extra settings
@@ -13,7 +13,7 @@ import { Icon } from "../icons.jsx";
 import { thumb } from "../thumb.js";
 import { apiGet, louiseQueryKeys } from "./query.js";
 
-/** A label/href row — the shape stored in the `navLinks`/`socialLinks` JSON. */
+/** A label/href row—the shape stored in the `navLinks`/`socialLinks` JSON. */
 export interface LinkRow {
   label: string;
   href: string;
@@ -22,7 +22,7 @@ export interface LinkRow {
 /**
  * Field types the declarative Settings renderer understands.
  *
- * An alias for the shared {@link FieldTypeName} since ADR 0010 A2 — this was its
+ * An alias for the shared {@link FieldTypeName} since ADR 0010 A2—this was its
  * own six-name union, overlapping the section catalog's eight on four and
  * disagreeing on the rest, so a type added to one surface was silently absent
  * from the other. That asymmetry is what left settings without a `link` type and
@@ -37,7 +37,7 @@ export type SettingsFieldType = FieldTypeName;
 
 /**
  * One declarative settings field. `key` is the settings object key it reads and
- * writes — a framework base column (e.g. `siteName`) for the built-in groups, or
+ * writes—a framework base column (for example, `siteName`) for the built-in groups, or
  * a site-declared `custom` key for an extension group.
  */
 export interface SettingsFieldDef {
@@ -48,11 +48,11 @@ export interface SettingsFieldDef {
   hint?: string;
   placeholder?: string;
   /**
-   * Escape hatch for a field whose UI none of the built-in `type`s cover — a
+   * Escape hatch for a field whose UI none of the built-in `type`s cover—a
    * label/value row list, a microcopy grid, a per-page SEO editor, etc. Given
    * the loaded value (once, at mount) and an `onChange`, it renders arbitrary
    * markup that persists to `key` through the same save flow as any field.
-   * Overrides `type` when present. Manage local state internally — it's called
+   * Overrides `type` when present. Manage local state internally—it's called
    * once, so keystrokes won't reset it.
    */
   render?: (args: { value: unknown; onChange: (value: unknown) => void }) => JSX.Element;
@@ -67,7 +67,7 @@ export interface SettingsFieldGroup {
   fields: SettingsFieldDef[];
 }
 
-/** Collapsible settings section — native <details>/<summary> (keyboard and a11y
+/** Collapsible settings section—native <details>/<summary> (keyboard and a11y
  *  for free) under the Louise theme. */
 export function Section(props: {
   title: string;
@@ -109,14 +109,14 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
     <div>
       <div class="louise-list">
         {/* Index, NOT For. `update` replaces the edited row with a new object, and
-            <For> is keyed by REFERENCE — so every keystroke made that row a new
+            <For> is keyed by REFERENCE, so every keystroke made that row a new
             item, tearing its DOM down and rebuilding it. The <input> being typed
             into was destroyed mid-edit and focus fell to <body>, which reads as
             "the drawer loses focus after every letter."
 
             <Index> keys by POSITION: the row's elements are created once and only
             the values update, so the focused input survives. The rows here are
-            positional anyway — reorder moves values between fixed slots. */}
+            positional anyway: reorder moves values between fixed slots. */}
         <Index each={props.rows} fallback={<p class="louise-muted">None yet.</p>}>
           {(row, i) => (
             <div class="louise-list-item louise-settings-row">
@@ -176,8 +176,8 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
 }
 
 /** Inline media picker: a small library grid (the same `/api/louise/media` list
- *  the Media panel uses) for URL fields that should point at an uploaded image —
- *  clicking a thumbnail fills the field instead of hand-pasting a URL. */
+ *  the Media panel uses) for URL fields that should point at an uploaded image.
+ *  Clicking a thumbnail fills the field instead of hand-pasting a URL. */
 export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
   const [open, setOpen] = createSignal(false);
   const query = useQuery(() => ({
@@ -205,7 +205,7 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
                     type="button"
                     title={item.key}
                     // The thumbnail is decorative inside this button (alt=""), so
-                    // the button itself has to carry the name — `title` alone is
+                    // the button itself has to carry the name—`title` alone is
                     // not a reliable accessible name (WCAG 4.1.2).
                     aria-label={`Use ${item.key}`}
                     onClick={() => {
@@ -228,7 +228,7 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
 
 /** An image field: live thumbnail, an upload button, a media-library picker, and
  *  a clear button. Empty = the site shows its placeholder. By default the value
- *  can only come from an upload or the library (a media-hosted URL) — there is
+ *  can only come from an upload or the library (a media-hosted URL)—there is
  *  no free-form URL input, so editors can't hotlink an external image. Opt into
  *  upload-into-slot with `upload`, a resized preview with `transform`, and the
  *  legacy raw-URL text input with `allowUrl`. */
@@ -244,18 +244,18 @@ export function ImageField(props: {
   /** Scope (R2 key prefix) sent with the upload. Default `"web"`. */
   uploadScope?: string;
   /** Show a free-form URL text input, letting an editor paste any (external)
-   *  URL. Off by default — images should come from the media library so they
+   *  URL. Off by default—images should come from the media library so they
    *  can't break or hotlink. An escape hatch for sites that knowingly want it. */
   allowUrl?: boolean;
   /** Override the preview thumbnail URL. Defaults to a CDN derivative sized for
-   *  the 160 px preview box — pass this only to do something else. Never affects
+   *  the 160 px preview box—pass this only to do something else. Never affects
    *  the stored value. */
   transform?: (url: string) => string;
 }) {
   const qc = useQueryClient();
   const [uploading, setUploading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  // The preview box is max-height 160px, so that is what gets requested — not
+  // The preview box is max-height 160px, so that is what gets requested—not
   // the master. Defaulting rather than requiring the prop: this seam existed and
   // named `cfImage` in its own doc comment, and no caller ever passed one.
   const preview = () => (props.transform ?? ((url: string) => thumb(url, 160)))(props.value);
@@ -433,7 +433,7 @@ export function SettingsField(props: {
         </div>
       </Match>
       <Match when={props.def.type === "image"}>
-        {/* Upload + media-library picker, no free-form URL — settings images
+        {/* Upload + media-library picker, no free-form URL—settings images
             (logo, favicon, share image) come from the media collection. */}
         <ImageField
           label={props.def.label}

@@ -1,6 +1,6 @@
 // The site's two draft-aware reads: which fields of a resumed draft each page
-// renders. Finding the draft — KV buffer first, then the newest PENDING D1
-// version — is `resumeDraft` (louise-toolkit/editor), and the read-your-writes
+// renders. Finding the draft—KV buffer first, then the newest PENDING D1
+// version—is `resumeDraft` (louise-toolkit/editor), and the read-your-writes
 // session is `resumeReadSession` (@louise-toolkit/astro). Only the field shapes
 // are this site's.
 import type { D1Client } from "louise-toolkit/db";

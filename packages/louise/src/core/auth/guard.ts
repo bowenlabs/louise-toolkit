@@ -5,7 +5,7 @@ import type { EditorSession } from "./types.js";
 /**
  * Same-origin (CSRF) check for cookie-authenticated mutations. Requires a
  * same-origin `Origin` header, falling back to `Referer`, and *rejects when
- * neither is present* — so a non-browser client (or a stripped header) can't
+ * neither is present*—so a non-browser client (or a stripped header) can't
  * proceed on the session cookie alone. Browsers always send `Origin` on
  * cross-origin writes, so legitimate same-origin editor requests are unaffected.
  */
@@ -49,7 +49,7 @@ export function requireEditor(ctx: EditorRequest, mutation = true): Response | n
 
 /** The framework-`context`-shaped slice the editor guard needs: the request
  *  plus the middleware-resolved editor on `locals`. Structural on purpose, so a
- *  site passes its own request context straight through — no framework type
+ *  site passes its own request context straight through—no framework type
  *  dependency here. */
 export interface EditorContext {
   request: Request;
@@ -62,14 +62,14 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 /**
  * Context adapter over {@link requireEditor}: bridges a framework `context`
  * (`{ request, locals.editor }`) to the package's `{ request, editor }` shape,
- * so an editor-gated framework route is a one-liner —
- * `const denied = requireEditorFromContext(context); if (denied) return denied;`
- * — instead of each site re-declaring the same bridge in its own `lib/guard`.
+ * so an editor-gated framework route is a one-liner—`const
+ * denied = requireEditorFromContext(context); if (denied) return denied;`
+ * rather than each site re-declaring the same bridge in its own `lib/guard`.
  * A framework's route context fits as-is once its locals declare `editor`.
  *
  * `mutation` defaults to the request's method: a write (anything but
  * GET/HEAD/OPTIONS) gets the same-origin check, a read does not. Pass it
- * explicitly to override — e.g. `true` for a GET that has side effects.
+ * explicitly to override—for example, `true` for a GET that has side effects.
  */
 export function requireEditorFromContext(
   ctx: EditorContext,
@@ -85,7 +85,7 @@ export function requireEditorFromContext(
  * redirect (`?next=https://evil.example`) and, in a browser, script execution
  * (`?next=javascript:…`). A regex over the raw string is not enough: browsers
  * strip tab and newline characters and read `\` as `/`, so `/%09/evil.example`
- * and `/\evil.example` both become `//evil.example` — protocol-relative, i.e.
+ * and `/\evil.example` both become `//evil.example`: protocol-relative, that is,
  * off-site. This resolves `raw` with the WHATWG URL parser, the same algorithm
  * the browser will apply, against a placeholder origin, and accepts it only if
  * it stayed on that origin. What comes back is the normalized path + query +
@@ -105,7 +105,7 @@ export function safeNextPath(raw: string | null | undefined, fallback: string): 
 }
 
 /** True when `role` is one of `allowed`. Roles are arbitrary, site-defined
- *  strings — Louise bakes none in. */
+ *  strings; Louise bakes none in. */
 export function hasRole(role: string | null | undefined, allowed: readonly string[]): boolean {
   return role != null && allowed.includes(role);
 }
@@ -120,7 +120,7 @@ export interface RoleRequest {
  * Guard for role-gated endpoints: a same-origin (CSRF) check on mutations plus
  * a membership test of the session's `role` against `allowed`. Returns 401 when
  * unauthenticated, 403 on a wrong role or bad origin, or null to proceed.
- * Generic and unopinionated — it works with any site's roles and any auth
+ * Generic and unopinionated—it works with any site's roles and any auth
  * instance; the content editor gate is the binary {@link requireEditor}.
  */
 export function requireRole(

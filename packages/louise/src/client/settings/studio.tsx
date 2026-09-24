@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/client/studio` — the Louise editor as a full-page admin app.
+// `louise-toolkit/client/studio`—the Louise editor as a full-page admin app.
 //
 // The drawer shell is drawer-shaped: summoned over a live page, dismissed, gone.
 // That is right for editing in place and wrong for the back-office half of the
-// job — a laptop session spent in Media and Pages, deep-linked and bookmarked.
+// job—a laptop session spent in Media and Pages, deep-linked and bookmarked.
 // A site wanting that had to rebuild the shell even though every panel already
 // existed.
 //
@@ -17,7 +17,7 @@
 //
 // This shell renders NO DATA and NO SESSION-SPECIFIC MARKUP. Every panel fetches
 // through `/api/*` on mount, so the HTML is identical for every editor and for a
-// signed-out visitor — which is what makes it precacheable by a service worker
+// signed-out visitor, which is what makes it precacheable by a service worker
 // (see `PwaConfig.offlineFallback`). Bake a name or a row count into the shell
 // and it stops being cacheable, or worse, gets cached and served to the next
 // person.
@@ -47,7 +47,7 @@ const DEFAULT_SIGN_IN_PATH = "/signin";
 
 export interface StudioConfig extends SurfaceConfig {
   /**
-   * Header title. **Static config, never session data** — a site name, not an
+   * Header title. **Static config, never session data**—a site name, not an
    * editor name. Anything per-editor here would defeat the cacheability this
    * shell is built for. Default `"Studio"`.
    */
@@ -57,7 +57,7 @@ export interface StudioConfig extends SurfaceConfig {
    * `"/signin"`.
    *
    * A full-page app cannot degrade to "render the public page" the way the
-   * drawer can — there is no page underneath it — so an expired session has to
+   * drawer can—there is no page underneath it—so an expired session has to
    * become a navigation rather than an empty shell with failing panels.
    */
   signInPath?: string;
@@ -128,7 +128,7 @@ export interface StudioMountOptions extends StudioConfig {
 /**
  * Mount the full-page studio.
  *
- * Idempotent per target, like `mountSettings` — a client-side route change or an
+ * Idempotent per target, like `mountSettings`—a client-side route change or an
  * soft navigation can re-run this without stacking two apps. Returns a
  * disposer for the cases that need one (a router unmounting the island).
  */

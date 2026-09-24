@@ -212,7 +212,7 @@ describe("connectRealtime", () => {
     f.last().onclose?.();
     expect(onStatus).toHaveBeenLastCalledWith(false);
 
-    // first backoff is 1s → a fresh socket is constructed and re-handshakes
+    // first backoff is 1 second → a fresh socket is constructed and re-handshakes
     vi.advanceTimersByTime(1_000);
     expect(f.sockets).toHaveLength(2);
     f.last().open();

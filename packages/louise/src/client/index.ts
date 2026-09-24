@@ -1,4 +1,4 @@
-// Louise Toolkit — inline edit-on-the-live-page client (slice 1).
+// Louise Toolkit—inline edit-on-the-live-page client (slice 1).
 //
 // Progressive enhancement, not hydration: the page is server-rendered
 // normally, and in edit mode each editable region carries a
@@ -6,7 +6,7 @@
 // those markers, makes them editable in place (plain text via contenteditable,
 // rich text via ProseKit), and saves changed fields to `/api/louise/save`.
 //
-// It self-gates: if there are no markers (i.e. the page wasn't rendered in
+// It self-gates: if there are no markers (that is, the page wasn't rendered in
 // edit mode) it does nothing, so the bootstrap can lazy-import it safely.
 
 import { stegaClean } from "../core/content/stega-clean.js";
@@ -59,7 +59,7 @@ export {
   type RealtimePeer,
   type RealtimeSession,
 } from "./realtime.js";
-// Structured "sections" editor — hybrid in-place editing for bespoke,
+// Structured "sections" editor—hybrid in-place editing for bespoke,
 // component-rendered pages (site owns rendering; this owns editing).
 export {
   mountSections,
@@ -69,10 +69,10 @@ export {
   type SectionItem,
   type SectionsEditorProps,
 } from "./sections.jsx";
-// One destination offered by a `link` field's page picker — sites pass their
+// One destination offered by a `link` field's page picker—sites pass their
 // code-defined routes as `SectionsEditorProps.builtInRoutes` (#38).
 export type { PageChoice } from "./link-field.jsx";
-// Headless <Form> render helper (#46, Tier 2) — renders a `defineForm` catalog
+// Headless <Form> render helper (#46, Tier 2)—renders a `defineForm` catalog
 // with the SAME validation the server runs, and posts to its `formRoute`.
 export { Form, type FormProps, mountForm } from "./forms.jsx";
 
@@ -99,7 +99,7 @@ function exitHref(): string {
   return `${url.pathname}${url.search}`;
 }
 
-/** End the editor session AND drop edit mode — the bar's Sign out
+/** End the editor session AND drop edit mode—the bar's Sign out
  *  (coracle.coffee#36). The sign-out call is best-effort: if it fails we still
  *  leave edit mode, so the user is never stranded in an editor they asked to
  *  leave. */
@@ -111,7 +111,7 @@ async function signOut(): Promise<void> {
       body: "{}",
     });
   } catch {
-    /* best-effort — still drop edit mode below */
+    /* best-effort—still drop edit mode below */
   }
   location.assign(exitHref());
 }
@@ -128,21 +128,21 @@ interface Chrome {
 }
 
 interface ChromeOptions {
-  /** Save action — a live field save, or (when `versioned`) a draft save. */
+  /** Save action—a live field save, or (when `versioned`) a draft save. */
   onSave: () => void;
   /** Versioned pages only: promote the current/latest draft to live. */
   onPublish: () => void;
   /** Opens Louise Settings (the bar's Settings action). */
   onOpenSettings: () => void;
   /** Whether this page has inline `data-louise-field`s. When false there's
-   *  nothing for the bar to save (e.g. a sections-only page, which owns its own
+   *  nothing for the bar to save (for example, a sections-only page, which owns its own
    *  Save/Publish in the sections dock), so no save control is shown. */
   hasFields: boolean;
   /** Versioned page: inline saves stage a DRAFT and a Publish button promotes it
    *  (Save draft / Publish), instead of a single live Save. */
   versioned: boolean;
   /** Auto-save is driving saves on a debounce, so the bar shows no manual
-   *  Save / Save draft button — only the live status (and Publish, if versioned). */
+   *  Save / Save draft button—only the live status (and Publish, if versioned). */
   autoSave: boolean;
 }
 
@@ -150,15 +150,15 @@ interface ChromeOptions {
  * The unified edit bar: Settings (opens Louise Settings) and Done (leaves edit mode),
  * plus its save controls. A versioned page shows **Save draft** (green) +
  * **Publish** (yellow); a plain collection page shows a single live **Save**; a
- * page with no inline fields shows neither (its surface — e.g. the sections dock
- * — owns saving). A transient save-status message trails the actions.
+ * page with no inline fields shows neither (its surface—for example, the sections dock—owns
+ * saving). A transient save-status message trails the actions.
  */
 function createChrome(opts: ChromeOptions): Chrome {
   const bar = document.createElement("div");
   bar.className = "louise-bar";
   bar.setAttribute("role", "toolbar");
   bar.setAttribute("aria-label", "Louise editing toolbar");
-  // role="toolbar" advertises arrow-key roving — implement it rather than just
+  // role="toolbar" advertises arrow-key roving—implement it rather than just
   // claim it. Listener is on the bar itself, so it goes when the bar does.
   wireToolbarRoving(bar);
 
@@ -174,10 +174,10 @@ function createChrome(opts: ChromeOptions): Chrome {
 
   // Save controls only when this page owns inline fields for the bar to save. A
   // versioned page with no inline fields (its sections dock owns Save/Publish)
-  // shows neither, so the dock's relocated actions are the bar's only pair — one
+  // shows neither, so the dock's relocated actions are the bar's only pair—one
   // versioned surface per page drives the bar (see the Drafts & publishing guide).
-  // With auto-save on, the manual Save / Save draft button is dropped entirely —
-  // edits persist on a debounce and the status span reports it. Publish is never
+  // With auto-save on, the manual Save / Save draft button is dropped entirely—edits
+  // persist on a debounce and the status span reports it. Publish is never
   // automated, so it stays.
   const saveDraft =
     opts.versioned && opts.hasFields && !opts.autoSave
@@ -204,8 +204,8 @@ function createChrome(opts: ChromeOptions): Chrome {
   settings.addEventListener("click", opts.onOpenSettings);
 
   // Sign out, not "Done" (coracle.coffee#36). The old anchor only cleared the
-  // edit-mode cookie, so "Done" left the session wide open on a shared machine —
-  // and the only real sign-out was buried in the Settings drawer. A button, not a
+  // edit-mode cookie, so "Done" left the session wide open on a shared machine—and
+  // the only real sign-out was buried in the Settings drawer. A button, not a
   // link: it ends a session rather than navigating.
   const exit = document.createElement("button");
   exit.type = "button";
@@ -275,7 +275,7 @@ function createChrome(opts: ChromeOptions): Chrome {
 }
 
 /** Toggle a field's soft-lock UI: read-only + a "locked by X" badge when held by a
- *  peer, cleared when free/mine. Advisory only — the server enforces the lock. */
+ *  peer, cleared when free/mine. Advisory only—the server enforces the lock. */
 function setFieldLock(el: HTMLElement, byName: string | null): void {
   if (byName) {
     el.classList.add("louise-locked");
@@ -293,21 +293,21 @@ export interface MountLouiseOptions {
   onOpenSettings: () => void;
   /** When set, this page uses the versioned draft workflow: inline saves stage a
    *  draft on this page id (`POST …/pages/:id/versions`) merging every changed
-   *  field, and a Publish button promotes it (`POST …/publish`) — instead of
+   *  field, and a Publish button promotes it (`POST …/publish`)—instead of
    *  writing each field live via `/save`. The page must render its editable
    *  fields' current draft values in edit mode (see the site's draft resume). */
   versionedPageId?: number;
   /** Auto-save inline edits on an idle debounce, reusing this surface's existing
-   *  save (a live field save, or a draft on a versioned page) — never publishes.
+   *  save (a live field save, or a draft on a versioned page)—never publishes.
    *  On by default; pass `false` to opt out (back to a manual Save button), or an
    *  object to tune the debounce (`{ debounceMs }`). */
   autoSave?: AutoSaveOption;
   /** Enable the Harper grammar/spelling checker (#110) on rich-text fields. Off by
-   *  default; when on, the WASM checker is lazy-loaded (runs on-device — the text
+   *  default; when on, the WASM checker is lazy-loaded (runs on-device—the text
    *  never leaves the browser) and issues are underlined with click-to-apply
    *  suggestions. English-only for now.
    *
-   *  WEIGHT: Harper ships its dictionary inside the WASM module — ~10MB gzipped,
+   *  WEIGHT: Harper ships its dictionary inside the WASM module—~10 MB gzipped,
    *  fetched once per editor session on first use. It's dynamically imported, so
    *  leaving this off costs nothing and public pages never see it; just don't
    *  enable it expecting a small download. */
@@ -316,31 +316,31 @@ export interface MountLouiseOptions {
    *  connect to the per-page Durable Object for presence, live field echo, and a
    *  rich-text soft-lock. **Versioned pages only** (realtime persists as drafts), so
    *  it's ignored unless `versionedPageId` is set. Degradation-first: if the socket
-   *  can't open (no `EDIT_SESSION` binding → the route 503s) editing silently falls
+   *  can't open (no `EDIT_SESSION` binding → the route returns 503) editing silently falls
    *  back to the debounced-fetch auto-save. Off by default; `{ throttleMs }` tunes
    *  the outbound change rate. */
   realtime?: RealtimeOption;
   /**
    * Typed action callables for the **normal** (debounced) auto-save path
-   * (#138). The site injects `actions.louise.save` / `actions.louise.saveDraft`
-   * — which the host imports from its own framework; this framework-agnostic client
+   * (#138). The site injects `actions.louise.save` / `actions.louise.saveDraft`—which
+   * the host imports from its own framework; this framework-agnostic client
    * can't. Each must **resolve on success and reject on failure** (the site wraps
    * the action's `{ data, error }` accordingly).
    *
    * The **unload** flush (tab-hide / page-hide / `beforeunload`) always uses the
-   * raw `keepalive` fetch instead — a framework action client can't set `keepalive`,
+   * raw `keepalive` fetch instead—a framework action client can't set `keepalive`,
    * so a save fired while navigating away would be dropped. Omit `actions` to keep
    * every save on the raw `/api/louise/*` routes (unchanged).
    */
   actions?: {
-    /** Live field save — mirrors `louiseSaveAction`'s input. */
+    /** Live field save—mirrors `louiseSaveAction`'s input. */
     save?: (input: {
       collection: string;
       key: string;
       field: string;
       value: unknown;
     }) => Promise<unknown>;
-    /** Versioned draft save — mirrors `louiseSaveDraftAction`'s input. */
+    /** Versioned draft save—mirrors `louiseSaveDraftAction`'s input. */
     saveDraft?: (input: { id: number; data: Record<string, unknown> }) => Promise<unknown>;
   };
 }
@@ -348,13 +348,13 @@ export interface MountLouiseOptions {
 /**
  * The currently-mounted inline editor's leave hooks, so the shared handlers below
  * can flush + guard whichever page is active. A soft (view-transition) navigation
- * replaces `<body>` — and this editor with it — so it's cleared on the host's
+ * replaces `<body>`—and this editor with it—so it's cleared on the host's
  * `after-swap` signal and re-set by the next page's `mountLouise`.
  */
 interface ActiveInline {
   /** Flush pending auto-saved edits (routes through the raw keepalive fetch). */
   flush: () => void;
-  /** Whether edits are genuinely unsaved — drives the `beforeunload` guard. */
+  /** Whether edits are genuinely unsaved—drives the `beforeunload` guard. */
   hasDirty: () => boolean;
   /** Mark the page as leaving so saves use the keepalive fetch, not an Action. */
   setUnloading: (leaving: boolean) => void;
@@ -371,18 +371,18 @@ let leaveHandlersWired = false;
  * Registering once (rather than per `mountLouise`) means a view-transition re-mount
  * doesn't stack duplicate `window` listeners.
  *
- * - `visibilitychange → hidden` / `pagehide` / `beforeunload` — hard navigations and
+ * - `visibilitychange → hidden` / `pagehide` / `beforeunload`—hard navigations and
  *   tab-hide. The keepalive fetches let a flush fired here still reach the Worker.
- * - `louiseNavigation.beforeSwap()` — **soft** navigations, which fire none of the
+ * - `louiseNavigation.beforeSwap()`—**soft** navigations, which fire none of the
  *   above; without this a router-driven nav would drop pending edits. Flushes before
  *   the DOM (and the current editor) is swapped away (#74).
- * - `louiseNavigation.afterSwap()` — clears the mount guard (a runtime `<html>`
+ * - `louiseNavigation.afterSwap()`—clears the mount guard (a runtime `<html>`
  *   attribute that survives the swap) and drops the now-defunct editor, so the next
  *   page re-mounts cleanly.
  *
  * Those two are reported by the HOST (see `./lifecycle`), not observed here: a
  * library that names one framework's events is not framework-agnostic. A host with
- * no soft navigation calls neither and loses nothing — hard navigations are covered
+ * no soft navigation calls neither and loses nothing—hard navigations are covered
  * by the browser events above.
  */
 function ensureLeaveHandlers(): void {
@@ -423,13 +423,13 @@ function ensureLeaveHandlers(): void {
   //
   // Scoped to the EDITING SURFACES, not to "everything that isn't chrome".
   // Blocking every `a[href]` also blocked the site's own header nav, footer,
-  // brand mark and skip link — so an editor could not move between pages at
+  // brand mark and skip link—so an editor could not move between pages at
   // all without first leaving edit mode. That is a worse failure than the
   // stray click this guards against: losing an edit is recoverable, being
   // unable to reach the next page is not.
   //
   // A link counts as page content when it sits inside a marked node, a
-  // sections host, or a legacy inline field — i.e. inside the region actually
+  // sections host, or a legacy inline field, that is, inside the region actually
   // being edited. Site chrome navigates normally.
   document.addEventListener(
     "click",
@@ -454,7 +454,7 @@ function ensureLeaveHandlers(): void {
 /**
  * Should a click on `target` be swallowed instead of navigating?
  *
- * True only for a link INSIDE an editing surface — the region being edited.
+ * True only for a link INSIDE an editing surface—the region being edited.
  * Site chrome (header nav, footer, brand, skip link) returns false and
  * navigates normally, which is how an editor moves between pages without first
  * leaving edit mode.
@@ -469,13 +469,13 @@ export function isEditableSurfaceLink(target: Element | null): boolean {
 
 /** The regions an editor is actually editing: a marked node, the sections host,
  *  or a legacy inline field. Links inside these are inert while editing (a click
- *  edits rather than navigates); links outside them — the site's nav, footer,
- *  brand, skip link — navigate normally, which is how an editor moves between
+ *  edits rather than navigates); links outside them—the site's nav, footer,
+ *  brand, skip link—navigate normally, which is how an editor moves between
  *  pages without leaving edit mode. */
 const EDITING_SURFACE_SELECTOR =
   `[${NODE_MARKER_ATTR}],[data-louise-sections],[data-louise-field]` as const;
 
-/** The editor's own injected chrome — exempt from the edit-mode navigation guard
+/** The editor's own injected chrome—exempt from the edit-mode navigation guard
  *  so its links/buttons/forms still work. Page content is everything else. */
 const LOUISE_CHROME_SELECTOR =
   ".louise-bar,#louise-drawer-root,.louise-inspector,.louise-chrome-toolbar,.louise-format-bubble,.louise-banner,.louise-grammar-popover,.louise-rt";
@@ -504,7 +504,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   const { enabled: autoSaveOn, debounceMs } = resolveAutoSave(opts.autoSave);
   const { enabled: realtimeOn, throttleMs: realtimeThrottleMs } = resolveRealtime(opts.realtime);
   // Bumped on every edit. A save captures it up front and only clears `dirty` if
-  // it's unchanged when the save resolves — so a field edited *during* an
+  // it's unchanged when the save resolves—so a field edited *during* an
   // in-flight save is never cleared unsaved (the auto-saver reschedules).
   let editGen = 0;
   // Assigned once the save fns exist (below); markDirty only runs on user input,
@@ -513,17 +513,17 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // The realtime session (assigned after the field loop, once we know the
   // collection slug); null when realtime is off or the socket can't open.
   let rt: RealtimeSession | null = null;
-  // Per-field appliers for inbound remote edits (plain-text fields only — the DO
+  // Per-field appliers for inbound remote edits (plain-text fields only—the DO
   // never broadcasts lock-guarded rich fields), and the lock-guarded field
   // elements, both keyed by field name. Populated in the field loop.
   const remoteAppliers = new Map<string, (value: unknown) => void>();
   const lockEls = new Map<string, HTMLElement>();
-  // Every field's current-value getter, keyed by field name — used to force the
+  // Every field's current-value getter, keyed by field name—used to force the
   // latest realtime edits into a fresh draft right before Publish (the DO's own
   // coalesced flush might not have fired yet). Populated in the field loop.
   const fieldGetters = new Map<string, ValueGetter>();
   // True while the page is hiding/unloading (set by the leave handlers below).
-  // The save fns fall back to a raw `keepalive` fetch then — a framework action
+  // The save fns fall back to a raw `keepalive` fetch then—a framework action
   // can't keepalive, so its request would be aborted mid-navigation (#138).
   let unloading = false;
 
@@ -537,7 +537,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
     if (rt?.connected()) {
       rt.publish(fieldKey.split(":")[2], getter());
       chrome.setStatus("saved");
-      // A draft is (being) created in the DO — enable Publish even though we don't
+      // A draft is (being) created in the DO—enable Publish even though we don't
       // track local dirty on the realtime path.
       chrome.setHasDraft(true);
       return;
@@ -590,7 +590,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   };
 
   // Versioned: snapshot every changed field into ONE draft (the live row is
-  // untouched until publish). Returns success. No reload — the page already
+  // untouched until publish). Returns success. No reload—the page already
   // shows the edit, and edit mode resumes this draft on the next load.
   const saveDraft = async (): Promise<boolean> => {
     if (dirty.size === 0) return true;
@@ -630,8 +630,8 @@ export function mountLouise(opts: MountLouiseOptions): void {
 
   // Realtime: force the CURRENT field values into a fresh draft before publishing.
   // Edits published over the socket are coalesced in the DO and flushed on its
-  // alarm (≤10s), so at publish time the newest keystrokes may not be in a draft
-  // yet — this snapshot guarantees Publish promotes the latest, not a stale draft.
+  // alarm (≤10 seconds), so at publish time the newest keystrokes may not be in a draft
+  // yet—this snapshot guarantees Publish promotes the latest, not a stale draft.
   const flushRealtimeDraft = async (): Promise<boolean> => {
     const data: Record<string, unknown> = {};
     for (const [field, getter] of fieldGetters) data[field] = getter();
@@ -714,8 +714,8 @@ export function mountLouise(opts: MountLouiseOptions): void {
       .catch(() => {});
   }
 
-  // The collection slug all inline fields on this page share (from the marker) —
-  // the realtime DO is addressed by `<slug>/<id>`.
+  // The collection slug all inline fields on this page share (from the marker)—the
+  // realtime DO is addressed by `<slug>/<id>`.
   let collectionSlug: string | undefined;
 
   for (const el of fieldEls) {
@@ -726,20 +726,20 @@ export function mountLouise(opts: MountLouiseOptions): void {
     el.classList.add("louise-editable");
 
     if (el.dataset.louiseType === "richtext") {
-      // Rich fields save serialized HTML — the site stores and renders HTML
+      // Rich fields save serialized HTML—the site stores and renders HTML
       // (no ProseMirror on the Worker), and the editor re-parses it on load.
       // stegaClean before persisting: if stega visual-editing tagged this
       // field's text, its invisible payload must never round-trip into stored
       // HTML / ProseMirror JSON (it would compound on every save). No-op when
       // stega isn't in use.
       // `data-louise-blocks` opts the field into the full builder block set
-      // (rows/columns, gallery, hero, …) — so a page body can be built in place
+      // (rows/columns, gallery, hero, …)—so a page body can be built in place
       // on the live page, not just in Louise Settings.
       const blocks = el.dataset.louiseBlocks === "1";
       // Isolate + surface editor-init failures: mountRichText clears el and
-      // Solid-renders the editor, so a throw here (e.g. a ProseKit error during
+      // Solid-renders the editor, so a throw here (for example, a ProseKit error during
       // render) would otherwise leave the field blank AND abort the whole field
-      // loop as an unhandled rejection — silently, with no editor. Log it and
+      // loop as an unhandled rejection—silently, with no editor. Log it and
       // move on so one bad field can't take down the rest of the page.
       try {
         const field = mountRichText(
@@ -755,7 +755,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // Flush on tab-out. blur doesn't bubble and ProseKit's editable is a child,
       // so listen for focusout on the field container.
       if (autoSaveOn) el.addEventListener("focusout", () => auto?.flush());
-      // Realtime: the rich body is soft-locked — claim it on focus so peers see
+      // Realtime: the rich body is soft-locked—claim it on focus so peers see
       // it as taken, release on blur. The server enforces the lock (drops a
       // non-holder change) and never broadcasts the body, so peers never receive
       // raw rich-text; onLocks (below) reflects a peer's hold read-only.
@@ -768,7 +768,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // Plain-text field: contenteditable, single line.
       el.setAttribute("contenteditable", "plaintext-only");
       el.setAttribute("spellcheck", "false");
-      // Name the region for assistive tech — a bare contenteditable announces
+      // Name the region for assistive tech—a bare contenteditable announces
       // only as "edit text", with no clue which field it is.
       nameEditable(el, humanizeFieldKey(ref.field));
       el.addEventListener("keydown", (e) => {
@@ -778,7 +778,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       fieldGetters.set(ref.field, plainGetter);
       el.addEventListener("input", () => markDirty(fieldKey, plainGetter));
       if (autoSaveOn) el.addEventListener("blur", () => auto?.flush());
-      // Realtime: apply a peer's edit to this plain-text field — unless it's
+      // Realtime: apply a peer's edit to this plain-text field—unless it's
       // focused locally, where clobbering the caret would be jarring (LWW still
       // holds; the echo reconciles on the next blur).
       if (realtimeOn) {
@@ -791,8 +791,8 @@ export function mountLouise(opts: MountLouiseOptions): void {
 
   // Realtime session (ADR 0002 / #71). Versioned pages only (realtime persists as
   // drafts), and only when the page has inline fields to sync. Degradation-first:
-  // if the socket can't open (no EDIT_SESSION binding → the route 503s) nothing
-  // breaks — `rt.connected()` stays false and markDirty keeps using the fetch path.
+  // if the socket can't open (no EDIT_SESSION binding → the route returns 503) nothing
+  // breaks—`rt.connected()` stays false and markDirty keeps using the fetch path.
   if (realtimeOn && versioned && collectionSlug && pageId !== undefined && fieldEls.length > 0) {
     // The latest peer list, so a lock holder's id can be shown as their name.
     let currentPeers: RealtimePeer[] = [];
@@ -818,7 +818,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
       onLocks: applyLocks,
       onStatus: (connected) => {
         if (!connected) {
-          // Socket down — clear presence + any lock UI; edits fall back to fetch.
+          // Socket down—clear presence + any lock UI; edits fall back to fetch.
           currentPeers = [];
           chrome.setPresence([]);
           for (const el of lockEls.values()) setFieldLock(el, null);
@@ -831,7 +831,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // Point the shared leave/flush handlers (wired once, below) at this mount, so a
   // tab-hide, hard nav, or soft nav flushes THIS page's pending edits and
   // routes them through the raw `keepalive` fetch (#138). Only when this page owns
-  // inline fields with auto-save — otherwise there's nothing to flush (a sections
+  // inline fields with auto-save—otherwise there's nothing to flush (a sections
   // page guards its own edits in the dock).
   if (autoSaveOn && fieldEls.length > 0) {
     activeInline = {

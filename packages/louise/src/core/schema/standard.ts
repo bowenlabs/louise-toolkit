@@ -1,18 +1,18 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/schema — the Standard Schema interface (https://standardschema.dev),
+// louise-toolkit/schema—the Standard Schema interface (https://standardschema.dev),
 // vendored verbatim (MIT, © 2024 Fabian Hiller, Colin McDonnell, David Blass).
 //
 // It is a *spec*, not a runtime: a single `~standard` property any validator
-// (Zod v4, Valibot, ArkType, …) exposes. Vendoring the ~40-line type — rather
-// than depending on `@standard-schema/spec` — keeps `dependencies: {}` empty,
+// (Zod v4, Valibot, ArkType, …) exposes. Vendoring the ~40-line type—rather
+// than depending on `@standard-schema/spec`—keeps `dependencies: {}` empty,
 // on brand with the "bring your own everything, dependency-free core" goal. It
 // is the seam #98 leans on: form/collection field configs accept *any* Standard
 // Schema, and the built-in zero-dep `s.*` builder (builders.ts) implements the
 // same interface, so consumer validators and Louise's own run through one
 // runner ({@link standardValidate}).
 
-/** The Standard Schema interface — a validator exposes it under `~standard`. */
+/** The Standard Schema interface—a validator exposes it under `~standard`. */
 export interface StandardSchemaV1<Input = unknown, Output = Input> {
   /** The Standard Schema properties. */
   readonly "~standard": StandardSchemaV1.Props<Input, Output>;

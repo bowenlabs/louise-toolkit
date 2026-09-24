@@ -7,17 +7,17 @@ import type { LouiseEnv } from "../security/index.js";
  * `Env` handles media should `extends LouiseMediaEnv`. Widens the security base
  * (`LouiseEnv`) with the R2 bucket and its public base URL. The helpers in
  * `./storage` take the bucket explicitly, so this interface is the typed
- * bindings *contract* — not something the functions reach for implicitly.
+ * bindings *contract*—not something the functions reach for implicitly.
  */
 export interface LouiseMediaEnv extends LouiseEnv {
   /** R2 bucket holding uploaded assets. */
   MEDIA: R2Bucket;
-  /** Public base URL the bucket is served from (e.g. `https://media.example.com`).
+  /** Public base URL the bucket is served from (for example, `https://media.example.com`).
    *  The public URL of an object is `MEDIA_URL` + "/" + its key. */
   MEDIA_URL: string;
   /** Optional Cloudflare Images binding. When present, the media primitives use
    *  it for server-side re-encoded transforms ({@link transformImage}) and to
-   *  read the dimensions of formats the header parser can't ({@link imageInfo} —
+   *  read the dimensions of formats the header parser can't ({@link imageInfo}:
    *  AVIF, TIFF). Absent → callers fall back to Image-Resizing URL rewriting
    *  ({@link cfImage}) and the header-byte parser ({@link imageDimensions}).
    *  Declare it in `wrangler.jsonc`: `"images": { "binding": "IMAGES" }`. */

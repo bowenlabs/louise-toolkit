@@ -35,7 +35,7 @@ type AnyTable = SQLiteTableWithColumns<any>;
 /**
  * `TContext` is the per-request value passed to every method and forwarded
  * unchanged to the collection's `access` functions (see {@link CollectionAccess}).
- * Louise doesn't standardize its shape — Louise types it as `{ session }`,
+ * Louise doesn't standardize its shape—Louise types it as `{ session }`,
  * other consumers may type it differently. `context` is a required first
  * argument on every method (not optional) so a call site can't forget it.
  */
@@ -43,7 +43,7 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
   /**
    * `depth: 0` (default) returns relationship fields as bare ids; `depth: 1`
    * batch-resolves `hasMany: false` relationship fields into the related
-   * row, gated by that collection's own `read` access fn — see
+   * row, gated by that collection's own `read` access fn—see
    * `resolveRelationships` below. Requires `createLocalApi`'s `registry`
    * param; throws LouiseContentError if `depth: 1` is requested without one.
    */
@@ -52,9 +52,9 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
     options?: {
       where?: SQL;
       depth?: RelationshipDepth;
-      /** Row cap, applied after `where` — for paginated list views. */
+      /** Row cap, applied after `where`—for paginated list views. */
       limit?: number;
-      /** Rows to skip, applied after `where` — pairs with `limit`. */
+      /** Rows to skip, applied after `where`—pairs with `limit`. */
       offset?: number;
       /** One or more `asc(table.col)`/`desc(table.col)` expressions. */
       orderBy?: SQL | SQL[];
@@ -66,14 +66,14 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
     options?: { depth?: RelationshipDepth },
   ): Promise<InferSelectModel<TTable>>;
   /**
-   * Total row count for `where` (ignoring `limit`/`offset`) — pairs with
+   * Total row count for `where` (ignoring `limit`/`offset`)—pairs with
    * `find` to compute page counts/next-page availability without fetching
    * every row. Gated by the same `read` access check as `find`.
    */
   count(context: TContext, options?: { where?: SQL }): Promise<number>;
   /**
    * Full-text search over this collection's `search.fields`-configured
-   * companion FTS5 table — see types.ts's `CollectionConfig.search` and
+   * companion FTS5 table—see types.ts's `CollectionConfig.search` and
    * codegen.ts's `collectionSearchTableSQL`. Gated by `read` access, same
    * as `find`/`findByID`. Throws `LouiseContentError` if the collection has no
    * `search` config.
@@ -84,7 +84,7 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
     options?: { limit?: number },
   ): Promise<InferSelectModel<TTable>[]>;
   /**
-   * Rebuild the FTS5 index from the current main-table rows — clears the index
+   * Rebuild the FTS5 index from the current main-table rows—clears the index
    * and re-inserts every row's search text. For backfilling after the FTS table
    * is first created (an empty `search.fields`-configured migration) or after a
    * bulk import that bypassed the Local API. Gated by `read` access; returns the
@@ -102,7 +102,7 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
 }
 
 // `input` here is always already-flattened (group fields expanded to
-// `<key>_<subKey>`) — both callers in create()/update() flatten via
+// `<key>_<subKey>`)—both callers in create()/update() flatten via
 // flattenDoc before reaching these, so flattening config.fields too means
 // every key in input lines up with a key in this flattened field map.
 function validateRequiredFields(config: CollectionConfig, input: Record<string, unknown>): void {
@@ -130,8 +130,8 @@ function rejectUnknownFields(config: CollectionConfig, input: Record<string, unk
 // underlying D1/SQLite error, surfacing `message = "Failed query: …"` and
 // stashing the real SQLite text on `error.cause` (sometimes a level deeper).
 // Classifying off `message` alone therefore misses every unique violation
-// against D1 — they fall through to the generic "Write failed", and callers
-// that branch on the unique message (e.g. the ecommerce plugin's webhook dedup
+// against D1—they fall through to the generic "Write failed", and callers
+// that branch on the unique message (for example, the ecommerce plugin's webhook dedup
 // guard) never recognize the duplicate. Flatten the whole `cause` chain so the
 // match holds regardless of how deep the driver buried it. The depth cap is a
 // guard against a pathological self-referential `cause`.
@@ -165,14 +165,14 @@ function notFound(config: CollectionConfig, id: number): never {
  * Lets `createLocalApi` resolve `depth: 1` relationship fields without
  * importing every other collection's Local API (which would be a circular
  * dependency the moment two collections relate to each other). The
- * registry is just the raw ingredients — a table and a config per
- * collection slug — built once by the app (e.g. from `contentConfig.collections`)
+ * registry is just the raw ingredients—a table and a config per
+ * collection slug—built once by the app (for example, from `contentConfig.collections`)
  * and passed to every `createLocalApi` call that has relationship fields.
  *
  * `apis` is a second, optional registry on the same object, for a
  * different problem: a *hook* (not `createLocalApi` itself) on one
- * collection that needs to write to *another* collection's Local API —
- * e.g. a CRM upsert hook on a lead-capture collection that creates/updates
+ * collection that needs to write to *another* collection's Local API—for example,
+ * a CRM upsert hook on a lead-capture collection that creates/updates
  * `contacts`/`activities` rows. `tables`/`configs` can't serve this, since
  * a hook needs a real `LocalApi` (with its own access/hooks/search wiring
  * already applied), not raw ingredients to rebuild one from.
@@ -180,7 +180,7 @@ function notFound(config: CollectionConfig, id: number): never {
  * The chicken-and-egg problem this solves: building collection A's
  * `LocalApi` might need to reference collection B's `LocalApi` (for a
  * hook), but collection B's `LocalApi` doesn't exist yet at the point A's
- * is constructed — and vice versa if B also has a hook referencing A.
+ * is constructed—and vice versa if B also has a hook referencing A.
  * The fix is **late binding**: build one `ContentRegistry` object, pass the
  * *same reference* into every `createLocalApi` call (so every collection's
  * hooks close over the same mutable object), construct every `LocalApi`,
@@ -190,7 +190,7 @@ function notFound(config: CollectionConfig, id: number): never {
  * const registry: ContentRegistry = { tables, configs, apis: {} };
  * const contactsApi = createLocalApi(db, contactsTable, contactsCollection, registry);
  * const inquiriesApi = createLocalApi(db, inquiriesTable, inquiriesCollection, registry);
- * // populate *after* every createLocalApi call returns — any hook that
+ * // populate *after* every createLocalApi call returns; any hook that
  * // reads registry.apis lazily (inside its returned function body, not
  * // at hook-factory-call time) sees the fully-populated map, since hooks
  * // only ever run once real requests start landing.
@@ -203,18 +203,18 @@ function notFound(config: CollectionConfig, id: number): never {
 export interface ContentRegistry {
   tables: Record<string, AnyTable>;
   configs: Record<string, CollectionConfig>;
-  // oxlint-disable-next-line typescript/no-explicit-any -- collections in the same registry can have different TContext shapes — same `any` escape hatch hono/content.ts's ContentRoutesOptions already uses for the same reason
+  // oxlint-disable-next-line typescript/no-explicit-any -- collections in the same registry can have different TContext shapes—same `any` escape hatch hono/content.ts's ContentRoutesOptions already uses for the same reason
   apis?: Record<string, LocalApi<AnyTable, any>>;
 }
 
 /**
- * Reads collection `slug`'s `LocalApi` out of `registry.apis` — the
+ * Reads collection `slug`'s `LocalApi` out of `registry.apis`—the
  * accessor hook factories should use (see `ContentRegistry`'s doc comment for
  * the late-binding pattern this assumes) instead of indexing
  * `registry.apis` directly, so every caller gets the same clear error if
  * the registry wasn't built/populated correctly. `TContext` is a type-only
  * parameter (the registry itself is stored with `never` to stay variance-
- * safe across collections with different context shapes) — callers assert
+ * safe across collections with different context shapes)—callers assert
  * the context type they expect, the same way `resolveRelationships`'s own
  * registry lookups do.
  */
@@ -234,14 +234,14 @@ export function getRegisteredApi<TContext>(
 /**
  * Batch-resolves this collection's `hasMany: false` relationship fields
  * for an already-fetched page of `rows`, one query per relationship field
- * (not one query per row — the N+1 the `depth: 1` design note in types.ts
+ * (not one query per row—the N+1 the `depth: 1` design note in types.ts
  * calls out avoiding). The related collection's `read` access fn is run
  * once per field against `context`, not once per row: there's a single
  * yes/no for "can this context read collection X", not a row-by-row
  * filter. When it rejects, the field is left as the bare id rather than
- * throwing — a denied relationship is an omission, not a failed request.
+ * throwing—a denied relationship is an omission, not a failed request.
  * `hasMany: true` relationship fields are untouched (no column on this
- * table to resolve from — they live in a join table, out of scope here).
+ * table to resolve from—they live in a join table, out of scope here).
  */
 async function resolveRelationships<TContext>(
   db: BaseSQLiteDatabase<"async", unknown>,
@@ -322,7 +322,7 @@ export async function can<TContext>(
 
 // Runs config.access[operation](context) if configured, throwing
 // LouiseAccessDeniedError when it resolves false. No access function for
-// an operation means that operation is unconditionally allowed — matches
+// an operation means that operation is unconditionally allowed—matches
 // the pre-Section-2 default of "no enforcement at all".
 async function checkAccess<TContext>(
   config: CollectionConfig,
@@ -381,7 +381,7 @@ async function runAfterDelete(config: CollectionConfig, id: number): Promise<voi
 }
 
 // Keeps a collection's FTS5 companion table (see codegen.ts's
-// collectionSearchTableSQL) in sync on every create/update — issue #29's
+// collectionSearchTableSQL) in sync on every create/update—issue #29's
 // "populated via an afterChange hook" wording, but wired in here rather
 // than exposed on `CollectionHooks.afterChange` since it's derived
 // entirely from `config.search` (no operator-authored hook function),
@@ -425,7 +425,7 @@ async function removeFromSearchIndex(
 
 /**
  * Enqueue a reindex of the changed row (by id) instead of updating the FTS
- * index inline — the seam that moves search sync off the write path (#77).
+ * index inline—the seam that moves search sync off the write path (#77).
  * Supplied via {@link LocalApiOptions.deferReindex}; a queue consumer later
  * runs {@link reindexDoc} to do the actual sync. Returning normally must mean
  * "enqueued", so a failure to enqueue surfaces on the write (the caller can
@@ -440,7 +440,7 @@ export interface LocalApiOptions {
   deferReindex?: DeferReindex;
 }
 
-/** Sync the index inline, or hand the row id to `deferReindex` — whichever the
+/** Sync the index inline, or hand the row id to `deferReindex`—whichever the
  *  collection is configured for. Skips non-searchable collections and rows
  *  without a numeric id (the FTS rowid). */
 async function reindexOrDefer(
@@ -470,7 +470,7 @@ async function removeOrDefer(
 }
 
 /**
- * Sync one row's FTS entry by id — the deferred counterpart to the inline
+ * Sync one row's FTS entry by id—the deferred counterpart to the inline
  * search sync (#77). Re-reads the current row: present → upsert its index
  * entry; absent (it was deleted) → remove it. Call this from a queue consumer
  * to drain a `deferReindex(id)` job. No-op for a collection without
@@ -505,7 +505,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
   const deferReindex = options?.deferReindex;
   const idColumn = table.id;
   // Group fields are the only reason a document's shape (nested) ever
-  // differs from its row's shape (flat columns) — skip the flatten/nest
+  // differs from its row's shape (flat columns)—skip the flatten/nest
   // round-trip entirely for the common case of a collection with none, so
   // every existing collection (none of which have group fields yet) pays
   // zero cost for this.
@@ -609,14 +609,14 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
     async create(context, input) {
       await checkAccess(config, "create", context);
       // beforeChange runs before validation so a hook may supply or default
-      // a required field (e.g. the SEO plugin defaulting metaTitle). Hooks
-      // always see/return the nested document shape — flattening for the
+      // a required field (for example, the SEO plugin defaulting metaTitle). Hooks
+      // always see/return the nested document shape—flattening for the
       // DB write happens after, never inside a hook.
       const data = await runBeforeChange(config, input as Record<string, unknown>);
       const flatData = toFlatDoc(data);
       validateRequiredFields(config, flatData);
       rejectUnknownFields(config, flatData);
-      // Chainable field rules (#16) — required-flag and unknown-field checks
+      // Chainable field rules (#16)—required-flag and unknown-field checks
       // above stay; this adds value-level rules (min/max/regex/unique/
       // reference/custom) and throws LouiseValidationError with per-field
       // violations. Runs after beforeChange so a hook-supplied value is
@@ -632,7 +632,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       try {
         const [inserted] = await db
           .insert(table)
-          // oxlint-disable-next-line typescript/no-explicit-any -- TTable is an abstract generic here, so drizzle's column-mapped insert types can't narrow against it — InferInsertModel<TTable> already gives callers the real, concrete typing.
+          // oxlint-disable-next-line typescript/no-explicit-any -- TTable is an abstract generic here, so drizzle's column-mapped insert types can't narrow against it—InferInsertModel<TTable> already gives callers the real, concrete typing.
           .values(flatData as any)
           .returning();
         row = inserted as InferSelectModel<TTable>;
@@ -653,7 +653,7 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
       const data = await runBeforeChange(config, input as Record<string, unknown>);
       const flatData = toFlatDoc(data);
       rejectUnknownFields(config, flatData);
-      // Validate only the fields this partial update actually carries — a
+      // Validate only the fields this partial update actually carries—a
       // partial update must not fail an absent field's rules (it isn't
       // changing it). `unique` excludes this row by id.
       await assertValid(config, data as Record<string, unknown>, {
@@ -704,18 +704,18 @@ function notFoundVersion(config: CollectionConfig, id: number): never {
  * Extends {@link LocalApi} with draft/publish operations for a collection
  * that opted in via `CollectionConfig.versions.drafts` (see codegen.ts's
  * `collectionVersionsTable`). A separate interface (not a wider
- * `LocalApi`) so non-versioned collections' types don't grow these methods
- * — TypeScript can't conditionally widen `createLocalApi`'s return type
+ * `LocalApi`) so non-versioned collections' types don't grow these methods;
+ * TypeScript can't conditionally widen `createLocalApi`'s return type
  * off a runtime config value, so this is `createVersionedLocalApi`'s own
  * factory rather than a branch inside `createLocalApi`.
  *
  * Scope, deliberately: a document is always created via the inherited
- * `create()` first (existing behavior, unaffected by versioning) — these
+ * `create()` first (existing behavior, unaffected by versioning)—these
  * methods operate against an *existing* row. `saveDraft` never validates
  * required fields (an incomplete draft is valid); `publish` runs the same
  * full validation `create`/`update` do, since publishing is what makes a
  * version the public-facing document. Plain `find`/`findByID` are
- * unchanged by any of this — they always return the main table's current
+ * unchanged by any of this—they always return the main table's current
  * row regardless of `publishedVersionId`; filtering reads to
  * published-only content is not this phase's concern.
  */
@@ -746,22 +746,22 @@ export interface VersionedLocalApi<
   /**
    * Publishes every still-draft version whose `scheduledAt` is at or before
    * `now` (default: the current time), oldest first. Returns the published main
-   * rows. Intended to be driven by a scheduled worker (e.g. a Cloudflare cron
+   * rows. Intended to be driven by a scheduled worker (for example, a Cloudflare cron
    * trigger). A single access check (`publish`) covers the whole batch.
    */
   publishScheduled(context: TContext, now?: Date): Promise<InferSelectModel<TTable>[]>;
   /** Clears the main row's published pointer; the row's data is untouched. */
   unpublish(context: TContext, id: number): Promise<InferSelectModel<TTable>>;
   /**
-   * Delete a single version row from the history (e.g. discarding a draft).
-   * Refuses to delete the currently-live version — its snapshot backs the live
-   * row — throwing {@link LouiseContentError}; unpublish first if that's intended.
+   * Delete a single version row from the history (for example, discarding a draft).
+   * Refuses to delete the currently-live version—its snapshot backs the live
+   * row—throwing {@link LouiseContentError}; unpublish first if that's intended.
    * Access: `update` (same gate as saving a draft).
    */
   discardVersion(context: TContext, versionId: number): Promise<void>;
   /**
-   * Field-level diff (issue #14) between two version snapshots' `versionData`
-   * — the per-field added/removed/changed list a version-history UI renders.
+   * Field-level diff (issue #14) between two version snapshots' `versionData`:
+   * the per-field added/removed/changed list a version-history UI renders.
    * Both versions must belong to the same parent. Bookkeeping keys
    * (`id`/`createdAt`/`status`/`publishedVersionId`) are ignored.
    */
@@ -829,7 +829,7 @@ export function createVersionedLocalApi<
     // Guard the parent row's existence BEFORE writing. Publish flips the version
     // to "published" and promotes its snapshot onto the live row; when those two
     // writes batch atomically (below), a blind batch against a missing parent
-    // would still mark the version published against a row that isn't there — so
+    // would still mark the version published against a row that isn't there—so
     // check first, outside the batch.
     const [existing] = await db.select({ id: idColumn }).from(table).where(eq(idColumn, parentId));
     if (!existing) notFound(config, parentId);
@@ -870,8 +870,8 @@ export function createVersionedLocalApi<
       wrapWriteError(config, error);
     }
     await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
-    // publish() writes to an already-existing row, never a new one —
-    // counts as "update" the same way createLocalApi.update() does.
+    // publish() writes to an already-existing row, never a new one—counts
+    // as "update" the same way createLocalApi.update() does.
     await runAfterChange(config, doc as Record<string, unknown>, "update");
     return doc as InferSelectModel<TTable>;
   }
@@ -970,7 +970,7 @@ export function createVersionedLocalApi<
       const parentId = (version as Record<string, unknown>).parentId as number;
       const [parent] = await db.select().from(table).where(eq(idColumn, parentId));
       // The live row renders from the published version's snapshot, so deleting
-      // it would orphan the pointer — refuse and let the caller unpublish first.
+      // it would orphan the pointer—refuse and let the caller unpublish first.
       if (parent && (parent as Record<string, unknown>).publishedVersionId === versionId) {
         throw new LouiseContentError(
           `Cannot discard the live "${config.slug}" version ${versionId}; unpublish it first`,
@@ -995,7 +995,7 @@ export function createVersionedLocalApi<
       const after = byId.get(toVersionId);
       if (!before) notFoundVersion(config, fromVersionId);
       if (!after) notFoundVersion(config, toVersionId);
-      // Ignore bookkeeping columns — only real content fields are of interest
+      // Ignore bookkeeping columns—only real content fields are of interest
       // in a version-history view.
       return diffDocuments(before, after, {
         ignore: ["id", "createdAt", "status", "publishedVersionId"],

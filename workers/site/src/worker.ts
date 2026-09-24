@@ -68,7 +68,7 @@ async function handleOgImage(url: URL): Promise<Response> {
     render: ogRenderer,
     cache: ogCacheStore(),
   });
-  // bytes: Uint8Array<ArrayBufferLike> — see the cast note in ogCacheStore.
+  // bytes: Uint8Array<ArrayBufferLike>—see the cast note in ogCacheStore.
   return new Response(bytes as BodyInit, {
     headers: {
       "content-type": "image/png",
@@ -85,7 +85,7 @@ async function handleOgImage(url: URL): Promise<Response> {
  * scripts/ci-build.sh) at the docs subdomain root. The docs app is built as a
  * root site, so we uniformly prefix every docs-host path with /_docs before the
  * ASSETS binding. ASSETS emits its trailing-slash redirects with that
- * /_docs-prefixed Location, so strip the prefix back off — otherwise the browser
+ * /_docs-prefixed Location, so strip the prefix back off—otherwise the browser
  * would be sent to `docs.host/_docs/…`, leaking the prefix and double-prefixing
  * the retry.
  */
@@ -105,12 +105,12 @@ async function serveDocs(url: URL, request: Request, env: WorkerEnv): Promise<Re
 /* ── Louise Toolkit editor routes ─────────────────────────────────────────── */
 
 // Editor-gate config comes from astro:env (astro.config.mjs schema), not the
-// binding env. Read per request via getEditorGate() — never captured at module
-// scope — so the Worker's runtime env is resolved inside the request path.
+// binding env. Read per request via getEditorGate()—never captured at module
+// scope—so the Worker's runtime env is resolved inside the request path.
 const resolveEditor = (request: Request, _env: WorkerEnv) =>
   resolveEditorFromCookie(request, getEditorGate());
 
-/** The site's media base — matches `vars.MEDIA_URL` in wrangler.jsonc. Every
+/** The site's media base—matches `vars.MEDIA_URL` in wrangler.jsonc. Every
  *  editor image (sections, settings, page body) is validated against this so
  *  only media-library assets are stored, never an external hotlink (#47). */
 const MEDIA_BASE = "/media";
@@ -138,9 +138,9 @@ const SETTINGS_COLUMNS = [
 ];
 
 // The public contact form: the built-in inquiries fields + Tier-3 silent spam
-// heuristics (a `website` honeypot + a 2s minimum since render). Same `inquiries`
+// heuristics (a `website` honeypot + a 2-second minimum since render). Same `inquiries`
 // table, so the Louise Settings Inquiries tab reviews it unchanged.
-// #region example:inquiries-form  (sliced into /examples/forms — keep runnable)
+// #region example:inquiries-form  (sliced into /examples/forms—keep runnable)
 const contactForm = defineForm({
   name: "inquiries",
   fields: inquiriesForm.fields,
@@ -151,9 +151,9 @@ const contactForm = defineForm({
 const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Owner Home dashboard (#108): one editor-only GET the drawer's Home landing
   // reads for its at-a-glance cards. Content + Inbox counts are live; the health
-  // slice reads the summary the cron scan persists (#106) — undefined until the
+  // slice reads the summary the cron scan persists (#106)—undefined until the
   // first scan, so the card hides itself till then. A throwing resolver is
-  // dropped, never 500s the dashboard.
+  // dropped, so the dashboard never returns 500.
   overviewRoute<WorkerEnv>({
     resolveEditor,
     content: overviewContent,
@@ -166,7 +166,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Draft/publish + version history for pages: /api/louise/pages/:id/{versions,
   // publish,unpublish}. Saves stage drafts (live row untouched); publish promotes
   // a draft and sets published_version_id. Same sections validation on drafts.
-  // MUST precede pagesRoute — pagesRoute's `/:id` matcher would otherwise claim
+  // MUST precede pagesRoute—pagesRoute's `/:id` matcher would otherwise claim
   // `/pages/:id/versions` and 400 on the non-integer id.
   versionsRoute({
     // Draft store deps (table/versions/config + sections validation + the #70 KV
@@ -175,15 +175,15 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     ...pagesDraftDeps,
     resolveEditor,
     // Post-publish work off the request path. Preferred: hand the published row
-    // to the durable PublishWorkflow (#88) — reindex → warm the OG card → notify
+    // to the durable PublishWorkflow (#88)—reindex → warm the OG card → notify
     // webhook, each step retried independently and resumable mid-way (an
     // idempotency id coalesces a double-publish). Falls back to the fire-and-forget
     // reindex Queue (#77) when no Workflow is bound, then to inline sync when
-    // neither is — so publish keeps working in every deployment.
+    // neither is—so publish keeps working in every deployment.
     deferReindex: (env) => {
       const workflow = env.PUBLISH_WORKFLOW;
       if (workflow) {
-        // DeferReindex resolves to void — start the instance and drop the handle.
+        // DeferReindex resolves to void—start the instance and drop the handle.
         return async (id) => {
           await startWorkflow(workflow, { collection: "pages", id }, { id: `publish:pages:${id}` });
         };
@@ -194,7 +194,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
         : undefined;
     },
   }),
-  // Search over pages (title/body/flattened sections) — /search + a /reindex to
+  // Search over pages (title/body/flattened sections)—/search + a /reindex to
   // rebuild the FTS index. Before pagesRoute (its `/:id` matcher would else claim
   // the non-integer `search`/`reindex` segments). The optional `vector` layer
   // (#86) blends Vectorize kNN with the FTS keyword match via RRF; both bindings
@@ -205,7 +205,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
     resolveEditor,
     vector: {
       index: (env) => env.VECTORIZE,
-      // NOT `aiRunner` — deliberately. Embeddings power site search and
+      // NOT `aiRunner`—deliberately. Embeddings power site search and
       // generate no content, so they keep binding-presence as their switch.
       // Folding them into LOUISE_AI would mean turning off "AI content"
       // silently breaks search, surfacing as "search returns nothing" long
@@ -224,7 +224,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
   // Absent a runner it answers 503, so both client controls hide themselves.
   aiRoute({ resolveEditor, ai: aiRunner }),
   // `sections` (structured builder blocks JSON) is editable alongside the
-  // framework page fields, and validated against the catalog before write — a
+  // framework page fields, and validated against the catalog before write—a
   // malformed sections payload (unknown block type, wrong field shape) is
   // rejected with a 422 rather than persisted.
   pagesRoute({
@@ -241,7 +241,7 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
       }
     },
   }),
-  // NOTE: the rich-text page `body` is NOT here — it stages drafts via
+  // NOTE: the rich-text page `body` is NOT here—it stages drafts via
   // versionsRoute now (the versioned workflow), not a live `/save` write. The
   // sanitize that used to happen here lives on the collection's beforeChange
   // hook (pages-collection.ts) so it covers the draft/publish paths.
@@ -268,20 +268,20 @@ const editorRoutes: WorkerRoute<WorkerEnv>[] = [
       { collection: "pages", table: "pages", columns: ["body"], labelColumn: "title" },
     ],
     // Workers AI alt text on upload (#75): fill each new image's `alt` from the
-    // image. Best-effort — a model error/timeout never fails the upload (the alt
+    // image. Best-effort—a model error/timeout never fails the upload (the alt
     // just stays empty, editable in the media panel). Off wherever the binding
     // is unbound OR LOUISE_AI turns generation off.
     altText: aiRunner,
   }),
   // Public capture (contact form) + editor-gated review, both from the one
-  // built-in `inquiries` form (louise-toolkit/forms) — #46. The site adds the
-  // Tier-3 silent heuristics (honeypot + a 2s minimum) on top of the base fields.
+  // built-in `inquiries` form (louise-toolkit/forms)—#46. The site adds the
+  // Tier-3 silent heuristics (honeypot + a 2-second minimum) on top of the base fields.
   // #region example:inquiries-route  (sliced into /examples/forms)
   formRoute({ form: contactForm, rateLimitKv: (env) => env.RL }),
   inquiriesRoute({ table: inquiries, resolveEditor }),
   // Real-time multi-editor sessions (ADR 0002 / #71): a WebSocket upgrade at
   // /api/louise/realtime/:slug/:id, guarded then forwarded to the per-page
-  // EditSessionDO. 503s when the binding is absent, so it's cleanly optional.
+  // EditSessionDO. Returns 503 when the binding is absent, so it's cleanly optional.
   realtimeRoute({ resolveEditor, namespace: (env) => env.EDIT_SESSION }),
   // #endregion example:inquiries-route
   seedRoute({ table: siteSettings, resolveEditor, defaults: { siteName: "Louise Toolkit" } }),
@@ -307,7 +307,7 @@ const mediaAssetRoute: WorkerRoute<WorkerEnv> = async (request, env) => {
   headers.set("etag", obj.httpEtag);
   headers.set("cache-control", "public, max-age=31536000, immutable");
   // Serve with the stored (magic-byte-verified) content type and forbid MIME
-  // sniffing — this route bypasses the Astro middleware that sets nosniff
+  // sniffing—this route bypasses the Astro middleware that sets nosniff
   // elsewhere, so set it here as defense-in-depth against a polyglot upload.
   headers.set("x-content-type-options", "nosniff");
   return new Response(obj.body, { headers });
@@ -326,7 +326,7 @@ const vitalsIngestRoute = vitalsRoute<WorkerEnv>({ dataset: (env) => env.ANALYTI
 // The durable publish pipeline (#88). Re-exported from the Worker entry so
 // wrangler's `[[workflows]]` `class_name` can find it.
 export { PublishWorkflow } from "./workflows/publish.js";
-// Per-page live editing session DO (#71) — the wrangler `durable_objects` binding
+// Per-page live editing session DO (#71)—the wrangler `durable_objects` binding
 // names this class; it must be exported from the Worker entry.
 export { EditSessionDO } from "./realtime/edit-session.js";
 
@@ -337,7 +337,7 @@ export default composeWorker<WorkerEnv>({
   // Route caching (#95/#163): a cookie-aware Worker Cache API layer over the Astro
   // SSR fallback. Public GETs edge-cache (keyed by URL); an edit-mode request
   // (the `louise_edit` cookie) bypasses the cache entirely and always renders
-  // fresh — so a cached public page can never be served to an editor. Which
+  // fresh—so a cached public page can never be served to an editor. Which
   // renders are cacheable is still decided per-route by `Astro.cache.set(...)`
   // (gated on LOUISE_EDGE_CACHE); with the flag off every render is `no-store`,
   // so this wrapper caches nothing and is a transparent pass-through.
@@ -352,7 +352,7 @@ export default composeWorker<WorkerEnv>({
       if (job.kind === "reindex" && job.collection === "pages") {
         await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
         // Embed-on-publish (#86): mirror the FTS sync into Vectorize on the same
-        // deferred job. Best-effort — a missing binding / embed error is
+        // deferred job. Best-effort—a missing binding / embed error is
         // swallowed, so it never fails (or retries) the FTS reindex above.
         await syncPageVector(env, job.id);
       }

@@ -1,13 +1,13 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the AI assists route (#75). Exposes the server-side
+// louise-toolkit/editor—the AI assists route (#75). Exposes the server-side
 // Workers AI helpers (louise-toolkit/ai) over HTTP so the editor client can call
-// them — the AI binding is server-only, so rewrite/SEO must round-trip:
+// them—the AI binding is server-only, so rewrite/SEO must round-trip:
 //   POST /api/louise/ai/rewrite   { text, mode? }  → { text }
 //   POST /api/louise/ai/seo       { content }       → { title, description }
 //
 // Opt-in + degrade-gracefully: the `ai` accessor returns the runner (`env.AI`),
-// or `undefined` when the binding isn't provisioned — then the route answers 503
+// or `undefined` when the binding isn't provisioned—then the route answers 503
 // so the client can hide/disable the assist. Editor-guarded (same-origin + a
 // valid session), since each call spends Workers AI budget.
 
@@ -33,12 +33,12 @@ export interface AiRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
   /**
-   * The Workers AI runner — typically `(env) => env.AI`. Return `undefined` (e.g.
+   * The Workers AI runner—typically `(env) => env.AI`. Return `undefined` (for example,
    * the binding isn't provisioned) and the route answers 503, so the assist is
    * cleanly absent rather than erroring.
    */
   ai: (env: Env) => AiRunner | undefined;
-  /** Optional AI Gateway routing (#87) for the rewrite/SEO calls — caching, cost
+  /** Optional AI Gateway routing (#87) for the rewrite/SEO calls: caching, cost
    *  caps, fallbacks, logging. Given the runtime `env`, return the gateway config
    *  (or `undefined` to call Workers AI directly). */
   gateway?: (env: Env) => AiGatewayOptions | undefined;

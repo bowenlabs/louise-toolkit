@@ -6,7 +6,7 @@
 
 import type { OgImageCache } from "louise-toolkit/browser";
 
-/** OG-image byte store backed by the Workers Cache API — no extra binding, and
+/** OG-image byte store backed by the Workers Cache API—no extra binding, and
  *  the content-hashed key means a hit is always the right card. */
 export function ogCacheStore(): OgImageCache {
   const req = (key: string) => new Request(`https://og.cache/${key}`);
@@ -19,7 +19,7 @@ export function ogCacheStore(): OgImageCache {
       await caches.default.put(
         req(key),
         // bytes is Uint8Array<ArrayBufferLike>; lib.dom's BodyInit (TS 5.7+) wants
-        // an ArrayBuffer-backed view — fine at the Workers runtime.
+        // an ArrayBuffer-backed view—fine at the Workers runtime.
         new Response(bytes as BodyInit, {
           headers: {
             "content-type": contentType ?? "image/png",

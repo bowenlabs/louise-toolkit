@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import solid from "vite-plugin-solid";
 
-// Library packaging for `louise`, read by `vp pack` — Vite+'s library
+// Library packaging for `louise`, read by `vp pack`—Vite+'s library
 // build, which forwards the `pack` block to tsdown (Rolldown) internally.
 //
 // Authored as a plain object rather than `defineConfig(...)`: Vite+'s config
@@ -35,15 +35,15 @@ const rawLoader = {
 // per-subpath (import `/errors` and none of the client/Solid code comes along),
 // which is exactly what the subpath `exports` give consumers. The peer
 // dependencies stay external via `deps.neverBundle`; `@phosphor-icons/core`
-// (a devDep, not listed) is bundled — its raw SVGs inline via `rawLoader`.
+// (a devDep, not listed) is bundled—its raw SVGs inline via `rawLoader`.
 //
-// NOTE: not `unbundle` — that mode externalizes everything under node_modules,
+// NOTE: not `unbundle`—that mode externalizes everything under node_modules,
 // which both breaks the raw-SVG inlining and rewrites the peer imports into
 // non-portable `../node_modules/.pnpm/...` relative paths.
 export default {
   // Vite+'s lint pipeline (`vp check` / `vp lint`). `typeAware` turns on the
   // Oxlint rules that need type information and `typeCheck` runs a full type
-  // check — both via tsgolint on the TypeScript-Go toolchain (TS7 native), the
+  // check—both via tsgolint on the TypeScript-Go toolchain (TS7 native), the
   // same engine as the `tsgo` typecheck script. `vite.config.ts` is excluded:
   // it is authored as an untyped plain object (no Vite/Rollup typings to import,
   // see below) and isn't part of the `src`/`test` tsconfig scope.
@@ -54,8 +54,8 @@ export default {
       typeCheck: true,
     },
     rules: {
-      // Louise's content layer coerces intentionally-`unknown` values — CMS field
-      // and setting values, form submissions, error causes, FTS index text — into
+      // Louise's content layer coerces intentionally-`unknown` values—CMS field
+      // and setting values, form submissions, error causes, FTS index text—into
       // display/serialized strings (`String(value)`, `` `${value}` ``). That is the
       // design, and several sites are already `typeof`-guarded (see codegen.ts).
       // Type *correctness* is enforced by the authoritative `tsgo` typecheck; these
@@ -68,7 +68,7 @@ export default {
         // Tests reference Vitest spy methods unbound (`expect(spy)`), spread
         // strings, keep compile-only type-assertion expressions, and optional-chain
         // on values a passing assertion already guarantees. These type-aware rules
-        // assume production intent and are noise in tests — full type-checking
+        // assume production intent and are noise in tests—full type-checking
         // still runs; only the lint rules relax.
         files: ["test/**"],
         rules: {
@@ -89,9 +89,9 @@ export default {
       "src/client/settings/index.ts",
       "src/client/studio/index.ts",
       "src/core/content/index.ts",
-      // Drizzle-free "describe content" entry — see the note in define.ts.
+      // Drizzle-free "describe content" entry—see the note in define.ts.
       "src/core/content/define.ts",
-      // Drizzle-free structured-sections validator — reuses the pure Rule engine
+      // Drizzle-free structured-sections validator—reuses the pure Rule engine
       // (content/rule.ts), so consumers can validate `sections` without pulling
       // in the optional drizzle-orm peer. See sections.ts's import note.
       "src/core/content/sections.ts",
@@ -107,7 +107,7 @@ export default {
       "src/core/dates/index.ts",
       "src/core/email/index.ts",
       "src/core/forms/index.ts",
-      // Drizzle-free Turnstile entry (both halves) — see turnstile-entry.ts.
+      // Drizzle-free Turnstile entry (both halves)—see turnstile-entry.ts.
       "src/core/forms/turnstile-entry.ts",
       "src/core/health/index.ts",
       "src/core/media/index.ts",
@@ -124,7 +124,7 @@ export default {
     ],
     format: ["esm"],
     dts: true,
-    // No sourcemaps in the published tarball — they roughly double its size and
+    // No sourcemaps in the published tarball—they roughly double its size and
     // just re-ship the (already public, MIT) source. The repo is the reference.
     sourcemap: false,
     platform: "neutral",

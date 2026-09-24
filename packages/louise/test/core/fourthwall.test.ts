@@ -80,7 +80,7 @@ describe("mapFourthwallOrder", () => {
 // The catalog read, which used to stop after one page.
 //
 // `unwrap` keeps `results` and drops the envelope around it, so
-// `paging.hasNextPage` — the only field that says a list is incomplete — was
+// `paging.hasNextPage`—the only field that says a list is incomplete—was
 // discarded on every call. Nothing errored; the collection just came back
 // smaller than it is, and more so the more the store sells. These pin the walk,
 // because "read everything" is not observable in its own result.
@@ -115,7 +115,7 @@ describe("getCollectionProducts paging", () => {
   });
 
   it("sends page (0-indexed) and an explicit size", async () => {
-    // `size` is always sent because the omitted default is undocumented — the
+    // `size` is always sent because the omitted default is undocumented—the
     // reason a store could be two uploads from silently losing products.
     const calls = servePages([[product("a")], [product("b")]]);
     await getCollectionProducts("tok", "all");
@@ -134,7 +134,7 @@ describe("getCollectionProducts paging", () => {
 
   it("treats a bare-array response as the only page", async () => {
     // The other envelope `unwrap` has always tolerated. It carries no paging,
-    // so it is the whole answer — and must not be mistaken for an empty one.
+    // so it is the whole answer—and must not be mistaken for an empty one.
     const calls: URL[] = [];
     vi.stubGlobal(
       "fetch",

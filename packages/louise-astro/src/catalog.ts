@@ -1,14 +1,14 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/astro` — `defineCatalogLoader`: the shared plumbing for a commerce
+// `louise-toolkit/astro`—`defineCatalogLoader`: the shared plumbing for a commerce
 // catalog served as an Astro Live Content Collection. Live collections fetch at
 // request time, so a price/stock edit shows on the next render with no rebuild.
 //
-// Every catalog loader repeats the same boilerplate — map items to keyed entries,
+// Every catalog loader repeats the same boilerplate—map items to keyed entries,
 // stamp a `cacheHint` (a tag for future webhook-driven purges, plus the snapshot
 // age as `lastModified`), and wrap a read failure as a loader error instead of a
 // 500. That lives here ONCE. A site injects only what's domain-specific: how to
-// read its (cached) catalog, how to resolve one item, and each item's slug — so
+// read its (cached) catalog, how to resolve one item, and each item's slug—so
 // a Fourthwall site and a Square site share one loader definition and only their
 // `lib/<provider>` reads differ.
 //
@@ -18,7 +18,7 @@
 import type { LiveLoader } from "astro/loaders";
 
 // Astro's own `LiveLoader` constrains its data/filter generics to
-// `Record<string, any>` — crucially, that (unlike `Record<string, unknown>`)
+// `Record<string, any>`—crucially, that (unlike `Record<string, unknown>`)
 // admits a plain `interface`, which has no implicit index signature. Mirror it
 // exactly so any site's product/filter interface slots straight in.
 // oxlint-disable-next-line typescript/no-explicit-any -- matches astro's LiveLoader generic constraint
@@ -26,7 +26,7 @@ type AnyRecord = Record<string, any>;
 
 /**
  * What a site provides to build a catalog live loader. `Data` is the entry shape
- * (e.g. a display product); `Filter` is the collection query shape.
+ * (for example, a display product); `Filter` is the collection query shape.
  */
 export interface CatalogLoaderConfig<
   Data extends AnyRecord,
@@ -37,7 +37,7 @@ export interface CatalogLoaderConfig<
   name: string;
   /**
    * Load the (cached) catalog for a collection query, already narrowed to what
-   * the query asks for (the site owns its own filtering — category trees, etc.).
+   * the query asks for (the site owns its own filtering—category trees, etc.).
    * `fetchedAt` (epoch ms) becomes the `cacheHint.lastModified` so the hint
    * reflects the snapshot's age, not the render time.
    */
@@ -47,7 +47,7 @@ export interface CatalogLoaderConfig<
   /** Resolve a single item by its entry id (slug). `null` → not found (Astro
    *  raises `LiveEntryNotFoundError`, which the page can turn into a redirect). */
   loadItem: (id: string) => Promise<Data | null>;
-  /** The entry id (slug) for an item — keys the collection and resolves
+  /** The entry id (slug) for an item—keys the collection and resolves
    *  `getLiveEntry("catalog", slug)`. */
   idOf: (item: Data) => string;
   /** `cacheHint` tag for tag-based purges. Default: `name`. */

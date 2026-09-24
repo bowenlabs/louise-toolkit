@@ -1,14 +1,14 @@
 // The shared destination editor (coracle.coffee#38).
 //
 // A link has no visible text node to click, so its target is always edited in a
-// panel rather than on the canvas — the rich-text builder's link node and the
+// panel rather than on the canvas—the rich-text builder's link node and the
 // sections inspector's `link` field both need the same control, so it lives here
 // rather than in either one.
 //
 // Two ways to name a destination:
-//   • pick a page — DB pages from `/api/louise/pages`, plus any code-defined
+//   • pick a page—DB pages from `/api/louise/pages`, plus any code-defined
 //     routes the host supplies (see `setBuiltInRoutes`);
-//   • type a URL — anything else, internal path or external.
+//   • type a URL—anything else, internal path or external.
 //
 // The value is a plain **string** href. Open-in-new deliberately isn't part of it:
 // it's a separate field a catalog declares alongside (`type: "toggle"`), which
@@ -18,13 +18,13 @@ import { createSignal, For, onMount, Show } from "solid-js";
 
 /** One selectable destination in the picker. */
 export interface PageChoice {
-  /** The href this option writes, e.g. `/about`. */
+  /** The href this option writes, for example, `/about`. */
   path: string;
   /** What the editor sees. */
   title: string;
 }
 
-// Fetched once per session and shared by every link editor on the page — a
+// Fetched once per session and shared by every link editor on the page—a
 // wrench opened on ten different buttons shouldn't be ten requests.
 let pagesCache: PageChoice[] | null = null;
 
@@ -40,8 +40,8 @@ export function setBuiltInRoutes(routes: PageChoice[] | undefined): void {
 }
 
 // How a `pages` row's slug becomes a path. `/${slug}` is the truth for every
-// conventional row, but a site can render one row somewhere else entirely —
-// coracle's `home` row IS the homepage, served at `/`, and mapping it to
+// conventional row, but a site can render one row somewhere else entirely—coracle's
+// `home` row IS the homepage, served at `/`, and mapping it to
 // `/home` offered editors a duplicate-content alias as if it were a page.
 let pagePathForSlug: (slug: string) => string = (slug) => `/${slug}`;
 
@@ -51,7 +51,7 @@ export function setPagePathForSlug(map: ((slug: string) => string) | undefined):
   pagePathForSlug = map ?? ((slug) => `/${slug}`);
 }
 
-/** Reset the module-level caches. Tests only — a stale page list would leak
+/** Reset the module-level caches. Tests only—a stale page list would leak
  *  across cases. */
 export function resetLinkFieldCache(): void {
   pagesCache = null;
@@ -62,7 +62,7 @@ export function resetLinkFieldCache(): void {
 /**
  * Destination editor: a page picker plus a free URL field.
  *
- * Commits on change/blur rather than per keystroke — the sections inspector
+ * Commits on change/blur rather than per keystroke—the sections inspector
  * re-renders the section through the fragment route on commit, and doing that
  * mid-word would yank the input out from under the cursor.
  */
@@ -77,7 +77,7 @@ export function LinkField(props: {
 
   // Built-ins lead: they're the hand-authored routes a site links to most, and
   // they can't be confused with content the editor might rename. Deduped by
-  // PATH — a destination's identity — so a DB row mapping onto a built-in's
+  // PATH—a destination's identity—so a DB row mapping onto a built-in's
   // path (the home row, once `pagePathForSlug` sends it to `/`) shows once,
   // under its hand-authored title.
   const choices = (): PageChoice[] => {
@@ -105,7 +105,7 @@ export function LinkField(props: {
         setPages(pagesCache);
       })
       .catch(() => {
-        // A failed page list degrades to the URL field alone — an editor can
+        // A failed page list degrades to the URL field alone—an editor can
         // still type a destination, which is the important half.
       });
   });

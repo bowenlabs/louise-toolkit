@@ -1,20 +1,20 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/media — image transforms.
+// louise-toolkit/media—image transforms.
 //
 // Three transform concerns, cheapest first:
-//   1. Cloudflare Image Resizing URL rewriting — request a resized derivative
+//   1. Cloudflare Image Resizing URL rewriting: request a resized derivative
 //      through the same-zone `/cdn-cgi/image/<opts>/<path>` endpoint instead of
 //      shipping the full-size original. Pure (no binding), per-request billing, a
-//      zone feature. The default for public derivatives — nothing is re-encoded
+//      zone feature. The default for public derivatives—nothing is re-encoded
 //      or stored server-side, the edge does it on the fly and caches it.
-//   2. A CSS-coordinate crop — `{ x, y, scale }` applied at render via
+//   2. A CSS-coordinate crop: `{ x, y, scale }` applied at render via
 //      `object-position` + `transform: scale`, NOT a server-side re-encode. The
 //      same source crops differently per placement, so crop is per-usage.
-//   3. `transformImage` — a server-side re-encode via the Cloudflare Images
+//   3. `transformImage`: a server-side re-encode via the Cloudflare Images
 //      binding (`env.IMAGES`), for when you need the transformed *bytes* (a
 //      stored, re-encoded crop) rather than a URL. Reach for #1 first; use this
-//      when the derivative must be materialized (e.g. persisted back to R2).
+//      when the derivative must be materialized (for example, persisted back to R2).
 
 export interface CfImageOptions {
   width?: number;
@@ -42,7 +42,7 @@ export function cfImage(url: string, opts: CfImageOptions): string {
   } catch {
     return url;
   }
-  // Already a transform URL — don't double-wrap.
+  // Already a transform URL—don't double-wrap.
   if (parsed.pathname.startsWith("/cdn-cgi/image/")) return url;
 
   const params: string[] = [];
@@ -67,7 +67,7 @@ export function circleImage(url: string, size: number): { src: string; srcset: s
 }
 
 /** Options for {@link cfImageSrcset}: the largest 1× display width plus the
- *  usual cover-crop knobs. `ratio` (e.g. `"16/10"`) derives each derivative's
+ *  usual cover-crop knobs. `ratio` (for example, `"16/10"`) derives each derivative's
  *  height so the crop matches what CSS `object-fit` shows (no wasted pixels);
  *  omit it for a width-only resize. `steps` are DPR multipliers of `width`. */
 export interface CfImageSrcsetOptions {
@@ -82,7 +82,7 @@ export interface CfImageSrcsetOptions {
 /**
  * A width-descriptor `srcset` (+ a default `src`) for a rectangular render. The
  * browser picks the smallest derivative that covers the rendered width at the
- * device's DPR — retina included — so a huge master ships as a right-sized
+ * device's DPR—retina included—so a huge master ships as a right-sized
  * AVIF/WebP. Pair the returned `srcset` with a `sizes` attribute describing the
  * rendered width. Mirrors {@link circleImage} for non-square frames. Pure (no
  * binding); a non-URL `url` passes through {@link cfImage} untouched.
@@ -137,7 +137,7 @@ function toImageStream(
  * bytes and whose `content-type` is the output format. Use when you need the
  * transformed bytes (a stored crop persisted back to R2, an OG source, etc.);
  * for public on-the-fly derivatives prefer the zero-cost URL rewrite
- * ({@link cfImage}). The binding is passed explicitly — see {@link LouiseMediaEnv}
+ * ({@link cfImage}). The binding is passed explicitly—see {@link LouiseMediaEnv}
  * for the optional `IMAGES` contract.
  */
 export async function transformImage(
@@ -163,7 +163,7 @@ export interface Crop {
 /**
  * Turn a {@link Crop} into inline style properties for an `<img>` inside a
  * fixed frame: focal `object-position` + `scale` zoom about the same focal
- * point. Framework-generic — spread into a JSX `style` object or stringify for
+ * point. Framework-generic—spread into a JSX `style` object or stringify for
  * an `style=""` attribute. Sites that prefer CSS custom properties can read the
  * same `{ x, y, scale }` into `--crop-*` vars instead.
  */

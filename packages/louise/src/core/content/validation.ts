@@ -4,12 +4,12 @@
 // {@link validateDocument} / {@link assertValid} entry points and the two
 // DB-backed checks (`unique`, `reference`) whose queries need `drizzle-orm`.
 //
-// The pure Rule engine — the `Rule` builder, `validateValue`, and the
-// synchronous check evaluation — lives in `./rule.ts` (imported here and its
+// The pure Rule engine—the `Rule` builder, `validateValue`, and the
+// synchronous check evaluation—lives in `./rule.ts` (imported here and its
 // public API re-exported below, so `louise-toolkit/content` still surfaces the
 // whole API). That split is deliberate: `drizzle-orm` is an *optional* peer, and
 // ESM is eager, so a module that only needs the pure engine (`content/sections.ts`,
-// `forms/validate.ts`) must import it from `./rule.ts` — never from here — to
+// `forms/validate.ts`) must import it from `./rule.ts`—never from here—to
 // avoid dragging drizzle in. See rule.ts's header and `content/define.ts`.
 
 import { and, eq, ne } from "drizzle-orm";
@@ -44,23 +44,23 @@ export {
   validateValue,
 } from "./rule.js";
 
-// Mirrors localApi.ts's own local alias — drizzle's default table generic.
+// Mirrors localApi.ts's own local alias—drizzle's default table generic.
 // oxlint-disable-next-line typescript/no-explicit-any -- matches drizzle-orm's own SQLiteTableWithColumns default generic usage
 type AnyTable = SQLiteTableWithColumns<any>;
 
 export interface ValidateDocumentOptions {
   operation: "create" | "update";
-  /** Document id (update only) — passed to `unique`/custom validators. */
+  /** Document id (update only)—passed to `unique`/custom validators. */
   id?: number;
   /**
    * Restrict validation to these flattened field keys. Used by update(),
-   * which only receives a partial document — validating absent fields would
+   * which only receives a partial document—validating absent fields would
    * spuriously fail their rules. Omit to validate every field (create).
    */
   onlyFields?: ReadonlySet<string>;
   /**
    * Database handle for DB-backed rules (`unique`, `reference`). When
-   * omitted, those rules are skipped — so the same function powers a pure
+   * omitted, those rules are skipped—so the same function powers a pure
    * client-side validation pass.
    */
   db?: BaseSQLiteDatabase<"async", unknown>;

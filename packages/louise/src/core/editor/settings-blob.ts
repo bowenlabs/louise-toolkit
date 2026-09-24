@@ -1,14 +1,14 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the blob-mode `settings` route. The structured
+// louise-toolkit/editor—the blob-mode `settings` route. The structured
 // `settingsRoute` (see ./settings) maps settings to `siteSettingsColumns` + a
 // `custom` JSON column. This variant is for sites that keep ALL site config in
-// a single JSON blob column (e.g. `site_settings.data`) and drive the framework
+// a single JSON blob column (for example, `site_settings.data`) and drive the framework
 // Settings panel with `settingsBaseGroups: []` + extension render fields.
 //
 // GET returns `{ settings: <blob> }` (optionally passed through a site `read`
-// transform, e.g. seed-merge so the panel shows every known key). POST/PATCH
-// merges an allowlisted set of top-level keys into the blob — the allowlist is
+// transform, for example, seed-merge so the panel shows every known key). POST/PATCH
+// merges an allowlisted set of top-level keys into the blob—the allowlist is
 // a `{ key: sanitize }` map, so per-key clamping/normalization lives with the
 // site and a forged key the site didn't declare is ignored, never written.
 
@@ -26,7 +26,7 @@ export type BlobSanitize = (value: unknown) => unknown;
 /**
  * Merge an incoming patch into a settings blob through an allowlist. For each
  * patch key present in `allow`, the sanitized value overwrites the blob key;
- * keys outside `allow` are collected in `ignored` (never written). Pure — the
+ * keys outside `allow` are collected in `ignored` (never written). Pure—the
  * allowlist enforcement lives here so it's unit-testable independently of D1
  * (mirrors {@link partitionSettingsPatch} for the structured route).
  */
@@ -53,14 +53,14 @@ export function mergeBlobPatch(
 export interface BlobSettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** The singleton `site_settings` table. */
   table: SQLiteTable;
-  /** Drizzle property name of the JSON blob column (e.g. `"data"`). */
+  /** Drizzle property name of the JSON blob column (for example, `"data"`). */
   column: string;
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
   /** Allowlisted top-level blob keys, each mapped to a sanitizer. Keys outside
    *  this map are ignored (never written). */
   allow: Record<string, BlobSanitize>;
-  /** Optional GET transform for the stored blob — e.g. seed-merge so the panel
+  /** Optional GET transform for the stored blob—for example, seed-merge so the panel
    *  shows every known key even on an older row. Pure; must not mutate. */
   read?: (blob: Record<string, unknown>) => Record<string, unknown>;
   /** Mount path. Default `/api/louise/settings`. */

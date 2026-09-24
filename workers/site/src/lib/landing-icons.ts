@@ -1,5 +1,5 @@
 // Phosphor icons for the marketing landing, inlined raw from @phosphor-icons/core
-// so they render as SVG that inherits `currentColor` — no icon font, no runtime
+// so they render as SVG that inherits `currentColor`—no icon font, no runtime
 // fetch (the site convention). `bold` weight for UI glyphs, `fill` for the
 // lightning accents, matching the design mock. Rendered via Icon.astro.
 import article from "@phosphor-icons/core/assets/bold/article-bold.svg?raw";

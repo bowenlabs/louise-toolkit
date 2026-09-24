@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `louise-toolkit/client/settings` — the Louise editor Settings: a registry-driven
+// `louise-toolkit/client/settings`—the Louise editor Settings: a registry-driven
 // SolidJS shell with a fixed top strip of framework panels (Pages/Media/
 // Settings) and a bottom group of site-registered collection tabs. Sites call
 // `mountSettings(config)` in edit mode and register their own collections;
 // everything shares one TanStack Query cache (the data layer below).
 
-// Data layer — the shared QueryClient, query keys, and typed fetch helpers.
+// Data layer—the shared QueryClient, query keys, and typed fetch helpers.
 export {
   apiGet,
   apiSend,
@@ -27,7 +27,7 @@ export {
   mountSettings,
 } from "./shell.jsx";
 
-// Drawer action footer — the active panel/editor pushes its save/cancel/publish
+// Drawer action footer—the active panel/editor pushes its save/cancel/publish
 // actions here; site-registered tab panels use `usePanelActions` too.
 export {
   type ActionKind,
@@ -39,7 +39,7 @@ export {
   usePanelActions,
 } from "./panel-actions.jsx";
 
-// Owner Home dashboard (#108) — the card registry + built-ins, so a site can
+// Owner Home dashboard (#108)—the card registry + built-ins, so a site can
 // register its own cards (`dashboard.cards`) with the same shape.
 export { Card } from "./dashboard/Card.jsx";
 export { BUILTIN_CARDS } from "./dashboard/cards.jsx";

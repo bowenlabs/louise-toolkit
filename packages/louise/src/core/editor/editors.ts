@@ -1,7 +1,7 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `editors` route: manage who can edit the content.
-// Editors are the DB-managed admin allowlist — rows in the Better Auth user
+// louise-toolkit/editor—the generic `editors` route: manage who can edit the content.
+// Editors are the DB-managed admin allowlist—rows in the Better Auth user
 // table with role 'admin'. A row here IS an editor: they can request a magic
 // link at /louise and edit the live site (pair with getLouiseAuth's
 // `resolveAdmins` reading the same table, so this list is also the allowlist).
@@ -9,7 +9,7 @@
 // The user table is owned by Better Auth (getLouiseAuth), not Drizzle, so this
 // uses raw D1 on a configurable table NAME rather than a Drizzle table. Editor-
 // guarded: only a signed-in editor can list, invite, or remove editors. The
-// first editor is seeded out-of-band (e.g. a seed script); from then on editors
+// first editor is seeded out-of-band (for example, a seed script); from then on editors
 // invite each other here.
 
 import { s, standardValidate } from "../schema/index.js";
@@ -38,7 +38,7 @@ export interface EditorsRouteConfig<Env extends EditorRouteEnv> {
   /** Resolve the editor session (site wraps its own auth). */
   resolveEditor: ResolveEditor<Env>;
   /** Better Auth user table name. Default `"user"` (getLouiseAuth's default);
-   *  pass e.g. `"louise_user"` when a `tablePrefix`/modelName renames it. */
+   *  pass, for example, `"louise_user"` when a `tablePrefix`/modelName renames it. */
   table?: string;
   /** Mount path. Default `/api/louise/editors`. */
   path?: string;
@@ -85,7 +85,7 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const g = await guardEditor(request, env, config.resolveEditor, false);
       if ("response" in g) return g.response;
       // Editors only. The table is Better Auth's `user`, which on a site with
-      // customer accounts holds every customer too — unfiltered, this listed
+      // customer accounts holds every customer too—unfiltered, this listed
       // their names and emails to anyone with editor access.
       const { results } = await env.DB.prepare(
         `SELECT id, firstName, lastName, name, email, role, createdAt FROM ${table} WHERE role = 'admin' ORDER BY createdAt ASC`,
@@ -133,7 +133,7 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if ("response" in g) return g.response;
       const id = new URL(request.url).searchParams.get("id");
       if (!id) return json({ error: "Missing editor id." }, 400);
-      // Never orphan the site — refuse to remove the last *editor*. Counting the
+      // Never orphan the site—refuse to remove the last *editor*. Counting the
       // whole table would over-count on a site that also stores customers in it
       // (email/password auth shares Better Auth's `user` table), letting the final
       // admin delete themselves and lock everyone out. `role = 'admin'` is the
@@ -147,7 +147,7 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         return json({ error: "You can't remove the last editor." }, 400);
       }
       // `role = 'admin'` again: this route removes editors, and an id alone
-      // would let it delete any row in the table — a customer's account included.
+      // would let it delete any row in the table—a customer's account included.
       const res = await env.DB.prepare(`DELETE FROM ${table} WHERE id = ? AND role = 'admin'`)
         .bind(id)
         .run();

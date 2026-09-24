@@ -16,7 +16,7 @@ import {
 } from "../../src/core/worker/index.js";
 
 // ADR 0012: under /api/louise a request must be an editor's unless it's headed
-// for a route that declared itself public — whether or not the route it lands
+// for a route that declared itself public—whether or not the route it lands
 // on remembered its own guard.
 
 type IncomingRequest = Parameters<NonNullable<ExportedHandler["fetch"]>>[0];

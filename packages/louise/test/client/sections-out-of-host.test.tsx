@@ -2,9 +2,9 @@
 //
 // The chrome has always hovered every marker in the document, but the editor's
 // own lookups were host-scoped: the wireInline scan and `nodeEl` (the popover
-// anchor) both queried under `props.host`. A marker rendered outside the host —
-// which is exactly where ADR 0010 Phase B stamps `settings.*` paths, in the Nav
-// and Footer — was silently inert for inline editing, and its inspector popover
+// anchor) both queried under `props.host`. A marker rendered outside the host—which
+// is exactly where ADR 0010 Phase B stamps `settings.*` paths, in the Nav
+// and Footer—was silently inert for inline editing, and its inspector popover
 // fell back to the viewport-origin default position.
 //
 // Both failures were silent, which is why each gets a named test.
@@ -17,8 +17,8 @@ const CATALOG: SectionCatalog = {
   hero: {
     label: "Hero",
     fields: {
-      heading: { type: "text", label: "Heading" }, // inline — edited in place
-      cta: { type: "link", label: "Cta link" }, // not inline — inspector-edited
+      heading: { type: "text", label: "Heading" }, // inline—edited in place
+      cta: { type: "link", label: "Cta link" }, // not inline—inspector-edited
     },
   },
 };
@@ -30,7 +30,7 @@ const over = (node: Node) => node.dispatchEvent(new Event("mouseover", { bubbles
 const click = (el: Element | null) => el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
 /** The host holds the section; the two field markers render OUTSIDE it, as
- *  siblings — the shape of a chrome surface like the Nav. */
+ *  siblings—the shape of a chrome surface like the Nav. */
 function page(): { host: HTMLElement; heading: HTMLElement; cta: HTMLElement } {
   const host = document.createElement("div");
   const sec = document.createElement("section");
@@ -44,7 +44,7 @@ function page(): { host: HTMLElement; heading: HTMLElement; cta: HTMLElement } {
   cta.textContent = "Shop";
   // Three appendChild calls, not one variadic append(): with
   // @cloudflare/workers-types in the typecheck lib set, ParentNode.append
-  // resolves to a 1–2 arg overload and TS2554s on three (CI-only — the
+  // resolves to a 1–2 arg overload and TS2554s on three (CI-only—the
   // vitest transform doesn't typecheck).
   document.body.appendChild(host);
   document.body.appendChild(heading);

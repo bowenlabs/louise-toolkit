@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — declarative form definitions (issue #46). Define a form's
+// louise-toolkit/forms—declarative form definitions (issue #46). Define a form's
 // fields once; the same definition derives the submission table, the public
 // capture route (`formRoute`), server + client validation, and the review
 // columns. `inquiries` is just the built-in default form (see `louise-toolkit/db`).
 //
 // Field validation reuses the shared `Rule`/`validateValue` engine
-// (`louise-toolkit/content`) — there is one validation definition, run on both sides.
+// (`louise-toolkit/content`); there is one validation definition, run on both sides.
 
 import type {
   SQLiteColumn,
@@ -31,7 +31,7 @@ export type FormFieldType =
   | "select"
   | "checkbox"
   | "date"
-  // A file upload — stored as the uploaded media asset's URL (text). The render
+  // A file upload—stored as the uploaded media asset's URL (text). The render
   // helper uploads through the `media` route; the column is a plain text URL.
   | "file";
 
@@ -52,13 +52,13 @@ export interface FormField {
   /** Help/hint text rendered under the input. */
   help?: string;
   /**
-   * Extra validation, reusing the shared `Rule` builder — e.g.
+   * Extra validation, reusing the shared `Rule` builder—for example,
    * `(r) => r.max(5000)`. Composed after the type's built-in check.
    */
   validation?: ValidationBuilder;
   /**
    * Bring-your-own validation (#98): any Standard Schema
-   * (https://standardschema.dev) — Zod, Valibot, ArkType, or the built-in
+   * (https://standardschema.dev): Zod, Valibot, ArkType, or the built-in
    * `louise-toolkit/schema` `s.*` builder. Run in the same shared client+server
    * pass as `validation`, on the coerced value, and skipped for empty values so
    * an optional field stays optional. `validation` (the zero-dep `Rule` engine)
@@ -83,7 +83,7 @@ export interface FormSpamConfig {
    */
   honeypot?: string;
   /**
-   * Minimum seconds between the form rendering and its submit — a bot posts
+   * Minimum seconds between the form rendering and its submit—a bot posts
    * near-instantly. Enforced against a `louise_ts` timestamp the render helper
    * stamps at mount. Default off.
    */
@@ -118,7 +118,7 @@ export interface FormConfig {
   submitLabel?: string;
 }
 
-/** A review column derived from a form field — key + label for the panel. */
+/** A review column derived from a form field—key + label for the panel. */
 export interface FormReviewColumn {
   key: string;
   label: string;
@@ -133,11 +133,11 @@ export type FormColumns = Record<string, SQLiteColumn>;
 
 /**
  * The product of {@link defineForm}: the original config plus everything derived
- * from it — the Drizzle `columns`/`table`, and the `reviewColumns` the Settings
+ * from it—the Drizzle `columns`/`table`, and the `reviewColumns` the Settings
  * uses to render the submissions list.
  */
 export interface FormDefinition extends FormConfig {
-  /** Derived Drizzle column builders — spread into your own
+  /** Derived Drizzle column builders—spread into your own
    *  `sqliteTable(name, { ...columns, /* extras *\/ })`, or use {@link table}. */
   columns: Record<string, SQLiteColumnBuilderBase>;
   /** The ready-made Drizzle table for this form. */

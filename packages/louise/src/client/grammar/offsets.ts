@@ -4,7 +4,7 @@
 // spans onto ProseMirror document positions. Harper reports each issue as a span
 // of CODE-POINT offsets into the text of a single block; ProseMirror positions
 // count UTF-16 units and step through node boundaries. Keeping this conversion
-// here — free of any `harper.js` or ProseMirror-view types — makes the tricky part
+// here—free of any `harper.js` or ProseMirror-view types—makes the tricky part
 // (code point → UTF-16 → doc position) unit-testable without a WASM worker.
 
 import type { Node as PMNode } from "@prosekit/pm/model";
@@ -19,7 +19,7 @@ export interface GrammarSuggestion {
 }
 
 /**
- * A normalized grammar/spelling issue — transport-neutral (no `harper.js` types
+ * A normalized grammar/spelling issue—transport-neutral (no `harper.js` types
  * cross this boundary). `start`/`end` are CODE-POINT offsets into a block's
  * `textContent`; the linter wrapper extracts these off the WASM `Lint` so nothing
  * downstream holds WASM memory.
@@ -28,7 +28,7 @@ export interface GrammarMatch {
   start: number;
   end: number;
   message: string;
-  /** Harper's lint kind (e.g. "Spelling", "Agreement") — drives styling/labels. */
+  /** Harper's lint kind (for example, "Spelling", "Agreement")—drives styling/labels. */
   kind: string;
   suggestions: GrammarSuggestion[];
 }
@@ -68,7 +68,8 @@ export function codePointToUtf16(text: string, codePoint: number): number {
 /**
  * Map each block's matches (code-point spans into that block's text) to document
  * ranges. A character at code-point offset `s` in a text-only block sits at doc
- * position `block.pos + 1 + utf16(s)` — the `+ 1` steps inside the block node.
+ * position `block.pos + 1 + codePointToUtf16(block.text, s)`—the `+ 1` steps
+ * inside the block node.
  * Empty ranges (`to <= from`) are dropped. NOTE: assumes text-only textblocks;
  * inline atoms (images, hard breaks) inside a block would shift positions and are
  * a known limitation for v1.
@@ -89,7 +90,7 @@ export function blockMatchesToDecorations(
 }
 
 /**
- * Gather every non-empty textblock (a leaf block with inline content, e.g. a
+ * Gather every non-empty textblock (a leaf block with inline content, for example, a
  * paragraph or heading) and its plain text. Does not descend into a textblock's
  * inline content, so each block is linted once against its own `textContent`.
  */

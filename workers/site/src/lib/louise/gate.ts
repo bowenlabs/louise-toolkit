@@ -1,6 +1,6 @@
 // The one place that couples the editor gate to Astro. Reads the gate config
 // from the astro:env schema (astro.config.mjs) and packages it as the
-// framework-agnostic `EditorGateEnv` that session.ts consumes — so session.ts
+// framework-agnostic `EditorGateEnv` that session.ts consumes—so session.ts
 // itself imports nothing from astro:env and stays runnable in any host.
 //
 // Call this PER REQUEST, never capture it in a module-level constant: on

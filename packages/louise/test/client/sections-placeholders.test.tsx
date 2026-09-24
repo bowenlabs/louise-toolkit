@@ -1,13 +1,13 @@
 // Empty-field hints on the live design.
 //
 // An empty inline field has nothing to click, so the render emits the node anyway
-// and the editor labels it from the catalog — `placeholder`, else `label`, else a
+// and the editor labels it from the catalog—`placeholder`, else `label`, else a
 // humanised key. Resolving that means walking a `data-louise-node` path back to
 // the field that declared it, which has three shapes.
 //
 // The BLOCK shape was missing. `<i>.blocks.<j>.<key>` starts with `blocks`, which
 // is not a field, so the lookup found nothing and every block field fell through
-// to its humanised key — a declared `placeholder` on a block field was silently
+// to its humanised key—a declared `placeholder` on a block field was silently
 // ignored. Nothing failed; the hint was just always wrong (ADR 0010 A2, #345).
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,9 +21,9 @@ const CATALOG: SectionCatalog = {
     blocks: { allow: ["feature"] },
     fields: {
       heading: { type: "text", placeholder: "Section heading" },
-      // No placeholder — the label is the fallback.
+      // No placeholder—the label is the fallback.
       subheading: { type: "text", label: "Sub heading" },
-      // Neither — humanised from the key.
+      // Neither—humanised from the key.
       leadPara: { type: "textarea" },
       items: {
         type: "array",
@@ -110,8 +110,8 @@ function mount(host: HTMLElement) {
 
 describe("empty-field hints", () => {
   it("uses a block field's own placeholder", async () => {
-    // The regression. Before the shared path resolver this read "Name" — the
-    // humanised key — because `fields["blocks"]` is not a field.
+    // The regression. Before the shared path resolver this read "Name"—the
+    // humanised key—because `fields["blocks"]` is not a field.
     const host = pageHost();
     mount(host);
     await flush();

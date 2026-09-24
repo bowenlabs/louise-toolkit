@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `pages` route. Framework content pages CRUD:
+// louise-toolkit/editor—the generic `pages` route. Framework content pages CRUD:
 //   GET    /api/louise/pages        list
 //   POST   /api/louise/pages        create
 //   GET    /api/louise/pages/:id    read one
@@ -79,14 +79,14 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   path?: string;
   /**
    * Optional server-side validation, run after field-allowlisting and before
-   * the insert/update. Throw {@link LouiseValidationError} — e.g. via
-   * `assertValidSections(catalog, data.sections, ctx)` — to reject the write
+   * the insert/update. Throw {@link LouiseValidationError}—for example, via
+   * `assertValidSections(catalog, data.sections, ctx)`—to reject the write
    * with a 422 carrying the per-field violations. Only the allowlisted `data`
    * is passed, so absent fields (partial update) aren't spuriously validated.
    */
   validate?: PagesValidator;
   /**
-   * Transform the allowlisted write data before validation + store — clamp
+   * Transform the allowlisted write data before validation + store—clamp
    * lengths, coerce enums, normalize the slug, strict-media checks (a site's
    * `cleanPagePatch`). Runs after field-allowlisting, before {@link validate}.
    */
@@ -95,13 +95,13 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
     ctx: PagesValidateContext,
   ) => Record<string, unknown> | Promise<Record<string, unknown>>;
   /**
-   * Slugs rejected on create/update with a 422 — e.g. reserved file-route paths
+   * Slugs rejected on create/update with a 422—for example, reserved file-route paths
    * the catch-all can never serve (so a page can't be saved and then be
    * silently unreachable). Compared after {@link transform}.
    */
   reservedSlugs?: Iterable<string>;
   /**
-   * Best-effort hook after a successful create/update/delete — e.g. rebuild the
+   * Best-effort hook after a successful create/update/delete—for example, rebuild the
    * search (FTS) index, which plain CRUD writes don't touch. A throw is
    * swallowed so search staleness can never fail the write itself.
    */
@@ -109,7 +109,7 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /**
    * The collection's version-snapshot table (`collectionVersionsTable(...)`),
    * when the page uses the draft/publish workflow. DELETE then cascades to it
-   * (`WHERE parent_id = :id`) — those snapshots have no FK to the page row, so
+   * (`WHERE parent_id = :id`)—those snapshots have no FK to the page row, so
    * without this they orphan. Omit for an unversioned collection.
    */
   versionsTable?: SQLiteTable;
@@ -151,7 +151,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   const hasUpdatedAt = columns.some((c) => c.name === "updated_at");
   const reserved = new Set(config.reservedSlugs ?? []);
   // Version-snapshot table (draft/publish workflow) + its parent-id column, so
-  // DELETE can cascade to it — the snapshots have no FK to the page row.
+  // DELETE can cascade to it—the snapshots have no FK to the page row.
   const versionsTable = config.versionsTable;
   const versionsParentCol = versionsTable
     ? (getTableConfig(versionsTable).columns.find((c) => c.name === "parent_id") as
@@ -173,7 +173,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     try {
       await config.afterWrite(editor);
     } catch {
-      // Best-effort — a post-write hook (e.g. search reindex) must never fail the write.
+      // Best-effort—a post-write hook (for example, search reindex) must never fail the write.
     }
   };
 
@@ -257,7 +257,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (method === "DELETE") {
       const [deleted] = await database.delete(table).where(eq(pkCol, id)).returning();
       if (!deleted) return json({ error: "Not found" }, 404);
-      // Cascade to the version snapshots (no FK — they'd orphan otherwise).
+      // Cascade to the version snapshots (no FK—they'd orphan otherwise).
       if (versionsTable && versionsParentCol) {
         await database.delete(versionsTable).where(eq(versionsParentCol, id));
       }

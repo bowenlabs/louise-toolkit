@@ -23,8 +23,8 @@ export interface ResumeReadSession {
 
 /**
  * Open a D1 session anchored at the editor's persisted bookmark, for the
- * edit-mode resume read. On a database without read replication — or a
- * runtime without the Sessions API — `client` is the raw binding and nothing
+ * edit-mode resume read. On a database without read replication—or a
+ * runtime without the Sessions API—`client` is the raw binding and nothing
  * changes, so this is safe to wire before replication is on.
  *
  * Edit mode only: a view-mode render should stay session-free and cookie-free,

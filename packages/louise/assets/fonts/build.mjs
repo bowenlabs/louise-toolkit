@@ -3,13 +3,13 @@
 //
 // Why inline (rather than ship the woff2 as a referenced asset)? So the brand
 // font is baked into the package exactly like the Phosphor icons (see
-// src/client/icons.tsx) — self-contained, no runtime fetch, no Google Fonts, and
+// src/client/icons.tsx)—self-contained, no runtime fetch, no Google Fonts, and
 // consumable both as a plain CSS import and, via `?raw`, from the runtime style
 // injector (src/client/styles.ts). The woff2 here is the *source*; it is not in
 // package.json `files`, so only the generated CSS ships.
 //
 // The woff2 is Roboto Flex (OFL, see ./OFL.txt) instanced to the single `wght`
-// axis and subset to latin — matching what the editor chrome actually uses.
+// axis and subset to latin—matching what the editor chrome actually uses.
 // Regenerate the woff2 itself from the OFL original (fonttools + brotli):
 //   LATIN="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
 //   python -m fontTools.varLib.instancer "RobotoFlex[…all axes].ttf" \
@@ -28,12 +28,12 @@ const dataUrl = `data:font/woff2;base64,${woff2.toString("base64")}`;
 
 const css = `/*
  * BowenLabs brand type for Louise surfaces: Roboto Flex (variable weight axis).
- * There's no separate display face — headings are the same family, just heavier.
+ * There's no separate display face—headings are the same family, just heavier.
  *
- * GENERATED — do not edit by hand. Run \`node assets/fonts/build.mjs\` to
+ * GENERATED—do not edit by hand. Run \`node assets/fonts/build.mjs\` to
  * regenerate after changing the source woff2 (assets/fonts/, not published).
  *
- * The font is base64-inlined below (Roboto Flex, OFL — see THIRD_PARTY_NOTICES.md),
+ * The font is base64-inlined below (Roboto Flex, OFL—see THIRD_PARTY_NOTICES.md),
  * so it's bundled with the package like the Phosphor icons: self-contained, no
  * runtime fetch, no Google Fonts, CSP-safe. Loaded on Louise surfaces via the
  * client style injector (src/client/styles.ts imports this file with \`?raw\`) and

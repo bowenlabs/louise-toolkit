@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/forms — derive the submission table from a form's fields, so the
+// louise-toolkit/forms—derive the submission table from a form's fields, so the
 // columns can never drift from the form definition. The mapping is deliberately
 // small: text-like inputs → text, checkbox → boolean integer, number → real,
 // plus the framework `id` primary key and a `created_at` timestamp.
@@ -33,7 +33,7 @@ function fieldColumn(key: string, field: FormField) {
 /**
  * Derive the full Drizzle column set for a form: an autoincrement `id`, one
  * column per field, and a `created_at` timestamp defaulting to now. The result
- * is spread into `sqliteTable(name, columns)` — identical in shape to the
+ * is spread into `sqliteTable(name, columns)`—identical in shape to the
  * hand-authored framework tables, so drizzle-kit generates a normal migration.
  */
 export function deriveFormColumns(

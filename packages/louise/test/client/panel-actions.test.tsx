@@ -1,4 +1,4 @@
-// #109 drawer action footer — happy-dom Solid tests for the push/pop stack, the
+// #109 drawer action footer—happy-dom Solid tests for the push/pop stack, the
 // footer rendering (actions + status pill + busy state), the empty-state
 // collapse, and the Cmd/Ctrl+S shortcut. Exercises the mechanism in isolation
 // with a synthetic consumer panel, independent of any real framework panel.

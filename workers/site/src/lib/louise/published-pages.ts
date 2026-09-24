@@ -1,6 +1,6 @@
 // Build-time read of PUBLISHED pages from D1 via the Cloudflare D1 REST API, for
 // the `louiseLoader` example (src/content.config.ts). A Content Layer loader runs
-// during `astro build` in Node — off any Worker binding — so it reaches D1 over
+// during `astro build` in Node—off any Worker binding—so it reaches D1 over
 // REST instead of the `env.DB` binding the SSR pages use. Gated on three server
 // env vars (astro.config.mjs `env.schema`); when any is unset (a plain local
 // build / CI without secrets) it returns [] so the build still succeeds with an
@@ -9,7 +9,7 @@ import { CF_ACCOUNT_ID, CF_API_TOKEN, CF_D1_DATABASE_ID } from "astro:env/server
 import type { LouiseRow } from "@louise-toolkit/astro";
 
 // Published-page columns, aliased to the `pagesCollection` field keys: the D1
-// columns are snake_case, but the collection — and so the loader's schema — is
+// columns are snake_case, but the collection—and so the loader's schema—is
 // camelCase, so alias here rather than remapping every row.
 const SQL = `
   SELECT slug, title, body,
@@ -52,7 +52,7 @@ export async function readPublishedPages(): Promise<LouiseRow[]> {
   }
 
   const rows = payload.result?.[0]?.results ?? [];
-  // `sections` is a text(json) column — the REST API returns it as the raw
+  // `sections` is a text(json) column—the REST API returns it as the raw
   // stored JSON string, so parse it back into the array the schema expects.
   return rows.map((row) => ({
     ...row,

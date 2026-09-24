@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/editor — the generic `media` route: the site's media library.
+// louise-toolkit/editor—the generic `media` route: the site's media library.
 //   GET    /api/louise/media          list tracked assets (the `media` table)
 //   POST   /api/louise/media          upload a verified image + register it
 //   PATCH  /api/louise/media          set an asset's alt/caption by key
@@ -63,7 +63,7 @@ export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
   /**
    * Auto-generate alt text for uploaded images via Workers AI (#75). Given the
    * runtime `env`, return the AI runner (`env.AI`) to fill each new upload's
-   * `alt` from the image; return `undefined` (or omit) to skip — uploads then
+   * `alt` from the image; return `undefined` (or omit) to skip—uploads then
    * behave exactly as before (empty `alt`, set by hand in the media panel).
    * Best-effort: a model error or missing binding never fails the upload.
    */
@@ -71,7 +71,7 @@ export interface MediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv> {
   /** Model/prompt/token options for {@link altText} generation. */
   altTextOptions?: AltTextOptions;
   /** Max images the one-click alt backfill (`POST /generate-alt`) fixes per call,
-   *  so a big library can't blow the Worker's subrequest/AI budget in one go —
+   *  so a big library can't blow the Worker's subrequest/AI budget in one go;
    *  the client re-runs until the count reaches zero. Default {@link DEFAULT_ALT_FIX_BATCH}. */
   altFixBatch?: number;
 }
@@ -138,7 +138,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
       if (!put.ok) return json({ error: put.error }, put.status);
       // Best-effort AI alt text (#75), opt-in via `altText`. `generateAltText`
       // never throws and returns null on any failure, so a slow/erroring model
-      // just leaves `alt` empty — the upload still succeeds. `file` is a Blob, so
+      // just leaves `alt` empty—the upload still succeeds. `file` is a Blob, so
       // re-reading its bytes here (after putMedia) is safe.
       const aiRunner = config.altText?.(env);
       const alt =
@@ -147,7 +147,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
           : null;
       // Register the asset. uploaded_at is unix seconds to match Drizzle's
       // `integer({ mode: "timestamp" })` reads on the same column. width/height
-      // are recorded when the header could be read (else NULL — "when known");
+      // are recorded when the header could be read (else NULL—"when known");
       // `alt` is the AI suggestion when generated, else NULL (set later via PATCH).
       await env.DB.prepare(
         `INSERT INTO ${ident(name)} ("key","content_type","size","width","height","alt","uploaded_at") VALUES (?1,?2,?3,?4,?5,?6,?7)`,
@@ -236,7 +236,7 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
  * exhaust the Worker's subrequest/AI budget in one go. An optional `{ key }` in
  * the body fixes a single asset (the rest is a bulk backfill, newest-first).
  * Editor-guarded mutation; 503 when no AI runner is wired (the client hides the
- * assist). Returns `{ fixed, results }` — the client refreshes its counts and,
+ * assist). Returns `{ fixed, results }`—the client refreshes its counts and,
  * for a bulk run, re-invokes until `fixed` is 0.
  */
 async function generateAltFix<Env extends MediaRouteEnv>(
@@ -264,10 +264,10 @@ async function generateAltFix<Env extends MediaRouteEnv>(
 
   const fixed: { key: string; alt: string }[] = [];
   for (const row of results) {
-    // Skip non-images — a stored PDF/font has no visual alt to generate.
+    // Skip non-images—a stored PDF/font has no visual alt to generate.
     if (row.content_type && !row.content_type.startsWith("image/")) continue;
     const object = await env.MEDIA.get(row.key);
-    if (!object) continue; // registry row without its R2 object — nothing to read
+    if (!object) continue; // registry row without its R2 object—nothing to read
     const alt = await generateAltText(runner, await object.arrayBuffer(), config.altTextOptions);
     if (!alt) continue; // model returned nothing → leave it for a manual fix
     await env.DB.prepare(`UPDATE ${ident(name)} SET "alt" = ?1 WHERE "key" = ?2`)

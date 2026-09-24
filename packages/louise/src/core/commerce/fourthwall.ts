@@ -1,8 +1,8 @@
-// louise-toolkit/commerce/fourthwall — Fourthwall Storefront API client (Cycle 6).
+// louise-toolkit/commerce/fourthwall—Fourthwall Storefront API client (Cycle 6).
 //
 // Fourthwall owns the merch catalog, cart, and hosted checkout. This is the
 // read side: list collections + their products so the site can mirror them
-// into D1 (with an editable overlay) and build a cart. Raw fetch only — no
+// into D1 (with an editable overlay) and build a cart. Raw fetch only—no
 // SDK. The Storefront token is public-safe (catalog + cart); the Platform
 // token (orders, added in a later phase) is server-only.
 //
@@ -11,7 +11,7 @@
 //
 // NOTE: exact response envelopes (results vs bare array) and the money unit
 // (major vs minor) are confirmed against a live store when the token is
-// provisioned — the parsing below is defensive about both.
+// provisioned; the parsing below is defensive about both.
 //
 // Paging is no longer one of the open questions, and leaving it open cost
 // something: list endpoints answer `{ results, paging: { hasNextPage } }` and
@@ -26,7 +26,7 @@ import { hmacSha256Base64, safeEqual } from "./index.js";
 const STOREFRONT_API = "https://storefront-api.fourthwall.com/v1";
 
 export interface FwMoney {
-  /** Amount in the currency's major unit (e.g. 25 = $25.00) unless a live
+  /** Amount in the currency's major unit (for example, 25 = $25.00) unless a live
    * store proves otherwise; mapped to products.price (whole dollars). */
   value: number;
   currency: string;
@@ -60,13 +60,13 @@ export interface FwVariant {
 }
 
 /**
- * One panel of a product's "additional information" — the accordion under a
+ * One panel of a product's "additional information"—the accordion under a
  * product on Fourthwall's storefront (More details, Size and fit, Guarantee and
  * returns). `ProductAdditionalInformationV1` in Fourthwall's OpenAPI spec.
  * Every member is optional: it is a shape we are told about, not one we control.
  */
 export interface FwAdditionalInformation {
-  /** e.g. `"MORE_DETAILS"`. */
+  /** for example, `"MORE_DETAILS"`. */
   type?: string;
   title?: string;
   bodyHtml?: string;
@@ -81,7 +81,7 @@ export interface FwProduct {
   variants: FwVariant[];
   state?: "AVAILABLE" | "SOLD_OUT";
   access?: string;
-  /** The accordion panels — see {@link fourthwallCopy} for the one worth mirroring. */
+  /** The accordion panels—see {@link fourthwallCopy} for the one worth mirroring. */
   additionalInformation?: FwAdditionalInformation[];
 }
 
@@ -105,8 +105,8 @@ function unwrap<T>(data: unknown): T[] {
  * Whether a `{ results, paging }` envelope says another page exists.
  *
  * The other half of {@link unwrap}, and the half that was missing: `unwrap`
- * takes the array and drops everything around it, so `paging.hasNextPage` —
- * the only field that says the list is incomplete — was discarded on every
+ * takes the array and drops everything around it, so `paging.hasNextPage`—the
+ * only field that says the list is incomplete—was discarded on every
  * call.
  *
  * A bare array carries no paging and is therefore the whole answer. Anything
@@ -124,7 +124,7 @@ function hasNextPage(data: unknown): boolean {
  *  exactly why it is always sent. */
 const PAGE_SIZE = 50;
 
-/** Runaway backstop, not a catalog limit — 50 × 200 = 10,000 products. */
+/** Runaway backstop, not a catalog limit—50 × 200 = 10,000 products. */
 const MAX_PAGES = 200;
 
 async function sfGet(
@@ -160,7 +160,7 @@ export async function listCollections(token: string): Promise<FwCollection[]> {
  * Every product in a collection, following Fourthwall's paging to the end.
  *
  * This used to send no `page`/`size` and read whatever one page the server
- * chose to return — then hand it back as if it were the collection. The
+ * chose to return—then hand it back as if it were the collection. The
  * failure is silent by construction: products past the first page do not
  * error, they simply never appear, and a consumer mirroring the catalog gets a
  * smaller shop with nothing to indicate it. It also gets worse the more the
@@ -235,7 +235,7 @@ export async function getProduct(token: string, slug: string): Promise<FwProduct
 /** Walk every collection and return its products together with the collection
  * they came from (Fourthwall does not put collection membership on the product,
  * so category has to come from the collection). In Fourthwall's order, which
- * puts the catch-all "All Products" LAST — pass the result through
+ * puts the catch-all "All Products" LAST—pass the result through
  * {@link catchAllFirst} before any last-write-wins category assignment. */
 export async function listCatalog(
   token: string,
@@ -273,7 +273,7 @@ export function isCatchAllCollection(collection: { slug: string; name: string })
  *
  * A product is in every collection it was filed under, so a sync that sets a
  * product's category per collection keeps whichever it wrote LAST. Fourthwall
- * returns the catch-all last — so every product also in "Prints" ends up
+ * returns the catch-all last—so every product also in "Prints" ends up
  * categorised "All Products". Catch-all first means a real collection always
  * has the final word, while a product filed nowhere else still gets one.
  */
@@ -302,7 +302,7 @@ export interface FourthwallCopyOptions {
   /**
    * Called when the panel still carried compliance text after stripping and
    * was dropped. Fourthwall's markup changed, or the strip under-matched; log
-   * it — the sync is declining copy it was given.
+   * it—the sync is declining copy it was given.
    */
   onComplianceDropped?: (product: FwProduct) => void;
 }
@@ -311,11 +311,11 @@ export interface FourthwallCopyOptions {
  * The product copy worth mirroring: the More details panel with Fourthwall's
  * hidden compliance block removed, falling back to `description`.
  *
- * `description` alone is often empty — the copy a seller types lives in the
+ * `description` alone is often empty—the copy a seller types lives in the
  * More details panel. And mirroring that panel verbatim would publish
  * Fourthwall's fulfilment address (and feed it to any meta description derived
  * from the copy) as if it were the seller's. The strip is a plain non-greedy
- * match, and if compliance text survives it the panel is dropped whole — so an
+ * match, and if compliance text survives it the panel is dropped whole—so an
  * under-strip costs the copy, never a leak.
  *
  * HTML out; sanitize before rendering, as with any stored rich text.
@@ -374,12 +374,12 @@ export interface FourthwallOrderEvent {
 /**
  * Validate a Fourthwall webhook body into a {@link FourthwallOrderEvent}. Run it
  * via {@link import("./index.js").parseWebhookEvent} AFTER
- * {@link verifyFourthwallSignature} — the HMAC proves the sender, this proves
+ * {@link verifyFourthwallSignature}—the HMAC proves the sender, this proves
  * the envelope, then {@link mapFourthwallOrder} normalizes the (alias-heavy,
  * intentionally untyped) `data`. Only the envelope is schema-locked here: the
  * order body's field aliases (offers/items/lineItems, id/orderId, money as
  * object-or-number) stay tolerant in the mapper, since a strict inner schema
- * would reject — and so drop — a live order on any shape drift.
+ * would reject—and so drop—a live order on any shape drift.
  */
 export const fourthwallOrderEventSchema = s.object({
   id: s.optional(s.string()),
@@ -455,7 +455,7 @@ function mapFourthwallItems(data: Record<string, unknown>): FourthwallOrderItem[
  * Defensive: Fourthwall payload shapes vary, so it reads several field aliases
  * (`id`/`orderId`, `friendlyId`/`number`, `total`/`amounts.total`/`amount`,
  * top-level or nested `customer.email`). The site upserts the result into its
- * own `orders` table, adding any site-schema columns (e.g. `raw`, `fulfillment`).
+ * own `orders` table, adding any site-schema columns (for example, `raw`, `fulfillment`).
  */
 export function mapFourthwallOrder(event: FourthwallOrderEvent): FourthwallOrder | null {
   const data = asObj(event.data);

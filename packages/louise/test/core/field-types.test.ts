@@ -3,7 +3,7 @@
 // The claim under test is the one the slice exists to make: a field type is ONE
 // registration. The `defineFieldType` case below adds a type and asserts it
 // validates through `validateSections` and reports its own inline-ness, with no
-// other file edited — which is what the five scattered edit sites cost before.
+// other file edited—which is what the five scattered edit sites cost before.
 //
 // The per-type behaviour is covered in depth by sections-validation.test.ts; this
 // file covers the registry itself, and the two invariants that keep it importable
@@ -18,7 +18,7 @@ import {
   unknownFieldTypes,
   validateFieldType,
 } from "../../src/core/content/field-types.js";
-// The published names, type-only — erased at build, so importing the barrel here
+// The published names, type-only—erased at build, so importing the barrel here
 // costs nothing at runtime, and `typecheck` covers `test/`. See the "published
 // surface" block at the bottom for what these aliases assert.
 import type {
@@ -40,7 +40,7 @@ import { isMediaUrl } from "../../src/core/media/storage.js";
  *
  *  Slice 1 needed a cast here, because `SectionFieldType` was closed and a type
  *  registered at runtime couldn't be written into it. Slice 2 widened it, so this
- *  is now ordinary typed code — the `slug` case below compiles because a site's
+ *  is now ordinary typed code—the `slug` case below compiles because a site's
  *  own type is authorable, which is the whole point of a registry. */
 const field = (f: Partial<SectionField> & { type: string }): SectionField => f;
 const ctx = (f: SectionField, path = "x") => ({ field: f, path });
@@ -48,7 +48,7 @@ const ctx = (f: SectionField, path = "x") => ({ field: f, path });
 describe("the registry", () => {
   it("registers every built-in from BOTH former systems", () => {
     // Sections had 8, the settings drawer had 6, overlapping on four. One list
-    // now — `color` and `links` came from the drawer, the rest from sections.
+    // now—`color` and `links` came from the drawer, the rest from sections.
     expect(fieldTypeNames().sort()).toEqual(
       [
         "array",
@@ -78,7 +78,7 @@ describe("the registry", () => {
       });
       expect(validateFieldType("abcd", ctx(field({ type: "text" })))).toHaveLength(1);
     } finally {
-      if (original) defineFieldType(original); // registry is module state — restore it
+      if (original) defineFieldType(original); // registry is module state—restore it
     }
   });
 });
@@ -92,7 +92,7 @@ describe("isInlineField", () => {
   });
 
   it("lets the field override its type", () => {
-    // A heading with no visible node to click — the escape hatch that existed
+    // A heading with no visible node to click—the escape hatch that existed
     // before the registry and still has to work.
     expect(isInlineField(field({ type: "text", inline: false }))).toBe(false);
     expect(isInlineField(field({ type: "image", inline: true }))).toBe(true);
@@ -114,7 +114,7 @@ describe("validateFieldType", () => {
   });
 
   it("passes an unregistered type rather than failing it", () => {
-    // A catalog may name a type this build doesn't know — mid-migration, or a
+    // A catalog may name a type this build doesn't know—mid-migration, or a
     // site's own. Its `validation` chain still runs; the type just adds nothing.
     expect(validateFieldType("anything", ctx(field({ type: "wat" })))).toEqual([]);
   });
@@ -129,7 +129,7 @@ describe("validateFieldType", () => {
 describe("a new field type is one registration", () => {
   it("validates through validateSections and reports its inline-ness", async () => {
     // The whole point of the slice. Nothing below touches the SectionFieldType
-    // union, the validator, or any inline list — this call is the entire change.
+    // union, the validator, or any inline list—this call is the entire change.
     defineFieldType({
       name: "slug",
       inline: false,
@@ -188,7 +188,7 @@ describe("the settings types, now on the same registry", () => {
   });
 
   it("rejects a colour carrying markup or a URL", () => {
-    // The check that matters — the value lands in a CSS custom property.
+    // The check that matters—the value lands in a CSS custom property.
     for (const v of ["<script>", "url(javascript:1)", "red;}body{display:none"]) {
       expect(validateFieldType(v, ctx(field({ type: "color" }))), v).toHaveLength(1);
     }
@@ -205,7 +205,7 @@ describe("the settings types, now on the same registry", () => {
 describe("unknownFieldTypes", () => {
   it("names the types nothing registered, so a typo can still fail early", () => {
     // The widened FieldTypeName trades the union's typo check for extensibility.
-    // This is that check, opt-in — and it covers site-registered types, which the
+    // This is that check, opt-in—and it covers site-registered types, which the
     // closed union never could.
     expect(unknownFieldTypes([{ type: "text" }, { type: "links" }])).toEqual([]);
     expect(unknownFieldTypes([{ type: "txet" }, { type: "text" }])).toEqual(["txet"]);
@@ -218,7 +218,7 @@ describe("unknownFieldTypes", () => {
 
 describe("the duplicated predicates agree with their originals", () => {
   // Both are copied rather than imported, to keep this module free of a heavy
-  // dependency — it is imported by the CLIENT, which is what makes that matter.
+  // dependency—it is imported by the CLIENT, which is what makes that matter.
   // Copies drift; these are the tests that stop it.
 
   it("the inlined isMediaUrl matches core/media/storage", async () => {
@@ -265,7 +265,7 @@ describe("the duplicated predicates agree with their originals", () => {
 
 describe("the published surface", () => {
   // #382. `SectionField.options` is typed with `FieldOptions`, but the option
-  // types lived only in `field-types.ts` — a module neither published entry
+  // types lived only in `field-types.ts`—a module neither published entry
   // includes. So a site declaring a resolver-backed picker could USE the field
   // and not NAME its type, and had to redeclare a structural stand-in.
   //

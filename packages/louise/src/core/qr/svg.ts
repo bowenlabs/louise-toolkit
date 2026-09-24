@@ -1,4 +1,4 @@
-// QR → SVG. Pure string generation: no bindings, no DOM, no I/O — so a QR route
+// QR → SVG. Pure string generation: no bindings, no DOM, no I/O—so a QR route
 // renders identically at build time, in a Worker, and in a unit test, and keeps
 // working when every commerce secret is still a placeholder. Printing codes must
 // never be blocked on provisioning.
@@ -8,7 +8,7 @@ import { encodeQr, type QrErrorCorrection, type QrMatrix } from "./encode.js";
 export interface QrSvgOptions {
   ecc?: QrErrorCorrection;
   /**
-   * Quiet zone in MODULES (not pixels). Default 4 — the spec minimum. Anything
+   * Quiet zone in MODULES (not pixels). Default 4—the spec minimum. Anything
    * less and real scanners start failing against a busy shop wall.
    */
   margin?: number;
@@ -31,7 +31,7 @@ const escapeXml = (s: string): string =>
 /**
  * The dark modules as ONE path, merging horizontal runs.
  *
- * The naive rendering is one `<rect>` per dark module — for a version 4 code
+ * The naive rendering is one `<rect>` per dark module—for a version 4 code
  * that's up to 1089 elements. Run-merging cuts the emitted string roughly 4x,
  * which is what keeps a QR small enough to inline in a page or an email.
  */

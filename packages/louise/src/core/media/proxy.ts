@@ -1,10 +1,10 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/media — a resize proxy for images on someone else's host.
+// louise-toolkit/media—a resize proxy for images on someone else's host.
 //
 // `cfImage` rewrites a same-zone URL through `/cdn-cgi/image`, and
 // `transformImage` resizes bytes you already hold. Neither helps with a
-// third-party image whose URL you can't change — the case that bit a client
+// third-party image whose URL you can't change—the case that bit a client
 // site: Fourthwall's image URLs are signed (imgproxy), the width is part of the
 // signature, and every one arrives at 1920px. Asking for another width is a 400,
 // so a grid of ~300px cards downloaded ~3.4 MB of full-size photos.
@@ -14,23 +14,23 @@
 // only the hosts you list, only the widths you list (so the cached variants
 // are the handful your `srcset` asks for, not one per request), only raster
 // types, and no following a redirect off the host. If the resize fails for any
-// reason it redirects to the original — the worst case is the page exactly as
+// reason it redirects to the original; the worst case is the page exactly as
 // it was without the proxy.
 //
 // Image Resizing must be enabled on the zone; locally (and on a zone without
 // it) every request takes the redirect fallback.
 
 export interface ImageProxyConfig {
-  /** Where the route is mounted, e.g. `"/api/img"`. Used to build URLs. */
+  /** Where the route is mounted, for example, `"/api/img"`. Used to build URLs. */
   path: string;
   /** Exact hostnames the proxy will fetch from. Anything else is a 400. */
   allowHosts: readonly string[];
   /**
-   * The only widths the proxy will produce. A layout decision — match your
+   * The only widths the proxy will produce. A layout decision—match your
    * `sizes`. Anything else is a 400, so the edge caches a bounded set.
    */
   widths: readonly number[];
-  /** `cf.image.fit`. Default `"scale-down"` — never upscales. */
+  /** `cf.image.fit`. Default `"scale-down"`—never upscales. */
   fit?: "scale-down" | "contain" | "cover" | "crop" | "pad";
   /** `cf.image.quality`, 1–100. Omitted, Cloudflare's default applies. */
   quality?: number;
@@ -64,7 +64,7 @@ const bad = (message: string) => new Response(message, { status: 400 });
 /**
  * The only types the proxy will serve. An allowlist of raster formats, not
  * `image/*`: this response goes out from the site's own origin, and
- * `image/svg+xml` is a document that runs script when opened directly — a
+ * `image/svg+xml` is a document that runs script when opened directly—a
  * stored XSS on the site's origin. Cloudflare sanitizes SVG when the resize
  * runs, but where it doesn't (locally, a zone without Image Resizing) the
  * upstream bytes come back untouched. Same reasoning as `sniffImageType`

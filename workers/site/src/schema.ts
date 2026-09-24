@@ -1,6 +1,6 @@
 // Louise Toolkit tables for the marketing site. `media`, `inquiries`, and `site_settings`
 // use the ready-made framework tables; `pages` is composed from the framework
-// `pagesColumns` plus a site-specific `sections` JSON column — an ordered array
+// `pagesColumns` plus a site-specific `sections` JSON column—an ordered array
 // of section items (`{ _type, ...fields }`) rendered by the site's
 // own bespoke components (the preconfigured-blocks model). drizzle-kit reads this
 // to generate migrations; the Worker's editor routes import the composed `pages`.
@@ -17,7 +17,7 @@ export const pages = sqliteTable("pages", {
   publishedVersionId: integer("published_version_id"),
 });
 
-// Draft/published snapshots — one row per saved version of a page. Generated
+// Draft/published snapshots—one row per saved version of a page. Generated
 // from the same collection config that drives the versioned API + validation.
 export const pagesVersions = collectionVersionsTable(pagesCollection);
 

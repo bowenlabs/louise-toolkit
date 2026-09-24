@@ -1,12 +1,12 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/schema — a tiny, zero-dependency schema builder whose every
-// output IS a Standard Schema (standard.ts). It exists so Louise's own code —
-// the editor route bodies (#96) — can declare a request shape without pulling
+// louise-toolkit/schema—a tiny, zero-dependency schema builder whose every
+// output IS a Standard Schema (standard.ts). It exists so Louise's own code—the
+// editor route bodies (#96)—can declare a request shape without pulling
 // Zod/Valibot into the Worker, and so consumers who don't want a validator dep
 // still have one. It is deliberately minimal: just the primitives the route
-// boundaries need. For anything richer, bring your own Standard Schema —
-// {@link standardValidate} runs it the same way.
+// boundaries need. For anything richer, bring your own Standard Schema—{@link
+// standardValidate} runs it the same way.
 //
 // The builders are synchronous. Composing an *async* schema inside `object`,
 // `record`, or `optional` isn't supported (there is nothing to await inside a
@@ -114,7 +114,7 @@ function enumOf<const Values extends readonly [string, ...string[]]>(
   );
 }
 
-/** Accept any value, passing it through untouched (e.g. a rich field `value`). */
+/** Accept any value, passing it through untouched (for example, a rich field `value`). */
 function unknown(): StandardSchemaV1<unknown, unknown> {
   return build<unknown>((value) => ({ value }));
 }
@@ -145,8 +145,8 @@ export interface ArrayOptions {
 
 /**
  * An array whose every element is validated by `item`. Element issues are
- * re-pathed under their index (`0`, `1`, …) — mirroring how {@link object}
- * re-paths by key — so a caller sees `items.2.qty`, not a flat message. Used by
+ * re-pathed under their index (`0`, `1`, …)—mirroring how {@link object}
+ * re-paths by key—so a caller sees `items.2.qty`, not a flat message. Used by
  * the commerce webhook schemas to parse order line-item lists (offers/items).
  */
 function array<Item extends StandardSchemaV1>(
@@ -182,7 +182,7 @@ type InferShape<S extends Shape> = { [K in keyof S]: StandardSchemaV1.InferOutpu
 
 /**
  * An object with the declared keys. Unknown keys are dropped from the output
- * (not an error) — safer than the `as T` casts it replaces, since a forged
+ * (not an error)—safer than the `as T` casts it replaces, since a forged
  * request can't smuggle extra fields through. Each key's issues are re-pathed
  * under that key.
  */
@@ -210,7 +210,7 @@ function object<S extends Shape>(shape: S): StandardSchemaV1<unknown, InferShape
 }
 
 /** An object of arbitrary string keys, each value validated by `valueSchema`
- *  (defaults to {@link unknown}) — for the patch bodies that carry a
+ *  (defaults to {@link unknown})—for the patch bodies that carry a
  *  `Record<string, unknown>`. */
 function record<Value extends StandardSchemaV1 = StandardSchemaV1<unknown, unknown>>(
   valueSchema?: Value,
@@ -242,8 +242,8 @@ function record<Value extends StandardSchemaV1 = StandardSchemaV1<unknown, unkno
 /**
  * The built-in zero-dep schema builder, namespaced so call sites read
  * `s.object({ collection: s.string(), value: s.unknown() })` without shadowing
- * the `string`/`number`/`object` globals. Every result is a Standard Schema —
- * hand it to {@link standardValidate} or set it as a field's `schema`.
+ * the `string`/`number`/`object` globals. Every result is a Standard Schema—hand
+ * it to {@link standardValidate} or set it as a field's `schema`.
  */
 export const s = {
   object,

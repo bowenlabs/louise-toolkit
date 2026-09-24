@@ -13,7 +13,7 @@ export interface LouiseBrowserEnv {
 }
 
 /**
- * A byte store for rendered OG images — satisfied by an R2 bucket or a KV
+ * A byte store for rendered OG images—satisfied by an R2 bucket or a KV
  * namespace (declared structurally so either fits without a hard dependency).
  * Keys are content-hashed, so a hit means the exact page+content was rendered.
  */

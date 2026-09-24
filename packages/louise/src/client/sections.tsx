@@ -1,7 +1,7 @@
-// louise-toolkit/client — structured "sections" editor: the visual block builder for
+// louise-toolkit/client—structured "sections" editor: the visual block builder for
 // bespoke, component-rendered pages (the Sanity-style preconfigured-blocks model).
 //
-// A *section* is one item of a page's `sections` JSON array — `{ _type, ...fields }`.
+// A *section* is one item of a page's `sections` JSON array—`{ _type, ...fields }`.
 // The SITE owns rendering (its own components, any design); this owns
 // EDITING only, and saves the array back to `sections` (PATCH /api/louise/pages/:id).
 // No HTML/markup is ever authored here, so the design stays 100% site-owned.
@@ -11,12 +11,12 @@
 //    carries the SAME `data-louise-node` marker a section does, one path deeper
 //    (`"<idx>.<key>[.<j>.<subKey>]"`); the catalog says the field is edited in
 //    place, and we make it contenteditable and write keystrokes straight into the
-//    store. No panel, no reload — you type on the real design.
-//  • STRUCTURE (reorder / delete / add a node) is the on-canvas chrome — one ring
+//    store. No panel, no reload—you type on the real design.
+//  • STRUCTURE (reorder / delete / add a node) is the on-canvas chrome—one ring
 //    + toolbar over the hovered `data-louise-node`, drawn from the capabilities
 //    `describeNode` resolves for its path (ADR 0010; see node-chrome.ts).
 //    NON-VISIBLE fields (a button's link URL, an image, array membership, layout,
-//    settings) live in the ⚙ inspector popover anchored to the node — the whole
+//    settings) live in the ⚙ inspector popover anchored to the node—the whole
 //    section/block for a container, or just that one field for a value. Because
 //    the bespoke components are server-rendered, a structural change persists then
 //    reloads so the server re-renders the new shape (then inline-editable again).
@@ -26,7 +26,7 @@
 //
 // State is a single `createStore` shared by the inline wiring and the inspector,
 // so a keystroke is a fine-grained path write (`set("items", i, key, value)`) that
-// updates only that leaf — no row teardown, no focus loss.
+// updates only that leaf—no row teardown, no focus loss.
 
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { describeNode, SHARED_PATH_HEAD } from "./describe-node.js";
@@ -64,14 +64,14 @@ import { thumb } from "./thumb.js";
 
 // The section schema types live in core (server-safe) so the same catalog object
 // drives both this on-page editor and the write-time validator (louise-toolkit/content's
-// validateSections). Type-only import — no server/validation code enters the
+// validateSections). Type-only import—no server/validation code enters the
 // client bundle.
 import {
   type BlockCatalog,
   type BlockDef,
   type BlockItem,
   type ExternalSource,
-  // Runtime, not type-only — a pure normalizer over the schema, already
+  // Runtime, not type-only—a pure normalizer over the schema, already
   // server-safe (describe-node.ts imports it too).
   externalSourceOf,
   type SectionCatalog,
@@ -87,30 +87,30 @@ export type { SectionCatalog, SectionDef, SectionField, SectionItem };
 /**
  * One shared site-settings value the editor may edit on-canvas (Phase B /
  * #376): a {@link SectionField} (its `type` picks the control, its `label`
- * names the wrench) plus the chrome surfaces that render it — the half of the
+ * names the wrench) plus the chrome surfaces that render it—the half of the
  * used-in count that no `sections` JSON records.
  */
 export type SharedValueDef = SectionField & { surfaces?: string[] };
 
 // Whether a field is edited in place is the field TYPE's business now (ADR 0010
-// A2) — one answer in `field-types.ts`, where the validator reads it too. This
+// A2)—one answer in `field-types.ts`, where the validator reads it too. This
 // module and `describe-node.ts` each carried their own copy of the same list, and
 // they agreed only because they were written on the same afternoon.
 import { isInlineField as isInline } from "../core/content/field-types.js";
 
 /**
- * Rich-text editor options — an alias for the schema's {@link RichTextFieldOptions},
+ * Rich-text editor options—an alias for the schema's {@link RichTextFieldOptions},
  * which is where these now belong (ADR 0010 A2 / #345): a field declares its own,
  * in the catalog, next to the rest of what it is.
  *
  * Kept as a name because it is the published one, and because `mountSections`
  * still accepts a site-wide default under it.
  *
- * Omit for the light-inline bubble (`{ minimal: true }`) — inline formatting only
+ * Omit for the light-inline bubble (`{ minimal: true }`)—inline formatting only
  * (bold/italic/underline/strike/link/colour), the mode #182 designed for section
  * fields. For the full formatting bar pass `{ minimal: false, grammar: true }`:
  * `minimal: false` surfaces the prose block buttons plus the AI-rewrite sparkle,
- * and `grammar` lazy-loads Harper. `blocks` is a SEPARATE opt-in — the page
+ * and `grammar` lazy-loads Harper. `blocks` is a SEPARATE opt-in—the page
  * BUILDER palette (#16), meant for full page bodies rather than a one-line
  * heading.
  */
@@ -118,7 +118,7 @@ export type SectionRichTextOptions = RichTextFieldOptions;
 
 export interface SectionsEditorProps {
   catalog: SectionCatalog;
-  /** The block palette (ADR 0005) — enables adding blocks to a section whose
+  /** The block palette (ADR 0005)—enables adding blocks to a section whose
    *  `blocks` policy allows a type. Optional: omit for a sections-only site. */
   blocks?: BlockCatalog;
   /** Editor options for section `richtext` fields (headings/prose the render
@@ -146,7 +146,7 @@ export interface SectionsEditorProps {
    * `pages` rows it fetches (#38).
    *
    * The picker's page list comes from `/api/louise/pages`, which only knows about
-   * DB-backed pages. A site's hand-authored routes — `/shop`, `/contact` — have no
+   * DB-backed pages. A site's hand-authored routes—`/shop`, `/contact`—have no
    * row, so without this the picker is missing exactly the destinations most CTAs
    * point at and reads as broken. Same idea as the Settings Pages panel's
    * `builtInPages`.
@@ -155,35 +155,35 @@ export interface SectionsEditorProps {
   /**
    * SHARED site-settings values editable on-canvas (ADR 0010 Phase B / #376),
    * keyed by settings key. A render stamps `data-louise-node="settings.<key>"`
-   * on the element showing the value — Nav, Footer, a location panel — and a
+   * on the element showing the value—Nav, Footer, a location panel—and a
    * declared key resolves to a green wrench-only node whose inspector edits
    * the SOURCE: one value, every surface, saved immediately through the
-   * settings route (there is no settings draft — the band says so).
+   * settings route (there is no settings draft—the band says so).
    *
-   * `surfaces` names the chrome surfaces that render the key ("the header")
-   * — the part of the used-in count no page's `sections` JSON records. Pages
+   * `surfaces` names the chrome surfaces that render the key ("the header")—the
+   * part of the used-in count no page's `sections` JSON records. Pages
    * are counted from the catalog's `consumes` declarations.
    */
   shared?: Record<string, SharedValueDef>;
   /**
    * How the picker turns a `pages` row's slug into a path. Default `/${slug}`.
    *
-   * For the row a site renders somewhere other than its slug — the `home` row
-   * served at `/` — the default offers editors a duplicate-content alias
+   * For the row a site renders somewhere other than its slug—the `home` row
+   * served at `/`—the default offers editors a duplicate-content alias
    * (`/home`) next to the real destination. Map it here and the picker's
    * path-dedupe collapses the pair into the built-in entry.
    */
   pagePathForSlug?: (slug: string) => string;
   pageId: number;
   initial: SectionItem[];
-  /** Auto-save inline section edits as a draft on an idle debounce — never
+  /** Auto-save inline section edits as a draft on an idle debounce—never
    *  publishes, and structural changes keep their own save+reload. On by default;
    *  pass `false` to opt out (manual Save draft button), or `{ debounceMs }`. */
   autoSave?: AutoSaveOption;
   /** The collection slug this sections page belongs to (for the realtime DO
    *  address `<slug>/<id>`). Default `"pages"`. */
   collection?: string;
-  /** Opt this sections page into a real-time session (ADR 0002 / #71) — **presence
+  /** Opt this sections page into a real-time session (ADR 0002 / #71)—**presence
    *  only** for now: the shared bar shows the other editors on the page. Sections
    *  persistence stays on the proven debounced-fetch draft path (a live canvas sync
    *  is a follow-up). Off by default; degrades silently when the socket can't open. */
@@ -194,8 +194,8 @@ function humanize(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Resolve when an element matching `selector` exists — checking now, then via a
- *  MutationObserver — or `null` after `timeoutMs`. The shared edit bar
+/** Resolve when an element matching `selector` exists—checking now, then via a
+ *  MutationObserver—or `null` after `timeoutMs`. The shared edit bar
  *  (`.louise-bar`) and this sections editor mount independently and in either
  *  order, so the editor can't assume the bar is already in the DOM. */
 function whenElement(selector: string, timeoutMs = 3000): Promise<HTMLElement | null> {
@@ -224,7 +224,7 @@ function blankValue(field: SectionField): unknown {
 }
 
 /**
- * The input for one non-image scalar field — text, textarea, or a closed choice.
+ * The input for one non-image scalar field—text, textarea, or a closed choice.
  *
  * Shared by the inspector's field group and its settings rail, which render the
  * same three shapes against different stores (`item[key]` vs `_settings[key]`).
@@ -279,7 +279,7 @@ function ScalarField(props: {
 
 /**
  * The `select` picker, split out because its choices may be **fetched** rather
- * than declared (ADR 0010 A2 / #344) — which gives it a loading and a failure
+ * than declared (ADR 0010 A2 / #344)—which gives it a loading and a failure
  * state a plain `<For>` over a literal array never had.
  *
  * The failure state is the one that earns its keep: a picker that renders empty
@@ -327,7 +327,7 @@ function SelectField(props: {
 
 /**
  * A `select` with `multiple` (ADR 0010 Phase B): a checkbox list over the same
- * choices — literal or fetched — writing a string array. A checkbox list, not a
+ * choices—literal or fetched—writing a string array. A checkbox list, not a
  * multi-`<select>`, because ctrl-click selection is invisible and editors lose
  * it; the drawer's Square panel established the pattern.
  */
@@ -374,16 +374,16 @@ function MultiSelectField(props: {
 
 /**
  * The SOURCE-SETTINGS group of an external section's inspector (ADR 0010
- * Phase B / #375) — the yellow wrench's reason to exist.
+ * Phase B / #375)—the yellow wrench's reason to exist.
  *
  * Different write path from everything else in the popover, on purpose: these
  * are the mirror's knobs, stored in site settings and shared by every page that
  * renders the section, so they PATCH `/api/louise/settings` the moment a value
- * commits — they cannot ride the page draft, and pretending they could would
+ * commits—they cannot ride the page draft, and pretending they could would
  * stage a lie (spec §4/§5, bowenlabs/coracle.coffee#47). The caption says so
  * because the surrounding groups all stage.
  *
- * Values are read once per open. A failed load disables nothing silently — the
+ * Values are read once per open. A failed load disables nothing silently—the
  * fields render against empty values with the error shown; a failed save keeps
  * the optimistic value on screen WITH the error, so the editor knows the page
  * and the store disagree.
@@ -462,7 +462,7 @@ function SourceSettingsGroup(props: { source: ExternalSource; onSaved: () => voi
   );
 }
 
-/** "the header and 3 pages" — the used-in phrase, from the static chrome
+/** "the header and 3 pages"—the used-in phrase, from the static chrome
  *  surfaces plus the consuming-page count. Empty when nothing is known, and the
  *  band then carries only the save-immediately warning. */
 function describeSurfaces(surfaces: string[], pages: number): string {
@@ -478,7 +478,7 @@ function describeSurfaces(surfaces: string[], pages: number): string {
  * at its source.
  *
  * Everything about this panel exists to make one fact unmissable: the value is
- * used in N surfaces and **saves immediately** — there is no settings draft to
+ * used in N surfaces and **saves immediately**—there is no settings draft to
  * stage into (spec §4, decided). The warning band is persistent, not a
  * confirm(): a modal inside a `role="dialog"` popover helps nobody, and a
  * count you can read beats a question you click through.
@@ -505,7 +505,7 @@ function SharedValuePanel(props: {
         setError("Couldn’t load the current value");
       },
     );
-    // Which section types read this key — declared, not discovered (spec §3
+    // Which section types read this key—declared, not discovered (spec §3
     // approach A). No consumers declared → the static surfaces are the count.
     const consumers = Object.entries(props.catalog)
       .filter(([, d]) => d.consumes?.includes(props.name))
@@ -514,7 +514,7 @@ function SharedValuePanel(props: {
     apiGet<{ pages?: { sections?: unknown }[] }>("/api/louise/pages").then(
       (d) => {
         const count = (d.pages ?? []).filter((p) => {
-          // D1 JSON columns may arrive as strings — parse defensively; a page
+          // D1 JSON columns may arrive as strings—parse defensively; a page
           // whose sections can't be read just doesn't count.
           let secs: unknown = p.sections;
           if (typeof secs === "string") {
@@ -532,7 +532,7 @@ function SharedValuePanel(props: {
         setUsedIn(describeSurfaces(props.def.surfaces ?? [], count));
       },
       () => {
-        // The count is informative, not load-bearing — the band still warns.
+        // The count is informative, not load-bearing—the band still warns.
       },
     );
   });
@@ -578,7 +578,7 @@ interface VersionRow {
   id: number;
   status: "draft" | "published";
   createdAt?: string | number | null;
-  /** The full snapshot stored for this version — used to resume ("Edit") a draft. */
+  /** The full snapshot stored for this version—used to resume ("Edit") a draft. */
   versionData?: { sections?: SectionItem[] } | null;
 }
 
@@ -598,7 +598,7 @@ function pathToArgs(path: string): (string | number)[] {
  *   <i>.blocks.<j>.<key>      a field on one of its blocks
  *
  * The block case was missing, so a block field's declared `placeholder` and
- * `label` were silently ignored — `fields["blocks"]` is not a field, so the
+ * `label` were silently ignored—`fields["blocks"]` is not a field, so the
  * lookup found nothing and fell back to humanising the key. Nothing failed
  * loudly; the hint was just always the key name.
  */
@@ -663,7 +663,7 @@ function wireInline(
    *  catalog already knew. Then the site-wide default, then the light inline
    *  bubble (#182).
    *
-   *  An unknown mode name still falls back rather than throwing — a render
+   *  An unknown mode name still falls back rather than throwing—a render
    *  stamped for a mode the mount doesn't declare should degrade to the site
    *  default, not lose its editor. */
   const richTextFor = (path: string, node: HTMLElement): SectionRichTextOptions =>
@@ -673,14 +673,14 @@ function wireInline(
 
   // ONE marker, and the catalog decides what happens to it (ADR 0010 A2). This
   // scanned `[data-louise-sfield]` and read `data-louise-type="richtext"` and
-  // `data-louise-multiline` off the element — three attributes the render stamped
+  // `data-louise-multiline` off the element—three attributes the render stamped
   // to describe a field the catalog already fully described. Now the marker says
   // only WHERE the field is; whether it's edited in place, and with which editor,
   // comes from its type.
   //
   // Document-wide, not host-scoped (#374): the chrome already hovers every
-  // marker in the document, and a marker outside the sections host — Phase B
-  // stamps `settings.*` paths in the Nav/Footer — must resolve the same way
+  // marker in the document, and a marker outside the sections host—Phase B
+  // stamps `settings.*` paths in the Nav/Footer—must resolve the same way
   // everywhere. A host-scoped scan made such a marker silently inert. Paths
   // that address nothing in the catalog still fall out via `fieldAtPath`.
   const nodes = (host.ownerDocument ?? document).querySelectorAll<HTMLElement>(
@@ -697,20 +697,20 @@ function wireInline(
     // Rich text (#182): the light ProseKit editor instead of a plaintext
     // contenteditable, persisting the field's HTML (stega-cleaned). The save path
     // sanitizes it (sanitizeSectionsRichText) and the site renders it via
-    // set:html — the same store/marker path, an HTML value instead of textContent.
+    // set:html—the same store/marker path, an HTML value instead of textContent.
     if (field.type === "richText") {
-      // A richText value is HTML the editor produced — `<p>`, lists, blockquotes.
+      // A richText value is HTML the editor produced—`<p>`, lists, blockquotes.
       // Rendering it into a `<p>` is invalid nesting, and the parser does not
       // merely tolerate it: it CLOSES the paragraph and hoists the block content
       // out as a following sibling. The marker stays on the now-empty `<p>`, so
       // the editor below mounts on nothing while the prose sits outside it,
-      // unmarked and uneditable — and every paragraph break the editor creates is
+      // unmarked and uneditable—and every paragraph break the editor creates is
       // hoisted straight back out.
       //
       // Nothing about that fails loudly: the page renders, the field is simply
       // inert. Two sites shipped it independently before anyone noticed, which is
       // why this warns from the framework rather than living in each site's
-      // conventions. Warn only — the field still half-works, and breaking an
+      // conventions. Warn only—the field still half-works, and breaking an
       // owner's editing session over a markup nit would be worse.
       if (node.tagName === "P") {
         console.warn(
@@ -745,11 +745,11 @@ function wireInline(
     // only; single-line headline/label fields stay off, where red squiggles are
     // just noise (#142). Rich-text prose uses ProseKit + Harper (#110) instead.
     //
-    // Read from the type now, not a stamped `data-louise-multiline` — `textarea`
+    // Read from the type now, not a stamped `data-louise-multiline`—`textarea`
     // is the declaration that a field holds more than one line.
     const multiline = field.type === "textarea";
     node.setAttribute("spellcheck", multiline ? "true" : "false");
-    // Give the region a name for assistive tech — the placeholder hint is the
+    // Give the region a name for assistive tech—the placeholder hint is the
     // field's human label, and it's otherwise only CSS ::before content.
     nameEditable(node, hint, multiline);
     // Single-line fields swallow Enter; multiline (textarea-backed) keeps it.
@@ -775,9 +775,9 @@ function wireInline(
 }
 
 /**
- * Dock control for an `image` section field (e.g. a hero logo): a preview plus
+ * Dock control for an `image` section field (for example, a hero logo): a preview plus
  * upload, choose-from-library, and clear. Both the upload and the library pick
- * resolve to a media-hosted URL (`/api/louise/media`) — an external URL can't
+ * resolve to a media-hosted URL (`/api/louise/media`)—an external URL can't
  * be typed in, so every section image lives in the media collection. `onSet`
  * routes through the persist + reload path, so the new image shows on the
  * bespoke render immediately.
@@ -852,7 +852,7 @@ function ImageDockField(props: { label: string; value: string; onSet: (url: stri
  * this into a body-level container so the page's own layout is untouched.
  */
 /**
- * What the inspector popover is editing — a whole section, a block within one, or
+ * What the inspector popover is editing—a whole section, a block within one, or
  * a SINGLE field on either (ADR 0010, "Resolved while building A1").
  *
  * The `field` variant is what a value node's wrench opens. Pre-0010 a CTA's wrench
@@ -864,7 +864,7 @@ type InspectTarget =
   | { kind: "section"; index: number }
   | { kind: "block"; section: number; block: number }
   | { kind: "field"; section: number; block?: number; key: string }
-  // A SHARED site-settings value (Phase B / #376) — addresses no section at
+  // A SHARED site-settings value (Phase B / #376)—addresses no section at
   // all: its truth lives in the settings table, and its inspector is the one
   // panel whose writes do NOT stage into the page draft.
   | { kind: "shared"; key: string };
@@ -888,8 +888,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   } | null>(null);
   // The add-BLOCK type-picker, the block-level analogue of `addPicker`: null when
   // closed, else the owning section, the insert index within its `blocks`, and the
-  // allowed types. Only opened when a section accepts more than one block type —
-  // single-type sections insert without a prompt.
+  // allowed types. Only opened when a section accepts more than one block type—single-type
+  // sections insert without a prompt.
   const [blockPicker, setBlockPicker] = createSignal<{
     section: number;
     at: number;
@@ -897,14 +897,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     top: number;
     left: number;
   } | null>(null);
-  // A specific save-failure reason (e.g. a server validation violation), shown
+  // A specific save-failure reason (for example, a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
 
   const [versions, setVersions] = createSignal<VersionRow[]>([]);
   // The id of the version that is currently LIVE (page's `published_version_id`),
-  // or null if the page is unpublished. Used to flag the live row in history —
-  // status alone can't, since multiple versions read "published" over time.
+  // or null if the page is unpublished. Used to flag the live row in history—status
+  // alone can't, since multiple versions read "published" over time.
   const [liveVersionId, setLiveVersionId] = createSignal<number | null>(null);
   const [showHistory, setShowHistory] = createSignal(false);
   // The inspector popover (#182 Phase 4): which section/block is being inspected,
@@ -925,7 +925,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const autoCfg = resolveAutoSave(props.autoSave);
   const realtimeCfg = resolveRealtime(props.realtime);
   // Bumped on every edit; `save()` captures it and only marks clean if it's
-  // unchanged when the draft POST resolves — so an edit made during an in-flight
+  // unchanged when the draft POST resolves—so an edit made during an in-flight
   // save keeps the surface dirty and the auto-saver reschedules.
   let editGen = 0;
   // Assigned once `save()` exists (below); `touched()` only runs on user input.
@@ -1001,7 +1001,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     void loadVersions();
 
     // Realtime presence (ADR 0002 / #71): connect to the page's edit-session DO so
-    // the shared bar shows who else is editing. Presence only for now — sections
+    // the shared bar shows who else is editing. Presence only for now—sections
     // persistence stays on the debounced-fetch draft path below (a live canvas sync
     // is a follow-up). Degrades silently: if the socket can't open, `peers` stays
     // empty and nothing else changes. Closed on cleanup so the socket doesn't leak.
@@ -1021,7 +1021,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
     // On-canvas chrome (ADR 0010): ONE ring + toolbar over every `data-louise-node`,
     // drawing whatever the node's capabilities justify. The chrome asks a single
-    // question — `resolve(path)` — and `describeNode` is the only thing here that
+    // question—`resolve(path)`—and `describeNode` is the only thing here that
     // knows a section from a block from a field; every callback below takes a path
     // and dispatches on its shape rather than on a layer the chrome named.
     // Markers are stamped by the render in edit mode; on an unmarked host the
@@ -1049,7 +1049,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` /
     // `pagehide` are the reliable "leaving" signals; the keepalive draft POST
     // lets a flush fired here still land. `beforeunload` warns while dirty.
-    // The host's `before-swap` signal covers soft navigations (#74) — a
+    // The host's `before-swap` signal covers soft navigations (#74)—a
     // router-driven nav fires none of the others, so without it the dock would
     // drop pending edits. This dock is a disposable Solid component, so the
     // listeners are removed on cleanup (unlike mountLouise, which lives for the
@@ -1078,7 +1078,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         window.removeEventListener("beforeunload", onBeforeUnload);
       });
     }
-    // Relocate Save-draft / Publish onto the shared edit bar once it exists — but
+    // Relocate Save-draft / Publish onto the shared edit bar once it exists—but
     // only if the bar isn't already driven by another versioned surface. The bar
     // is created by `mountLouise`'s chrome, which renders its own Save-draft /
     // Publish when the page has versioned inline fields; stacking a second pair
@@ -1190,7 +1190,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // Discard a draft version from history. Doesn't touch the live render (a draft
-  // is never live), so just re-fetch the list — no reload.
+  // is never live), so just re-fetch the list—no reload.
   const discardDraft = async (versionId: number) => {
     setErrorDetail("");
     try {
@@ -1236,7 +1236,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // The rendered element carrying a given node path, when it's on the page.
   // Looked up in the whole document, not under the host (#374): the inspector
   // popover anchors on this, and a host-scoped lookup sent any out-of-host
-  // marker's popover to the viewport-origin fallback — silently, which is the
+  // marker's popover to the viewport-origin fallback—silently, which is the
   // worst way. The chrome's own hover lookup has always been document-wide.
   const nodeEl = (path: NodePath): HTMLElement | null =>
     (props.host.ownerDocument ?? document).querySelector<HTMLElement>(
@@ -1244,10 +1244,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     );
 
   // After a shared save (Phase B / #376), mirror the new value onto EVERY
-  // marker carrying the key — the Nav renders `settings.nav` twice (desktop +
+  // marker carrying the key—the Nav renders `settings.nav` twice (desktop +
   // mobile), and updating one would leave the page lying about the other.
   // Plain-text values only: anything richer renders server-side and gets its
-  // truth on the next load — the save itself already went through.
+  // truth on the next load—the save itself already went through.
   const syncSharedMarkers = (key: string, def: SharedValueDef, value: string): void => {
     if (def.type !== "text" && def.type !== "textarea") return;
     const doc = props.host.ownerDocument ?? document;
@@ -1256,7 +1256,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // POST one section item to the fragment-render route and return its
-  // server-rendered HTML (a server-rendered partial — the same markup the
+  // server-rendered HTML (a server-rendered partial—the same markup the
   // page uses), or null on any failure so the caller can fall back to reload.
   const renderSectionFragment = async (item: SectionItem): Promise<string | null> => {
     try {
@@ -1271,12 +1271,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     }
   };
 
-  // Re-render section `i` in place through the fragment route — the single seam
+  // Re-render section `i` in place through the fragment route—the single seam
   // every in-section structural change routes through (#182 Phase 3 / ADR 0005
   // §4): block add, array item add/remove, and variant swap-type. The store is
   // already mutated; this swaps the section's element for a fresh server render
   // and re-wires it. Falls back to save-and-reload when the section isn't on the
-  // live rendered page (e.g. a headless dock) or the fragment can't render, so
+  // live rendered page (for example, a headless dock) or the fragment can't render, so
   // the change is never lost.
   const rerenderSection = async (i: number): Promise<void> => {
     const item = state.items[i];
@@ -1327,7 +1327,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     if (!def) return;
     setAddPicker(null);
     const item = { _type: type, ...blankRecord(def.fields) } as SectionItem;
-    // Insert at `atIndex` — a section's `+` passes its own index, so the new
+    // Insert at `atIndex`—a section's `+` passes its own index, so the new
     // section takes it and pushes the clicked one down ("insert above"); the
     // trailing add appends.
     const index = Math.max(0, Math.min(atIndex, state.items.length));
@@ -1366,9 +1366,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
   // Reorder + delete are INSTANT (#182 Phase 1 / ADR 0005 §4): reconcile the
   // store, mirror the change on the already-rendered DOM (move/remove the marked
-  // section element + re-stamp markers), and stage a draft via autosave — no
-  // save-and-reload round-trip. (Add / array-item ops still reload — they need
-  // markup that doesn't exist yet, i.e. the Phase 3 fragment-render route.)
+  // section element + re-stamp markers), and stage a draft via autosave—no
+  // save-and-reload round-trip. (Add / array-item ops still reload—they need
+  // markup that doesn't exist yet, that is, the Phase 3 fragment-render route.)
   const removeSection = (i: number) => {
     set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i));
     deleteNodeElement([], i);
@@ -1409,8 +1409,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     touched();
   };
   // The block types a section accepts, in catalog order: bounded by the section's
-  // `blocks.allow` when declared, otherwise the whole block catalog (ADR 0005 §4 —
-  // `allow` omitted means "any block type"). Types with no catalog entry are
+  // `blocks.allow` when declared, otherwise the whole block catalog (ADR 0005 §4—`allow`
+  // omitted means "any block type"). Types with no catalog entry are
   // dropped: without a field shape there is no blank to seed.
   const allowedBlockTypes = (section: number): string[] => {
     const policy = props.catalog[state.items[section]?._type ?? ""]?.blocks;
@@ -1456,7 +1456,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     setBlockPicker({ section, at, types, top, left });
   };
 
-  // The block toolbar's `+` — insert AFTER the hovered block, since blocks read as
+  // The block toolbar's `+`—insert AFTER the hovered block, since blocks read as
   // a list you extend downward (unlike the section `+`, which inserts above).
   const addBlock = (section: number, block: number) =>
     openBlockPicker(section, block + 1, [section, "blocks", block]);
@@ -1464,7 +1464,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // ── Path dispatch (ADR 0010) ───────────────────────────────────────────────
   // The chrome hands back a path and nothing else, so these are the only place
   // that turns one into an operation. Each recognises the two shapes that can be
-  // `ordered` today — `[i]` and `[i, "blocks", j]` — and ignores anything else,
+  // `ordered` today—`[i]` and `[i, "blocks", j]`—and ignores anything else,
   // so a value node's path can reach here harmlessly.
   const asSection = (path: NodePath): number | null =>
     path.length === 1 && typeof path[0] === "number" ? path[0] : null;
@@ -1497,7 +1497,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
   // The "add the first child" affordance (ADR 0010): a container with `children`
   // and none of them. Only sections hold blocks today, so this is the block-layer
-  // entry point that did NOT exist pre-0010 — a freshly added block-capable
+  // entry point that did NOT exist pre-0010—a freshly added block-capable
   // section had no child to hover and so no `+` anywhere on it.
   const addChild = (path: NodePath) => {
     const i = asSection(path);
@@ -1510,17 +1510,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const b = asBlock(path);
     if (b) return { kind: "block", section: b[0], block: b[1] };
     const [head, ...rest] = path;
-    // ["settings", key] — a shared value (Phase B). Only declared keys resolve
+    // ["settings", key]—a shared value (Phase B). Only declared keys resolve
     // to chrome at all, so reaching here means the key is real.
     if (head === SHARED_PATH_HEAD && rest.length === 1 && typeof rest[0] === "string") {
       return { kind: "shared", key: rest[0] };
     }
     if (typeof head !== "number") return null;
-    // [i, key] — a field on the section.
+    // [i, key]—a field on the section.
     if (rest.length === 1 && typeof rest[0] === "string") {
       return { kind: "field", section: head, key: rest[0] };
     }
-    // [i, "blocks", j, key] — a field on one of its blocks.
+    // [i, "blocks", j, key]—a field on one of its blocks.
     if (
       rest.length === 3 &&
       rest[0] === "blocks" &&
@@ -1537,12 +1537,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // A layout/settings change alters the render, so it re-renders the section via
   // the fragment route (the same seam as block add / swap-type).
   // A `shared` target owns no section; -1 indexes nothing, so every item/def
-  // helper below degrades to `undefined` for it — and the popover body branches
+  // helper below degrades to `undefined` for it—and the popover body branches
   // to the shared panel before any of them matter.
   const inspectSection = (t: InspectTarget) =>
     t.kind === "section" ? t.index : t.kind === "shared" ? -1 : t.section;
   /** The block index within that section, or `undefined` for a section-level
-   *  target. A `field` target inherits its OWNER's position — a CTA's destination
+   *  target. A `field` target inherits its OWNER's position—a CTA's destination
    *  is stored on the block that renders it, not on the link. */
   const inspectBlock = (t: InspectTarget): number | undefined =>
     t.kind === "section" || t.kind === "shared" ? undefined : t.block;
@@ -1557,7 +1557,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const type = inspectItem(t)?._type ?? "";
     return inspectBlock(t) === undefined ? props.catalog[type] : props.blocks?.[type];
   };
-  /** The node path a target addresses — what the popover anchors to. A field
+  /** The node path a target addresses—what the popover anchors to. A field
    *  target anchors to the FIELD's own element, so a CTA's panel opens beside
    *  that CTA rather than beside the section around it. */
   const inspectPath = (t: InspectTarget): NodePath => {
@@ -1580,7 +1580,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // section at that index (its `+`); for the trailing add (index === count) it
   // anchors below the last section, and centres on an empty page.
   const openAddPicker = (index: number) => {
-    // The rendered sections are the depth-1 nodes — NOT every marked node, which
+    // The rendered sections are the depth-1 nodes—NOT every marked node, which
     // now includes blocks and fields.
     const sections = siblingsAt([], props.host);
     const count = sections.length;
@@ -1611,9 +1611,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     touched();
   };
   // Re-render the section (settings/layout affect the bespoke render) once the
-  // value is committed — on `change`/blur, not every keystroke.
+  // value is committed—on `change`/blur, not every keystroke.
   const commitSetting = (t: InspectTarget) => void rerenderSection(inspectSection(t));
-  // Write a top-level field value — the non-inline "dock" fields (a link URL, an
+  // Write a top-level field value—the non-inline "dock" fields (a link URL, an
   // image, a token), now edited in the inspector (#182) rather than the dock.
   const setField = (t: InspectTarget, key: string, value: unknown) => {
     const block = inspectBlock(t);
@@ -1622,7 +1622,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     touched();
   };
   const commitField = (t: InspectTarget) => void rerenderSection(inspectSection(t));
-  // Write one field of an array item — for `inline: false` arrays (marquee words,
+  // Write one field of an array item—for `inline: false` arrays (marquee words,
   // contact-form topics) whose text has no on-page node, so it's typed here in the
   // inspector rather than on the canvas.
   const setItemField = (i: number, key: string, k: number, itemKey: string, value: unknown) => {
@@ -1691,10 +1691,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       );
     });
 
-  // The page's primary save actions — Save draft (green) and Publish (yellow) —
-  // rendered onto the shared edit bar (or a fixed fallback strip). A component so
+  // The page's primary save actions—Save draft (green) and Publish (yellow)—rendered
+  // onto the shared edit bar (or a fixed fallback strip). A component so
   // the same markup mounts in either place.
-  // With auto-save on, the manual Save draft button is dropped — edits stage a
+  // With auto-save on, the manual Save draft button is dropped—edits stage a
   // draft on a debounce (flushed on navigation), so the routine saved/unsaved
   // status is just noise and is omitted; only a *failed* save surfaces (below).
   // Publish is never automated, so it stays.
@@ -1727,11 +1727,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Everything the removed dock's header/footer owned, now on the shared edit bar:
   // a History button (opens the version-history drawer) and the Save/Publish
   // actions. Auto-save makes the routine saved/unsaved status redundant, so the
-  // only status shown is an error — a failed save must never be silent, and the
+  // only status shown is an error—a failed save must never be silent, and the
   // Publish button doesn't surface it. Mounts into the bar slot, or a fixed strip.
   const BarControls = () => (
     <>
-      {/* Realtime presence — the other editors on this page (empty strip hides). */}
+      {/* Realtime presence—the other editors on this page (empty strip hides). */}
       <Show when={peers().length > 0}>
         <span class="louise-presence" aria-live="polite">
           <For each={peers()}>
@@ -1748,8 +1748,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           {errorDetail() || "Couldn’t save"}
         </span>
       </Show>
-      {/* History moved into the Settings drawer's top strip (coracle.coffee#36) —
-          the drawer itself stays here, only the trigger moved. This button is the
+      {/* History moved into the Settings drawer's top strip (coracle.coffee#36)—the
+          drawer itself stays here, only the trigger moved. This button is the
           fallback for hosts that mount sections WITHOUT mountSettings, which would
           otherwise have no way to reach version history at all. */}
       <Show when={!settingsMounted()}>
@@ -1769,8 +1769,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   return (
     <>
       {/* Bar controls: status + History + Save/Publish, relocated onto the shared
-          edit bar (#182 — the floating "Page sections" dock is gone). Falls back
-          to a fixed strip when the page has no edit bar (e.g. a standalone
+          edit bar (#182—the floating "Page sections" dock is gone). Falls back
+          to a fixed strip when the page has no edit bar (for example, a standalone
           harness / test host). */}
       <Show
         when={barSlot()}
@@ -1785,7 +1785,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         </Portal>
       </Show>
 
-      {/* Add-section type-picker — a Portal anchored to the section's `+` (insert
+      {/* Add-section type-picker—a Portal anchored to the section's `+` (insert
           above) or to the trailing add. Dismisses on outside-press / Escape. The
           old floating dock button is gone (drawer-last-resort). */}
       <Show when={addPicker()}>
@@ -1817,7 +1817,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         </Portal>
       </Show>
 
-      {/* Add-BLOCK type-picker — the same palette one level down, anchored under
+      {/* Add-BLOCK type-picker—the same palette one level down, anchored under
           the block whose `+` opened it. Only rendered for sections that accept
           more than one block type; single-type sections insert with no prompt. */}
       <Show when={blockPicker()}>
@@ -1870,7 +1870,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         </button>
       </div>
 
-      {/* Version-history drawer — opened from the bar's History button. A right-side
+      {/* Version-history drawer—opened from the bar's History button. A right-side
           drawer (the Louise drawer visual family) replaces the removed dock's inline
           list. The sections surface mounts independently of mountLouise's settings
           shell, so this is a dedicated history drawer rather than a tab within it. */}
@@ -1963,20 +1963,20 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           const target = insp();
           const sectionDef = () => inspectDef(target) as SectionDef | undefined;
           // A field target scopes to the ONE field it addresses (ADR 0010): no
-          // layouts, no settings, and none of its owner's other fields — those all
+          // layouts, no settings, and none of its owner's other fields—those all
           // belong to the owner's own wrench.
           const settings = () =>
             target.kind === "field" ? {} : (inspectDef(target)?.settings ?? {});
           const layouts = () => (target.kind === "section" ? sectionDef()?.layouts : undefined);
           const hasSettings = () => Object.keys(settings()).length > 0;
-          // The external mirror's configuration (Phase B / #375) — present only
+          // The external mirror's configuration (Phase B / #375)—present only
           // on a section wrench whose def declares where the knobs live.
           const source = (): ExternalSource | null => {
             if (target.kind !== "section") return null;
             const src = externalSourceOf(sectionDef());
             return src?.settingsKey && Object.keys(src.settings ?? {}).length > 0 ? src : null;
           };
-          // The non-inline "dock" fields (link URL, image, token) — edited here in
+          // The non-inline "dock" fields (link URL, image, token)—edited here in
           // the inspector (#182) instead of the floating dock. Inline text/rich-text
           // fields are edited on the page; arrays stay their own membership UI.
           const editFields = (): [string, SectionField][] => {
@@ -1987,7 +1987,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             }
             return Object.entries(fields).filter(([, f]) => f.type !== "array" && !isInline(f));
           };
-          // Array membership (add/remove items, variant switch) — a section-level
+          // Array membership (add/remove items, variant switch)—a section-level
           // field, edited here too so the dock isn't needed. `si` is the section
           // index the array handlers take.
           const arrayEditFields = () =>
@@ -2004,7 +2004,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
               : target.kind === "field"
                 ? (inspectDef(target)?.fields?.[target.key]?.label ?? humanize(target.key))
                 : (inspectDef(target)?.label ?? inspectItem(target)?._type);
-          // The shared panel replaces the whole body — a shared value has no
+          // The shared panel replaces the whole body—a shared value has no
           // layouts, no arrays, no draft-staged anything (Phase B / #376).
           const sharedTarget = () =>
             target.kind === "shared" && props.shared?.[target.key]
@@ -2037,7 +2037,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
                 {/* The green panel (Phase B / #376): one shared value, edited at
                     its source, with the used-in count and the save-immediately
-                    band. Replaces the whole body — every other group is empty
+                    band. Replaces the whole body—every other group is empty
                     for a shared target by construction. */}
                 <Show when={sharedTarget()}>
                   {(st) => (
@@ -2051,7 +2051,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                 </Show>
 
                 {/* Source settings (Phase B / #375): the external mirror's knobs,
-                    FIRST — they are what a yellow wrench opens for. They write to
+                    FIRST—they are what a yellow wrench opens for. They write to
                     site settings immediately; everything below stages a draft. */}
                 <Show when={source()}>
                   {(src) => (
@@ -2059,8 +2059,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   )}
                 </Show>
 
-                {/* Field editing (#182): the section/block's non-inline fields —
-                    formerly the floating dock's form — now live in the gear. */}
+                {/* Field editing (#182): the section/block's non-inline fields—formerly
+                    the floating dock's form—now live in the gear. */}
                 <Show when={editFields().length > 0}>
                   <div class="louise-inspector-group">
                     <For each={editFields()}>
@@ -2090,7 +2090,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           </Match>
                           {/* Destination (#38): a page picker + free URL, rather
                               than the bare text input an href used to get. Commits
-                              on change (not per keystroke) — commitField re-renders
+                              on change (not per keystroke)—commitField re-renders
                               the section through the fragment route. */}
                           <Match when={field.type === "link"}>
                             <div class="louise-field">
@@ -2127,7 +2127,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   </div>
                 </Show>
 
-                {/* Array membership (add/remove/switch items) — the item text is
+                {/* Array membership (add/remove/switch items)—the item text is
                     edited on the page; this manages the list. */}
                 <Show when={arrayEditFields().length > 0}>
                   <div class="louise-inspector-group">
@@ -2302,7 +2302,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 /**
  * Vanilla-DOM adapter: enable in-place editing over `el` (the server-rendered
  * bespoke sections) and mount the on-canvas editing chrome, in edit mode. The
- * bespoke render is left in place — only made editable. Returns the disposer.
+ * bespoke render is left in place—only made editable. Returns the disposer.
  */
 export function mountSections(el: HTMLElement, opts: SectionsEditorProps): () => void {
   injectStyles();

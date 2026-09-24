@@ -2,7 +2,7 @@
 //
 // Edge-cache policy for published Louise pages (#95, #163). The mechanism is the
 // cookie-aware Worker Cache API layer (`withEdgeCache`, louise-toolkit/worker),
-// wired over the Astro SSR fallback in worker.ts — NOT Cloudflare's automatic
+// wired over the Astro SSR fallback in worker.ts—NOT Cloudflare's automatic
 // `Cloudflare-CDN-Cache-Control` edge cache (that one is cookie-blind and would
 // serve a cached public page to an editor; see #163).
 //
@@ -15,7 +15,7 @@
 import { EDIT_COOKIE } from "./session.js";
 
 /** Fresh window (seconds) for a cached published page. Kept short because
- *  `caches.default` has no global tag-purge — this maxAge is the freshness floor
+ *  `caches.default` has no global tag-purge—this maxAge is the freshness floor
  *  (a publish is visible everywhere within it); see {@link invalidatePageCache}. */
 export const PAGE_CACHE_MAX_AGE = 60;
 
@@ -29,7 +29,7 @@ export function publishedPageCache(): { maxAge: number } {
 /**
  * Is this a Louise edit-mode request? Detected by the `louise_edit` cookie
  * (set by the middleware when entering edit mode). Used as the `withEdgeCache`
- * bypass predicate so an editor is never served — or storing into — the shared
+ * bypass predicate so an editor is never served—or storing into—the shared
  * public cache entry; they always get a fresh, personalized render.
  */
 export function isEditRequest(request: Request): boolean {
@@ -46,7 +46,7 @@ function pageUrl(slug: string): string {
 /**
  * Best-effort: drop a just-published page's cached render so the update shows
  * sooner. `caches.default` is per-colo, so `delete` only clears the data center
- * the publish Workflow runs in — the {@link PAGE_CACHE_MAX_AGE} TTL is the global
+ * the publish Workflow runs in—the {@link PAGE_CACHE_MAX_AGE} TTL is the global
  * freshness floor. Never throws (a purge failure must not fail the pipeline).
  */
 export async function invalidatePageCache(slug: string): Promise<void> {

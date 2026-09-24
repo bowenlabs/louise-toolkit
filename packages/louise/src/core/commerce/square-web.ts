@@ -1,17 +1,17 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce/square-web — browser-side companion to
+// louise-toolkit/commerce/square-web—browser-side companion to
 // louise-toolkit/commerce/square. Loads Square's Web Payments SDK from the
 // squarecdn host (allow-list it in the site CSP) and mounts a card input that
 // tokenizes the card in the browser, so raw PAN never reaches the Worker. The
 // resulting token is what the server side charges via /v2/payments. Sandbox vs
 // production is chosen by the same SQUARE_ENVIRONMENT the server uses. Runs in
-// the browser (DOM globals only) — framework-agnostic, no Solid dependency.
+// the browser (DOM globals only)—framework-agnostic, no Solid dependency.
 //
 // Apple Pay and Google Pay tokenize through the same SDK and produce the same
 // kind of token, so the server side does not know which button was pressed.
 // They need more CSP origins than the card form (Google Pay's script and
-// frame, Square's font host) — see #453.
+// frame, Square's font host); see #453.
 
 // biome-ignore-all lint/suspicious/noExplicitAny: Square's Web Payments SDK is loaded from their CDN at runtime and ships no types
 declare global {
@@ -41,7 +41,7 @@ export function loadSquare(environment: string): Promise<any> {
 }
 
 // One payments instance per app + location. The card form and the wallet
-// buttons on the same page must share it — Square's SDK ties a payment request
+// buttons on the same page must share it—Square's SDK ties a payment request
 // to the instance that created it, and a second instance is a second SDK
 // session with its own iframe bootstrap.
 const instances = new Map<string, Promise<any>>();
@@ -101,24 +101,24 @@ export type SquareWallet = "applePay" | "googlePay";
 export interface SquareWalletsOptions {
   /** The amount the sheet shows, in minor units (cents). */
   totalCents: number;
-  /** ISO 3166-1 alpha-2 of the merchant, e.g. "US". */
+  /** ISO 3166-1 alpha-2 of the merchant, for example, "US". */
   countryCode: string;
-  /** ISO 4217, e.g. "USD". */
+  /** ISO 4217, for example, "USD". */
   currencyCode: string;
-  /** Minor-unit digits of `currencyCode` — 2 for USD, 0 for JPY. Default 2. */
+  /** Minor-unit digits of `currencyCode`—2 for USD, 0 for JPY. Default 2. */
   fractionDigits?: number;
   /** The line the sheet shows next to the amount. Default "Total". */
   label?: string;
   /**
    * Where Square renders its Google Pay button. Google Pay is skipped when
-   * absent — unlike Apple Pay, whose button is the caller's own markup.
+   * absent—unlike Apple Pay, whose button is the caller's own markup.
    */
   googlePayEl?: HTMLElement | null;
   /** Passed to Square's `googlePay.attach`. Defaults to a black, fill-width "Pay" button. */
   googlePayButton?: { buttonColor?: string; buttonSizeMode?: string; buttonType?: string };
   /**
    * Called for each wallet Square could not initialize, with the reason.
-   * Wallets are optional so a refusal only hides a button — but without the
+   * Wallets are optional so a refusal only hides a button—but without the
    * reason, "no Apple Pay button" is undiagnosable (browser without Apple Pay,
    * no card in Wallet, domain not verified in the Square Dashboard, …).
    */
@@ -129,7 +129,7 @@ export interface SquareWalletsOptions {
 export interface SquareWalletsHandle {
   /**
    * Tokenizes via the Apple Pay sheet. Call it synchronously from the click
-   * handler — Safari refuses to open the sheet after an `await`. Absent when
+   * handler—Safari refuses to open the sheet after an `await`. Absent when
    * unavailable.
    */
   applePay?: () => Promise<string>;
@@ -137,7 +137,7 @@ export interface SquareWalletsHandle {
   googlePay?: () => Promise<string>;
   /** Keep the sheet's total in step with the checkout's (a tip, a re-quote). */
   setTotal: (cents: number) => void;
-  /** Why each absent wallet is absent — the same text `onUnavailable` received. */
+  /** Why each absent wallet is absent—the same text `onUnavailable` received. */
   unavailable: Partial<Record<SquareWallet, string>>;
 }
 
@@ -146,7 +146,7 @@ export interface SquareWalletsHandle {
  * optional: Apple Pay needs Safari on an Apple device AND the domain
  * registered with Square; Google Pay needs a supporting browser and an
  * element to draw its button into. Whatever Square can't initialize is left
- * out and reported through `unavailable` — the card form always remains.
+ * out and reported through `unavailable`—the card form always remains.
  */
 export async function mountWallets(
   appId: string,
@@ -204,7 +204,7 @@ export async function mountWallets(
 
 /**
  * Per-directive origin lists, keyed like a CSP builder's input: `script` →
- * `script-src`, and so on. Plain data — merge it into whatever assembles the
+ * `script-src`, and so on. Plain data—merge it into whatever assembles the
  * site's policy.
  */
 export interface SquareCspOrigins {
@@ -218,7 +218,7 @@ export interface SquareCspOrigins {
 export interface SquareCspOptions {
   /**
    * Which Square environments to allow. Both by default, so ONE build serves
-   * either — the environment is a runtime secret, while a CSP is usually baked
+   * either—the environment is a runtime secret, while a CSP is usually baked
    * at build time. Narrow it only when the policy is computed per request.
    */
   environments?: ("sandbox" | "production")[];
@@ -250,7 +250,7 @@ export function squareWebPaymentsCsp(options: SquareCspOptions = {}): SquareCspO
   const origins: SquareCspOrigins = {
     script: [...cdn],
     // SDK 1.85+ attaches `card-wrapper.css` to the HOST page, not just inside
-    // the iframe. Block it and `card.attach()` rejects — no card form at all.
+    // the iframe. Block it and `card.attach()` rejects—no card form at all.
     style: [...cdn],
     frame: [...cdn, ...pick("https://connect.squareupsandbox.com", "https://connect.squareup.com")],
     connect: [

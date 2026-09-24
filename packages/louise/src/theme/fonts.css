@@ -1,11 +1,11 @@
 /*
  * BowenLabs brand type for Louise surfaces: Roboto Flex (variable weight axis).
- * There's no separate display face — headings are the same family, just heavier.
+ * There's no separate display face—headings are the same family, just heavier.
  *
- * GENERATED — do not edit by hand. Run `node assets/fonts/build.mjs` to
+ * GENERATED—do not edit by hand. Run `node assets/fonts/build.mjs` to
  * regenerate after changing the source woff2 (assets/fonts/, not published).
  *
- * The font is base64-inlined below (Roboto Flex, OFL — see THIRD_PARTY_NOTICES.md),
+ * The font is base64-inlined below (Roboto Flex, OFL—see THIRD_PARTY_NOTICES.md),
  * so it's bundled with the package like the Phosphor icons: self-contained, no
  * runtime fetch, no Google Fonts, CSP-safe. Loaded on Louise surfaces via the
  * client style injector (src/client/styles.ts imports this file with `?raw`) and

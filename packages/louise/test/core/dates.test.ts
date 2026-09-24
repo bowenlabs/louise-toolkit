@@ -15,7 +15,7 @@ const CHICAGO = "America/Chicago";
 
 describe("isoDateIn / todayIn", () => {
   it("is still today in Chicago at 8pm, when UTC has rolled over", () => {
-    // The bug every site hit: 8pm CDT on Sep 23 is 01:00Z on Sep 24.
+    // The bug every site hit: 8 PM CDT on Sep 23 is 01:00Z on Sep 24.
     const evening = Date.parse("2026-09-24T01:00:00Z");
     expect(new Date(evening).toISOString().slice(0, 10)).toBe("2026-09-24");
     expect(isoDateIn(evening, CHICAGO)).toBe("2026-09-23");
@@ -82,7 +82,7 @@ describe("zonedTimeToUtc", () => {
   });
 
   it("puts 9am Chicago on standard time at 15:00Z", () => {
-    // The hour coracle once got wrong: its pickups were 9am Eastern.
+    // The hour coracle once got wrong: its pickups were 9 AM Eastern.
     expect(zonedTimeToUtc("2026-12-01", "09:00", CHICAGO).toISOString()).toBe(
       "2026-12-01T15:00:00.000Z",
     );
@@ -125,7 +125,7 @@ describe("zonedTimeToUtc", () => {
 
 describe("formatInstant", () => {
   it("spells out the day as it was in the zone, not in UTC", () => {
-    // An 8pm Independence Day sale is a July 4 receipt, not July 5.
+    // An 8 PM Independence Day sale is a July 4 receipt, not July 5.
     expect(formatInstant("2026-07-05T01:00:00Z", CHICAGO)).toBe("July 4, 2026");
   });
 

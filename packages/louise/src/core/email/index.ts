@@ -1,7 +1,7 @@
-// louise-toolkit/email — Cloudflare Email Service (transactional Email Sending).
+// louise-toolkit/email—Cloudflare Email Service (transactional Email Sending).
 //
-// Uses the modern object-form binding API — env.EMAIL.send({to, from,
-// subject, html, text}) → {messageId} — NOT the legacy cloudflare:email
+// Uses the modern object-form binding API—env.EMAIL.send({to, from,
+// subject, html, text}) → {messageId}—NOT the legacy cloudflare:email
 // EmailMessage/mimetext path, which routes through Email Routing and can
 // only deliver to *verified* destination addresses. Email Sending delivers
 // to any recipient once the `from` domain is onboarded
@@ -38,7 +38,7 @@ export interface SendEmailInput {
 
 /** What a {@link sendEmail} call did. */
 export interface SendEmailResult {
-  /** The provider's message id — present only when a real send happened. */
+  /** The provider's message id—present only when a real send happened. */
   messageId?: string;
   /** True when there was no binding and the send was logged, not delivered. */
   simulated?: boolean;
@@ -52,7 +52,7 @@ export interface SendEmailOptions {
    * throwing. `false` → throw {@link LouiseEmailError}. Defaults to
    * {@link looksLikeDev}: on under a local dev server (no EMAIL binding
    * is the normal local case, and "click the magic link from the console" is the
-   * whole dev loop), OFF in production — where a missing binding is a real
+   * whole dev loop), OFF in production—where a missing binding is a real
    * misconfiguration that should fail loudly rather than drop mail in silence.
    *
    * An opinionated mailer above this one sets it itself; a direct caller (a contact
@@ -94,7 +94,7 @@ function htmlToText(html: string): string {
 }
 
 /**
- * Best-effort "are we in development?" — the fallback when the host does not say.
+ * Best-effort "are we in development?"—the fallback when the host does not say.
  *
  * Deliberately conservative: it decides both whether an unconfigured send
  * simulates rather than throws AND whether a credential-bearing body is printed,
@@ -102,7 +102,7 @@ function htmlToText(html: string): string {
  *
  * This used to read `import.meta.env.DEV` first, which a bundler defines at build
  * time. That made a library claiming to be framework-agnostic depend on being
- * built by one — and on a plain Worker the read was absent anyway. The host knows
+ * built by one—and on a plain Worker the read was absent anyway. The host knows
  * the answer and should pass {@link SendEmailOptions.dev}; `NODE_ENV` remains as
  * a fallback because it is an ordinary global rather than a bundler construct.
  */
@@ -116,7 +116,7 @@ function looksLikeDev(): boolean {
 /**
  * The console rendering of an unsent message.
  *
- * The body is the whole point in dev — that's where a sign-in link actually is,
+ * The body is the whole point in dev—that's where a sign-in link actually is,
  * and printing it is what lets you sign in with no mail provider configured. It
  * is also a credential, so it is withheld unless we can see we're in development
  * (see {@link looksLikeDev}); everywhere else the log still records THAT a message
@@ -144,13 +144,13 @@ function describeSimulated(input: SendEmailInput, includeBody: boolean): string 
  * Sends a transactional email via the Cloudflare Email Sending binding.
  *
  * With a `binding`, this delivers and returns `{ messageId }`, throwing
- * {@link LouiseEmailError} on a send failure — unchanged. WITHOUT one, it takes
+ * {@link LouiseEmailError} on a send failure—unchanged. WITHOUT one, it takes
  * the dormant-until-provisioned path: in a dev context (the default) it logs a
  * simulated send and returns `{ simulated: true }` rather than throwing, so a
  * hand-rolled route that calls `sendEmail(env.EMAIL, …)` with no localhost guard
  * doesn't 500 the request that triggered it when EMAIL is absent locally. In
  * production a missing binding still throws unless the caller opts into
- * simulating — see {@link SendEmailOptions.simulateWhenUnconfigured}.
+ * simulating—see {@link SendEmailOptions.simulateWhenUnconfigured}.
  */
 export async function sendEmail(
   binding: EmailSender | null | undefined,

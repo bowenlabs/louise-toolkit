@@ -176,7 +176,7 @@ describe("runEditorRoute (non-Worker adapter)", () => {
     const rows = [{ id: 1, email: "a@x" }];
     const { db } = makeD1(() => rows);
     const route = inquiriesRoute({ table: inquiries, resolveEditor: () => editor });
-    // No ExecutionContext passed — runEditorRoute fills it in.
+    // No ExecutionContext passed—runEditorRoute fills it in.
     const res = await runEditorRoute(route, req("GET"), { DB: db });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ inquiries: rows });
@@ -296,8 +296,8 @@ describe("validateSettingsImages", () => {
   });
 });
 
-// A stored `href` is rendered into the site chrome on every page — nav and social
-// links — and nothing checked its scheme. Sections closed exactly this hole with
+// A stored `href` is rendered into the site chrome on every page—nav and social
+// links—and nothing checked its scheme. Sections closed exactly this hole with
 // the `link` field type; settings never got the same treatment, so an editor could
 // store `javascript:` as a nav destination and it rendered as a working link for
 // every visitor.
@@ -335,7 +335,7 @@ describe("validateSettingsLinks", () => {
   });
 
   it("treats an empty or absent href as unset, not as an attack", () => {
-    // "No link yet" is a value — what it renders is the site component's call.
+    // "No link yet" is a value—what it renders is the site component's call.
     expect(validateSettingsLinks({ navLinks: [{ label: "x", href: "" }, { label: "y" }] })).toEqual(
       [],
     );
@@ -763,7 +763,7 @@ describe("mediaRoute", () => {
     const update = calls.find((c) => c.sql.startsWith("UPDATE"));
     expect(update?.sql).toContain('"alt" = ?1');
     expect(update?.sql).toContain('"caption" = ?2');
-    // Only alt/caption + the key are ever bound — no other column is writable.
+    // Only alt/caption + the key are ever bound—no other column is writable.
     expect(update?.binds).toEqual(["A blue mug", "On a windowsill", "web/1.png"]);
   });
 

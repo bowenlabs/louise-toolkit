@@ -1,4 +1,4 @@
-// Louise rich text — ProseKit-Solid everywhere (per LOUISE.md's stack row).
+// Louise rich text—ProseKit-Solid everywhere (per LOUISE.md's stack row).
 // One Solid component owns the editor; the vanilla inline surface reuses it
 // through mountRichText (solid-js/web render), so inline fields and Settings
 // forms share the exact same editor + ProseMirror JSON storage contract.
@@ -58,7 +58,7 @@ async function r2ImageUploader({ file }: { file: File }): Promise<string> {
 
 /**
  * Brand text colours offered by the format bubble's swatch popover (#182 Phase 5).
- * Each is a **daisyUI theme token**, not a fixed hex — the mark stores
+ * Each is a **daisyUI theme token**, not a fixed hex—the mark stores
  * `color: var(--color-<token>)`, so it resolves to the SITE's own theme colour at
  * render and a re-theme flows through with no content rewrite. The swatch preview
  * uses the same `var()`, so it shows the site's actual colour in the editor.
@@ -91,7 +91,7 @@ const REWRITE_ACTIONS = [
  * Resizable image node view: wraps the image node's DOM in ProseKit's
  * resizable custom element so editors can drag the corner to set explicit
  * width/height. The dimensions persist onto the node's attrs, which serialize
- * to `<img width height>` — exactly what the site renders via set:html.
+ * to `<img width height>`—exactly what the site renders via set:html.
  */
 function ResizableImage(props: SolidNodeViewProps) {
   const attrs = () =>
@@ -111,7 +111,7 @@ function ResizableImage(props: SolidNodeViewProps) {
       onResizeEnd={(e) => props.setAttrs({ width: e.detail.width, height: e.detail.height })}
     >
       {/* Transformed for DISPLAY only. `attrs().src` is what serializes into the
-          stored markup and what the site renders via set:html — rewriting it
+          stored markup and what the site renders via set:html—rewriting it
           would persist a CDN URL into content and defeat re-cropping later. The
           resizable node knows its own width, so ask for that; an unresized image
           falls back to a typical editor column. */}
@@ -165,7 +165,7 @@ function ResizableImage(props: SolidNodeViewProps) {
   );
 }
 
-/** Serialize a doc as **inline** HTML — the inline content of its block(s),
+/** Serialize a doc as **inline** HTML—the inline content of its block(s),
  *  concatenated, with no block wrapper. `inline` rich-text fields (a heading, a
  *  tagline) store inline HTML that the site drops into its own element via
  *  `set:html` (`<h1 set:html={value}>`); serializing the whole doc would emit a
@@ -182,21 +182,21 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
   return union(
     defineBasicExtension(),
     // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
-    // the block-splitting keys so the value stays one inline run — paired with
+    // the block-splitting keys so the value stays one inline run—paired with
     // inlineHTMLFromDoc, the field never gains a block wrapper.
     ...(inline
       ? [defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true })]
       : []),
     defineBlockquote(),
     defineTextColor(),
-    // Inline link mark (#182 Phase 5) — surfaced in the format bubble; renders to
+    // Inline link mark (#182 Phase 5)—surfaced in the format bubble; renders to
     // `<a href>`, which the sanitizer already allows.
     defineLink(),
     // Paste/drop an image → upload to R2 and insert (temp URL swapped for the
     // final one when the upload resolves).
     defineImageUploadHandler({ uploader: r2ImageUploader }),
     // ProseKit's image node ships only src/width/height, and its toDOM emits
-    // exactly the node's attrs — so without this an inline image can carry no
+    // exactly the node's attrs—so without this an inline image can carry no
     // description (WCAG 1.1.1) AND an authored `alt=` is silently dropped the
     // first time the field round-trips through the editor. Adding the attr makes
     // it both serialize to `<img alt>` and parse back in; the sanitizer already
@@ -210,21 +210,21 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
     }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
-    // Builder blocks (#16) — opt-in: the Settings Pages panel composes
+    // Builder blocks (#16)—opt-in: the Settings Pages panel composes
     // whole pages, while inline prose fields stay blocks-free.
     ...(blocks ? [defineBlocksExtension()] : []),
-    // Grammar/spelling check (#110) — opt-in: adding the extension lazy-loads
+    // Grammar/spelling check (#110)—opt-in: adding the extension lazy-loads
     // Harper's WASM checker; off by default so nothing extra ships otherwise.
     ...(grammar ? [defineGrammarExtension()] : []),
   );
 }
 
-/** The editor's extension type — threaded to `useEditor`/derived values so the
+/** The editor's extension type—threaded to `useEditor`/derived values so the
  * toolbar's mark/node/command access is typed rather than collapsing to `never`. */
 type LouiseEditorExtension = ReturnType<typeof louiseExtension>;
 
 export interface RichTextProps {
-  /** Starting document — ProseMirror JSON, or an HTML string to parse. */
+  /** Starting document—ProseMirror JSON, or an HTML string to parse. */
   initialDoc?: NodeJSON | string;
   /** Fires on every document edit. */
   onDocChange?: (getJSON: () => NodeJSON) => void;
@@ -232,27 +232,27 @@ export interface RichTextProps {
   ref?: (field: RichTextField) => void;
   /** Show the formatting toolbar (default true). */
   toolbar?: boolean;
-  /** Enable builder blocks (#16) — the Pages panel opts in. */
+  /** Enable builder blocks (#16)—the Pages panel opts in. */
   blocks?: boolean;
   /** Enable the Harper grammar/spelling checker (#110). Off by default; when on,
    *  the WASM checker is lazy-loaded and issues are underlined with suggestions. */
   grammar?: boolean;
   /** Light-inline mode (#182): the format bubble shows only inline formatting
    *  (bold/italic/underline/strike/link/colour) and the block drag-handle is
-   *  omitted — for section rich-text fields (a tagline, a body line), not a full
+   *  omitted—for section rich-text fields (a tagline, a body line), not a full
    *  page body. The schema is unchanged; only the chrome is trimmed. */
   minimal?: boolean;
-  /** Inline mode (#182): a single-line rich-text field — a heading or tagline the
+  /** Inline mode (#182): a single-line rich-text field—a heading or tagline the
    *  site renders inside its own element (`<h1 set:html={value}>`). Like `minimal`
    *  for chrome (inline formatting only), but ALSO constrains the value to inline
    *  HTML: block-splitting keys are suppressed and the value serializes with no
    *  block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
    *  nests in the element and loses its brand style. The level stays whatever the
-   *  site's element is — the editor never changes it. */
+   *  site's element is—the editor never changes it. */
   inline?: boolean;
   /** Show the "Insert image" button in the block-controls group (default true).
    *  Only relevant in non-`minimal` mode, where the block controls render. Pass
-   *  `false` to drop it — e.g. a section heading field where an inline image
+   *  `false` to drop it—for example, a section heading field where an inline image
    *  makes no sense but the other block buttons (heading/list/quote) do. */
   image?: boolean;
   class?: string;
@@ -261,7 +261,7 @@ export interface RichTextProps {
 export interface RichTextField {
   /** Current document as ProseMirror JSON. */
   getJSON: () => NodeJSON;
-  /** Current document serialized to HTML — what the site stores + renders. */
+  /** Current document serialized to HTML—what the site stores + renders. */
   getHTML: () => string;
   /** Tear the editor down and stop listening. */
   destroy: () => void;
@@ -294,7 +294,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
   // Swatch popover visibility is click-toggled state, not CSS :hover. The old
   // hover disclosure had a 4px gap between the palette button and the swatches;
   // crossing it dropped :hover and hid the popover before a swatch could be
-  // clicked — which is why text color never applied (#14).
+  // clicked—which is why text color never applied (#14).
   const [colorOpen, setColorOpen] = createSignal(false);
   // Popover triggers: excluded from their panel's outside-press check, and
   // refocused when Escape dismisses the panel.
@@ -333,7 +333,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
       const data = (await res.json().catch(() => null)) as { text?: string } | null;
       const next = data?.text?.trim();
       if (!next) return;
-      // Re-read state at apply time — the doc may have changed during the request.
+      // Re-read state at apply time—the doc may have changed during the request.
       // Bail if the captured range no longer fits (avoids an out-of-range insert).
       const size = editor().view.state.doc.content.size;
       if (from > size || to > size) return;
@@ -430,7 +430,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
         on={active().link}
         run={editLink}
       />
-      {/* Block-level controls (headings, lists, quote, image) — hidden in the
+      {/* Block-level controls (headings, lists, quote, image)—hidden in the
           `minimal` (light-inline) mode used by section rich-text fields, which
           get inline formatting only. */}
       <Show when={!props.minimal}>
@@ -543,7 +543,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
         </Show>
       </div>
       {/* AI rewrite (#75/#166). Hidden once we learn the AI binding is absent
-          (first 503). Enabled only over a real selection — there's nothing to
+          (first 503). Enabled only over a real selection—there's nothing to
           rewrite at a bare caret. Anchored to the right so the menu stays
           on-screen at the toolbar's trailing edge. */}
       <Show when={aiAvailable() && !props.minimal}>
@@ -568,7 +568,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
             <Icon name="sparkle" />
           </button>
           <Show when={aiOpen()}>
-            {/* A labelled button group, not role="menu" — plain buttons in the tab
+            {/* A labelled button group, not role="menu"—plain buttons in the tab
                 order; "menu" would promise arrow-key roving we don't implement. */}
             <div
               id="louise-tb-ai-menu"
@@ -644,10 +644,10 @@ export function RichText(props: RichTextProps) {
           </InlinePopoverRoot>
         </Show>
         <div class={props.class ?? "louise-prose-surface"} ref={host} />
-        {/* Block drag-handle + inserters — omitted in `minimal`/`inline`
+        {/* Block drag-handle + inserters—omitted in `minimal`/`inline`
             (light-inline) modes, where there's no block layer to reorder. */}
         <Show when={!(props.minimal || props.inline)}>
-          {/* Block inserters (#16) — only where blocks are enabled: a visible
+          {/* Block inserters (#16)—only where blocks are enabled: a visible
               "+ Block" button (deterministic) plus the slash menu (fast path). */}
           <Show when={props.blocks}>
             <BlockInserter />
