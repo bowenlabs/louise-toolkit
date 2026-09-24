@@ -158,6 +158,13 @@ It's deliberately narrow:
   else gets a 400 without a fetch, so it can't be used as an open proxy.
 - It serves **only the widths you list**, so the edge caches the handful your
   `srcset` asks for.
+- It serves **only raster images**: JPEG, PNG, GIF, WebP, and AVIF. The response
+  comes from your own origin, and an SVG opened directly runs its scripts there.
+  Cloudflare sanitizes SVG when it resizes, but where resizing doesn't run, the
+  upstream bytes come back untouched. Every response also carries
+  `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy`.
+- It **doesn't follow redirects**. An allowed host that redirects elsewhere would
+  otherwise make the proxy fetch from a host you never listed.
 - If resizing fails for any reason, it **redirects to the original**, so the worst
   case is the page as it was. Resizing is unavailable locally and on a zone without
   Image Resizing, so there every request takes this path. Pass
