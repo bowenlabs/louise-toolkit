@@ -150,8 +150,14 @@ style plus the house style, from the house package in `vale/package/`. Run
 the Google package. The bar is Vale's error level. Two Google rules are off,
 each with its reason in `vale/package/.vale.ini`: `LyHyphens` and `Quotes`.
 
-The rewrite of older prose is still in progress, so `lint:docs` is a **per-file
-ratchet** against `vale/baseline.json`:
+`lint:docs` also lints **user-facing strings**: error messages from `new
+Louise…Error(…)`, `error` and `message` in a `json(…)` body, JSX text, and the
+JSX attributes people read (`title`, `aria-label`, `placeholder`, `alt`,
+`label`). `scripts/ci/checks/copy-extract.mjs` defines the list. A finding in
+one shows up as `path/to/file.tsx (strings)`.
+
+`lint:docs` is a **per-file ratchet** against `vale/baseline.json`, which holds
+the few findings that remain:
 
 - A file that gains findings fails, and the output lists the new ones. Fix them;
   don't raise the baseline.

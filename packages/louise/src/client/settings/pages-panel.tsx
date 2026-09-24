@@ -176,7 +176,7 @@ export function PagesPanel(props: {
             <section class="louise-settings-group louise-settings-session">
               <h3 class="louise-settings-title">Built-in pages</h3>
               <p class="louise-muted louise-settings-hint">
-                Fixed pages defined in code — edit their text on the page itself.
+                Fixed pages defined in code. Edit their text on the page itself.
               </p>
               <div class="louise-list">
                 <For each={props.builtInPages}>

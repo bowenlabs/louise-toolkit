@@ -164,7 +164,7 @@ export async function sendEmail(
       // A production send with no EMAIL binding is a real misconfiguration, not a
       // dev convenience: fail loudly rather than dropping the mail in silence.
       throw new LouiseEmailError(
-        `No email binding configured — cannot send to "${input.to}". Provision the ` +
+        `No email binding configured, so it can't send to "${input.to}". Provision the ` +
           "EMAIL binding, or pass `simulateWhenUnconfigured: true` to log a simulated " +
           "send instead (an opinionated mailer above this one does it for you).",
       );

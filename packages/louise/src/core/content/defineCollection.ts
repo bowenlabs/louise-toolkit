@@ -85,7 +85,7 @@ function validateCollectionConfig(config: CollectionConfig): void {
     }
     if (!SEARCHABLE_FIELD_TYPES.has(field.type)) {
       throw new LouiseContentError(
-        `Collection "${config.slug}" search.fields field "${key}" has type "${field.type}" — only "text", "richText", and "upload" fields can be indexed`,
+        `Collection "${config.slug}" search.fields field "${key}" has type "${field.type}"; only "text", "richText", and "upload" fields can be indexed`,
       );
     }
   }
@@ -95,7 +95,7 @@ function validateCollectionConfig(config: CollectionConfig): void {
   // write—without draft versioning.
   if (config.realtime && !config.versions?.drafts) {
     throw new LouiseContentError(
-      `Collection "${config.slug}" sets realtime: true but not versions.drafts — realtime persists as drafts, so it requires draft versioning`,
+      `Collection "${config.slug}" sets realtime: true but not versions.drafts. Realtime persists as drafts, so it requires draft versioning`,
     );
   }
 }
@@ -105,7 +105,7 @@ function validateUniqueSlugs(collections: readonly CollectionConfig[]): void {
   for (const collection of collections) {
     if (seen.has(collection.slug)) {
       throw new LouiseContentError(
-        `Duplicate collection slug "${collection.slug}" — collection slugs must be unique`,
+        `Duplicate collection slug "${collection.slug}": collection slugs must be unique`,
       );
     }
     seen.add(collection.slug);

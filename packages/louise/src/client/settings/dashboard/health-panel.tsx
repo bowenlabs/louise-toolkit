@@ -118,9 +118,7 @@ export function HealthPanel(props: {
         <Show
           when={summary()}
           fallback={
-            <p class="louise-muted">
-              No health check yet — the daily scan will populate this shortly.
-            </p>
+            <p class="louise-muted">No health check yet. The daily scan fills this in shortly.</p>
           }
         >
           {(s) => (
@@ -209,7 +207,7 @@ function PerformanceSection(props: { cwv?: CwvSummary }) {
         when={props.cwv && props.cwv.rating !== "none" ? props.cwv : undefined}
         fallback={
           <p class="louise-muted">
-            Not measured yet — real-visitor speed appears here once traffic comes in.
+            Not measured yet. Real-visitor speed appears here once traffic comes in.
           </p>
         }
       >

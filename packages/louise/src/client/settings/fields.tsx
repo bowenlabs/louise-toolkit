@@ -195,7 +195,7 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
         <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
           <Show
             when={(query.data ?? []).length > 0}
-            fallback={<p class="louise-muted">No uploads yet — add images in the Media panel.</p>}
+            fallback={<p class="louise-muted">No uploads yet. Add images in the Media panel.</p>}
           >
             <div class="louise-media-pick-grid">
               <For each={query.data ?? []}>
