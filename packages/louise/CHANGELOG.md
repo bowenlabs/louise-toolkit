@@ -1,5 +1,375 @@
 # louise-toolkit
 
+## 0.29.0
+
+### Minor Changes
+
+- 6ca7a0f: auth: `requireEditorFromContext` infers `mutation` from the method, and a new `safeNextPath` (#458)
+
+  Every site wrapped the editor guard in its own `lib/guard.ts` to adapt a framework
+  context, but the toolkit has shipped that bridge, `requireEditorFromContext`, since
+  July. It was never documented, so nobody used it. It's documented now: pass an Astro
+  `APIContext` (or anything shaped `{ request, locals: { editor } }`) straight through.
+
+  **Behaviour change:** when you leave out the second argument, `requireEditorFromContext`
+  now reads it from the request's method. A write (anything but `GET`/`HEAD`/`OPTIONS`)
+  gets the same-origin check, and a read doesn't. Previously every call defaulted to
+  checking, so a same-origin `fetch` GET, which usually sends no `Origin` header, could be
+  refused. The sites passed `false` by hand on 17 of 53 guarded calls to avoid that. If you
+  call this on a `GET` that has side effects, pass `true`. `requireEditor` itself is
+  unchanged.
+
+  **`safeNextPath(raw, fallback)`** reduces a post-sign-in `?next=` to a same-origin path or
+  returns `fallback`. Passing `next` to a redirect or `location.assign` unchecked is an open
+  redirect, and in a browser `?next=javascript:…` runs script. A regex over the raw string
+  isn't enough: browsers strip tabs and newlines and read `\` as `/`, so `/%09/evil.example`
+  becomes `//evil.example`. This resolves with the WHATWG URL parser, the same algorithm the
+  browser applies. **If you sanitize `next` yourself, switch to this.**
+
+### Patch Changes
+
+- ee0757a: commerce: `cartIssues`, `repairCart` and Square's `retrieveLiveCatalogObjectIds` — check a cart against the live catalog, reporting every problem (#457)
+
+  A stored cart outlives the catalog it was built from. Refusing a checkout that disagrees
+  with the catalog is right. Refusing with only the _first_ problem is how customers got
+  stuck: they fixed one line, retried, and were refused over the next. A bag holding an old
+  price failed every retry, and a deleted add-on made Square reject the whole order with no
+  way to say which add-on it was. Two sites hand-rolled fixes for this.
+
+  - **`cartIssues(lines, { prices, outOfStock?, liveModifierIds? })`** in
+    `louise-toolkit/commerce` returns every problem, once per variant or add-on:
+    `price-changed` (with today's price), `unavailable`, `out-of-stock` (checked before
+    price) and `modifier-unavailable`. It is pure and works with any provider.
+  - **`repairCart(lines, issues, { key?, maxQuantity? })`** is pure and applies them all in
+    one step. It reprices changed variants, removes unavailable and sold-out ones, strips
+    deleted add-ons, and combines lines that became identical. It returns
+    `{ lines, changes }`, and the changes are data for you to word for your customers.
+    There is no quantity cap unless you pass one, and the input is never mutated.
+  - **`cartModifierIds(lines)`**: the de-duplicated add-on ids to ask the provider about.
+  - **`retrieveLiveCatalogObjectIds(config, ids, { type? })`** in
+    `louise-toolkit/commerce/square` returns which ids still exist and aren't deleted,
+    optionally of one `type` (e.g. `"MODIFIER"`). It batches requests at Square's 1000-id
+    limit and makes none for an empty list.
+
+- 11e52a7: dates: new `louise-toolkit/dates` — calendar days in a business's own time zone (#454)
+
+  A Worker runs in UTC, and so does `new Date().toISOString().slice(0, 10)`: for a shop
+  in US-Central that "today" is tomorrow from about 7pm. Every site built on the toolkit
+  hit it — one fixed it with a hard-coded zone, one hand-rolled offset maths for its
+  pickup times (and once had them an hour off), one still has the bug in seven places.
+  The toolkit had no time-zone code at all.
+
+  ```ts
+  import { todayIn, addDays, zonedTimeToUtc, formatInstant } from "louise-toolkit/dates";
+
+  todayIn("America/Chicago"); // "2026-09-23", even at 8pm
+  addDays(todayIn(TZ), 7); // a due date, zone-free arithmetic
+  zonedTimeToUtc("2026-09-29", "09:00", TZ); // 9am local, as a Date
+  formatInstant(sale.createdAt, TZ); // "July 4, 2026" on the receipt
+  ```
+
+  Also `isoDateIn`, `daysBetween`, `weekdayOf`, `isIsoDate` and `formatCalendarDate`.
+  The zone is always a parameter — read it from config, never the Worker or the
+  browser. Calendar-day functions take no zone and throw a `RangeError` on anything
+  that isn't a real `YYYY-MM-DD` day. DST gaps and repeats in `zonedTimeToUtc` resolve
+  like `Temporal`'s "compatible" mode. No dependencies; pure `Intl`.
+
+  **If you're replacing a hand-rolled version:** `x.toISOString().slice(0, 10)` →
+  `isoDateIn(x, TZ)`, and "today plus N days" via `setDate` → `addDays(todayIn(TZ), N)`.
+
+- 4bcecdb: commerce/fourthwall: the full product type, `fourthwallCopy`, `catchAllFirst`, `FW_IMAGE_HOST`, and a shared `vanishedRows` (#460)
+
+  Three facts about Fourthwall's API that one site learned in production, now in the
+  toolkit so any Fourthwall mirror gets them:
+
+  - **`FwProduct.additionalInformation`** (`FwAdditionalInformation[]`): the accordion
+    panels. They're real and documented, but the type omitted them, so the site widened
+    it locally.
+  - **`fourthwallCopy(product, { panel?, onComplianceDropped? })`**: the copy worth
+    mirroring. `description` is usually empty; sellers type into the More details
+    panel. That panel carries a hidden EU GPSR block with **Fourthwall's fulfilment
+    address**, which mirrored verbatim is published as the seller's. This returns More
+    details with that block removed and falls back to `description`. If compliance text
+    survives the strip, the panel is dropped and `onComplianceDropped` is called.
+  - **`catchAllFirst(catalog)`** / **`isCatchAllCollection(c)`**: Fourthwall returns "All
+    Products" last, so a sync that sets a product's category once per collection files
+    everything under it. `listCatalog`'s own order is unchanged; its docs now point here.
+  - **`FW_IMAGE_HOST`**: the host of Fourthwall's signed image URLs.
+
+  And in `louise-toolkit/commerce`, for any provider:
+
+  - **`vanishedRows(stored, seen, { externalId, alreadyMarked? })`**: the stored rows a
+    catalog read didn't return. It's an in-memory diff, because SQLite caps bound
+    parameters. Acting on the result is policy: only after a complete read, and never on
+    an empty one.
+
+- a93642b: A batch of small helpers the client sites each hand-rolled (#464):
+
+  - **`kvCached(kv, key, load, { ttlSeconds, cacheMisses? })`** and **`kvBust`** in
+    `louise-toolkit/worker`: a read-through KV cache for one value looked up on every
+    request. Misses are cached by default, so a garbage hostname costs one read per TTL.
+    It fails open on KV errors. `ttlSeconds` is required and must be at least 60, KV's
+    minimum.
+  - **`isNoindexHost(hostname, { prefixes?, suffixes? })`** in `louise-toolkit/security`
+    covers `*.workers.dev` preview and version URLs by default, plus your own prefixes.
+    `louiseSecurityHeaders` takes **`noindex`** to send `X-Robots-Tag: noindex`, and
+    `@louise-toolkit/astro`'s `createLouiseMiddleware` takes **`noindex: (host) =>
+boolean`**. Set it in middleware: a header set in a streamed page is silently dropped.
+  - **`majorToCents(amount, fractionDigits?)`** and **`parseMoneyInput(text,
+fractionDigits?)`** in `louise-toolkit/commerce`. They replace two different
+    functions that were both called `dollarsToCents`. One was `Math.round(d * 100)`,
+    which turns 1.005 into 100 rather than 101. The other parsed form input as text, and
+    is kept but made currency-agnostic.
+
+  Considered and left in the sites: cart-line math (three carts, three shapes; the shared
+  part is a one-liner) and a modal focus trap (one site only).
+
+- 31ec8ed: media: `defineImageProxy` — resize images on a third-party host at the edge (#462)
+
+  `cfImage` rewrites only same-zone URLs, and `transformImage` needs the bytes. So a
+  third-party image whose URL you can't change had no answer. The common case is a
+  signed URL, where the size is part of the signature. Fourthwall's product images are
+  all 1920 px, and a grid of small cards was downloading megabytes of full-size photos.
+  One site built its own proxy route for this.
+
+  ```ts
+  const productImages = defineImageProxy({
+    path: "/api/img/products",
+    allowHosts: [FW_IMAGE_HOST],
+    widths: [320, 640, 960, 1280],
+  });
+  export const GET = ({ request }) => productImages.handle(request);
+  // markup: productImages.url(src, 640), productImages.srcset(src)
+  ```
+
+  It fetches the original with `cf.image` and resizes it at the edge. One config drives
+  the route and the URLs, so they can't disagree about which widths exist.
+
+  - It serves **only the listed hosts** (https, default port) and **only the listed
+    widths**. Anything else gets a 400 before any fetch, so it can't be used as an open
+    proxy, and the edge caches a bounded set of variants.
+  - It **redirects to the original** if resizing fails, which includes local dev and a
+    zone without Image Resizing. `onFailure: "error"` answers 502 instead.
+  - `url` / `srcset` leave other hosts' images untouched.
+  - The format is negotiated from `Accept`, and the response varies on it.
+  - `quality`, `fit`, `cacheControl` and `edgeCacheTtl` are options. The defaults don't
+    guess a site's caching or quality.
+
+- 16ae16a: editor: `resumeDraft` — the edit-mode draft read every site was copying (#455)
+
+  Edit mode has to render the editor's work-in-progress, not the live row, or
+  reopening a page shows the last-published content and the next save reverts the
+  draft. Every site hand-wrote that read: three client sites carried a near-identical
+  `lib/louise-drafts.ts`, the docs told readers to write it themselves, and the
+  toolkit's own demo site had a fourth copy. The three client copies also missed the KV
+  write buffer, so on a site with buffering on, edit mode could show a draft older
+  than the one the next save would build on.
+
+  ```ts
+  import { resumeReadSession } from "@louise-toolkit/astro";
+  import { resumeDraft } from "louise-toolkit/editor";
+
+  const resume = resumeReadSession(env.DB, Astro.cookies);
+  const draft = await resumeDraft(
+    resume.client,
+    { versionsTable: pagesVersions, collection: "pages", bufferKv: env.DRAFTS },
+    page, // { id, publishedVersionId }
+  );
+  resume.commit();
+  ```
+
+  - **`resumeDraft`** (`louise-toolkit/editor`) returns the draft snapshot or `null`,
+    in the same order `applySaveDraft` builds on: the KV buffer first, then the newest
+    draft _newer_ than `publishedVersionId`. A draft at or below the live pointer is
+    superseded, and resuming it would silently revert the page. It returns the whole
+    snapshot; which fields you render (`sections`, `body`, …) stays yours. It takes the
+    row you already loaded, so it adds no query for the live pointer.
+  - **`resumeReadSession`** (`@louise-toolkit/astro`) opens the D1 session anchored at
+    the editor's bookmark cookie, so a draft saved a moment ago is visible behind read
+    replication. It falls back to the raw binding when replication is off.
+  - **`D1_BOOKMARK_MAX_AGE`** (`louise-toolkit/db`): the bookmark cookie's lifetime,
+    now shared by the save path and the read path instead of repeated as a literal.
+
+  **If you have a `lib/louise-drafts.ts`:** keep your field accessors, and replace the
+  query inside them with `resumeDraft`. Pass the page row instead of its id. If you
+  buffer drafts in KV, pass the same namespace as `bufferKv`.
+
+- 2543a27: security: `plainText`, `metaDescription`, `hasRichText`, `stripEmptyHeadings` — rich text as text (#456)
+
+  Editor HTML leaks into places that print it rather than render it, and an emptied field
+  is still a truthy string. Every site hand-rolled regexes for both, and the regexes had
+  bugs. One site shipped `content="<div><p>Don't be a stranger.</p></div>"` in a meta tag.
+  Another rendered an emptied `<h3></h3>` hero heading, which a screen reader announces
+  as a nameless heading.
+
+  - **`plainText(html)`**: one line of text. Tags become spaces, entities are decoded,
+    and double-encoded markup (`&lt;p&gt;`) is stripped too.
+  - **`metaDescription(html, { maxLength = 160 })`**: `plainText` clamped on a word
+    boundary. Returns `undefined` for markup-only input, so you fall back to a default
+    rather than emitting `content=""`.
+  - **`hasRichText(html)`**: whether a field has text or an embedded image, video, iframe
+    or SVG. Use it instead of `field && …`.
+  - **`stripEmptyHeadings(html)`**: run on sanitized output,
+    `stripEmptyHeadings(sanitizeRichHtml(html))`.
+
+  Replacing a hand-rolled version fixes three bugs along the way:
+
+  1. `/<[^>]*>/g` deletes real prose. It turns `5 < 6 and 7 > 2` into `5  2`, while
+     these helpers remove only tag-shaped text.
+  2. An out-of-range numeric escape (`&#99999999;`) made `String.fromCodePoint` throw.
+     One bad stored string could take the page down; it is now dropped.
+  3. An image-only field no longer counts as empty.
+
+  All four return text, not HTML, so escape the result on output as usual.
+
+- 49d63c2: commerce/square: cards on file, `updateCustomer`, the loyalty program, an application-id check, and a typed `SquareApiError` (#461)
+
+  Adds the Square calls a site was making around the toolkit with its own fetch (and
+  without the toolkit's retries):
+
+  - **`listCards(config, { customerId, includeDisabled? })`** follows the cursor.
+  - **`disableCard(config, cardId, { customerId })`** removes a card **only** if it's on
+    file for that customer, and returns `false` otherwise. A guessed card id can't remove
+    someone else's.
+  - **`updateCustomer(config, id, fields)`** is sparse: only the fields you pass are sent,
+    and `null` clears one. `ensureCustomer` also takes `phoneNumber` now, applied when it
+    creates.
+  - **`retrieveLoyaltyProgram(config)`** returns earn rules, reward tiers (cheapest first)
+    and terminology, or `null` when the seller has no program. The program is returned as
+    Square has it, so check `status` before advertising it. No terminology is invented.
+  - **`squareApplicationIdEnvironment(appId)`** returns `"sandbox"` / `"production"` /
+    `null` from the id's format, to catch a placeholder or a wrong-environment id before
+    the payment SDK fails.
+
+  **`SquareApiError`**: every non-2xx answer now throws this `Error` subclass, with
+  `status` and Square's `code`. **The message is unchanged**, so existing
+  `catch`/message checks behave as before. You can now check `err.status === 404`.
+
+  `SquareCard` gains optional `customerId` and `enabled`, which `createCard` now fills in
+  too.
+
+- e53dfb1: commerce/square: fulfillments, service charges, line-item modifiers, order totals, and a tip on `createPayment` (#451)
+
+  A pickup-or-shipping shop could not build its checkout on `createOrder` — it lacked
+  everything past the bare line items — so the one site that runs one re-implemented
+  the request layer around the toolkit, bypassing its retries. This closes that gap.
+  All additive; every existing call is unchanged.
+
+  - `SquareOrderLineItem` (catalog form) takes `modifierIds`, sent as catalog
+    references. Square prices them, so there is deliberately no amount field.
+  - `createOrder` and `calculateOrder` take `serviceCharges` (`SquareServiceCharge`:
+    name, amount, phase, taxable — defaulting to an untaxed subtotal-phase flat fee,
+    i.e. shipping). Pass the same list to both or the preview is short by that much.
+  - `createOrder` takes `fulfillments` (`SquareFulfillment`: a `pickup` that is either
+    `asap` with a `prepMinutes` or `scheduled` at an instant, or a `shipment` with an
+    address). `prepMinutes` is required and must be a whole number ≥ 1: prep time is
+    the shop's fact, so there is no default to promise customers the wrong time. Created
+    `PROPOSED`; notes are trimmed to Square's 500-char cap rather than failing the
+    order after the card was entered. `calculateOrder` does not take them — they are
+    not a pricing input, and a preview usually runs mid-address.
+  - `SquareOrder` gains `totalDiscountMoney` and `totalServiceChargeMoney`, so a
+    quote can show Square's own breakdown instead of recomputing one.
+  - `createPayment` takes `tipMoney`, sent as `tip_money` on top of `amount_money`
+    (Square requires the payment to equal the order total, tip excluded). Omitted
+    when zero. `SquarePayment` reports `tipMoney` back.
+
+  Also exported: `SquareServiceCharge`, `SquareFulfillment`, `SquareFulfillmentRecipient`,
+  `SquareAddress`.
+
+- bfafb00: commerce/square-web: `squareWebPaymentsCsp()` — the CSP origins Square's Web Payments SDK needs, as data (#453)
+
+  Three sites hand-maintained different subsets of the same host list, and each gap
+  surfaced as a live bug: a blocked `card-wrapper.css` stops `card.attach()` from
+  mounting the form at all, and a blocked Cash Sans font host shipped to production
+  before anyone noticed. The list is a fact about Square's SDK, so it now ships beside
+  the SDK wrapper.
+
+  ```ts
+  import { squareWebPaymentsCsp } from "louise-toolkit/commerce/square-web";
+
+  squareWebPaymentsCsp(); // card form, sandbox + production
+  squareWebPaymentsCsp({ wallets: true }); // + Google Pay, for mountWallets
+  squareWebPaymentsCsp({ environments: ["production"] });
+  ```
+
+  Returns `{ script, style, frame, connect, font }` — merge each into the matching
+  `*-src` directive. Both environments by default, because the environment is a runtime
+  secret while a CSP is usually built once. Apple Pay needs no origins. Every host
+  carries a comment saying what breaks without it.
+
+  If you hand-listed these, you can replace the list — and check `style-src`
+  specifically: middleware that owns `style-src` separately from the rest of the policy
+  is where the stylesheet host has been missed before.
+
+- 8e25af5: commerce/square-web: one shared `payments()` instance, and Apple Pay / Google Pay via `mountWallets` (#452)
+
+  `mountCard` created a new `Square.payments()` on every call. Square ties a payment
+  request to the instance that made it, so wallets could not share a page with the card
+  form — the site that needed them forked this file. `mountCard` is unchanged for
+  callers; it now goes through the shared instance.
+
+  - `getPayments(appId, locationId, environment)` — the memoised instance, exported for
+    SDK methods this module does not wrap (ACH, gift cards, `verifyBuyer`).
+  - `mountWallets(appId, locationId, environment, { totalCents, countryCode, currencyCode,
+googlePayEl?, … })` → `{ applePay?, googlePay?, setTotal, unavailable }`. Each wallet
+    is optional: whatever Square cannot initialize is left out and the reason is recorded
+    in `unavailable` (and passed to `onUnavailable`), because "no Apple Pay button" is
+    otherwise undiagnosable — no Safari, no card in Wallet, domain not verified with
+    Square. Call `applePay()` synchronously from the click handler; Safari refuses a sheet
+    opened after an `await`. `setTotal(cents)` keeps the sheet in step with a tip or a
+    re-quote. Country and currency are parameters (with `fractionDigits` for zero-decimal
+    currencies), not assumptions.
+
+  Wallets need more CSP origins than the card form — Google Pay's script and frame, and
+  Square's font host. Those ship as data in #453; until then, allow-list them by hand.
+
+- 7ec18c0: client: the Media panel reports every failed upload; and `unsavedChanges`, `settledSelect`, `uploadMediaFiles` for studio forms (#463)
+
+  **Fix: a multi-file upload in the Media panel showed only the last failure.** Each failure
+  overwrote the same alert. Pick three images, have two refused, and you were told about
+  one; if the last file succeeded, you were told nothing, and simply saw fewer images.
+  The panel now lists every file that failed and why: "2 of 3 didn't upload: …".
+
+  New in `louise-toolkit/client/studio`. The three are plain DOM, with no router
+  dependency:
+
+  - **`unsavedChanges(snapshot, { alsoDirty?, message?, confirm? })`**: the unsaved-changes
+    guard. It compares the form's payload with its value at open, so no field has to mark
+    itself dirty. `leave(go)` covers in-form exits. `shouldBlock` plugs into any router's
+    blocker (TanStack: `useBlocker({ shouldBlockFn: guard.shouldBlock, enableBeforeUnload:
+guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
+    re-baselines after a save.
+  - **`settledSelect(commit)`**: handlers for a save-on-change `<select>` that holds
+    arrow-key steps until Enter or blur, so arrowing through options doesn't save each one.
+  - **`uploadMediaFiles(files, { endpoint?, onUploaded? })`** / **`describeUploadFailures`**:
+    the helper the panel now uses, for any form that uploads.
+
+  The routed studio shell from the same issue is split out to #488, because it needs a
+  decision on the router dependency first.
+
+- d795d30: forms/auth: the browser half of Turnstile (`renderTurnstile`), and one decision for whether captcha is on (`activeCaptcha`) (#459)
+
+  The toolkit verified Turnstile tokens but left rendering the widget to each site, and
+  all three rendered it by hand. Each hit some of the same three bugs:
+
+  1. **The load race.** Turnstile's automatic mode scans the page once. A widget from a
+     component that hydrates later is never rendered, on a form the server demands a
+     token for.
+  2. **The spent token.** A failed submit, for any reason, has used up the single-use
+     token. A retry without a reset can never succeed.
+  3. **Appearance per site key.** The dashboard's invisible mode applies to every form on
+     the key, sign-in included.
+  - **`renderTurnstile(el, { siteKey, appearance?, size?, theme?, action?, … })`** in
+    `louise-toolkit/forms` loads the script once and renders explicitly, whichever lands
+    first. It rejects after `timeoutMs` if the script never arrives. It returns
+    `{ token, reset, remove }`, and you call `reset()` after any failed submit. Only the
+    options you pass are sent. Also `loadTurnstile`, `TURNSTILE_SCRIPT_SRC`, and
+    `turnstileCsp()` (the origins as data).
+  - **`activeCaptcha(env)`** in `louise-toolkit/auth` returns `{ siteKey, secret }` or
+    `null`, one decision for the widget and the check. Deciding them apart is how a site
+    key that stopped resolving (after moving Cloudflare accounts) left the server demanding
+    a token no visitor could produce, and took sign-in down.
+
 ## 0.28.0
 
 ### Minor Changes
