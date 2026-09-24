@@ -125,8 +125,18 @@ function withQueueAndCron<Env, QMessage>(
 }
 
 // The deny-by-default editor API gate (ADR 0012): `composeWorker({ gate })`,
-// and `publicRoute` for the routes an anonymous request may reach.
-export { type ApiGateConfig, LOUISE_API_PREFIX, louiseApiGate, publicRoute } from "./gate.js";
+// `publicRoute` for the routes an anonymous request may reach, and the pieces
+// a framework middleware needs to run the same gate.
+export {
+  type ApiGateConfig,
+  isLouisePublicPath,
+  LOUISE_API_PREFIX,
+  LOUISE_FORMS_PATH,
+  LOUISE_VITALS_PATH,
+  louiseApiGate,
+  publicRoute,
+  underPrefix,
+} from "./gate.js";
 
 // `withHealing` — self-healing recovery that maps typed LouiseErrors to
 // deterministic retry / stale-fallback / async-escalation strategies. Kept in

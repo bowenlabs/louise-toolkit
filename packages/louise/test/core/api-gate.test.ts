@@ -7,6 +7,9 @@ import { defineForm } from "../../src/core/forms/index.js";
 import { isPublicRoute } from "../../src/core/worker/gate.js";
 import {
   composeWorker,
+  isLouisePublicPath,
+  LOUISE_FORMS_PATH,
+  LOUISE_VITALS_PATH,
   louiseApiGate,
   publicRoute,
   type WorkerRoute,
@@ -254,5 +257,29 @@ describe("composeWorker without gate", () => {
     const res = await w.fetch!(req("/api/louise/forgot"), {} as never, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("x-content-type-options")).toBeNull();
+  });
+});
+
+describe("isLouisePublicPath", () => {
+  it("is exactly where formRoute and vitalsRoute mount by default", async () => {
+    // The routes build their default paths from the same constants, so a
+    // middleware exempting these paths can't drift from where they answer.
+    const form = defineForm({ name: "contact", fields: {} });
+    const hit = await formRoute({ form })(
+      new Request(`${SITE}${LOUISE_FORMS_PATH}/contact`, { method: "GET" }),
+      {} as never,
+      ctx,
+    );
+    expect(hit?.status).toBe(405); // matched the path, refused the method
+    expect(isLouisePublicPath(`${LOUISE_FORMS_PATH}/contact`)).toBe(true);
+    expect(isLouisePublicPath(LOUISE_VITALS_PATH)).toBe(true);
+    for (const path of [
+      "/api/louise/forms",
+      "/api/louise/formsx/a",
+      "/api/louise/vitals/x",
+      "/api/louise/pages",
+    ]) {
+      expect(isLouisePublicPath(path), path).toBe(false);
+    }
   });
 });

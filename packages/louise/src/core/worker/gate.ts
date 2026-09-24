@@ -41,6 +41,25 @@ export interface ApiGateConfig<Env> {
 /** Where the editor API lives unless a site says otherwise. */
 export const LOUISE_API_PREFIX = "/api/louise";
 
+/** `formRoute`'s default mount: one path per form, `<this>/<name>`. */
+export const LOUISE_FORMS_PATH = `${LOUISE_API_PREFIX}/forms`;
+
+/** `vitalsRoute`'s default mount. */
+export const LOUISE_VITALS_PATH = `${LOUISE_API_PREFIX}/vitals`;
+
+/**
+ * Whether `pathname` is where one of the toolkit's own public routes mounts
+ * by default — a form submission or the vitals beacon.
+ *
+ * `composeWorker` doesn't need this: it can see a {@link publicRoute} mark
+ * before the route runs. A gate that can't — framework middleware, which runs
+ * before it knows which file will answer — exempts these paths instead, so an
+ * anonymous visitor can still submit a form mounted as a framework route.
+ */
+export function isLouisePublicPath(pathname: string): boolean {
+  return pathname === LOUISE_VITALS_PATH || pathname.startsWith(`${LOUISE_FORMS_PATH}/`);
+}
+
 /** Whether `pathname` falls under `prefix`, on a segment boundary. */
 export function underPrefix(pathname: string, prefix: string): boolean {
   const base = prefix.replace(/\/+$/, "");

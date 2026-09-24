@@ -29,7 +29,14 @@ import {
   rateLimit,
   rewriteCspStyleSrc,
 } from "louise-toolkit/security";
-import { LOUISE_EDIT_COOKIE } from "louise-toolkit/worker";
+import type { EditorSession } from "louise-toolkit/auth";
+import {
+  isLouisePublicPath,
+  LOUISE_API_PREFIX,
+  LOUISE_EDIT_COOKIE,
+  louiseApiGate,
+  underPrefix,
+} from "louise-toolkit/worker";
 
 /** The locals this middleware writes. A site's `App.Locals` should declare at
  *  least these (plus anything it sets via {@link LouiseMiddlewareConfig.extend},
@@ -51,6 +58,21 @@ export interface LouiseMiddlewareRateLimit {
    * yet) simply skips rate-limiting — fail open, consistent with {@link rateLimit}.
    */
   kv: RateLimitBackend | (() => RateLimitBackend | undefined);
+}
+
+export interface LouiseMiddlewareApiGate {
+  /** Path the gate protects. Default `/api/louise`, on a segment boundary. */
+  prefix?: string;
+  /**
+   * Paths under the prefix an anonymous request may still reach, on top of the
+   * toolkit's own public routes at their default mounts (forms and vitals — see
+   * `isLouisePublicPath`).
+   *
+   * A path, not a mark on the route, because middleware runs before it knows
+   * which route file will answer: a route can't declare itself public here the
+   * way `publicRoute` does for `composeWorker`.
+   */
+  isPublic?: (pathname: string) => boolean;
 }
 
 export interface LouiseMiddlewareConfig<TEditor = unknown> {
@@ -126,6 +148,19 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * rendered from it stay correct.
    */
   rewrite?: (context: APIContext) => string | undefined | Promise<string | undefined>;
+  /**
+   * Deny-by-default gate for the editor API (ADR 0012), for routes mounted as
+   * framework API routes (`runEditorRoute`) rather than `composeWorker` routes.
+   * `true` — or an object to change the prefix or add public paths — and every
+   * request under `/api/louise` must resolve to an editor, with writes and
+   * WebSocket upgrades origin-checked, before any route runs. Gated responses
+   * get `Cache-Control: no-store` unless the route set its own. Omit to skip.
+   *
+   * Behind `composeWorker({ gate })` this is a second check on requests the
+   * worker already let through, and costs nothing extra: the editor is
+   * resolved on every request regardless.
+   */
+  apiGate?: boolean | LouiseMiddlewareApiGate;
   /** Edit-mode cookie name. Default {@link LOUISE_EDIT_COOKIE} (`"louise_edit"`).
    *  Change it and the `withEdgeCache` bypass predicate must be told too, or an
    *  editor gets served the cached public page. */
@@ -145,6 +180,8 @@ export function createLouiseMiddleware<TEditor = unknown>(
   // The default comes from the same constant `isEditRequest` reads, so the
   // cookie this sets and the predicate that looks for it cannot drift apart.
   const editCookie = config.editCookie ?? LOUISE_EDIT_COOKIE;
+  const apiGate = config.apiGate === true ? {} : config.apiGate || undefined;
+  const apiPrefix = apiGate?.prefix ?? LOUISE_API_PREFIX;
 
   return async (context, next) => {
     // Rate-limit the public, unauthenticated POST surfaces before any other
@@ -218,6 +255,24 @@ export function createLouiseMiddleware<TEditor = unknown>(
       // must NOT do is cancel anything else.
     }
 
+    // The API gate, before extend: it needs only the editor, and a refused
+    // request shouldn't pay for the site's extra work. A `resolveEditor` that
+    // threw left `locals.editor` null above, so where pages degrade to public
+    // the API fails closed — refused, not served anonymously.
+    const pathname = context.url.pathname;
+    const gatedApi =
+      apiGate !== undefined &&
+      underPrefix(pathname, apiPrefix) &&
+      !isLouisePublicPath(pathname) &&
+      !apiGate.isPublic?.(pathname);
+    if (gatedApi) {
+      const denied = await louiseApiGate(context.request, undefined, {
+        resolveEditor: () => locals.editor as EditorSession | null,
+        prefix: apiPrefix,
+      });
+      if (denied) return finish(context, denied);
+    }
+
     // extend gets its OWN catch, deliberately separate from auth's. When these
     // shared one, `resolveEditor` throwing (a sentinel SESSION_SECRET — the
     // dormant-until-provisioned state every module is supposed to survive)
@@ -248,6 +303,17 @@ export function createLouiseMiddleware<TEditor = unknown>(
 
     const response = rewrite === undefined ? await next() : await next(rewrite);
 
+    // An editor's JSON must not land in a shared cache. A route that chose its
+    // own policy keeps it.
+    if (gatedApi && !response.headers.has("cache-control")) {
+      response.headers.set("Cache-Control", "no-store");
+    }
+    return finish(context, response);
+  };
+
+  /** The response-side work every answer gets, a gate refusal included. */
+  function finish(context: APIContext, response: Response): Response {
+    const locals = context.locals as LouiseLocals;
     // content freshness: cached HTML would hide editor edits. Edit-mode pages are
     // per-editor and must be live (`no-store`); public HTML `no-cache` so edits
     // appear without a manual purge. Only HTML — hashed `/_astro/*` assets keep
@@ -269,5 +335,5 @@ export function createLouiseMiddleware<TEditor = unknown>(
     }
 
     return response;
-  };
+  }
 }

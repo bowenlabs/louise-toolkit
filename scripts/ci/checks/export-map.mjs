@@ -71,7 +71,7 @@ const required = {
   "./auth": ["EditorSession"],
   "./forms": ["FormConfig", "FormField"],
   "./db": ["D1_BOOKMARK_COOKIE"],
-  "./worker": ["LOUISE_EDIT_COOKIE"],
+  "./worker": ["LOUISE_EDIT_COOKIE", "louiseApiGate", "isLouisePublicPath", "LOUISE_API_PREFIX"],
   "./security": ["sanitizeRichHtml"],
 };
 
