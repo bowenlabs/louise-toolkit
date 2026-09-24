@@ -199,3 +199,85 @@ export async function mountWallets(
   }
   return handle;
 }
+
+// ── Content-Security-Policy origins ───────────────────────────────────────────
+
+/**
+ * Per-directive origin lists, keyed like a CSP builder's input: `script` →
+ * `script-src`, and so on. Plain data — merge it into whatever assembles the
+ * site's policy.
+ */
+export interface SquareCspOrigins {
+  script: string[];
+  style: string[];
+  frame: string[];
+  connect: string[];
+  font: string[];
+}
+
+export interface SquareCspOptions {
+  /**
+   * Which Square environments to allow. Both by default, so ONE build serves
+   * either — the environment is a runtime secret, while a CSP is usually baked
+   * at build time. Narrow it only when the policy is computed per request.
+   */
+  environments?: ("sandbox" | "production")[];
+  /**
+   * Add Google Pay's origins, for {@link mountWallets}. Apple Pay needs none:
+   * its sheet is Safari's own UI, not a page resource.
+   */
+  wallets?: boolean;
+}
+
+/**
+ * The origins Square's Web Payments SDK needs, for {@link mountCard} and
+ * optionally {@link mountWallets}. Every host is here because leaving it out
+ * broke something observable; the comments say what, so none of them reads as
+ * a mystery origin to be tidied away.
+ */
+export function squareWebPaymentsCsp(options: SquareCspOptions = {}): SquareCspOrigins {
+  const envs = options.environments ?? ["sandbox", "production"];
+  const sandbox = envs.includes("sandbox");
+  const production = envs.includes("production");
+  const pick = (sandboxHost: string, productionHost: string) => [
+    ...(sandbox ? [sandboxHost] : []),
+    ...(production ? [productionHost] : []),
+  ];
+
+  // The SDK script, and the host its card iframe is served from.
+  const cdn = pick("https://sandbox.web.squarecdn.com", "https://web.squarecdn.com");
+
+  const origins: SquareCspOrigins = {
+    script: [...cdn],
+    // SDK 1.85+ attaches `card-wrapper.css` to the HOST page, not just inside
+    // the iframe. Block it and `card.attach()` rejects — no card form at all.
+    style: [...cdn],
+    frame: [...cdn, ...pick("https://connect.squareupsandbox.com", "https://connect.squareup.com")],
+    connect: [
+      ...cdn,
+      // Tokenization. Without it the form renders and every card "fails".
+      ...pick("https://pci-connect.squareupsandbox.com", "https://pci-connect.squareup.com"),
+      // The SDK reports its own errors to Square's Sentry from inside the card
+      // iframe. Blocking it does not break payment, but it puts a CSP violation
+      // on the console of every checkout.
+      "https://o160250.ingest.sentry.io",
+    ],
+    font: [
+      "https://square-fonts-production-f.squarecdn.com",
+      "https://d1g145x70srn7h.cloudfront.net",
+      // Cash Sans, which `card-wrapper.css` loads.
+      "https://cash-f.squarecdn.com",
+    ],
+  };
+
+  if (options.wallets) {
+    // Google Pay: pay.js, its button and sheet frame, its API, and the
+    // stylesheet + font its button renders with.
+    origins.script.push("https://pay.google.com");
+    origins.frame.push("https://pay.google.com");
+    origins.connect.push("https://pay.google.com", "https://google.com/pay");
+    origins.style.push("https://fonts.googleapis.com");
+    origins.font.push("https://fonts.gstatic.com");
+  }
+  return origins;
+}
