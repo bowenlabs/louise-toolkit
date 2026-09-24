@@ -1470,8 +1470,74 @@ export function setPhysicalCount(
  * with no catalog object behind them (e.g. a manufacturing deposit).
  */
 export type SquareOrderLineItem =
-  | { catalogObjectId: string; quantity: number }
+  | {
+      catalogObjectId: string;
+      quantity: number;
+      /**
+       * Selected modifiers (catalog object ids — the modifier, not its list).
+       * Square prices these into the line from the catalog, so they are
+       * server-authoritative: pass ids through, never a client-quoted amount.
+       */
+      modifierIds?: string[];
+    }
   | { name: string; priceCents: number; quantity: number; currency?: string };
+
+/**
+ * An order-level charge Square adds on top of the line items — shipping is the
+ * usual one. Applied in the `SUBTOTAL_PHASE` (before taxes, so it can itself be
+ * taxed) or the `TOTAL_PHASE` (after). Defaults to subtotal, untaxed, which is
+ * a flat shipping fee.
+ */
+export interface SquareServiceCharge {
+  name: string;
+  amountMoney: SquareMoney;
+  calculationPhase?: "SUBTOTAL_PHASE" | "TOTAL_PHASE";
+  taxable?: boolean;
+}
+
+/** Who receives a fulfillment. Square requires a display name. */
+export interface SquareFulfillmentRecipient {
+  displayName: string;
+  phone?: string;
+  email?: string;
+}
+
+/** A shipping address in the shape Square's `address` object wants. */
+export interface SquareAddress {
+  line1: string;
+  line2?: string;
+  /** City. */
+  locality: string;
+  /** State / province. */
+  administrativeDistrictLevel1: string;
+  postalCode: string;
+  /** ISO 3166-1 alpha-2, e.g. "US". */
+  country: string;
+}
+
+/**
+ * How the order reaches the customer. Created in the `PROPOSED` state; the
+ * seller advances it from POS or the Dashboard.
+ *
+ * A pickup is either `asap` — Square computes the ready time from the prep
+ * duration, the order-ahead café case — or `scheduled` at a specific instant,
+ * the "collect your beans Tuesday" case. Which of those a shop offers, and how
+ * `pickupAt` is chosen, is policy that belongs to the caller.
+ */
+export type SquareFulfillment =
+  | {
+      type: "pickup";
+      recipient: SquareFulfillmentRecipient;
+      schedule: { type: "asap"; prepMinutes?: number } | { type: "scheduled"; pickupAt: string };
+      /** Customer note to the kitchen. Square caps it at 500 characters. */
+      note?: string;
+    }
+  | {
+      type: "shipment";
+      recipient: SquareFulfillmentRecipient & { address: SquareAddress };
+      /** Delivery note to the packer. Square caps it at 500 characters. */
+      note?: string;
+    };
 
 /**
  * Order-level pricing behaviour, sent as `order.pricing_options`.
@@ -1513,6 +1579,10 @@ export interface SquareOrder {
   state: string;
   totalMoney: SquareMoney;
   totalTaxMoney: SquareMoney;
+  /** Automatic + explicit discounts, as Square applied them. */
+  totalDiscountMoney: SquareMoney;
+  /** The sum of {@link SquareServiceCharge}s (e.g. shipping). */
+  totalServiceChargeMoney: SquareMoney;
   referenceId: string | null;
   customerId: string | null;
   createdAt: string | null;
@@ -1538,6 +1608,8 @@ interface RawOrder {
   updated_at?: string;
   total_money?: { amount?: number; currency?: string };
   total_tax_money?: { amount?: number; currency?: string };
+  total_discount_money?: { amount?: number; currency?: string };
+  total_service_charge_money?: { amount?: number; currency?: string };
   line_items?: {
     name?: string;
     quantity?: string;
@@ -1557,6 +1629,8 @@ function mapOrder(o: RawOrder): SquareOrder {
     state: o.state ?? "",
     totalMoney: money(o.total_money),
     totalTaxMoney: money(o.total_tax_money),
+    totalDiscountMoney: money(o.total_discount_money),
+    totalServiceChargeMoney: money(o.total_service_charge_money),
     referenceId: o.reference_id ?? null,
     customerId: o.customer_id ?? null,
     createdAt: o.created_at ?? null,
@@ -1581,7 +1655,15 @@ function mapOrder(o: RawOrder): SquareOrder {
  *  NOT, since Square prices that from the catalog. */
 function orderLineItemBody(li: SquareOrderLineItem) {
   return "catalogObjectId" in li
-    ? { catalog_object_id: li.catalogObjectId, quantity: String(li.quantity) }
+    ? {
+        catalog_object_id: li.catalogObjectId,
+        quantity: String(li.quantity),
+        // Omitted rather than `[]` when there are none: Square accepts an empty
+        // array, but the key would then show up in every body assertion.
+        ...(li.modifierIds?.length
+          ? { modifiers: li.modifierIds.map((id) => ({ catalog_object_id: id })) }
+          : {}),
+      }
     : {
         name: li.name,
         quantity: String(li.quantity),
@@ -1602,6 +1684,96 @@ function pricingOptionsBody(pricing: SquarePricingOptions | undefined) {
   };
 }
 
+function serviceChargeBody(sc: SquareServiceCharge) {
+  return {
+    name: sc.name,
+    amount_money: { amount: sc.amountMoney.amount, currency: sc.amountMoney.currency },
+    calculation_phase: sc.calculationPhase ?? "SUBTOTAL_PHASE",
+    taxable: sc.taxable ?? false,
+  };
+}
+
+function recipientBody(r: SquareFulfillmentRecipient) {
+  return {
+    display_name: r.displayName,
+    ...(r.phone ? { phone_number: r.phone } : {}),
+    ...(r.email ? { email_address: r.email } : {}),
+  };
+}
+
+function fulfillmentBody(f: SquareFulfillment) {
+  // Square rejects a note over 500 chars with a 400 on the whole order, after
+  // the customer has entered a card. Trimming here is the kinder failure.
+  const note = f.note?.slice(0, 500);
+  if (f.type === "shipment") {
+    const a = f.recipient.address;
+    return {
+      type: "SHIPMENT",
+      state: "PROPOSED",
+      shipment_details: {
+        recipient: {
+          ...recipientBody(f.recipient),
+          address: {
+            address_line_1: a.line1,
+            ...(a.line2 ? { address_line_2: a.line2 } : {}),
+            locality: a.locality,
+            administrative_district_level_1: a.administrativeDistrictLevel1,
+            postal_code: a.postalCode,
+            country: a.country,
+          },
+        },
+        ...(note ? { shipping_note: note } : {}),
+      },
+    };
+  }
+  return {
+    type: "PICKUP",
+    state: "PROPOSED",
+    pickup_details: {
+      recipient: recipientBody(f.recipient),
+      ...(f.schedule.type === "asap"
+        ? {
+            schedule_type: "ASAP",
+            prep_time_duration: `PT${Math.max(1, f.schedule.prepMinutes ?? 10)}M`,
+          }
+        : { schedule_type: "SCHEDULED", pickup_at: f.schedule.pickupAt }),
+      ...(note ? { note } : {}),
+    },
+  };
+}
+
+/**
+ * The pricing-relevant half of an order — everything Square actually computes
+ * a total from. Shared VERBATIM by {@link createOrder} and
+ * {@link calculateOrder} so a quoted total cannot be computed under different
+ * rules than the one charged. That is the single thing a preview exists to
+ * guarantee, and why this is one function rather than two similar literals.
+ *
+ * Deliberately excludes `reference_id` and `fulfillments`: neither is a pricing
+ * input, and a preview typically runs while the customer is still typing their
+ * address — a half-filled SHIPMENT fulfillment would fail validation on a call
+ * whose only job is to quote a number.
+ */
+function orderPricingBody(input: {
+  locationId: string;
+  lineItems: SquareOrderLineItem[];
+  customerId?: string;
+  serviceCharges?: SquareServiceCharge[];
+  pricingOptions?: SquarePricingOptions;
+}) {
+  return {
+    location_id: input.locationId,
+    customer_id: input.customerId,
+    line_items: input.lineItems.map(orderLineItemBody),
+    ...(input.serviceCharges?.length
+      ? { service_charges: input.serviceCharges.map(serviceChargeBody) }
+      : {}),
+    // Nested inside `order`, never at the request root, where Square would
+    // ignore it silently.
+    pricing_options: pricingOptionsBody(input.pricingOptions),
+  };
+}
+
 export async function createOrder(
   config: SquareConfig,
   input: {
@@ -1613,18 +1785,23 @@ export async function createOrder(
     /** Taxes and discounts are opt-in — see {@link SquarePricingOptions}.
      *  Omitting this charges exactly the line-item prices, pre-tax. */
     pricingOptions?: SquarePricingOptions;
+    /** Order-level charges (shipping). Pass the same list to
+     *  {@link calculateOrder} or the preview total will be short by exactly
+     *  this much. */
+    serviceCharges?: SquareServiceCharge[];
+    /** How the order reaches the customer. Not a pricing input, so
+     *  {@link calculateOrder} does not take it. */
+    fulfillments?: SquareFulfillment[];
   },
 ): Promise<SquareOrder> {
   const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders", {
     idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
     order: {
-      location_id: input.locationId,
-      customer_id: input.customerId,
+      ...orderPricingBody(input),
       reference_id: input.referenceId,
-      line_items: input.lineItems.map(orderLineItemBody),
-      // Nested inside `order`, never at the request root, where Square would
-      // ignore it silently.
-      pricing_options: pricingOptionsBody(input.pricingOptions),
+      ...(input.fulfillments?.length
+        ? { fulfillments: input.fulfillments.map(fulfillmentBody) }
+        : {}),
     },
   });
   if (!res.order) throw new Error("Square order creation returned no order");
@@ -1824,15 +2001,12 @@ export async function calculateOrder(
     /** Must match what {@link createOrder} will be given, or the previewed
      *  total is not the total that gets charged. */
     pricingOptions?: SquarePricingOptions;
+    /** Likewise — the same list {@link createOrder} will be given. */
+    serviceCharges?: SquareServiceCharge[];
   },
 ): Promise<SquareOrder> {
   const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders/calculate", {
-    order: {
-      location_id: input.locationId,
-      customer_id: input.customerId,
-      line_items: input.lineItems.map(orderLineItemBody),
-      pricing_options: pricingOptionsBody(input.pricingOptions),
-    },
+    order: orderPricingBody(input),
   });
   if (!res.order) throw new Error("Square order calculation returned no order");
   return mapOrder(res.order);
@@ -1845,6 +2019,8 @@ export interface SquarePayment {
   status: string;
   orderId: string | null;
   amountMoney: SquareMoney;
+  /** The tip, when one was sent; zero otherwise. Not included in `amountMoney`. */
+  tipMoney: SquareMoney;
   receiptUrl: string | null;
 }
 
@@ -1854,17 +2030,24 @@ interface RawPayment {
   order_id?: string;
   receipt_url?: string;
   amount_money?: { amount?: number; currency?: string };
+  tip_money?: { amount?: number; currency?: string };
 }
 
 /**
  * Charge a payment with a Web Payments SDK card token (`sourceId`). Attach the
  * order so the amount matches Square's computed total. POST /v2/payments.
+ *
+ * A tip goes in `tipMoney`, never folded into `amountMoney`: Square requires a
+ * payment for an order to equal the order's total, and documents `amount_money`
+ * as "not including tip_money". Tips live on the payment, not the order.
  */
 export async function createPayment(
   config: SquareConfig,
   input: {
     sourceId: string;
     amountMoney: SquareMoney;
+    /** Charged on top of `amountMoney`. Omitted from the body when zero. */
+    tipMoney?: SquareMoney;
     locationId: string;
     orderId?: string;
     customerId?: string;
@@ -1879,6 +2062,9 @@ export async function createPayment(
     source_id: input.sourceId,
     idempotency_key: input.idempotencyKey ?? crypto.randomUUID(),
     amount_money: { amount: input.amountMoney.amount, currency: input.amountMoney.currency },
+    ...(input.tipMoney && input.tipMoney.amount > 0
+      ? { tip_money: { amount: input.tipMoney.amount, currency: input.tipMoney.currency } }
+      : {}),
     location_id: input.locationId,
     order_id: input.orderId,
     customer_id: input.customerId,
@@ -1893,6 +2079,7 @@ export async function createPayment(
     status: p.status ?? "",
     orderId: p.order_id ?? null,
     amountMoney: money(p.amount_money),
+    tipMoney: money(p.tip_money),
     receiptUrl: p.receipt_url ?? null,
   };
 }
