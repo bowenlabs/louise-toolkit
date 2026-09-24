@@ -12,9 +12,10 @@
 // This route fetches the original through Cloudflare with `cf.image`, so the
 // resize happens at the edge on the way through. It is deliberately narrow:
 // only the hosts you list, only the widths you list (so the cached variants
-// are the handful your `srcset` asks for, not one per request), and if the
-// resize fails for any reason it redirects to the original — the worst case is
-// the page exactly as it was without the proxy.
+// are the handful your `srcset` asks for, not one per request), only raster
+// types, and no following a redirect off the host. If the resize fails for any
+// reason it redirects to the original — the worst case is the page exactly as
+// it was without the proxy.
 //
 // Image Resizing must be enabled on the zone; locally (and on a zone without
 // it) every request takes the redirect fallback.
@@ -59,6 +60,17 @@ export interface ImageProxy {
 }
 
 const bad = (message: string) => new Response(message, { status: 400 });
+
+/**
+ * The only types the proxy will serve. An allowlist of raster formats, not
+ * `image/*`: this response goes out from the site's own origin, and
+ * `image/svg+xml` is a document that runs script when opened directly — a
+ * stored XSS on the site's origin. Cloudflare sanitizes SVG when the resize
+ * runs, but where it doesn't (locally, a zone without Image Resizing) the
+ * upstream bytes come back untouched. Same reasoning as `sniffImageType`
+ * refusing SVG on upload.
+ */
+const RASTER = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"]);
 
 /**
  * Build a resize proxy for third-party images. One config drives both the
@@ -121,6 +133,11 @@ export function defineImageProxy(config: ImageProxyConfig): ImageProxy {
 
       try {
         const res = await fetch(origin.toString(), {
+          // The host allowlist only means something if the fetch stays on the
+          // host: followed, a redirect from an allowed host (an open redirect,
+          // a compromised bucket) lands the fetch anywhere. A 3xx is not ok,
+          // so it takes the failure path below.
+          redirect: "manual",
           cf: {
             image: {
               width,
@@ -133,14 +150,18 @@ export function defineImageProxy(config: ImageProxyConfig): ImageProxy {
               : {}),
           },
         });
-        const type = res.headers.get("content-type") ?? "";
-        if (!res.ok || !type.startsWith("image/")) throw new Error(`resize ${res.status}`);
+        const type = (res.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
+        if (!res.ok || !type || !RASTER.has(type)) throw new Error(`resize ${res.status}`);
         return new Response(res.body, {
           headers: {
             "content-type": type,
             "cache-control": config.cacheControl ?? "public, max-age=86400",
             // The format depends on Accept, so caches must key on it.
             vary: "Accept",
+            // Belt and braces for bytes that are not what the type claims:
+            // never sniff, and opened directly, run nothing.
+            "x-content-type-options": "nosniff",
+            "content-security-policy": "default-src 'none'; sandbox",
           },
         });
       } catch {

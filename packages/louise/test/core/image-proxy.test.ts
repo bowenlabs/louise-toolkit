@@ -14,11 +14,11 @@ const req = (params: Record<string, string>, accept = "image/avif,image/webp,*/*
   });
 
 function stubFetch(response: () => Response | Promise<Response>) {
-  const calls: { url: string; cf: unknown }[] = [];
+  const calls: { url: string; cf: unknown; redirect?: RequestRedirect }[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit & { cf?: unknown }) => {
-      calls.push({ url, cf: init.cf });
+      calls.push({ url, cf: init.cf, redirect: init.redirect });
       return response();
     }),
   );
@@ -37,9 +37,47 @@ describe("defineImageProxy — handle", () => {
     expect(calls[0]).toEqual({
       url: SRC,
       cf: { image: { width: 640, fit: "scale-down", format: "avif" } },
+      redirect: "manual",
     });
     expect(res.headers.get("vary")).toBe("Accept");
     expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+  });
+
+  it("serves from the site's origin defensively: nosniff, and inert if opened directly", async () => {
+    stubFetch(() => image("image/jpeg; charset=binary"));
+    const res = await proxy.handle(req({ src: SRC, w: "640" }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+  });
+
+  it("never serves SVG or another non-raster type from the site's origin", async () => {
+    // Where the resize doesn't run, upstream bytes come back untouched — an
+    // SVG with a <script> would execute on the site's origin if opened.
+    for (const type of [
+      "image/svg+xml",
+      "IMAGE/SVG+XML; charset=utf-8",
+      "image/x-icon",
+      "image/",
+    ]) {
+      stubFetch(() => image(type));
+      const res = await proxy.handle(req({ src: SRC, w: "640" }));
+      expect(res.status, type).toBe(302);
+      expect(res.headers.get("location"), type).toBe(SRC);
+    }
+  });
+
+  it("does not follow an upstream redirect off the allowed host", async () => {
+    // With redirect: "manual" the 3xx comes back unfollowed; it must take the
+    // failure path, not be passed through.
+    stubFetch(
+      () =>
+        new Response(null, { status: 302, headers: { location: "https://evil.example/x.svg" } }),
+    );
+    const res = await proxy.handle(req({ src: SRC, w: "640" }));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(SRC);
   });
 
   it("falls back to webp, then to no format, by Accept", async () => {
