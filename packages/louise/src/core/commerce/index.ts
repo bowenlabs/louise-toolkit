@@ -92,3 +92,6 @@ export {
   repairCart,
   type RepairCartOptions,
 } from "./cart.js";
+
+// Catalog-mirror sync: which stored rows the provider dropped.
+export { type VanishedRowsOptions, vanishedRows } from "./sync.js";

@@ -126,7 +126,45 @@ import {
 | `verifyFourthwallSignature(...)`                        | HMAC-verify an inbound order webhook.                  |
 
 The `Fw*` interfaces (`FwProduct`, `FwVariant`, `FwImage`, `FwMoney`, `FwStock`,
-`FwCollection`, …) type the storefront payloads.
+`FwCollection`, `FwAdditionalInformation`, …) type the storefront payloads.
+
+### Mirroring a Fourthwall catalog
+
+Three facts about Fourthwall's API bite any sync that mirrors it:
+
+- **`fourthwallCopy(product, { panel?, onComplianceDropped? })`**: the copy worth
+  showing. `description` is often empty, because sellers type into the **More
+  details** panel instead. That panel also carries a hidden EU GPSR compliance
+  block with Fourthwall's fulfilment address, which Fourthwall's own storefront
+  never shows. This helper returns More details with that block removed, falling
+  back to `description`. If compliance text survives the strip, the panel is
+  dropped whole, and `onComplianceDropped` is called so you can log it. HTML
+  out—sanitize it before rendering.
+- **`catchAllFirst(listCatalog(...))`**: Fourthwall returns the catch-all "All
+  Products" collection **last**. A sync that sets a product's category once per
+  collection keeps the last one, so every product ends up in "All Products".
+  Moving the catch-all first gives real collections the final word.
+  `isCatchAllCollection(c)` tests one.
+- **`FW_IMAGE_HOST`**: the host of Fourthwall's signed product-image URLs.
+
+To find products Fourthwall dropped, use `vanishedRows` from the
+[shared base](#louise-toolkitcommerce-shared-base):
+
+```ts
+import { vanishedRows } from "louise-toolkit/commerce";
+
+// only after a COMPLETE read, and never when it came back empty
+if (seen.size > 0) {
+  const gone = vanishedRows(stored, seen, {
+    externalId: (r) => r.fourthwallProductId,
+    alreadyMarked: (r) => r.missingAt !== null,
+  });
+}
+```
+
+It diffs in memory, because SQLite caps bound parameters and a big catalog would
+break a `NOT IN (…)`. The guard is yours: a revoked token or an endpoint answering
+`[]` looks like "the shop has nothing", and acting on it retires the whole store.
 
 :::tip[Route order webhooks through a queue]
 Pair `verifyFourthwallSignature` with [`queues`](/reference/queues/): verify
