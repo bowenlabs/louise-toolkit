@@ -451,3 +451,61 @@ browser only sees root paths, and `basepath` is just `/`.
 wants its own Worker, which is incompatible with the single-Worker composition
 here—`composeWorker` composes handlers, not builds. A standalone router in an
 island keeps one Worker, one build, one auth surface.
+
+### The routed studio frame: `StudioShell`
+
+```ts
+import { StudioShell, studioBasepath } from "louise-toolkit/client/studio-shell";
+```
+
+The frame every routed studio rebuilt by hand, and the part accessibility audits
+kept finding missing: a document title per screen, a skip link, and focus moved to
+the new screen's heading after each navigation, so a screen-reader user hears where
+they landed. It's on its own subpath because `@tanstack/solid-router` is an
+**optional peer**—install it only if you import this.
+
+```tsx
+const NAV = [
+  { to: "/", label: "Overview" },
+  { to: "/orders", label: "Orders" },
+] as const;
+
+const rootRoute = createRootRoute({
+  component: () => <StudioShell nav={NAV} brand="Acme" title={{ suffix: "Acme Studio" }} />,
+});
+const router = createRouter({ routeTree, basepath: studioBasepath("/studio") });
+```
+
+The route tree, the screens, the router and its type registration stay yours.
+`StudioShell` renders a skip link, a header with `brand` and a labelled nav of
+`<Link>`s, and a `<main>` holding the matched screen:
+
+|                   |                                                                |
+| ----------------- | -------------------------------------------------------------- |
+| `nav`             | The screens, in order: `{ to, label }`. `to` is root-relative. |
+| `brand`           | Header content before the nav. Omitted, none.                  |
+| `title`           | `{ suffix?, fallback?, separator? }` for the document title.   |
+| `navLabel`        | The nav's accessible name. Default `"Studio"`.                 |
+| `skipLabel`       | The skip link's text. Default `"Skip to content"`.             |
+| `headingSelector` | What gets focus after a navigation. Default the screen's `h1`. |
+| `children`        | The screen. Default the router's `<Outlet />`.                 |
+
+Focus moves **after a navigation, not on first load**: the first screen arrived with
+the page, and taking focus then would skip a keyboard user past the nav. The frame
+is unstyled apart from keeping the skip link hidden until focused; style the
+`louise-studio-shell*` classes yourself.
+
+**One studio, two hosts.** A studio is often served under a path on the main host
+(`example.com/studio/orders`) and at the root of its own subdomain
+(`studio.example.com/orders`, a host rewrite adding `/studio` on the server). The
+browser sees different paths for the same screen, so `studioBasepath(prefix)` reads
+the loaded URL: `prefix` when the page is under it, otherwise `/`. For a
+server-rendered page beside the studio but outside the router, such as a printable
+document, `studioHref(prefix, "print/labels")` resolves the link the same way. A
+hard-coded `/studio/print/labels` becomes `/studio/studio/print/labels` through the
+host rewrite.
+
+**On a different router,** the same behaviour is in `louise-toolkit/client/studio`
+with no router dependency: `screenTitle(nav, pathname, options)`,
+`focusScreenHeading(container)`, `revealActiveNavLink(nav)`, `activeNavItem`,
+`studioBasepath` and `studioHref`. Call them from your router's navigation hook.

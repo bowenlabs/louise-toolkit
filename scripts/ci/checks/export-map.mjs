@@ -147,6 +147,8 @@ const lightEntries = {
   "./content/define": ["drizzle-orm"],
   "./content/sections": ["drizzle-orm"],
   "./forms/turnstile": "*",
+  // The router is an optional peer for `client/studio-shell` only (ADR 0011).
+  "./client/studio": ["@tanstack/solid-router"],
 };
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/g;
 
