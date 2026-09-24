@@ -1,6 +1,6 @@
 # ADR 0013: Google developer style for every doc and all prose in code
 
-- **Status:** Accepted (2026-09-24)
+- **Status:** Accepted (2026-09-24). **Amended 2026-09-24** (see the amendment at the end): the house style became a Vale package that every repository, this one included, consumes.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0007 (lint toolchain), ADR 0008 (type-aware lint), CLAUDE.md "Documentation style"
 
@@ -87,3 +87,13 @@ Vale lints comments, not string literals. A follow-up adds a check that extracts
 - **Keep the split.** Rejected: JSDoc is published documentation, and two voices teach agents two voices.
 - **A lighter style for comments.** Rejected: a second style is the same split with extra configuration.
 - **Rewrite everything first, then turn on the gate.** Rejected: the rewrite takes several PRs, and without a gate the count can grow between them.
+
+## Amendment (2026-09-24, publishing the house package)
+
+Decision 2 left publishing the house style as a follow-up. It's done, and the shape differs from what decision 2 describes.
+
+**The house style is now a complete Vale package in `vale/package/`.** The package carries more than the `Louise` style. Its own `.vale.ini` holds every shared choice from this ADR: the error-level bar, the two Google rules that stay off, frontmatter handling, and turning `Google.Spacing` off for code files. `vale sync` reads a package's `.vale.ini` before the repository's own, so a consuming repository's `.vale.ini` only sets `StylesPath` and names the packages.
+
+**This repository consumes its own package.** Its `.vale.ini` names `vale/package` by path; every other repository names the release asset by URL. Both read the same files, so a rule can't drift between the repository that defines it and the ones that use it. `vale sync` copies both packages into the gitignored `.vale/`, and `vale/styles/` is gone.
+
+**Releases are pinned tags.** Pushing a `vale-v<semver>` tag runs `.github/workflows/vale-package.yml`. It builds `Louise.zip` with `scripts/vale-package.sh`, checks that the zip works as a package, and attaches it to a release. Consuming repositories pin the tag in their URL, for the same reason the Google package is pinned: a rule change should reach a repository in a commit that repository makes, not overnight.

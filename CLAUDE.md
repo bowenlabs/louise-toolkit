@@ -145,10 +145,10 @@ Write new prose to the guide from the start. The details that trip people up:
   read as an endorsement.
 
 `corepack pnpm run lint:docs` runs [Vale](https://vale.sh) with the Google
-style plus the house style in `vale/styles/Louise`. Run
+style plus the house style, from the house package in `vale/package/`. Run
 `corepack pnpm --package=@vvago/vale@3.17.1 dlx vale sync` once first to fetch
 the Google package. The bar is Vale's error level. Two Google rules are off,
-each with its reason in `.vale.ini`: `LyHyphens` and `Quotes`.
+each with its reason in `vale/package/.vale.ini`: `LyHyphens` and `Quotes`.
 
 The rewrite of older prose is still in progress, so `lint:docs` is a **per-file
 ratchet** against `vale/baseline.json`:
