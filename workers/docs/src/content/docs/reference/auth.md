@@ -11,6 +11,8 @@ import {
   resolveEditorSession,
   handleAuthRequest,
   requireEditor,
+  requireEditorFromContext,
+  safeNextPath,
   defaultResolveAdmins,
 } from "louise-toolkit/auth";
 ```
@@ -185,6 +187,44 @@ function requireEditor(
 
 Guard for editor-gated endpoints: a same-origin (CSRF) check on mutations plus a
 resolved editor session. Returns an error `Response`, or null to proceed.
+
+### From a framework context: `requireEditorFromContext(context, mutation?)`
+
+Most routes have a framework context, not a bare request. Pass it straight
+through—anything shaped `{ request, locals: { editor } }` fits, including an Astro
+`APIContext` once `App.Locals.editor` is declared:
+
+```ts
+import { requireEditorFromContext } from "louise-toolkit/auth";
+
+export const POST: APIRoute = async (context) => {
+  const denied = requireEditorFromContext(context);
+  if (denied) return denied;
+  // context.locals.editor is the signed-in editor
+};
+```
+
+`mutation` defaults to the request's method. A write (anything but `GET`, `HEAD`,
+or `OPTIONS`) gets the same-origin check, and a read doesn't—a same-origin `GET`
+from `fetch` usually carries no `Origin` header to check. Pass `true` for a `GET`
+that has side effects. You don't need a site-local `guard.ts` wrapper.
+
+### `safeNextPath(raw, fallback)`
+
+Reduces a post-sign-in `?next=` target to a same-origin path, or returns
+`fallback`. Never hand `next` to a redirect or `location.assign` unchecked: that's
+an open redirect (`?next=https://evil.example`), and in a browser it can run script
+(`?next=javascript:…`).
+
+A regex over the raw string isn't enough. Browsers strip tabs and newlines and read
+`\` as `/`, so `/%09/evil.example` becomes `//evil.example`, which is off-site. So
+`safeNextPath` resolves `raw` with the WHATWG URL parser, the same algorithm the
+browser applies, and returns the normalized path, query, and hash only if it stayed
+on the origin.
+
+```ts
+const next = safeNextPath(url.searchParams.get("next"), "/account");
+```
 
 ## Allowlist & Turnstile helpers
 

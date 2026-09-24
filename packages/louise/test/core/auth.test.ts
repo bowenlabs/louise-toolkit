@@ -11,6 +11,8 @@ import {
   type LouiseAuthEnv,
   pick,
   requireEditor,
+  requireEditorFromContext,
+  safeNextPath,
   requireRole,
   resolveEditorSession,
   resolveSession,
@@ -171,6 +173,80 @@ describe("requireEditor", () => {
 
   it("passes a same-origin editor mutation", () => {
     expect(requireEditor({ request: goodReq, editor })).toBeNull();
+  });
+});
+
+describe("requireEditorFromContext", () => {
+  const editor = { userId: "u1", email: "a@x.com", name: "A", role: "admin" };
+  // The shape an Astro APIContext presents, given App.Locals.editor.
+  const ctx = (method: string, headers: Record<string, string> = {}, signedIn = true) => ({
+    request: new Request("https://x.com/api/louise/pages", { method, headers }),
+    locals: { editor: signedIn ? editor : null },
+  });
+
+  it("skips the origin check on a read, with no second argument", () => {
+    // A same-origin fetch GET carries no Origin header, and a strict
+    // Referrer-Policy removes Referer too. The sites passed `false` by hand
+    // on 17 of 53 guarded calls to get this.
+    expect(requireEditorFromContext(ctx("GET"))).toBeNull();
+    expect(requireEditorFromContext(ctx("HEAD"))).toBeNull();
+  });
+
+  it("checks origin on every write method, with no second argument", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(requireEditorFromContext(ctx(method, { origin: "https://evil.com" }))?.status).toBe(
+        403,
+      );
+      expect(requireEditorFromContext(ctx(method, { origin: "https://x.com" }))).toBeNull();
+    }
+  });
+
+  it("still requires a signed-in editor on a read", () => {
+    expect(requireEditorFromContext(ctx("GET", {}, false))?.status).toBe(401);
+  });
+
+  it("honours an explicit mutation flag over the method", () => {
+    // A GET with side effects opts back in.
+    expect(requireEditorFromContext(ctx("GET"), true)?.status).toBe(403);
+  });
+});
+
+describe("safeNextPath", () => {
+  it("keeps a same-origin path, with its query and hash", () => {
+    expect(safeNextPath("/account/orders?page=2#latest", "/")).toBe(
+      "/account/orders?page=2#latest",
+    );
+  });
+
+  it("falls back for anything that is not a path", () => {
+    for (const raw of [
+      null,
+      undefined,
+      "",
+      "account",
+      "https://evil.example",
+      "javascript:alert(1)",
+    ]) {
+      expect(safeNextPath(raw, "/home"), String(raw)).toBe("/home");
+    }
+  });
+
+  it("refuses protocol-relative and backslash forms", () => {
+    for (const raw of ["//evil.example", "/\\evil.example", "\\/evil.example"]) {
+      expect(safeNextPath(raw, "/home"), raw).toBe("/home");
+    }
+  });
+
+  it("refuses a tab or newline that a browser would strip into //", () => {
+    // coracle's regex `^\/(?![/\\])` accepted these: the second character
+    // is a tab, not a slash — until the browser removes it.
+    for (const raw of ["/\t/evil.example", "/\n/evil.example", "/\r\n/evil.example"]) {
+      expect(safeNextPath(raw, "/home"), JSON.stringify(raw)).toBe("/home");
+    }
+  });
+
+  it("returns the normalized path, never the raw string", () => {
+    expect(safeNextPath("/a/../b/./c", "/")).toBe("/b/c");
   });
 });
 

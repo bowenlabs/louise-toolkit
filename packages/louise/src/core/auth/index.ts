@@ -36,6 +36,7 @@ export {
   requireEditorFromContext,
   requireRole,
   type RoleRequest,
+  safeNextPath,
 } from "./guard.js";
 export {
   activeCaptchaSecret,
