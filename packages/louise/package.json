@@ -81,6 +81,11 @@
       "import": "./dist/core/editor/index.js",
       "default": "./dist/core/editor/index.js"
     },
+    "./dates": {
+      "types": "./dist/core/dates/index.d.ts",
+      "import": "./dist/core/dates/index.js",
+      "default": "./dist/core/dates/index.js"
+    },
     "./db": {
       "types": "./dist/core/db/index.d.ts",
       "import": "./dist/core/db/index.js",

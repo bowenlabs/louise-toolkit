@@ -104,6 +104,7 @@ export default {
       "src/core/commerce/square-web.ts",
       "src/core/commerce/stripe.ts",
       "src/core/browser/index.ts",
+      "src/core/dates/index.ts",
       "src/core/email/index.ts",
       "src/core/forms/index.ts",
       "src/core/health/index.ts",
