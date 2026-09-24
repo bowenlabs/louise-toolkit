@@ -71,3 +71,5 @@ export * from "./healing.js";
 // (#163), so public pages edge-cache while personalized (editor) requests always
 // run fresh. Its own file; re-exported here alongside `composeWorker`.
 export * from "./edge-cache.js";
+// A read-through KV cache for one value (tenant, settings row, flag) — cached misses, fail-open.
+export * from "./kv-cache.js";

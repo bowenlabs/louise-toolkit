@@ -280,3 +280,32 @@ describe("createLouiseMiddleware — extend survives an auth failure", () => {
     });
   });
 });
+
+describe("createLouiseMiddleware — noindex", () => {
+  it("sends X-Robots-Tag: noindex on a host the predicate names", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      noindex: (host) => host === "example.com",
+    });
+    const res = await run(mw, makeContext("GET", "/"));
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
+  });
+
+  it("sends nothing for any other host, or without the option", async () => {
+    const other = createLouiseMiddleware({ resolveEditor: () => null, noindex: () => false });
+    expect((await run(other, makeContext("GET", "/"))).headers.get("x-robots-tag")).toBeNull();
+    const none = createLouiseMiddleware({ resolveEditor: () => null });
+    expect((await run(none, makeContext("GET", "/"))).headers.get("x-robots-tag")).toBeNull();
+  });
+
+  it("still sends it when the rest of the security headers are off", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      securityHeaders: false,
+      noindex: () => true,
+    });
+    const res = await run(mw, makeContext("GET", "/"));
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
+    expect(res.headers.get("x-frame-options")).toBeNull();
+  });
+});

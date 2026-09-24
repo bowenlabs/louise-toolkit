@@ -94,6 +94,29 @@ cache holding the HTML. This was the failure mode behind earlier reverts; see
 - `isCacheableDirective(directive)`—is a Cache-Control value an opt-in
   (`public`/unspecified with a positive `max-age`, not `no-store`/`no-cache`/`private`)?
 
+## `kvCached(kv, key, load, { ttlSeconds, cacheMisses? })` · `kvBust(kv, key)`
+
+A read-through KV cache for **one value** looked up on every request, such as a
+tenant by hostname, a settings row, or a flag. `withEdgeCache` caches whole
+responses; this caches the lookup behind them.
+
+```ts
+const tenant = await kvCached(env.KV, `tenant:${label}`, () => findTenant(db, label), {
+  ttlSeconds: 300,
+});
+// after the merchant is edited:
+await kvBust(env.KV, `tenant:${label}`);
+```
+
+- **Misses are cached too** by default. A lookup keyed by something a visitor
+  controls, like a hostname, otherwise costs one database read per garbage request.
+  Pass `cacheMisses: false` to opt out.
+- **It fails open.** A KV error is ignored and `load` runs, so a cache outage costs
+  speed, not correctness. `kv` may be `undefined`, for example when it isn't bound in
+  dev.
+- `ttlSeconds` is required and must be at least 60, KV's minimum. Values are stored
+  as JSON.
+
 ## `withHealing(route, options)`
 
 ```ts
