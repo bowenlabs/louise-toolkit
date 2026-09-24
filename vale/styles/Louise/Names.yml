@@ -1,0 +1,23 @@
+# The stack's own product and tool names, spelled the way their owners spell
+# them. Google.WordList covers Google's products; this covers the ones this
+# stack writes about every day. Code spans and fenced samples are skipped, so a
+# package specifier like `astroidjs` or a CLI call like `wrangler deploy` never
+# trips it. See ADR 0013.
+extends: substitution
+message: "Use '%s' instead of '%s'."
+link: https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0013-google-style-everywhere.md
+level: error
+ignorecase: false
+action:
+  name: replace
+swap:
+  AstroidJS: Astroid
+  Astroidjs: Astroid
+  Cloudflare workers: Cloudflare Workers
+  Daisy UI: daisyUI
+  DaisyUI: daisyUI
+  Github: GitHub
+  Javascript: JavaScript
+  NPM: npm
+  PNPM: pnpm
+  Typescript: TypeScript

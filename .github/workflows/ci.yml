@@ -79,10 +79,12 @@ jobs:
       - name: No framework references in the core (louise-toolkit)
         run: node scripts/ci/checks/no-astro-in-core.mjs
 
-      # Prose style for the published docs, against the Google developer
-      # documentation style guide. `vale sync` fetches the style package into a
-      # gitignored .vale/ — pinned, reproducible, not vendored, the same shape as
-      # the `lint:solid` dlx fetch above.
+      # Prose style for every doc and all prose in code, against the Google
+      # developer documentation style guide plus the house style (ADR 0013).
+      # `vale sync` fetches the Google package into the gitignored
+      # vale/styles/Google: pinned, reproducible, not vendored, the same shape
+      # as the `lint:solid` dlx fetch above. `lint:docs` runs it as a per-file
+      # ratchet against vale/baseline.json while the rewrite is in progress.
       - name: Documentation style (Vale + Google)
         run: |
           corepack pnpm --package=@vvago/vale@3.17.1 dlx vale sync

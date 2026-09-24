@@ -59,7 +59,7 @@ corepack pnpm run lint:astro
 corepack pnpm run lint:solid
 corepack pnpm run lint:arch                       # ast-grep invariants
 corepack pnpm run lint:core                       # no Astro in the core
-corepack pnpm run lint:docs                       # Vale
+corepack pnpm run lint:docs                       # Vale ratchet (after `vale sync`)
 corepack pnpm run knip                            # dead code
 corepack pnpm run lint:release
 corepack pnpm audit --prod
@@ -125,22 +125,34 @@ anything expressible as an ordinary lint rule belongs in oxlint instead.
 
 ## Documentation style
 
-`corepack pnpm run lint:docs` runs [Vale](https://vale.sh) against the **Google
-developer documentation style guide** over the published Starlight docs — the
-surface a reader actually meets, covering both louise-toolkit and astroidjs.
-Source comments are out of scope: they are written for maintainers, and the
-Google guide is a guide for user-facing prose.
+**Every doc and all prose in code follow the [Google developer documentation
+style guide](https://developers.google.com/style)** (ADR 0013). That covers the
+Starlight docs, ADRs, this file, READMEs, changesets, CHANGELOGs, code comments,
+JSDoc, and user-facing strings. JSDoc ships in the `.d.ts` files, so for most
+people who use the package, a hover is the documentation.
 
-Adopting a guide is not the same as surrendering to it. Two rules are off, each
-with its reason in `.vale.ini`: `LyHyphens` (it assumes any `ly`-ending word is
-an adverb, so "**supply**-chain" trips it) and `Quotes` (it wants the period
-inside `says "editor."`, which in a technical doc implies the period is part of
-the literal value). Everything else is on, including `EmDash` — the house
-spaced-em-dash style was converted in the docs to meet it.
+Write new prose to the guide from the start. The details that trip people up:
 
-Note the resulting split: **docs use `word—word`, source comments still use
-`word — word`**. Vale only lints the docs, so nothing enforces the comment style
-either way.
+- **Dashes:** `word—word`, never `word — word`, in comments too.
+- **Contractions:** use them ("isn't," "doesn't").
+- **Voice:** second person and present tense, with no "we," "will," or "simply."
+
+`corepack pnpm run lint:docs` runs [Vale](https://vale.sh) with the Google
+style plus the house style in `vale/styles/Louise`. Run
+`corepack pnpm --package=@vvago/vale@3.17.1 dlx vale sync` once first to fetch
+the Google package. The bar is Vale's error level. Two Google rules are off,
+each with its reason in `.vale.ini`: `LyHyphens` and `Quotes`.
+
+The rewrite of older prose is still in progress, so `lint:docs` is a **per-file
+ratchet** against `vale/baseline.json`:
+
+- A file that gains findings fails, and the output lists the new ones. Fix them;
+  don't raise the baseline.
+- A file that loses findings also fails until the baseline records it. Run
+  `corepack pnpm run lint:docs -- --update`, which only ever lowers counts.
+
+A style-only rewrite of an ADR isn't an amendment, as long as no decision, date,
+or status line changes.
 
 ## Decisions get an ADR
 
