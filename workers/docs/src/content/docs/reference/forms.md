@@ -90,7 +90,7 @@ The browser half. Decide whether captcha is on with `activeCaptcha(env)` (from
 `louise-toolkit/auth`) on the server, pass its `siteKey` to the page, and render:
 
 ```ts
-import { renderTurnstile } from "louise-toolkit/forms";
+import { renderTurnstile } from "louise-toolkit/forms/turnstile";
 
 const widget = await renderTurnstile(el, {
   siteKey,
@@ -117,6 +117,15 @@ Set `appearance` here rather than in the Cloudflare dashboard. The dashboard's
 invisible mode belongs to the site key, so it changes every form that shares the
 key, sign-in included. Only the options you pass are sent. Add Turnstile's origins
 to your CSP with `turnstileCsp()`.
+
+### Importing Turnstile on its own
+
+`louise-toolkit/forms/turnstile` exports `renderTurnstile`, `loadTurnstile`,
+`turnstileCsp`, `TURNSTILE_SCRIPT_SRC` and `verifyTurnstileToken`, and needs no
+other package. `louise-toolkit/forms` exports the same functions, but it also
+carries `defineForm`, which needs the optional `drizzle-orm` peer. Import from
+`forms/turnstile` on a sign-in page, in a CSP builder, or anywhere else without
+a forms table.
 
 ## Notifications
 

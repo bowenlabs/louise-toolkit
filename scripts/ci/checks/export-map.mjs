@@ -70,6 +70,7 @@ const required = {
   ],
   "./auth": ["EditorSession"],
   "./forms": ["FormConfig", "FormField"],
+  "./forms/turnstile": ["renderTurnstile", "turnstileCsp", "verifyTurnstileToken"],
   "./db": ["D1_BOOKMARK_COOKIE"],
   "./worker": ["LOUISE_EDIT_COOKIE", "louiseApiGate", "isLouisePublicPath", "LOUISE_API_PREFIX"],
   "./security": ["sanitizeRichHtml"],
@@ -128,6 +129,55 @@ for (const name of fs.readdirSync(coreDir)) {
         "it would ship to nobody. Add it to `exports` and to vite.config.ts's entry list, " +
         "or rename it if it is genuinely internal.",
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Entries that exist to avoid a dependency really do avoid it — as BUILT.
+//
+// A few subpaths are split out of a barrel for exactly one reason: the barrel
+// imports an optional peer (`drizzle-orm`) that their callers shouldn't have to
+// install. Source can't show whether that holds, because the bundler decides
+// what shares a chunk: a module both entries import can land in a chunk that
+// also pulls in the peer, and then the "light" entry imports it anyway. So this
+// follows each entry's emitted imports, chunk to chunk, and fails on a
+// forbidden package anywhere in the graph. `"*"` forbids every package.
+// ---------------------------------------------------------------------------
+const lightEntries = {
+  "./content/define": ["drizzle-orm"],
+  "./content/sections": ["drizzle-orm"],
+  "./forms/turnstile": "*",
+};
+const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/g;
+
+for (const [subpath, forbidden] of Object.entries(lightEntries)) {
+  const entry = pkg.exports?.[subpath];
+  const start = typeof entry === "string" ? entry : entry?.import;
+  if (!start) {
+    fail(`"${subpath}" is listed as a light entry but has no \`import\` target`);
+    continue;
+  }
+  const seen = new Set();
+  const queue = [path.join(pkgDir, start)];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (seen.has(file) || !fs.existsSync(file)) continue;
+    seen.add(file);
+    for (const [, spec] of fs.readFileSync(file, "utf8").matchAll(IMPORT_RE)) {
+      if (spec.startsWith(".")) {
+        queue.push(path.resolve(path.dirname(file), spec));
+        continue;
+      }
+      const name = spec.startsWith("@")
+        ? spec.split("/").slice(0, 2).join("/")
+        : spec.split("/")[0];
+      if (forbidden === "*" || forbidden.includes(name)) {
+        fail(
+          `"${subpath}" imports \`${spec}\` (via ${path.relative(pkgDir, file)}) — ` +
+            "this entry exists so its callers don't need that package",
+        );
+      }
+    }
   }
 }
 

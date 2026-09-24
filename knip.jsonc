@@ -41,6 +41,7 @@
         "src/core/email/index.ts",
         "src/core/errors.ts",
         "src/core/forms/index.ts",
+        "src/core/forms/turnstile-entry.ts",
         "src/core/health/index.ts",
         "src/core/media/index.ts",
         "src/core/mcp/index.ts",

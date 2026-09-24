@@ -173,3 +173,17 @@ describe("turnstileCsp", () => {
     expect(turnstileCsp()).toEqual({ script: [host], frame: [host], connect: [host] });
   });
 });
+
+describe("louise-toolkit/forms/turnstile — the dependency-free entry", () => {
+  it("exports both halves, the same functions as the forms barrel", async () => {
+    // Same identities, not copies: a page importing the light entry and a
+    // server importing the barrel share one module, one memoised loader.
+    const entry = await import("../../src/core/forms/turnstile-entry.js");
+    const barrel = await import("../../src/core/forms/index.js");
+    expect(entry.renderTurnstile).toBe(barrel.renderTurnstile);
+    expect(entry.loadTurnstile).toBe(barrel.loadTurnstile);
+    expect(entry.turnstileCsp).toBe(barrel.turnstileCsp);
+    expect(entry.verifyTurnstileToken).toBe(barrel.verifyTurnstileToken);
+    expect(entry.TURNSTILE_SCRIPT_SRC).toBe(barrel.TURNSTILE_SCRIPT_SRC);
+  });
+});

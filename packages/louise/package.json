@@ -141,6 +141,11 @@
       "import": "./dist/core/forms/index.js",
       "default": "./dist/core/forms/index.js"
     },
+    "./forms/turnstile": {
+      "types": "./dist/core/forms/turnstile-entry.d.ts",
+      "import": "./dist/core/forms/turnstile-entry.js",
+      "default": "./dist/core/forms/turnstile-entry.js"
+    },
     "./health": {
       "types": "./dist/core/health/index.d.ts",
       "import": "./dist/core/health/index.js",

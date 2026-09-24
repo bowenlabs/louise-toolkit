@@ -107,6 +107,8 @@ export default {
       "src/core/dates/index.ts",
       "src/core/email/index.ts",
       "src/core/forms/index.ts",
+      // Drizzle-free Turnstile entry (both halves) — see turnstile-entry.ts.
+      "src/core/forms/turnstile-entry.ts",
       "src/core/health/index.ts",
       "src/core/media/index.ts",
       "src/core/qr/index.ts",
