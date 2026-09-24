@@ -12,6 +12,8 @@ export interface SecurityHeaderOptions {
   permissionsPolicy?: string;
   /** Override `Strict-Transport-Security`; default is 1y + includeSubDomains. */
   hsts?: string;
+  /** Send `X-Robots-Tag: noindex` — for a preview or admin host. See {@link isNoindexHost}. */
+  noindex?: boolean;
 }
 
 /**
@@ -28,7 +30,32 @@ export function louiseSecurityHeaders(response: Response, opts: SecurityHeaderOp
   // The site never frames itself; deny outright. COOP isolates the auth flow.
   h.set("X-Frame-Options", "DENY");
   h.set("Cross-Origin-Opener-Policy", "same-origin");
+  if (opts.noindex) h.set("X-Robots-Tag", "noindex");
   return response;
+}
+
+/**
+ * Whether `hostname` should be kept out of search indexes: any host ending in
+ * one of `suffixes` — by default `.workers.dev`, where Workers preview and
+ * per-version URLs live — or starting with one of `prefixes` (your own
+ * convention, e.g. `["preview.", "studio."]`; none by default).
+ *
+ * A preview deploy is a complete copy of the site, so an indexed one competes
+ * with production for its own content. Send the answer as a header from
+ * middleware (`louiseSecurityHeaders(res, { hostname, noindex })`) rather than
+ * from a page: a streamed page has already sent its headers by the time page
+ * code runs, so a header set there is silently dropped.
+ */
+export function isNoindexHost(
+  hostname: string,
+  options: { prefixes?: readonly string[]; suffixes?: readonly string[] } = {},
+): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
+  const suffixes = options.suffixes ?? [".workers.dev"];
+  return (
+    suffixes.some((s) => host.endsWith(s.toLowerCase())) ||
+    (options.prefixes ?? []).some((p) => host.startsWith(p.toLowerCase()))
+  );
 }
 
 /**

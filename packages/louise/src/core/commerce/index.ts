@@ -95,3 +95,6 @@ export {
 
 // Catalog-mirror sync: which stored rows the provider dropped.
 export { type VanishedRowsOptions, vanishedRows } from "./sync.js";
+
+// Into minor units without float drift: a computed amount, or a typed one.
+export { majorToCents, parseMoneyInput } from "./money.js";

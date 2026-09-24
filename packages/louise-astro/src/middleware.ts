@@ -76,6 +76,12 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    *  response. Default `true`. */
   securityHeaders?: boolean;
   /**
+   * Hosts to keep out of search indexes — sent as `X-Robots-Tag: noindex`.
+   * E.g. `(host) => isNoindexHost(host, { prefixes: ["preview."] })`. Set here
+   * rather than in a page, because a streamed page's headers are already gone.
+   */
+  noindex?: (hostname: string) => boolean;
+  /**
    * Extra per-request work after editor resolution, before `next()` — e.g.
    * resolve a second session (a shop customer) onto `locals`. Runs inside the
    * same try/catch, so a throw degrades to public rendering.
@@ -255,8 +261,11 @@ export function createLouiseMiddleware<TEditor = unknown>(
     // every edit surface), so guarantee the CSP permits data: fonts — no-op
     // without a CSP header or when already allowed. Saves consumers a font-src edit.
     allowCspDataFonts(response);
+    const noindex = config.noindex?.(context.url.hostname) ?? false;
     if (config.securityHeaders !== false) {
-      louiseSecurityHeaders(response, { hostname: context.url.hostname });
+      louiseSecurityHeaders(response, { hostname: context.url.hostname, noindex });
+    } else if (noindex) {
+      response.headers.set("X-Robots-Tag", "noindex");
     }
 
     return response;

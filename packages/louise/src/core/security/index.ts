@@ -37,6 +37,7 @@ export {
 export { getSessionSecret, readSecret, type ReadSecretOptions, type SecretSource } from "./secrets";
 export {
   allowCspDataFonts,
+  isNoindexHost,
   louiseSecurityHeaders,
   rewriteCspStyleSrc,
   type SecurityHeaderOptions,

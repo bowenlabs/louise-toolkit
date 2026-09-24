@@ -16,6 +16,7 @@ import {
   getSessionSecret,
   readSecret,
   louiseSecurityHeaders,
+  isNoindexHost,
 } from "louise-toolkit/security";
 ```
 
@@ -234,6 +235,26 @@ intact.
 const res = await next();
 louiseSecurityHeaders(res, { hostname: url.hostname });
 ```
+
+### Keeping preview hosts out of search: `isNoindexHost(hostname, options?)`
+
+A preview deploy is a full copy of the site, so an indexed one competes with
+production for its own content. `isNoindexHost` answers for a hostname:
+`*.workers.dev` (Workers preview and version URLs) by default, plus any
+`prefixes` you pass for your own conventions. Pass the answer as `noindex` to
+send `X-Robots-Tag: noindex`:
+
+```ts
+louiseSecurityHeaders(res, {
+  hostname: url.hostname,
+  noindex: isNoindexHost(url.hostname, { prefixes: ["preview.", "studio."] }),
+});
+```
+
+Send it from middleware, not from a page. A streamed page has already sent its
+headers by the time page code runs, so a header set there is silently dropped.
+`@louise-toolkit/astro`'s middleware takes a `noindex: (hostname) => boolean`
+option for exactly this.
 
 ## Types
 

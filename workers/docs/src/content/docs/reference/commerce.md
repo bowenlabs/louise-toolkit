@@ -31,6 +31,8 @@ import {
 | ------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `Money`                              | `{ amount, currency }`—amount in the currency's minor unit (cents).                      |
 | `centsToMajor(cents)`                | Minor units → major (`2500` → `25`).                                                     |
+| `majorToCents(amount, digits?)`      | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                |
+| `parseMoneyInput(text, digits?)`     | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.   |
 | `hmacSha256Hex` / `hmacSha256Base64` | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
 | `safeEqual(a, b)`                    | Constant-time-ish compare—use it to check a computed signature against a header value.   |
 
