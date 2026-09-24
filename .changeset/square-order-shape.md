@@ -14,8 +14,10 @@ All additive; every existing call is unchanged.
 - `createOrder` and `calculateOrder` take `serviceCharges` (`SquareServiceCharge`:
   name, amount, phase, taxable — defaulting to an untaxed subtotal-phase flat fee,
   i.e. shipping). Pass the same list to both or the preview is short by that much.
-- `createOrder` takes `fulfillments` (`SquareFulfillment`: a `pickup` with an `asap`
-  prep duration or a `scheduled` instant, or a `shipment` with an address). Created
+- `createOrder` takes `fulfillments` (`SquareFulfillment`: a `pickup` that is either
+  `asap` with a `prepMinutes` or `scheduled` at an instant, or a `shipment` with an
+  address). `prepMinutes` is required and must be a whole number ≥ 1: prep time is
+  the shop's fact, so there is no default to promise customers the wrong time. Created
   `PROPOSED`; notes are trimmed to Square's 500-char cap rather than failing the
   order after the card was entered. `calculateOrder` does not take them — they are
   not a pricing input, and a preview usually runs mid-address.
