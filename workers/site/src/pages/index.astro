@@ -1,14 +1,14 @@
 ---
-// louisetoolkit.com landing page — a bespoke, editor-controlled marketing page.
+// louisetoolkit.com landing page—a bespoke, editor-controlled marketing page.
 // Public site theme: Tailwind v4 + daisyUI, forced to the `louise-dark` theme
 // (src/styles/louise.css) to match the brand design. The whole landing is built
 // from structured "sections" (hero, feature grid, edit-in-place demo, code
 // showcase, closing CTA) stored in D1 and rendered by bespoke components
-// (../sections/*.astro) — so the copy stays editor-controlled in place while the
+// (../sections/*.astro)—so the copy stays editor-controlled in place while the
 // design stays pixel-bespoke. Header/footer/nav are site chrome (baked here, the
 // "everything is editable except chrome" boundary). Brand type is Roboto Flex
 // (variable width axis) + JetBrains Mono; icons are Phosphor, inlined raw so
-// they inherit currentColor — no icon font, no runtime fetch.
+// they inherit currentColor—no icon font, no runtime fetch.
 import { env } from "cloudflare:workers";
 import { LOUISE_EDGE_CACHE } from "astro:env/server";
 import { eq } from "drizzle-orm";
@@ -51,7 +51,7 @@ if (editMode && home) {
 const sections = draft ?? published;
 
 // Route caching (#95): cache the public landing render, tagged by the home page's
-// id so a publish purges it — gated on LOUISE_EDGE_CACHE (needs the CDN
+// id so a publish purges it—gated on LOUISE_EDGE_CACHE (needs the CDN
 // bypass-on-edit-cookie rule first; see astro.config.mjs). Bypass in edit mode
 // (draft content + personalized chrome) and when there's no home row to tag. The
 // edit chrome is a deferred island (#73), so the cached shell stays cookie-independent.
@@ -78,13 +78,13 @@ const FOOTER_NAV = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Louise Toolkit — editable sites on Astro + Cloudflare</title>
+    <title>Louise Toolkit—editable sites on Astro + Cloudflare</title>
     <meta
       name="description"
       content="The V8-native toolkit for building editable sites on Astro + Cloudflare Workers — content, commerce, media, forms, auth, and AI as composable primitives. Log in and the live site becomes the editor."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    {/* Brand type is self-hosted from our own edge (#194) — no third-party font
+    {/* Brand type is self-hosted from our own edge (#194)—no third-party font
         request. Preload the display face (Roboto Flex) since the hero heading is
         the LCP element; `crossorigin` is required for the preload to match the
         CORS-anonymous @font-face fetch. JetBrains Mono (code showcase, below the

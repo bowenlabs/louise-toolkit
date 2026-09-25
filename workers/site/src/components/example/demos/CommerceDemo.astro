@@ -1,7 +1,7 @@
 ---
 // A sandboxed twin of the Square checkout for /examples/commerce. It walks the
-// same two steps the real flow does — the browser tokenizes the card into a
-// `sourceId`, then the server charges it with createPayment — but here both steps
+// same two steps the real flow does—the browser tokenizes the card into a
+// `sourceId`, then the server charges it with createPayment—but here both steps
 // are simulated in the page: no Square SDK loads, no network call, no charge. The
 // real handler is src/lib/examples/square-checkout.ts (shown in the code tab).
 const PRICE_CENTS = 450;
@@ -25,7 +25,7 @@ const price = `$${(PRICE_CENTS / 100).toFixed(2)}`;
   </div>
 
   <label class="grid gap-1 text-sm">
-    <span class="text-base-content/70">Card — Square sandbox test card</span>
+    <span class="text-base-content/70">Card—Square sandbox test card</span>
     <input
       class="input input-bordered w-full font-mono"
       name="card"

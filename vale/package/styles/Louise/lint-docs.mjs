@@ -1,0 +1,233 @@
+// The Louise lint runner: Vale over every doc and all prose in code, the same
+// way in every repository (louise-toolkit ADR 0013). It ships inside the house
+// package, so `vale sync` puts it at `.vale/Louise/lint-docs.mjs`, and a
+// repository's `lint:docs` script is one line:
+//
+//   node .vale/Louise/lint-docs.mjs [--exclude=<regex>]... [--baseline=<file> [--update]]
+//
+// What it lints, from `git ls-files`: Markdown and MDX; comments in TypeScript
+// and JavaScript; and in `.astro` files, both the template's text and the
+// frontmatter's comments. Two file types need help, because Vale 3.17 has no
+// parser for them:
+//
+//   - `.mjs` would be linted as plain text, code and strings included. It's
+//     linted as JavaScript instead, so only comments count.
+//   - `.astro` is split into two copies with the same line numbers: the
+//     text a visitor reads, as HTML, and the code (the frontmatter plus any
+//     multi-line `{…}` block), as TypeScript, so only its comments count.
+//
+// Those copies go to a temporary directory, and every finding is reported
+// against the real file and line.
+//
+// Without `--baseline`, any error-level finding fails the run. With it, the run
+// is a per-file ratchet: a file may not gain findings, and a file that loses
+// findings fails until `--update` records it. `--update` only lowers counts.
+//
+// No dependencies beyond Node itself, so it runs in any repository.
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const VALE_PACKAGE = "@vvago/vale@3.17.1";
+const LINTED = /\.(md|mdx|ts|tsx|js|mjs|astro)$/;
+const ALWAYS_EXCLUDED = [
+  /(^|\/)(node_modules|dist|\.vale|\.claude|\.astro|\.wrangler)\//,
+  /\.d\.ts$/,
+  /THIRD_PARTY_NOTICES\.md$/,
+];
+
+/** The command that runs Vale: corepack when it's installed, pnpm otherwise. */
+function valeCommand() {
+  if (process.env.VALE_BIN) return [process.env.VALE_BIN];
+  try {
+    execFileSync("corepack", ["--version"], { stdio: "ignore" });
+    return ["corepack", "pnpm", `--package=${VALE_PACKAGE}`, "dlx", "vale"];
+  } catch {
+    return ["pnpm", `--package=${VALE_PACKAGE}`, "dlx", "vale"];
+  }
+}
+
+/** Every tracked or new file this runner lints, minus exclusions. */
+export function collectFiles({ exclude = [] } = {}) {
+  const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const patterns = [...ALWAYS_EXCLUDED, ...exclude];
+  return out
+    .split("\n")
+    .filter((f) => f && LINTED.test(f) && fs.existsSync(f))
+    .filter((f) => !patterns.some((p) => p.test(f)));
+}
+
+/**
+ * Splits an `.astro` file into the text a visitor reads and the code, each
+ * with the other part blanked so line numbers match the original. Code is the
+ * frontmatter plus any `{…}` expression in the template that spans more than
+ * one line: that's a JavaScript block (`items.map(…)`), not text. A one-line
+ * `{…}` stays with the text, because it usually renders a string.
+ */
+function splitAstro(text) {
+  const lines = text.split("\n");
+  const code = new Array(lines.length).fill(false);
+  let start = 0;
+  if (lines[0].trim() === "---") {
+    const end = lines.indexOf("---", 1);
+    if (end > 0) {
+      for (let i = 1; i < end; i++) code[i] = true;
+      start = end + 1;
+    }
+  }
+  // Depth-0 `{…}` blocks in the template, skipping braces inside quotes.
+  let depth = 0;
+  let quote = null;
+  let openLine = -1;
+  for (let i = start; i < lines.length; i++) {
+    for (const ch of lines[i]) {
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (depth > 0 && (ch === '"' || ch === "'" || ch === "`")) {
+        quote = ch;
+      } else if (ch === "{") {
+        if (depth === 0) openLine = i;
+        depth++;
+      } else if (ch === "}" && depth > 0) {
+        depth--;
+        if (depth === 0 && i > openLine) for (let j = openLine; j <= i; j++) code[j] = true;
+      }
+    }
+    quote = null;
+  }
+  const lineIs = (want) => lines.map((l, i) => (code[i] === want ? l : "")).join("\n");
+  return { template: lineIs(false), code: code.some(Boolean) ? lineIs(true) : null };
+}
+
+/**
+ * Runs Vale over the files and returns `{ [file]: alerts[] }`, keyed by the
+ * real paths. `configPath` is the repository's `.vale.ini`.
+ */
+export function lintFiles(files, { configPath = ".vale.ini" } = {}) {
+  const vale = valeCommand();
+  const args = [`--config=${path.resolve(configPath)}`, "--output=JSON", "--no-exit"];
+  args.push("--minAlertLevel=error");
+  const run = (paths) => {
+    if (paths.length === 0) return {};
+    const out = execFileSync(vale[0], [...vale.slice(1), ...args, ...paths], {
+      encoding: "utf8",
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    // Vale prints nothing at all when no file has an alert.
+    return out.trim() ? JSON.parse(out) : {};
+  };
+
+  const direct = files.filter((f) => !f.endsWith(".mjs") && !f.endsWith(".astro"));
+  const byFile = {};
+  for (const [file, alerts] of Object.entries(run(direct))) {
+    byFile[path.relative(process.cwd(), path.resolve(file))] = alerts;
+  }
+
+  // Copies for the file types Vale can't parse, in a temporary directory.
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "louise-lint-")));
+  const origin = new Map();
+  const stage = (file, text, ext) => {
+    const copy = path.join(dir, `${file.replaceAll("/", "__")}${ext}`);
+    fs.writeFileSync(copy, text);
+    origin.set(copy, file);
+    return copy;
+  };
+  try {
+    const copies = [];
+    for (const file of files) {
+      const text = fs.readFileSync(file, "utf8");
+      if (file.endsWith(".mjs")) copies.push(stage(file, text, ".js"));
+      if (file.endsWith(".astro")) {
+        const { template, code } = splitAstro(text);
+        copies.push(stage(file, template, ".html"));
+        if (code !== null) copies.push(stage(file, code, ".code.tsx"));
+      }
+    }
+    for (const [copy, alerts] of Object.entries(run(copies))) {
+      const file = origin.get(copy) ?? origin.get(fs.realpathSync(copy));
+      if (!file) continue;
+      byFile[file] = [...(byFile[file] ?? []), ...alerts];
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  return byFile;
+}
+
+function printAlerts(alerts, files) {
+  for (const file of files) {
+    for (const a of alerts[file] ?? []) {
+      console.error(`${file}:${a.Line}:${a.Span[0]}  ${a.Check}  ${a.Message}`);
+    }
+  }
+}
+
+/** The ratchet: compares counts per file against a baseline. */
+export function ratchet(alerts, baselinePath, { update = false } = {}) {
+  const seeding = update && !fs.existsSync(baselinePath);
+  const baseline = fs.existsSync(baselinePath)
+    ? JSON.parse(fs.readFileSync(baselinePath, "utf8"))
+    : {};
+  const counts = Object.fromEntries(Object.entries(alerts).map(([f, l]) => [f, l.length]));
+  const regressions = [];
+  const improvements = [];
+  for (const file of new Set([...Object.keys(counts), ...Object.keys(baseline)])) {
+    const now = counts[file] ?? 0;
+    const was = baseline[file] ?? 0;
+    if (now > was) regressions.push({ file, was, now });
+    else if (now < was) improvements.push({ file, was, now });
+  }
+  if (regressions.length > 0 && !seeding) {
+    console.error(`\n${regressions.length} file(s) gained Vale errors:\n`);
+    for (const { file, was, now } of regressions) {
+      console.error(`${file}: ${was} → ${now}`);
+      printAlerts(alerts, [file]);
+    }
+    console.error("\nFix the new findings. The baseline only goes down.");
+    return 1;
+  }
+  if (update) {
+    const next = {};
+    for (const file of Object.keys(counts).sort()) if (counts[file] > 0) next[file] = counts[file];
+    fs.writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
+    const total = Object.values(next).reduce((a, b) => a + b, 0);
+    console.log(`Baseline updated: ${total} error(s) across ${Object.keys(next).length} file(s).`);
+    return 0;
+  }
+  if (improvements.length > 0) {
+    console.error(
+      `\n${improvements.length} file(s) now have fewer Vale errors than the baseline:\n`,
+    );
+    for (const { file, was, now } of improvements) console.error(`${file}: ${was} → ${now}`);
+    console.error(
+      "\nRecord the progress so it can't be spent on new findings: rerun with --update.",
+    );
+    return 1;
+  }
+  console.log("Vale: no file has more errors than its baseline.");
+  return 0;
+}
+
+function main(argv) {
+  const exclude = argv
+    .filter((a) => a.startsWith("--exclude="))
+    .map((a) => new RegExp(a.slice(10)));
+  const baseline = argv.find((a) => a.startsWith("--baseline="))?.slice(11);
+  const update = argv.includes("--update");
+  const files = collectFiles({ exclude });
+  const alerts = lintFiles(files);
+  if (baseline) return ratchet(alerts, baseline, { update });
+  const total = Object.values(alerts).reduce((n, l) => n + l.length, 0);
+  printAlerts(alerts, Object.keys(alerts).sort());
+  console.log(`Vale: ${total} error(s) in ${files.length} files.`);
+  return total > 0 ? 1 : 0;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  process.exit(main(process.argv.slice(2)));
+}

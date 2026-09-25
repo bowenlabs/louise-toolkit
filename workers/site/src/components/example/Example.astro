@@ -43,7 +43,7 @@ const uid = `ex-${Math.random().toString(36).slice(2, 8)}`;
   </div>
 
   <div class="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-    {/* Live pane — the primitive actually running. */}
+    {/* Live pane—the primitive actually running. */}
     <div class="flex flex-col rounded-2xl border border-base-300 bg-base-100 p-5">
       <div
         class="mb-3 flex items-center gap-2 text-xs uppercase tracking-wide text-base-content/50"
@@ -53,7 +53,7 @@ const uid = `ex-${Math.random().toString(36).slice(2, 8)}`;
       <div class="flex-1"><slot name="live" /></div>
     </div>
 
-    {/* Code pane — tabbed, sliced from real source. */}
+    {/* Code pane—tabbed, sliced from real source. */}
     <div
       class="flex flex-col overflow-hidden rounded-2xl border border-base-300 bg-base-200"
       data-example={uid}
@@ -98,7 +98,7 @@ const uid = `ex-${Math.random().toString(36).slice(2, 8)}`;
       <div
         class="mt-auto border-t border-base-300 px-4 py-2 text-[11px] text-base-content/40"
       >
-        <i class="ph ph-git-branch" aria-hidden="true"></i> sliced from real source — never drifts
+        <i class="ph ph-git-branch" aria-hidden="true"></i> sliced from real source—never drifts
       </div>
     </div>
   </div>
@@ -163,7 +163,7 @@ const uid = `ex-${Math.random().toString(36).slice(2, 8)}`;
           setTimeout(() => (label.textContent = "Copy"), 1200);
         }
       } catch {
-        /* clipboard blocked — no-op */
+        /* clipboard blocked—no-op */
       }
     });
   });

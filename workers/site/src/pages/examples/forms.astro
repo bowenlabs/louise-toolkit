@@ -1,5 +1,5 @@
 ---
-// /examples/forms — the first live example page. The left pane runs a sandboxed
+// /examples/forms—the first live example page. The left pane runs a sandboxed
 // twin of the inquiries form (FormsDemo); the right pane shows the REAL wiring,
 // sliced out of this site's worker.ts + the demo component with `?raw`, so the
 // code you read is the code that ships. See src/components/example/Example.astro.
@@ -14,7 +14,7 @@ import "../../styles/louise.css";
 
 export const prerender = false;
 
-// Real production source — one form definition drives the table, validation, and
+// Real production source—one form definition drives the table, validation, and
 // the capture route. These slices update automatically when worker.ts changes.
 const defineSrc = extractRegion(workerSource, "example:inquiries-form");
 const routeSrc = extractRegion(workerSource, "example:inquiries-route");
@@ -26,7 +26,7 @@ const demoCode = extractRegion(FormsDemoSource, "example:demo");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Forms — Louise Toolkit examples</title>
+    <title>Forms—Louise Toolkit examples</title>
     <meta
       name="description"
       content="Build a validated contact form on Cloudflare Workers with louise-toolkit/forms — one definition derives the table, validation, and capture route. Live demo plus real source."
@@ -50,7 +50,7 @@ const demoCode = extractRegion(FormsDemoSource, "example:demo");
       >
         <FormsDemo slot="live" />
         <span slot="try"
-          >Fix the email to <code>jordan@acme.com</code> and send — watch the same
+          >Fix the email to <code>jordan@acme.com</code> and send—watch the same
           validation the server runs pass client-side.</span
         >
       </Example>
@@ -58,7 +58,7 @@ const demoCode = extractRegion(FormsDemoSource, "example:demo");
       <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
         Want the fully wired version that actually stores a row and shows up in Louise
         Settings? That's <a class="link link-primary" href="/">the contact form on the
-        home page</a> — same <code>inquiries</code> definition, posting to its real capture
+        home page</a>—same <code>inquiries</code> definition, posting to its real capture
         route.
       </p>
     </SiteChrome>

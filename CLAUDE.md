@@ -150,7 +150,7 @@ style plus the house style, from the house package in `vale/package/`. Run
 the Google package. The bar is Vale's error level. Two Google rules are off,
 each with its reason in `vale/package/.vale.ini`: `LyHyphens` and `Quotes`.
 
-`lint:docs` also lints **user-facing strings**: error messages from `new
+`lint:docs` runs the house package's lint runner (`vale/package/styles/Louise/lint-docs.mjs`) over Markdown, code comments, and `.astro` templates, and also lints **user-facing strings**: error messages from `new
 Louise…Error(…)`, `error` and `message` in a `json(…)` body, JSX text, and the
 JSX attributes people read (`title`, `aria-label`, `placeholder`, `alt`,
 `label`). `scripts/ci/checks/copy-extract.mjs` defines the list. A finding in

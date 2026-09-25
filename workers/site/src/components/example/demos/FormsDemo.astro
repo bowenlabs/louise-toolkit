@@ -1,7 +1,7 @@
 ---
 // A self-contained preview of the inquiries form for /examples/forms. It mirrors
 // the real client checks louise-toolkit/forms runs (required + email format) so you can
-// feel the validation, but it never posts — no row is written, nothing leaves the
+// feel the validation, but it never posts—no row is written, nothing leaves the
 // browser. The production form (src/sections/Contact.astro) is the same fields
 // posting to the real capture route; this is the safe, sandboxed twin.
 ---
@@ -24,7 +24,7 @@
       class="textarea textarea-bordered w-full"
       name="message"
       rows="3"
-      required>Loved the toolkit — a question about queues.</textarea>
+      required>Loved the toolkit—a question about queues.</textarea>
   </label>
   <button class="btn btn-primary btn-sm w-fit" type="submit">Send inquiry</button>
   <p class="louise-demo-status text-sm" role="status" aria-live="polite"></p>
@@ -32,8 +32,8 @@
 
 <script>
   // Mirror of louise-toolkit/forms `validateField` for the two built-in checks demoed
-  // here: `required`, and the `email` type's format rule. Kept deliberately tiny
-  // — the real engine (server + client) lives in louise-toolkit/forms/validate.ts.
+  // here: `required`, and the `email` type's format rule. Kept deliberately tiny:
+  // the real engine (server + client) lives in louise-toolkit/forms/validate.ts.
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   document.querySelectorAll<HTMLFormElement>("form.louise-demo-form").forEach((form) => {
@@ -48,7 +48,7 @@
       if (!EMAIL_RE.test(email)) return say("Email must be a valid email address", "error");
       if (!message) return say("Message is required", "error");
 
-      // Passed — show the exact payload the real route would validate + insert.
+      // Passed—show the exact payload the real route would validate + insert.
       say(`Valid ✓ would POST → ${JSON.stringify({ email, message })}`, "ok");
 
       function say(text: string, kind: "error" | "ok") {

@@ -1,5 +1,5 @@
 ---
-// /examples/commerce — a Square card checkout on Workers. The left pane runs a
+// /examples/commerce—a Square card checkout on Workers. The left pane runs a
 // sandboxed twin of the flow (tokenize → createPayment), fully simulated in-page.
 // The "checkout.ts" tab is sliced from the real handler in
 // src/lib/examples/square-checkout.ts, which targets the current
@@ -24,10 +24,10 @@ const demoCode = extractRegion(CommerceDemoSource, "example:demo");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Commerce — Louise Toolkit examples</title>
+    <title>Commerce—Louise Toolkit examples</title>
     <meta
       name="description"
-      content="Take a card payment on Cloudflare Workers with louise-toolkit/commerce/square — the browser tokenizes the card, the server prices it from the live catalog and charges it. Live sandbox demo plus the real handler."
+      content="Take a card payment on Cloudflare Workers with louise-toolkit/commerce/square—the browser tokenizes the card, the server prices it from the live catalog and charges it. Live sandbox demo plus the real handler."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
@@ -48,14 +48,14 @@ const demoCode = extractRegion(CommerceDemoSource, "example:demo");
       >
         <CommerceDemo slot="live" />
         <span slot="try"
-          >Hit pay with Square's sandbox test card — watch it tokenize, then charge.
+          >Hit pay with Square's sandbox test card—watch it tokenize, then charge.
           The charge is simulated here; the code on the right is the real handler.</span
         >
       </Example>
 
       <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
-        Stripe and Fourthwall follow the same shape — a client token or hosted
-        checkout, then a server call — via <code>louise-toolkit/commerce/stripe</code> and
+        Stripe and Fourthwall follow the same shape—a client token or hosted
+        checkout, then a server call—via <code>louise-toolkit/commerce/stripe</code> and
         <code>louise-toolkit/commerce/fourthwall</code>.
       </p>
     </SiteChrome>
