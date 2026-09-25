@@ -18,8 +18,8 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.d.ts"],
       thresholds: {
-        lines: 72.79,
-        statements: 70.37,
+        lines: 73.25,
+        statements: 70.73,
         autoUpdate: true,
       },
     },

@@ -35,8 +35,8 @@ function makeKV(): {
 
 describe("draftBufferKey", () => {
   it("namespaces by collection + id", () => {
-    expect(draftBufferKey("pages", 42)).toBe("draft:pages:42");
-    expect(draftBufferKey("posts", "abc")).toBe("draft:posts:abc");
+    expect(draftBufferKey("pages", 42)).toBe("draft:v2:pages:42");
+    expect(draftBufferKey("posts", "abc")).toBe("draft:v2:posts:abc");
   });
 });
 

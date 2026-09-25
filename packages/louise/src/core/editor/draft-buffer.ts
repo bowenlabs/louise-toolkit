@@ -41,9 +41,12 @@ export const DRAFT_BUFFER_TTL_SECONDS = 7 * 24 * 60 * 60;
  *  of edits continues. */
 export const DEFAULT_FLUSH_MS = 10_000;
 
-/** KV key for a collection row's draft buffer. */
+/** KV key for a collection row's draft buffer. The `v2` segment marks buffers
+ *  written after a buffered save began running the collection's `beforeChange`
+ *  hooks. Earlier buffers could hold unsanitized input, so they're never read;
+ *  they expire on their own TTL. */
 export function draftBufferKey(collection: string, id: number | string): string {
-  return `draft:${collection}:${id}`;
+  return `draft:v2:${collection}:${id}`;
 }
 
 /** Read + parse a page's buffer, or `null` when absent/corrupt. */
