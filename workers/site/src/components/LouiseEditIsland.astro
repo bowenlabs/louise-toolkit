@@ -3,7 +3,7 @@
 // use site with `server:defer` so the public page shell stays cookie-independent
 // and edge-cacheable (#95): an anonymous visitor gets an EMPTY island (nothing
 // below renders, so no editor script is ever in the cached HTML), while an
-// editor's request resolves the client bootstrap on demand — the island runs its
+// editor's request resolves the client bootstrap on demand—the island runs its
 // own request through the middleware, so `Astro.locals.editMode` is re-derived
 // from the edit cookie here.
 //
@@ -16,8 +16,8 @@
 // REQUIRES a stable `ASTRO_KEY` in the build environment. Astro encrypts an
 // island's props and component export into the URL the browser fetches back, and
 // without that env var it generates a fresh random key on EVERY build. HTML
-// rendered by one build then cannot have its island resolved by the next one —
-// the request 400s and the edit chrome silently never appears for anyone holding
+// rendered by one build then cannot have its island resolved by the next one:
+// the request returns 400 and the edit chrome silently never appears for anyone holding
 // a page from before the deploy. Every branch push here is a production deploy,
 // so the key rotates constantly; `pnpm exec astro create-key`, then set it in the
 // Workers Builds environment. See .env.example.
@@ -63,7 +63,7 @@ const { versionedPageId, realtime } = Astro.props as {
 
         // Mount (or re-mount) the editor from the current <body> flags. Re-reads
         // per-page config (versionedPageId) each call, so a view-transition nav to
-        // another page mounts against that page — not a stale first-load closure.
+        // another page mounts against that page—not a stale first-load closure.
         // mountLouise/mountSettings are idempotent per page (guards cleared on
         // astro:after-swap), so a redundant call is a no-op.
         function boot() {
@@ -98,12 +98,12 @@ const { versionedPageId, realtime } = Astro.props as {
               });
             })
             // Without this, a throw while booting the editor is a silent unhandled
-            // rejection — surface it so the next init failure is visible.
+            // rejection—surface it so the next init failure is visible.
             .catch((err) => console.error("[louise] editor bootstrap failed", err));
         }
 
         // Bundled scripts run once and a server:defer island may inject this after
-        // the initial astro:page-load has fired — so boot now for the first page…
+        // the initial astro:page-load has fired—so boot now for the first page…
         boot();
         // …and after every view-transition navigation (#74): <body> (bar, fields,
         // drawer) was replaced and this script won't re-run, so re-boot for the

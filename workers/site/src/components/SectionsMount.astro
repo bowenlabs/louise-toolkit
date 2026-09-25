@@ -4,21 +4,21 @@
 // page id + current sections off the [data-louise-sections] wrapper, plus the
 // site's field catalog. A public visitor downloads only this ~0.6KB (gzipped)
 // boot module, which gates out at runtime on the edit-only
-// [data-louise-sections] marker — the heavy editor chunk is never fetched.
+// [data-louise-sections] marker—the heavy editor chunk is never fetched.
 ---
 
 <script>
   import type { SectionItem } from "louise-toolkit/client";
 
   // Teardown of the sections editor currently mounted on this <body>. A
-  // view-transition nav (#74) replaces the body, so tear the old one down —
-  // removing its flush/guard listeners — before mounting the next page's.
+  // view-transition nav (#74) replaces the body, so tear the old one down,
+  // removing its flush/guard listeners, before mounting the next page's.
   let teardown: (() => void) | null = null;
 
   // Which boot is allowed to mount. `teardown?.()` alone does not prevent a
   // double mount, because it only knows about a mount that has already HAPPENED:
-  // `boot()` runs at parse and again on `astro:page-load` — which Astro's
-  // ClientRouter fires on the initial load too, not just on navigations — and the
+  // `boot()` runs at parse and again on `astro:page-load`—which Astro's
+  // ClientRouter fires on the initial load too, not just on navigations—and the
   // second call lands while the first one's dynamic import is still in flight, so
   // `teardown` is still null and nothing is torn down. Both imports resolve, both
   // mount, and the page ends up with two chromes, two toolbars and two Publish
@@ -36,13 +36,13 @@
     // so gating on it raced the island: if boot() ran first, this one-shot check
     // returned and the sections editor silently never mounted (rings + inline dead
     // until a reload). `data-louise-sections` is emitted server-side ONLY in edit
-    // mode, so it's already in the DOM at parse time — an edit-mode signal with no
+    // mode, so it's already in the DOM at parse time—an edit-mode signal with no
     // cross-island race.
     const el = document.querySelector<HTMLElement>("[data-louise-sections]");
     if (!el?.dataset.louiseSections) return;
     const pageId = Number(el.dataset.louiseSections);
-    // Stamped server-side (edit mode only) from the collection's realtime flag —
-    // opts the sections page into a presence session (#71). Off → no socket.
+    // Stamped server-side (edit mode only) from the collection's realtime flag;
+    // it opts the sections page into a presence session (#71). Off → no socket.
     const realtime = el.dataset.louiseSectionsRealtime === "1";
     let initial: SectionItem[] = [];
     try {
@@ -68,9 +68,9 @@
         });
       })
       // Without this, a failed chunk fetch is a silent unhandled rejection and
-      // edit mode just looks inert — the bar and the markers are all there, but
+      // edit mode just looks inert—the bar and the markers are all there, but
       // no rings, no toolbars, nothing in the console. That is exactly what a
-      // page load racing a deploy produces (the hashed chunk 404s), and the only
+      // page load racing a deploy produces (the hashed chunk returns 404), and the only
       // way to spot it was digging through performance.getEntriesByType for a
       // 4xx. Surface it instead.
       .catch((err) => console.error("[louise] sections editor bootstrap failed", err));

@@ -1,5 +1,5 @@
 ---
-// /examples/media — the upload verification path. The left pane runs the REAL
+// /examples/media—the upload verification path. The left pane runs the REAL
 // louise-toolkit/media functions in your browser (they're pure and binding-free,
 // so they run identically here and in a Worker) and stops just before the R2
 // write. The "upload.ts" tab is sliced from the real handler in
@@ -24,7 +24,7 @@ const demoCode = extractRegion(MediaDemoSource, "example:demo");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Media — Louise Toolkit examples</title>
+    <title>Media | Louise Toolkit examples</title>
     <meta
       name="description"
       content="Verify and store an image upload on Cloudflare Workers with louise-toolkit/media — the real type is sniffed from magic bytes, dimensions come from the header, and the derivative URL is generated at the edge. Live demo plus the real handler."
@@ -48,14 +48,14 @@ const demoCode = extractRegion(MediaDemoSource, "example:demo");
       >
         <MediaDemo slot="live" />
         <span slot="try"
-          >Rename a JPEG to <code>.png</code> and drop it — the sniffer reads the bytes and
+          >Rename a JPEG to <code>.png</code> and drop it—the sniffer reads the bytes and
           catches the lie, exactly as the upload route would.</span
         >
       </Example>
 
       <p class="mx-auto max-w-5xl px-5 pb-16 text-sm text-base-content/50">
         This page runs the real <code>sniffImageType</code>, <code>imageDimensions</code> and
-        <code>cfImage</code> — they take no bindings, so they behave the same in your browser
+        <code>cfImage</code>—they take no bindings, so they behave the same in your browser
         as on a Worker. The one thing it doesn't do is write to R2. For an upload that
         actually stores a row and appears in the media library, use <a
           class="link link-primary"

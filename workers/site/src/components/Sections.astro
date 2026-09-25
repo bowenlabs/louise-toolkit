@@ -1,7 +1,7 @@
 ---
 // Render bridge: maps each stored section item (`{ _type, ...props }`) to its
 // bespoke Astro component. This is the site half of the preconfigured-blocks
-// model — add a section type by adding a component here + a schema entry in
+// model—add a section type by adding a component here + a schema entry in
 // ../sections/catalog.ts.
 //
 // In edit mode it also threads each section's array index (`_editIndex`) and the
@@ -69,7 +69,7 @@ const withAssetAlt = (s: Item): Item => {
     // in an element carrying its PATH within the page's `sections` array, so the
     // on-canvas chrome can attach a ring / toolbar to the real element. A section's
     // path is just its index; a block's is `<i>.blocks.<j>`, stamped by the section
-    // component that renders it — one attribute, one grammar, at every depth.
+    // component that renders it—one attribute, one grammar, at every depth.
     // Public renders skip the wrapper entirely, so nothing changes off the editor.
     return editMode ? <div data-louise-node={i}>{rendered}</div> : rendered;
   })

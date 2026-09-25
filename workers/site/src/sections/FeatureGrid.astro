@@ -1,5 +1,5 @@
 ---
-// Bespoke feature-grid — site-owned design (color-block cards on the daisyUI
+// Bespoke feature-grid—site-owned design (color-block cards on the daisyUI
 // `louise-dark` brand tokens). The reference slice for the first-class block
 // layer (#182 / ADR 0005): each card is a `feature` **block** (`blocks` on the
 // section), reordered / deleted in place via the on-canvas block chrome (blue
@@ -8,7 +8,7 @@
 // `ph-database` and one of blue/orange/green/gold).
 //
 // A legacy `items` array is still accepted while the shared DB carries both keys
-// during the expand/contract seed — `blocks` wins when present, so the branch
+// during the expand/contract seed—`blocks` wins when present, so the branch
 // renders block markers while an un-migrated `items`-only page still renders.
 import Icon from "../components/Icon.astro";
 import { featureIcon } from "../lib/landing-icons.js";
@@ -23,9 +23,9 @@ interface Props {
   heading?: string;
   headingLine2?: string;
   blocks?: (Item & { _type?: string })[];
-  items?: Item[]; // legacy — pre-block pages; dropped by the contract seed
-  _layout?: string; // column count token (ADR 0005 §5) — the site owns the CSS
-  _settings?: Record<string, unknown>; // e.g. { background }
+  items?: Item[]; // legacy—pre-block pages; dropped by the contract seed
+  _layout?: string; // column count token (ADR 0005 §5)—the site owns the CSS
+  _settings?: Record<string, unknown>; // for example, { background }
   _editIndex?: number;
   _editMode?: boolean;
 }
@@ -76,7 +76,7 @@ const CYCLE = ["blue", "orange", "green", "gold"];
 const cardClass = (cw: string | undefined, i: number) =>
   (cw && CARD_CLASS[cw]) || CARD_CLASS[CYCLE[i % 4]];
 
-// Design defaults — shown when the section has no items yet (e.g. unseeded DB).
+// Design defaults—shown when the section has no items yet (for example, unseeded DB).
 const DEFAULT_ITEMS: Item[] = [
   { name: "content", icon: "ph-article", colorway: "blue", body: "Collections with drafts, publish, version history and full-text search." },
   { name: "db", icon: "ph-database", colorway: "orange", body: "D1 bindings passed in — your schema, your migrations." },

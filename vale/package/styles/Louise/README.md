@@ -17,3 +17,18 @@ case.
 Keep the set small. A rule belongs here only when the Google style can't express
 it, and every rule carries a comment that explains why it exists, the same
 convention as the ast-grep rules in `.ast-grep/rules/`.
+
+## The lint runner
+
+`lint-docs.mjs` ships with the style, so `vale sync` puts it at
+`.vale/Louise/lint-docs.mjs` in every repository. A repository's `lint:docs` script
+runs it:
+
+```sh
+node .vale/Louise/lint-docs.mjs [--exclude=<regex>]... [--baseline=<file> [--update]]
+```
+
+It lints Markdown, comments in TypeScript and JavaScript, and `.astro` files
+(the template as HTML, the code as TypeScript), with `.mjs` linted as
+JavaScript because Vale 3.17 can't parse it. Use `--exclude` for files a tool
+generates, whose text belongs to the generator.

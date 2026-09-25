@@ -1,5 +1,5 @@
 ---
-// Bespoke hero — the SITE owns this design (Tailwind + daisyUI `louise-dark`
+// Bespoke hero—the SITE owns this design (Tailwind + daisyUI `louise-dark`
 // tokens, the real brand look). It renders from section props; editors never
 // touch its markup or classes, only its fields (badge/heading/tagline) and the
 // action-row blocks. The animated edge-network globe and the primitives marquee
@@ -7,7 +7,7 @@
 //
 // Action row = a first-class `blocks` layer (#182 / ADR 0005): an ordered, mixed
 // list of `cta` (button) / `install` (copy-command chip) blocks, each on-canvas
-// (blue ring/toolbar) and reorderable in place — the reference slice proving a
+// (blue ring/toolbar) and reorderable in place—the reference slice proving a
 // *heterogeneous* block catalog (vs featureGrid's homogeneous cards). A legacy
 // hero (flat ctaLabel/ctaHref/installCommand) still renders via a fallback while
 // the shared DB is re-seeded.
@@ -20,7 +20,7 @@
 import Icon from "../components/Icon.astro";
 import { lightningFillSvg } from "../lib/landing-icons.js";
 
-// One action-row item — a `cta` (button) or `install` (copy-command chip) block.
+// One action-row item—a `cta` (button) or `install` (copy-command chip) block.
 interface ActionBlock {
   _type?: string;
   label?: string;
@@ -33,7 +33,7 @@ interface Props {
   headingAccent?: string;
   tagline?: string;
   blocks?: ActionBlock[];
-  // Legacy direct fields — accepted while the shared DB still carries the
+  // Legacy direct fields—accepted while the shared DB still carries the
   // pre-block hero (expand/contract seed); `blocks` wins when present.
   ctaLabel?: string;
   ctaHref?: string;
@@ -69,12 +69,12 @@ const actions: ActionBlock[] = useBlocks
 // A CTA label is edited in place; its path is the block path (blocks) or the
 // equivalent legacy field (a legacy hero has exactly one CTA).
 const ctaLabelPath = (j: number) => (useBlocks ? `${idx}.blocks.${j}.label` : `${idx}.ctaLabel`);
-// The block's editable-node path (ADR 0010) — the same attribute the section
+// The block's editable-node path (ADR 0010)—the same attribute the section
 // wrapper carries, one level deeper. Legacy (non-block) heroes stamp nothing:
 // their actions aren't items of an ordered list, so there is nothing to ring.
 const blockNode = (j: number) => (edit && useBlocks ? `${idx}.blocks.${j}` : undefined);
 
-// Marquee tokens — the eight primitives, colored on a 4-step brand cycle
+// Marquee tokens—the eight primitives, colored on a 4-step brand cycle
 // (blue → orange → green → gold). Rendered twice so the -50% loop is seamless.
 const PRIMITIVES = ["content", "db", "media", "forms", "commerce", "email", "queues", "auth"];
 const MARQUEE_COLORS = ["text-primary", "text-error", "text-success", "text-warning"];
@@ -158,7 +158,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
   </div>
 </section>
 
-{/* Primitives marquee — decorative, baked chrome. */}
+{/* Primitives marquee—decorative, baked chrome. */}
 <div
   aria-hidden="true"
   class="mt-14 overflow-hidden border-y-[1.5px] border-neutral py-4 whitespace-nowrap"
@@ -197,7 +197,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
         try {
           await navigator.clipboard.writeText(cmd);
         } catch {
-          /* clipboard blocked — nothing to do */
+          /* clipboard blocked—nothing to do */
         }
         if (label) {
           label.textContent = "Copied!";
@@ -223,7 +223,7 @@ const marquee = [...PRIMITIVES, ...PRIMITIVES];
           speed: 1,
         });
       } catch {
-        /* WebGL unavailable — hero reads fine without the globe */
+        /* WebGL unavailable—hero reads fine without the globe */
       }
     }
   }

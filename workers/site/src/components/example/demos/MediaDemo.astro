@@ -1,10 +1,10 @@
 ---
 // A self-contained preview of the media upload path for /examples/media. Unlike
-// the forms demo — which ships a deliberate mini-copy of the validation engine —
-// this one imports and runs the REAL louise-toolkit/media functions in the
+// the forms demo—which ships a deliberate mini-copy of the validation engine—this
+// one imports and runs the REAL louise-toolkit/media functions in the
 // browser: `sniffImageType`, `imageDimensions` and `cfImage` are pure, zero-dep,
 // binding-free, so the verification you watch here is byte-for-byte the code the
-// Worker runs. What it deliberately does NOT do is the final `bucket.put` — an
+// Worker runs. What it deliberately does NOT do is the final `bucket.put`—an
 // anonymous visitor writing to a real R2 bucket is not a demo, it's an open
 // upload endpoint. So it stops one line short, at exactly the point the server
 // would have stored the object. Nothing leaves the browser.
@@ -25,12 +25,12 @@
 </div>
 
 <script>
-  // The real thing — the same pure functions the upload route calls. No mirror,
+  // The real thing—the same pure functions the upload route calls. No mirror,
   // no reimplementation: these tree-shake out of louise-toolkit/media into the
   // client bundle because none of them touch a binding.
   import { cfImage, imageDimensions, sniffImageType } from "louise-toolkit/media";
 
-  // Mirrors of the two constants `putMedia` applies that aren't exported — the
+  // Mirrors of the two constants `putMedia` applies that aren't exported—the
   // size ceiling, and the key-safe filename rule. Display only.
   const MAX_BYTES = 10 * 1024 * 1024;
   const safeName = (n: string) => n.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
@@ -66,7 +66,7 @@
     async function inspect(file: File) {
       const buffer = await file.arrayBuffer();
 
-      // 1. Size cap — the server rejects before buffering, with a 413.
+      // 1. Size cap—the server rejects before buffering, with a 413.
       if (buffer.byteLength > MAX_BYTES) {
         return reject(413, `File too large (max ${MAX_BYTES / 1024 / 1024} MB)`);
       }
@@ -78,7 +78,7 @@
       const verified = sniffImageType(head);
       if (!verified) return reject(415, "Unsupported or invalid image file");
 
-      // 3. Intrinsic dimensions straight out of the header — no pixel decode, no
+      // 3. Intrinsic dimensions straight out of the header—no pixel decode, no
       //    image library. (The server prefers the Images binding when it has one;
       //    this is the binding-free fallback, which is all a browser needs.)
       const dims = imageDimensions(
@@ -86,7 +86,7 @@
       );
 
       // 4. What the server would write, and what it would serve back. `cfImage`
-      //    only rewrites the path — the derivative is generated at the edge on
+      //    only rewrites the path—the derivative is generated at the edge on
       //    request, so it costs nothing in the bucket.
       const key = `web/${Date.now()}-${safeName(file.name)}`;
       const url = `https://media.example.com/${key}`;
