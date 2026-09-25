@@ -178,6 +178,30 @@ create the index with matching `--dimensions=768 --metric=cosine`).
 no binding → `embed`/`search` return `null`/`[]` so the FTS path carries the
 query unchanged, never on a write's critical path.
 
+### Many texts at once
+
+```ts
+import { embedMany, indexContents, EMBED_MANY_BATCH } from "louise-toolkit/ai";
+
+function embedMany(runner, texts, opts?): Promise<(number[] | null)[]>;
+function indexContents(
+  index,
+  runner,
+  namespace,
+  items: { id: number; text: string; metadata?: Record<string, VectorMetadataValue> }[],
+  opts?,
+): Promise<number[]>;
+```
+
+`embedMany` embeds many texts in one Workers AI call per `batchSize` texts
+(default `EMBED_MANY_BATCH`, 100, the most the BGE models take per request),
+instead of one call per text. It returns one entry per input, in order: the
+vector, or `null` for a blank text or a failed batch, so you can retry just the
+`null` entries. `indexContents` is the batch form of `indexContent`, for a
+backfill: it embeds with `embedMany`, upserts the vectors, and returns the row
+IDs it stored. Use `embed` and `indexContent` for one row at a time, such as on
+publish.
+
 `semanticSearch` takes an optional `minScore`: a match scored below it is
 dropped, so a query that matches nothing returns `[]` rather than the `topK`
 least-distant records. On a `cosine` index the score is a similarity, where

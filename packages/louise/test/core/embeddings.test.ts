@@ -3,8 +3,11 @@ import {
   type AiRunner,
   contentVectorId,
   DEFAULT_EMBEDDING_MODEL,
+  EMBED_MANY_BATCH,
   embed,
+  embedMany,
   indexContent,
+  indexContents,
   parseContentVectorId,
   removeContentVector,
   semanticSearch,
@@ -118,6 +121,151 @@ describe("embed", () => {
       },
     };
     expect(await embed(r, "x")).toBeNull();
+  });
+});
+
+/** A batch runner: one vector per input text, `[length, i]`, so a test can see
+ *  which text each vector came from. */
+function batchRunner(fail?: (texts: string[]) => boolean) {
+  const calls: string[][] = [];
+  const run: AiRunner = {
+    run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
+      const texts = inputs.text as string[];
+      calls.push(texts);
+      if (fail?.(texts)) throw new Error("model error");
+      return { shape: [texts.length, 2], data: texts.map((text, i) => [text.length, i]) };
+    }),
+  };
+  return { runner: run, calls };
+}
+
+describe("embedMany", () => {
+  it("embeds every text in one call per batch, in input order", async () => {
+    const { runner: r, calls } = batchRunner();
+    const vectors = await embedMany(r, ["a", "bb", "ccc"]);
+    expect(calls).toEqual([["a", "bb", "ccc"]]);
+    expect(vectors).toEqual([
+      [1, 0],
+      [2, 1],
+      [3, 2],
+    ]);
+  });
+
+  it("splits into batches of batchSize, 100 by default", async () => {
+    expect(EMBED_MANY_BATCH).toBe(100);
+    const { runner: r, calls } = batchRunner();
+    await embedMany(
+      r,
+      Array.from({ length: 250 }, (_, i) => `t${i}`),
+    );
+    expect(calls.map((batch) => batch.length)).toEqual([100, 100, 50]);
+    const small = batchRunner();
+    await embedMany(small.runner, ["a", "b", "c"], { batchSize: 2 });
+    expect(small.calls.map((batch) => batch.length)).toEqual([2, 1]);
+  });
+
+  it("skips blank texts, trims the rest, and keeps every entry's position", async () => {
+    const { runner: r, calls } = batchRunner();
+    const vectors = await embedMany(r, [" a ", "", "  ", "b"]);
+    expect(calls).toEqual([["a", "b"]]);
+    expect(vectors).toEqual([[1, 0], null, null, [1, 1]]);
+  });
+
+  it("returns null for every text in a batch that fails, and keeps the other batches", async () => {
+    const { runner: r } = batchRunner((texts) => texts.includes("bad"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const vectors = await embedMany(r, ["ok1", "bad", "ok2"], { batchSize: 2 });
+    errors.mockRestore();
+    expect(vectors).toEqual([null, null, [3, 0]]);
+  });
+
+  it("returns null for a batch whose response doesn't hold one vector per text", async () => {
+    const { runner: r } = runner({ data: [[0.1, 0.2]] });
+    expect(await embedMany(r, ["a", "b"])).toEqual([null, null]);
+    const { runner: garbage } = runner("nope");
+    expect(await embedMany(garbage, ["a", "b"])).toEqual([null, null]);
+  });
+
+  it("accepts embed's single-vector shapes for a one-text batch", async () => {
+    const { runner: r } = runner({ embedding: [0.5, 0.5] });
+    expect(await embedMany(r, ["a"])).toEqual([[0.5, 0.5]]);
+  });
+
+  it("returns all nulls without a runner, and nothing for no texts", async () => {
+    expect(await embedMany(undefined, ["a", "b"])).toEqual([null, null]);
+    const { runner: r, calls } = batchRunner();
+    expect(await embedMany(r, [])).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it("passes the model and the gateway through", async () => {
+    const { runner: r, calls } = runner({ data: [[1]] });
+    await embedMany(r, ["a"], { model: "@cf/baai/bge-small-en-v1.5", gateway: { id: "gw" } });
+    expect(calls[0]).toMatchObject({
+      model: "@cf/baai/bge-small-en-v1.5",
+      options: { gateway: { id: "gw" } },
+    });
+  });
+
+  it("refuses a batch size that isn't a positive integer", async () => {
+    await expect(embedMany(undefined, ["a"], { batchSize: 0 })).rejects.toThrow(RangeError);
+    await expect(embedMany(undefined, ["a"], { batchSize: 1.5 })).rejects.toThrow(RangeError);
+  });
+});
+
+describe("indexContents", () => {
+  it("embeds rows in one call and upserts their vectors, with per-row metadata", async () => {
+    const { runner: r, calls } = batchRunner();
+    const idx = fakeIndex();
+    const stored = await indexContents(
+      idx.index,
+      r,
+      "pages",
+      [
+        { id: 1, text: "one" },
+        { id: 2, text: "" },
+        { id: 3, text: "three", metadata: { locale: "en" } },
+      ],
+      { metadata: { site: "x" } },
+    );
+    expect(stored).toEqual([1, 3]);
+    expect(calls).toHaveLength(1);
+    expect(idx.upserts).toEqual([
+      [
+        {
+          id: "pages:1",
+          values: [3, 0],
+          namespace: "pages",
+          metadata: { collection: "pages", docId: 1, site: "x" },
+        },
+        {
+          id: "pages:3",
+          values: [5, 1],
+          namespace: "pages",
+          metadata: { collection: "pages", docId: 3, site: "x", locale: "en" },
+        },
+      ],
+    ]);
+  });
+
+  it("returns nothing without an index or rows, and leaves out a failed upsert", async () => {
+    const { runner: r } = batchRunner();
+    expect(await indexContents(undefined, r, "pages", [{ id: 1, text: "a" }])).toEqual([]);
+    const idx = fakeIndex();
+    expect(await indexContents(idx.index, r, "pages", [])).toEqual([]);
+    const failing: VectorIndex = {
+      ...idx.index,
+      upsert: async () => Promise.reject(new Error("down")),
+    };
+    expect(await indexContents(failing, r, "pages", [{ id: 1, text: "a" }])).toEqual([]);
+  });
+
+  it("upserts at most 1,000 vectors at a time", async () => {
+    const { runner: r } = batchRunner();
+    const idx = fakeIndex();
+    const items = Array.from({ length: 1200 }, (_, i) => ({ id: i, text: `t${i}` }));
+    expect(await indexContents(idx.index, r, "pages", items)).toHaveLength(1200);
+    expect(idx.upserts.map((batch) => batch.length)).toEqual([1000, 200]);
   });
 });
 
