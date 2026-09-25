@@ -114,6 +114,16 @@ describe("embed", () => {
     expect(calls[0]?.options).toEqual({ gateway: { id: "gw" } });
   });
 
+  it("asks for a pooling only when given one", async () => {
+    const { runner: r, calls } = runner({ data: [[1]] });
+    await embed(r, "x");
+    await embed(r, "x", { pooling: "cls" });
+    expect(calls.map((call) => call.inputs)).toEqual([
+      { text: "x" },
+      { text: "x", pooling: "cls" },
+    ]);
+  });
+
   it("swallows a thrown model error and returns null (never a gate)", async () => {
     const r: AiRunner = {
       run: async () => {
@@ -128,22 +138,25 @@ describe("embed", () => {
  *  which text each vector came from. */
 function batchRunner(fail?: (texts: string[]) => boolean) {
   const calls: string[][] = [];
+  const inputs: Record<string, unknown>[] = [];
   const run: AiRunner = {
-    run: vi.fn(async (_model: string, inputs: Record<string, unknown>) => {
-      const texts = inputs.text as string[];
+    run: vi.fn(async (_model: string, input: Record<string, unknown>) => {
+      const texts = input.text as string[];
       calls.push(texts);
+      inputs.push(input);
       if (fail?.(texts)) throw new Error("model error");
       return { shape: [texts.length, 2], data: texts.map((text, i) => [text.length, i]) };
     }),
   };
-  return { runner: run, calls };
+  return { runner: run, calls, inputs };
 }
 
 describe("embedMany", () => {
-  it("embeds every text in one call per batch, in input order", async () => {
-    const { runner: r, calls } = batchRunner();
-    const vectors = await embedMany(r, ["a", "bb", "ccc"]);
+  it("embeds every text in one call per batch with CLS pooling, in input order", async () => {
+    const { runner: r, calls, inputs } = batchRunner();
+    const vectors = await embedMany(r, ["a", "bb", "ccc"], { pooling: "cls" });
     expect(calls).toEqual([["a", "bb", "ccc"]]);
+    expect(inputs[0]).toMatchObject({ pooling: "cls" });
     expect(vectors).toEqual([
       [1, 0],
       [2, 1],
@@ -157,16 +170,34 @@ describe("embedMany", () => {
     await embedMany(
       r,
       Array.from({ length: 250 }, (_, i) => `t${i}`),
+      { pooling: "cls" },
     );
     expect(calls.map((batch) => batch.length)).toEqual([100, 100, 50]);
     const small = batchRunner();
-    await embedMany(small.runner, ["a", "b", "c"], { batchSize: 2 });
+    await embedMany(small.runner, ["a", "b", "c"], { batchSize: 2, pooling: "cls" });
     expect(small.calls.map((batch) => batch.length)).toEqual([2, 1]);
+  });
+
+  it("sends one text per call with mean pooling, because a batch would change each text's vector", async () => {
+    for (const pooling of [undefined, "mean"] as const) {
+      const { runner: r, calls, inputs } = batchRunner();
+      const vectors = await embedMany(r, ["a", "bb", "ccc"], {
+        batchSize: 50,
+        ...(pooling ? { pooling } : {}),
+      });
+      expect(calls).toEqual([["a"], ["bb"], ["ccc"]]);
+      expect(vectors).toEqual([
+        [1, 0],
+        [2, 0],
+        [3, 0],
+      ]);
+      expect(inputs.every((input) => input.pooling === pooling)).toBe(true);
+    }
   });
 
   it("skips blank texts, trims the rest, and keeps every entry's position", async () => {
     const { runner: r, calls } = batchRunner();
-    const vectors = await embedMany(r, [" a ", "", "  ", "b"]);
+    const vectors = await embedMany(r, [" a ", "", "  ", "b"], { pooling: "cls" });
     expect(calls).toEqual([["a", "b"]]);
     expect(vectors).toEqual([[1, 0], null, null, [1, 1]]);
   });
@@ -174,14 +205,14 @@ describe("embedMany", () => {
   it("returns null for every text in a batch that fails, and keeps the other batches", async () => {
     const { runner: r } = batchRunner((texts) => texts.includes("bad"));
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    const vectors = await embedMany(r, ["ok1", "bad", "ok2"], { batchSize: 2 });
+    const vectors = await embedMany(r, ["ok1", "bad", "ok2"], { batchSize: 2, pooling: "cls" });
     errors.mockRestore();
     expect(vectors).toEqual([null, null, [3, 0]]);
   });
 
   it("returns null for a batch whose response doesn't hold one vector per text", async () => {
     const { runner: r } = runner({ data: [[0.1, 0.2]] });
-    expect(await embedMany(r, ["a", "b"])).toEqual([null, null]);
+    expect(await embedMany(r, ["a", "b"], { pooling: "cls" })).toEqual([null, null]);
     const { runner: garbage } = runner("nope");
     expect(await embedMany(garbage, ["a", "b"])).toEqual([null, null]);
   });
@@ -214,7 +245,7 @@ describe("embedMany", () => {
 });
 
 describe("indexContents", () => {
-  it("embeds rows in one call and upserts their vectors, with per-row metadata", async () => {
+  it("embeds rows in one call with CLS pooling and upserts their vectors, with per-row metadata", async () => {
     const { runner: r, calls } = batchRunner();
     const idx = fakeIndex();
     const stored = await indexContents(
@@ -226,7 +257,7 @@ describe("indexContents", () => {
         { id: 2, text: "" },
         { id: 3, text: "three", metadata: { locale: "en" } },
       ],
-      { metadata: { site: "x" } },
+      { metadata: { site: "x" }, pooling: "cls" },
     );
     expect(stored).toEqual([1, 3]);
     expect(calls).toHaveLength(1);
@@ -264,7 +295,9 @@ describe("indexContents", () => {
     const { runner: r } = batchRunner();
     const idx = fakeIndex();
     const items = Array.from({ length: 1200 }, (_, i) => ({ id: i, text: `t${i}` }));
-    expect(await indexContents(idx.index, r, "pages", items)).toHaveLength(1200);
+    expect(await indexContents(idx.index, r, "pages", items, { pooling: "cls" })).toHaveLength(
+      1200,
+    );
     expect(idx.upserts.map((batch) => batch.length)).toEqual([1000, 200]);
   });
 });
@@ -371,6 +404,12 @@ describe("semanticSearch", () => {
     ]);
     expect(queries[0]?.vector).toEqual([0.5, 0.5]);
     expect(queries[0]?.options).toEqual({ topK: 5, namespace: "pages" });
+  });
+
+  it("embeds the query with the pooling it's given, to match the indexed vectors", async () => {
+    const { runner: r, calls } = runner({ data: [[0.5, 0.5]] });
+    await semanticSearch(fakeIndex().index, r, "pages", "intent", { pooling: "cls" });
+    expect(calls[0]?.inputs).toEqual({ text: "intent", pooling: "cls" });
   });
 
   it("skips matches whose id doesn't parse to a numeric row id", async () => {
