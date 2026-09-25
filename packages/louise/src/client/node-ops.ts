@@ -96,8 +96,8 @@ export function moveNodeElement(
   restampSiblings(parent, els);
 }
 
-/** Remove the child at `index` and re-stamp the survivors to a gapless 0…n-1—*
-  the instant reflection of a delete. No-op when not found. */
+/** Remove the child at `index` and re-stamp the survivors to a gapless 0…n-1,
+ *  the instant reflection of a delete. No-op when not found. */
 export function deleteNodeElement(
   parent: NodePath,
   index: number,

@@ -42,8 +42,8 @@ import listPlus from "@phosphor-icons/core/assets/regular/list-plus.svg?raw";
 import xIcon from "@phosphor-icons/core/assets/regular/x.svg?raw";
 import wrench from "@phosphor-icons/core/assets/regular/wrench.svg?raw";
 
-/** What the chrome can do to a node. Every callback receives the node's path—*
-  the chrome holds no indices of its own, so nothing here needs re-deriving
+/** What the chrome can do to a node. Every callback receives the node's path:
+ *  the chrome holds no indices of its own, so nothing here needs re-deriving
  *  after a re-stamp. */
 export interface NodeChromeActions {
   /** Resolve a path to what that node can do. Return `null` for a path the editor

@@ -68,14 +68,32 @@ function lintedFiles() {
     .filter((f) => !f.startsWith(".vale/"));
 }
 
+const VALE_ARGS = ["--output=JSON", "--no-exit", "--minAlertLevel=error"];
+
 function runVale(files) {
-  const out = execFileSync(
-    "corepack",
-    ["pnpm", ...VALE, "--output=JSON", "--no-exit", "--minAlertLevel=error", ...files],
-    { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
-  );
-  // Vale prints nothing at all when no file has an alert.
-  const byFile = out.trim() ? JSON.parse(out) : {};
+  // Vale 3.17 has no parser for `.mjs`, so a `.mjs` path is linted as plain
+  // text: code, strings, and all. On stdin with `--ext=.js` it's linted as
+  // JavaScript, comments only, like every other code file. Mapping the
+  // extension in `[formats]` doesn't work; it makes Vale skip the file.
+  const mjs = files.filter((f) => f.endsWith(".mjs"));
+  const rest = files.filter((f) => !f.endsWith(".mjs"));
+  const byFile = {};
+  if (rest.length > 0) {
+    const out = execFileSync("corepack", ["pnpm", ...VALE, ...VALE_ARGS, ...rest], {
+      encoding: "utf8",
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    // Vale prints nothing at all when no file has an alert.
+    if (out.trim()) Object.assign(byFile, JSON.parse(out));
+  }
+  for (const file of mjs) {
+    const out = execFileSync("corepack", ["pnpm", ...VALE, ...VALE_ARGS, "--ext=.js"], {
+      encoding: "utf8",
+      input: fs.readFileSync(file, "utf8"),
+    });
+    const alerts = out.trim() ? Object.values(JSON.parse(out)).flat() : [];
+    if (alerts.length > 0) byFile[file] = alerts;
+  }
   return byFile;
 }
 

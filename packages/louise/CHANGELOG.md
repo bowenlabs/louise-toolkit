@@ -513,8 +513,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   **Why.** `louise-toolkit` is described as framework-agnostic and shipped the name
   of one specific framework's events in its client (#327 Phase 1). It also meant the
   editor could only ever integrate with Astro's router: any other host had the same
-  need and no way to express it. The seam is the smaller and more honest surface—
-  two functions a host calls, and a `onLouiseNavigate(phase, handler)` subscription
+  need and no way to express it. The seam is the smaller and more honest surface—two
+  functions a host calls, and a `onLouiseNavigate(phase, handler)` subscription
   the client's own modules use internally.
 
   Behaviour is otherwise unchanged: the page editor still flushes and guards, the
@@ -536,8 +536,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   `Astro.cache.set(...)`. Worth noting the header itself was never Astro's; it is
   Cloudflare's, and only the explanation was framework-bound.
 
-  **`sendEmail` takes a `dev` flag.** It used to read `import.meta.env.DEV` first—
-  a value a bundler defines at build time, which made a library claiming
+  **`sendEmail` takes a `dev` flag.** It used to read `import.meta.env.DEV` first—a
+  value a bundler defines at build time, which made a library claiming
   independence depend on being built by one, and which is absent on a plain Worker
   anyway. The host knows the answer.
 
@@ -605,8 +605,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
 
 - 2227153: Astro support moves to `@louise-toolkit/astro`
 
-  **Breaking.** The `louise-toolkit/astro` subpath is gone. Its contents—
-  `createLouiseMiddleware`, the Action factories, `louiseLoader`,
+  **Breaking.** The `louise-toolkit/astro` subpath is gone. Its contents—`createLouiseMiddleware`,
+  the Action factories, `louiseLoader`,
   `defineCatalogLoader`, `formToAstroSchema`—now live in a new package, and
   `louise-toolkit` no longer declares Astro at all: no peer, no devDependency, no
   export, no keyword.
@@ -658,8 +658,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   visibility flag: `admin.hidden` yields **no tools at all** (a system table a
   human never browses is not one an agent should browse), and `admin.readOnly`
   yields read tools only. `search_<slug>` appears only where the collection
-  actually has an FTS index. Edit and publish tools require `versions.drafts`—
-  every agent edit lands as a draft, and a collection with no version history has
+  actually has an FTS index. Edit and publish tools require `versions.drafts`—every
+  agent edit lands as a draft, and a collection with no version history has
   nowhere safe to put one—and `publish_<slug>` is generated separately from the
   write tools so a token can be scoped to draft-only.
 
@@ -874,8 +874,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   belongs in the framework rather than in each site's conventions.
 
   `wireInline` already knows the field is `richText` and holds the node, so it now
-  checks the tag and warns with the field's path and the remedy. Warning only—
-  the field still half-works, and breaking an owner's editing session over a
+  checks the tag and warns with the field's path and the remedy. Warning only—the
+  field still half-works, and breaking an owner's editing session over a
   markup nit would be the worse failure. Plain-text fields in a `<p>` are correct
   and say nothing.
 
@@ -920,8 +920,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   `createLouiseMiddleware` wrapped editor-session resolution and the `extend`
   hook in one `try/catch`. When `resolveEditor` threw—which it does on every
   request while `SESSION_SECRET` is still the `DUMMY_REPLACE_ME` sentinel, that is,
-  the dormant-until-provisioned state every module is supposed to survive—
-  `extend` was silently skipped along with it. Everything `extend` feeds died
+  the dormant-until-provisioned state every module is supposed to survive—`extend`
+  was silently skipped along with it. Everything `extend` feeds died
   too: `locals.tenant` was never written, so astroid's host dispatch quietly
   served the ordinary site on every tenant subdomain, with no error anywhere.
 
@@ -969,8 +969,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   })
   ```
 
-  and stamps `data-louise-node="settings.<key>"` wherever the value renders—
-  the Nav, the Footer, a location panel; outside the sections host is fine
+  and stamps `data-louise-node="settings.<key>"` wherever the value renders—the
+  Nav, the Footer, a location panel; outside the sections host is fine
   (#377 made the lookups document-wide for exactly this). A declared key
   resolves to a **green, wrench-only** node named after the value. Its
   inspector is the one panel whose writes do NOT stage into the page draft:
@@ -978,8 +978,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   - **The warning band is persistent**, not a `confirm()`: _"Used in the header
     and 3 pages—saves immediately, everywhere."_ The count is assembled from
     the def's static chrome `surfaces` plus the pages whose stored sections
-    include a type whose catalog def `consumes` the key (spec §3, approach A—
-    the declaration doubles as documentation of a coupling that was invisible).
+    include a type whose catalog def `consumes` the key (spec §3, approach A—the
+    declaration doubles as documentation of a coupling that was invisible).
   - **Saves PATCH `/api/louise/settings` on commit**—immediate and
     unversioned by decision (spec §4); a failed save keeps the optimistic value
     on screen with the error.
@@ -1080,8 +1080,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
     so a tone the palette doesn't know paints a neutral ring and a legible bar
     instead of nothing.
   - **The palette is one overridable block.** `--louise-violet` and the three
-    `--louise-*-strong` values node-chrome reads were never declared anywhere—
-    every reference fell through to its literal, so overriding a base colour
+    `--louise-*-strong` values node-chrome reads were never declared anywhere—every
+    reference fell through to its literal, so overriding a base colour
     recoloured the ring but not the toolbar. All are now declared in the
     `:root` block in `styles.ts` next to the tokens that already existed.
 
@@ -1096,8 +1096,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   popover fell back to the viewport-origin default position instead of anchoring
   to the element.
 
-  No site stamps such a marker today, which is why nothing ever failed loudly—
-  but ADR 0010 Phase B stamps `settings.*` paths in the Nav and Footer, which
+  No site stamps such a marker today, which is why nothing ever failed loudly—but
+  ADR 0010 Phase B stamps `settings.*` paths in the Nav and Footer, which
   render outside the host by construction (#374). Both lookups now query the
   host's document; host-owned operations (inserting sections, sibling order) stay
   host-scoped, since sections really do live there.
@@ -1451,8 +1451,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   A new internal `thumb(url, px)` wraps `cfImage` at 2× the display box, applied at
   all six chrome call sites: both picker grids, the media-library tile, the image
   field's selected-value preview, the sections image preview, and the ProseKit
-  image node view. Each renders at a known size, which is what makes this cheap—
-  the caller passes the box rather than guessing.
+  image node view. Each renders at a known size, which is what makes this cheap—the
+  caller passes the box rather than guessing.
 
   `ImageField`'s `transform` prop had been designed and left unwired—its own doc
   comment named `cfImage` as the intended use and no caller ever passed one. It now
@@ -1785,13 +1785,13 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
 
   ## `link`
 
-  A destination has no visible text node to click, so it has always been wrench-edited
-  —but as `{ type: "text", inline: false }`, which renders a bare text box. `link`
+  A destination has no visible text node to click, so it has always been wrench-edited—but
+  as `{ type: "text", inline: false }`, which renders a bare text box. `link`
   gives it a proper editor: a page picker plus a free URL field, lifted out of the
   rich-text builder (where it already existed) so both hosts share one control.
 
-  The value stays a **plain string href**, so adopting it is a pure schema change—
-  `{ type: "text", inline: false }` → `{ type: "link" }` with no data migration.
+  The value stays a **plain string href**, so adopting it is a pure schema change—`{ type: "text", inline: false }`
+  → `{ type: "link" }` with no data migration.
 
   ```ts
   ctaHref: { type: "link", label: "Button link" },
@@ -1817,8 +1817,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   ### `builtInRoutes`
 
   `SectionsEditorProps.builtInRoutes` feeds code-defined routes into the picker.
-  Its page list comes from `/api/louise/pages`, which only knows DB-backed pages—
-  a site's hand-authored routes (`/shop`, `/contact`) have no row, so without this
+  Its page list comes from `/api/louise/pages`, which only knows DB-backed pages—a
+  site's hand-authored routes (`/shop`, `/contact`) have no row, so without this
   the picker is missing exactly the destinations most CTAs point at.
 
   ```ts
@@ -1890,8 +1890,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   - A mounted sections surface sets `data-louise-history` on `<html>`. Settings only
     renders the History icon when it's there, so the icon is never a dead button on
     a host that mounts Settings but no sections.
-  - Clicking History closes the Settings drawer before opening the history one—
-    two stacked modals would fight over the focus trap.
+  - Clicking History closes the Settings drawer before opening the history one—two
+    stacked modals would fight over the focus trap.
   - Sections keeps its own bar History button **only** when Settings isn't mounted.
     It detects `#louise-drawer-root` on mount and also listens for
     `SETTINGS_READY_EVENT`, so either mount order resolves correctly.
@@ -2037,8 +2037,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   Square's 10-batch limit. The call is atomic: one stale `version` fails the whole
   batch, which is the right trade for a price push (no half-applied change).
 
-  **`batchChangeInventory` / `setPhysicalCount`.** Note the direction of truth—
-  D1 owns price, presence and placement; **Square owns inventory counts**. These
+  **`batchChangeInventory` / `setPhysicalCount`.** Note the direction of truth—D1
+  owns price, presence and placement; **Square owns inventory counts**. These
   exist for the reconcile path (a physical recount, seeding a new merchant's opening
   stock), not for mirroring a D1 number over Square's. Prefer `PHYSICAL_COUNT`: it
   sets an absolute quantity, so a replayed message lands on the same number, whereas
@@ -2134,8 +2134,8 @@ guard.dirty })`). `watchUnload()` covers refresh and close, and `markSaved()`
   (items + per-item category refs, `reporting_category`, and enabled modifier-list
   bounds), `listCategories` (REGULAR categories, MENU_CATEGORY filtered), and
   `listModifierLists`, plus the `SquareCategory` / `SquareModifier` /
-  `SquareModifierList` / `ItemModifierRef` / `DetailedCatalog` types. Additive—
-  the existing `listCatalogItems` is unchanged, so current consumers are unaffected.
+  `SquareModifierList` / `ItemModifierRef` / `DetailedCatalog` types. Additive—the
+  existing `listCatalogItems` is unchanged, so current consumers are unaffected.
 
 ## 0.16.0
 
@@ -3284,8 +3284,8 @@ search`. Because the call threw, consumers that guard on "is Square configured"
 
 - ca97295: Make the subpath exports resolvable by CJS-based tools. The `exports` map only
   declared `types` + `import` conditions, so tools that resolve with Node's CJS
-  algorithm—notably **drizzle-kit**, which loads a site's Drizzle `schema.ts`—
-  failed with `ERR_PACKAGE_PATH_NOT_EXPORTED` when a schema imported the shared
+  algorithm—notably **drizzle-kit**, which loads a site's Drizzle `schema.ts`—failed
+  with `ERR_PACKAGE_PATH_NOT_EXPORTED` when a schema imported the shared
   column sets (`import { siteSettingsColumns, pagesColumns } from "louisecms/db"`).
 
   Each subpath now also carries a `default` condition pointing at the same ESM
