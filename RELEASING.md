@@ -51,7 +51,7 @@ Notes:
 - `vp` must be on your PATH (`louise-toolkit`'s build runs `vp pack`). If it isn't:
   `curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash`, then reopen the shell.
 - If `pnpm install` errors with a store mismatch, use `corepack pnpm install`
-  (the repo pins pnpm 11.13.0).
+  (the repo pins the version in `packageManager`).
 
 ## Verify
 

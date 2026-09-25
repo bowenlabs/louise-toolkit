@@ -66,7 +66,7 @@
     {
       matchPackageNames: ["typescript"],
       allowedVersions: "<7",
-      description: "Held on 5.x. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1 (~Oct 2026), and both @astrojs/check and ADR 0008's type-aware lint depend on that API. The speed is already available through @typescript/native-preview, so there is nothing to gain by jumping early. Lift this when 7.1 ships AND @astrojs/check supports it — two conditions, not one.",
+      description: "Held on 6.x. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1 (~Oct 2026), and both @astrojs/check and ADR 0008's type-aware lint depend on that API. The speed is already available through @typescript/native-preview, so there is nothing to gain by jumping early. Lift this when 7.1 ships AND @astrojs/check supports it — two conditions, not one.",
     },
 
     // -------------------------------------------------------------------------
