@@ -94,14 +94,17 @@ reference.
 
 ## Roadmap
 
-Louise is **pre-1.0** and dogfooded on 4 production sites.
+Louise is **pre-1.0** and dogfooded on 3 production sites.
 [Astroid](https://github.com/bowenlabs/astroidjs) and `create-astroid` have
-shipped (both pre-1.0) and now develop in their own repo. The current push (Cloudflare
-platform depth, Astro-native APIs, and an agent-editable MCP server) is tracked
-in the open:
+shipped (both pre-1.0) and develop in their own repo. The current work makes the
+kit easier for the people who run those sites, and it's tracked in
+[epic #481](https://github.com/bowenlabs/louise-toolkit/issues/481) across four
+milestones:
 
-- [**Platform features push**](https://github.com/bowenlabs/louise-toolkit/milestone/1): the active milestone.
-- [Epic #102](https://github.com/bowenlabs/louise-toolkit/issues/102): the umbrella issue tying the work together.
+- [**Boring upgrades**](https://github.com/bowenlabs/louise-toolkit/milestone/2): upgrading a site is routine.
+- [**Burn down site code**](https://github.com/bowenlabs/louise-toolkit/milestone/3): what the sites hand-roll moves into the kit.
+- [**Owner studio**](https://github.com/bowenlabs/louise-toolkit/milestone/4): the studio answers what a site owner asks first.
+- [**MCP for owners**](https://github.com/bowenlabs/louise-toolkit/milestone/5): an owner can ask an agent to edit the site.
 
 ## Contributing
 

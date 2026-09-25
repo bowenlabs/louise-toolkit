@@ -83,6 +83,7 @@ of writable fields, and a `resolveEditor` that decides who may edit.
 
 ```ts
 // src/pages/api/louise/[...path].ts — mounted at /api/louise/*
+import { env } from "cloudflare:workers";
 import { saveRoute, runEditorRoute } from "louise-toolkit/editor";
 import { siteSettings } from "../../../schema"; // your Drizzle table
 
@@ -94,8 +95,11 @@ const route = saveRoute({
   },
 });
 
-export const ALL = (ctx) => runEditorRoute(route, ctx.request, ctx.locals.runtime.env);
+export const ALL = (ctx) => runEditorRoute(route, ctx.request, env);
 ```
+
+Read the Worker bindings from `cloudflare:workers`. Astro v6 removed
+`Astro.locals.runtime.env`, so there's no bindings object on the request context.
 
 Only allowlisted fields are writable—a forged request can never touch an
 unlisted column.

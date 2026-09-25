@@ -20,7 +20,9 @@ Dependencies flow **one way**: `astroidjs` → `louise-toolkit`, never the rever
   runs fine right up until it doesn't, and the mismatch is invisible in a diff.
 - **Installs go through `corepack pnpm`**, against the pinned version in
   `packageManager`. A globally-installed pnpm produces a store error rather than
-  a clear message.
+  a clear message. The CI runner has **only** corepack, so a script or workflow
+  that calls bare `pnpm` passes on your machine and fails in CI. Always write
+  `corepack pnpm`.
 - **`vite-plus` is coupled to `.github/actions/setup`.** That action fails the
   run when the `vp` binary and the `vite-plus` devDependency disagree. A skew
   once turned a green PR red overnight with no code change. They move together,
@@ -170,6 +172,48 @@ the few findings that remain:
 A style-only rewrite of an ADR isn't an amendment, as long as no decision, date,
 or status line changes.
 
+## Site facts are parameters
+
+A fact about a site or its business (time zone, currency, country, locale,
+preparation time, brand) is a parameter, never a constant, and never guessed from
+the Worker's clock or the browser. A default is fine only for a fact about an
+external API (a provider's field limits, its SDK hosts), or when it's overridable
+and harmless. When you pull code up from a site, turn every site constant into a
+parameter, and call out any default that remains in the PR body.
+
+## Naming
+
+The npm package is `louise-toolkit`, because `louise` belongs to someone else on
+npm. Only the package specifier carries that name. The brand tokens stay `louise`:
+`mountLouise`, the `data-louise-*` markers, the `louise` CLI binary, and the
+`packages/louise` directory.
+
+## The reference site
+
+`workers/site` is louisetoolkit.com, and it deploys through Cloudflare Workers
+Builds. Know these before you change it:
+
+- **Every push deploys production,** branches included (#521). A branch's code
+  goes live against the same data `main` reads.
+- **There's one D1 database** for every deploy. Change a stored section's shape
+  with expand and contract: seed both the old and new keys, then drop the old key
+  once every deploy runs the new code. Seeds are in `workers/site/seed/`.
+- **Provision a named resource before you merge its binding.** A binding to a
+  Queue, D1 database, R2 bucket, or KV namespace that doesn't exist fails the
+  deploy, while the build and CI stay green.
+- **Sign-in is one shared password,** checked against the
+  `LOUISE_EDITOR_PASSWORD` secret. There's no user table, so there's no user to
+  seed. Locally, copy `.env.example` to `.env` and set it.
+- **Running it locally:** `corepack pnpm dev` on Node 26. A `POST` needs a
+  matching `Origin` header, because of Astro's origin check. A stale Durable
+  Object alarm error after you add a DO clears with `rm -rf
+workers/site/.wrangler/state` and a fresh local migration.
+- **The `/examples` code panes slice real source** with `?raw` and `#region`
+  markers (`src/lib/examples/region.ts`). Mark a region in the real file; never
+  paste a copy into the page.
+
+Lessons that don't fit a rule here are in `docs/LESSONS.md`.
+
 ## Decisions get an ADR
 
 `docs/adr/`. And an ADR that has stopped being true gets **amended**, not quietly
@@ -179,6 +223,7 @@ because people trust it.
 ## Changesets
 
 Pre-1.0, so a **breaking change ships as `minor`**, because there's no deprecation
-cycle to lean on. Write the changeset for someone upgrading blind: what changed,
+cycle to lean on. Never mark one `major`: Changesets takes a `major` on a 0.x
+version straight to 1.0.0. Write the changeset for someone upgrading blind: what changed,
 why, and what they have to do about it. If there's an upgrade edge (in-flight
 state, a deploy-time window), say so plainly rather than letting them find it.

@@ -8,9 +8,13 @@ contributions are grounded in real usage, and correctness matters more than volu
 
 - **Report a bug**: open an issue with a minimal repro (the Worker/Astro version,
   the binding involved, and what you expected).
-- **Pick up an issue**: the [Platform features push](https://github.com/bowenlabs/louise-toolkit/milestone/1)
-  milestone tracks the active work; issues labeled **good first issue** are the
-  gentlest entry points. Comment before you start so nobody doubles up.
+- **Pick up an issue**: the four milestones under
+  [epic #481](https://github.com/bowenlabs/louise-toolkit/issues/481) track the
+  active work, and issues labeled **good first issue** are the gentlest entry
+  points. Comment before you start so nobody doubles up.
+- **Propose work**: an issue goes into a milestone only when a site or a client
+  needs it. Everything else is labeled `parked`. Parked issues stay open, and a
+  real need is enough to bring one back.
 - **Improve the docs**: [docs.louisetoolkit.com](https://docs.louisetoolkit.com)
   is built from `workers/docs` (Starlight); fixes there are always welcome.
 
