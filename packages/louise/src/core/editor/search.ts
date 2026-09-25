@@ -20,6 +20,7 @@ import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import {
   type AiGatewayOptions,
   type AiRunner,
+  fuseRankings,
   semanticSearch,
   type VectorIndex,
 } from "../ai/index.js";
@@ -44,6 +45,10 @@ export interface SearchVectorConfig<Env extends EditorRouteEnv = EditorRouteEnv>
   gateway?: (env: Env) => AiGatewayOptions | undefined;
   /** How many nearest neighbours to pull before fusing. Default 20. */
   topK?: number;
+  /** Drop semantic matches scored below this floor before fusing, so a query
+   *  that matches nothing adds nothing. No default: omit it to keep every
+   *  match. See `SemanticSearchOptions.minScore` in `louise-toolkit/ai`. */
+  minScore?: number;
 }
 
 export interface SearchRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
@@ -85,33 +90,6 @@ export const SEARCH_LIMIT_MAX = 100;
 export function parseSearchLimit(raw: string | null): number {
   const n = Math.floor(Number(raw));
   return Number.isFinite(n) && n > 0 ? Math.min(n, SEARCH_LIMIT_MAX) : SEARCH_LIMIT_DEFAULT;
-}
-
-/** RRF's rank-damping constant. 60 is the canonical default (Cormack et al.);
- *  larger flattens the contribution of top ranks, smaller sharpens it. */
-export const RRF_K = 60;
-
-/**
- * Fuse two ranked id lists with Reciprocal Rank Fusion: an id's score is the sum
- * of `1 / (RRF_K + rank)` (1-indexed rank) over each list it appears in, so an id
- * ranked highly in *either* list surfaces and one ranked in *both* is boosted—without
- * the two lists' native scores needing to be comparable. Returns ids
- * ordered best-first. `keyword` and `semantic` are each already best-first.
- */
-export function fuseRankings(keyword: number[], semantic: number[]): number[] {
-  const scores = new Map<number, number>();
-  const add = (ids: number[]) => {
-    ids.forEach((id, i) => {
-      scores.set(id, (scores.get(id) ?? 0) + 1 / (RRF_K + i + 1));
-    });
-  };
-  add(keyword);
-  add(semantic);
-  return [...scores.keys()].sort((a, b) => {
-    const byScore = (scores.get(b) ?? 0) - (scores.get(a) ?? 0);
-    // Deterministic tiebreak so equal-score ids order stably (by id).
-    return byScore !== 0 ? byScore : a - b;
-  });
 }
 
 /** A row's numeric id, or `null` when a result row lacks one (never expected for
@@ -191,6 +169,7 @@ async function runSearch<Env extends EditorRouteEnv>(
     topK: cfg.vector.topK ?? SEARCH_LIMIT_DEFAULT,
     model: cfg.vector.model,
     gateway: cfg.vector.gateway?.(env),
+    minScore: cfg.vector.minScore,
   });
   if (semantic.length === 0) return ftsRows; // no semantic signal → keyword order
 
@@ -216,7 +195,7 @@ async function runSearch<Env extends EditorRouteEnv>(
   }
 
   const semanticIds = semantic.map((m) => m.id).filter((id) => byId.has(id));
-  const fused = fuseRankings(ftsIds, semanticIds);
+  const fused = fuseRankings([{ ids: ftsIds }, { ids: semanticIds }]);
   return fused
     .map((id) => byId.get(id))
     .filter((row) => row !== undefined)

@@ -200,6 +200,14 @@ export async function removeContentVector(
 export interface SemanticSearchOptions extends EmbedOptions {
   /** Max matches to return. Default 20. */
   topK?: number;
+  /**
+   * Drop any match whose score is below this floor, so a query that matches
+   * nothing returns nothing instead of the `topK` least-distant records. On a
+   * `cosine` index the score is a similarity, where higher is closer. No
+   * default: omit it to keep every match. A useful floor depends on the model
+   * and the content, so measure one against real queries before you set it.
+   */
+  minScore?: number;
 }
 
 /**
@@ -208,7 +216,8 @@ export interface SemanticSearchOptions extends EmbedOptions {
  * score, best-first. Best-effort → `[]` when the index/runner is absent, the
  * query embeds to nothing, or the query errors, so a caller falls back cleanly
  * to keyword results. Matches whose id doesn't parse to a numeric row id (a
- * foreign record) are skipped.
+ * foreign record) are skipped, as are matches scored below `opts.minScore`
+ * when it's set.
  *
  * PRIVACY—this is the one Louise path that sends *visitor*-supplied text off
  * the origin: the search query is embedded by Workers AI (a Cloudflare
@@ -232,8 +241,10 @@ export async function semanticSearch(
       topK: opts.topK ?? 20,
       namespace,
     });
+    const { minScore } = opts;
     const results: { id: number; score: number }[] = [];
     for (const match of matches) {
+      if (minScore !== undefined && !(match.score >= minScore)) continue;
       const id = parseContentVectorId(match.id);
       if (id !== null) results.push({ id, score: match.score });
     }

@@ -178,11 +178,55 @@ create the index with matching `--dimensions=768 --metric=cosine`).
 no binding → `embed`/`search` return `null`/`[]` so the FTS path carries the
 query unchanged, never on a write's critical path.
 
+`semanticSearch` takes an optional `minScore`: a match scored below it is
+dropped, so a query that matches nothing returns `[]` rather than the `topK`
+least-distant records. On a `cosine` index the score is a similarity, where
+higher is closer. It has no default, because a useful floor depends on the model
+and the content; measure one against real queries before you set it.
+
+## Rank fusion
+
+```ts
+import { fuseRankings, RRF_K } from "louise-toolkit/ai";
+
+function fuseRankings<Id extends string | number>(
+  lists: readonly { ids: readonly Id[]; weight?: number }[],
+  options?: { k?: number; limit?: number; boost?: (id: Id) => number },
+): Id[];
+```
+
+Merge ranked ID lists with Reciprocal Rank Fusion (RRF), the merge
+[`searchRoute`](/reference/editor/) uses for keyword and semantic results. An
+ID scores `weight / (k + rank)` in each list it appears in, summed, so a list's
+native scores never need to be comparable with another's. IDs can be numbers or
+strings.
+
+- **`weight`** scales one list's contribution. The default is 1.
+- **`k`** is the rank-damping constant, `RRF_K` (60) by default. A smaller `k`
+  favors top ranks more.
+- **`boost`** multiplies each ID's fused score, for a signal that belongs to the
+  document rather than a list, such as an authority weight. It runs before
+  `limit`.
+- **`limit`** caps how many IDs come back.
+
+Equal scores order by ID, so the result is deterministic. A repeated ID in one
+list counts only at its first position. A negative or non-finite `k`, `weight`,
+or `boost` result, or a `limit` that isn't a non-negative integer, throws a
+`RangeError`.
+
+```ts
+const top = fuseRankings([{ ids: keywordSlugs }, { ids: semanticSlugs, weight: 0.8 }], {
+  boost: (slug) => authority.get(slug) ?? 1,
+  limit: 10,
+});
+```
+
 ## Types
 
 `AiRunner`, `AiGatewayOptions`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
 `SeoSuggestion`, `SeoOptions`, `EmbedOptions`, `VectorIndex`, `VectorRecord`,
-`VectorMatch`, `IndexContentOptions`, `SemanticSearchOptions`. Constants:
-`DEFAULT_ALT_TEXT_MODEL`, `MAX_ALT_TEXT_LENGTH`, `DEFAULT_TEXT_MODEL`,
-`REWRITE_MODES`, `SEO_TITLE_MAX`, `SEO_DESCRIPTION_MAX`, `DEFAULT_EMBEDDING_MODEL`.
+`VectorMatch`, `IndexContentOptions`, `SemanticSearchOptions`, `RankedList`,
+`FuseRankingsOptions`. Constants: `DEFAULT_ALT_TEXT_MODEL`, `MAX_ALT_TEXT_LENGTH`,
+`DEFAULT_TEXT_MODEL`, `REWRITE_MODES`, `SEO_TITLE_MAX`, `SEO_DESCRIPTION_MAX`,
+`DEFAULT_EMBEDDING_MODEL`, `RRF_K`.
 `contentVectorId` / `parseContentVectorId` compose and recover the vector id.

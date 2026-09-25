@@ -53,9 +53,10 @@ for (const { subpath, condition, target } of targets) {
 
 // ---------------------------------------------------------------------------
 // 2. Symbols a first-party consumer needs must be reachable from a PUBLIC
-//    subpath. This list is the Astro adapter's import surface (#327): if the
-//    adapter is to live outside this package, every one of these has to be
-//    importable without reaching into `louise-toolkit/src/...`.
+//    subpath. This list is the import surface of first-party consumers outside
+//    this package, the Astro adapter (#327) and Louise's knowledge search
+//    (#555): every one of these has to be importable without reaching into
+//    `louise-toolkit/src/...`.
 // ---------------------------------------------------------------------------
 const required = {
   "./content": ["CollectionConfig", "FieldConfig"],
@@ -74,6 +75,10 @@ const required = {
   "./db": ["D1_BOOKMARK_COOKIE"],
   "./worker": ["LOUISE_EDIT_COOKIE", "louiseApiGate", "isLouisePublicPath", "LOUISE_API_PREFIX"],
   "./security": ["sanitizeRichHtml"],
+  // Louise's knowledge search fuses its own FTS5 and Vectorize results with
+  // these. They used to live in editor/search.ts, where no consumer could reach
+  // them (#555).
+  "./ai": ["fuseRankings", "RRF_K", "RankedList", "FuseRankingsOptions"],
 };
 
 for (const [subpath, symbols] of Object.entries(required)) {
