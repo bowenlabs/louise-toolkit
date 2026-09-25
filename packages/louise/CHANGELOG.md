@@ -1,5 +1,31 @@
 # louise-toolkit
 
+## 0.31.1
+
+### Patch Changes
+
+- 9833a03: A buffered draft save now runs the same checks a saved draft does. When `bufferKv` is on, an auto-save that KV absorbs (no D1 flush that time) skipped the collection's `update` access check and its `beforeChange` hooks, so the buffer could hold input the hooks would have changed, including rich text they sanitize. `resumeDraft` then returned that input for rendering in edit mode. Published content wasn't affected: a flush to D1 and every publish always ran the hooks.
+
+  - `applySaveDraft` runs the access check and the hooks before every buffer write, through a new `prepareDraft` method on the versioned Local API. A hook's `LouiseValidationError` now answers 422 on a buffered save too.
+  - `draftBufferKey` returns `draft:v2:<collection>:<id>`, so buffers written by earlier versions are never read. They expire on their existing 7-day TTL.
+
+  **Upgrade edge:** an edit that was still only in the buffer when you deploy, from the last 10 seconds or so of an editing session, isn't resumed. The page resumes from its latest D1 draft instead. Nothing else to do.
+
+- 57aa151: Error messages and editor UI copy follow the Google developer documentation style guide (ADR 0013). The words are the same; only the punctuation around them changed, so a spaced dash became a period, colon, semicolon, or comma. If you match on the text of these messages, check the new wording:
+
+  - `defineCollection` and `defineContent` errors for unindexable search fields, `realtime` without draft versioning, and duplicate collection slugs.
+  - `LocalApi` errors for an unregistered collection, a relationship to an unknown collection, and `search()` on a collection with no `search` config.
+  - The email error when no binding is configured.
+  - The editor's empty states in the media picker, upload field, pages panel, and health dashboard.
+
+- 0b4a96c: `settingsRoute` takes two optional hooks, `sanitize` and `read`, so a site can clamp and normalize what editors save.
+
+  **What's new.** `sanitize` maps a settings key to a function that returns the value to store. It runs on every patch before the link-scheme and media-URL checks, so a sanitizer can't let an unsafe `href` or an external image through. `read` transforms the merged settings on GET, for example to fill keys an older row lacks from the site's defaults. `applySettingsPatch` accepts `sanitize` too, so a host that mounts its own settings endpoint gets the same write path. `blobSettingsRoute` already offered both; now the structured route does as well.
+
+  The two hooks are also exported on their own as `SettingsRouteHooks`, with `SettingsSanitize` for one sanitizer and the pure `sanitizeSettingsPatch` for testing one.
+
+  **What you have to do.** Nothing. A route without the hooks behaves exactly as before. The allowlist still decides what's written: a sanitizer for a key outside `columns` and `customKeys` never runs on anything that gets stored.
+
 ## 0.31.0
 
 ### Minor Changes
