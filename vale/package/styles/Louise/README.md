@@ -32,3 +32,8 @@ It lints Markdown, comments in TypeScript and JavaScript, and `.astro` files
 (the template as HTML, the code as TypeScript), with `.mjs` linted as
 JavaScript because Vale 3.17 can't parse it. Use `--exclude` for files a tool
 generates, whose text belongs to the generator.
+
+It also reports `Louise.SpacedDash`, a spaced dash in Markdown that Vale's
+`Google.EmDash` can't see: one that bold text or inline code follows, where the
+dash and the markup fall in different text nodes. It reads the raw Markdown and
+skips front matter, code, and table cells that hold only a dash.

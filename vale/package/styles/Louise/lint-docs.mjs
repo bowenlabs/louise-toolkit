@@ -19,6 +19,11 @@
 // Those copies go to a temporary directory, and every finding is reported
 // against the real file and line.
 //
+// One check runs outside Vale. Google.EmDash can't see a spaced dash that bold
+// or inline code follows, because the dash ends one text node and the markup
+// starts the next. `spacedDashes` reads the
+// raw Markdown instead and reports what Vale missed, as `Louise.SpacedDash`.
+//
 // Without `--baseline`, any error-level finding fails the run. With it, the run
 // is a per-file ratchet: a file may not gain findings, and a file that loses
 // findings fails until `--update` records it. `--update` only lowers counts.
@@ -156,7 +161,90 @@ export function lintFiles(files, { configPath = ".vale.ini" } = {}) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  addMissedDashes(byFile, files);
   return byFile;
+}
+
+const SPACED_DASH = /\s[—–]\s/g;
+
+/**
+ * Spaced dashes in raw Markdown, outside front matter, fenced code, and inline
+ * code. A dash that's a table cell's whole content is an empty cell, not
+ * punctuation, so it's allowed. Returns Vale-shaped alerts.
+ */
+export function spacedDashes(text) {
+  const alerts = [];
+  const lines = text.split("\n");
+  let frontMatter = lines[0] === "---";
+  let fence = null;
+  // Inline code can wrap onto the next line of a paragraph.
+  let openCode = false;
+  // Mask with a letter, not spaces, so masked code can't manufacture a space
+  // beside a dash that has none (`a`—`b` is correct).
+  const blank = (m) => "x".repeat(m.length);
+  lines.forEach((line, i) => {
+    if (frontMatter) {
+      if (i > 0 && line === "---") frontMatter = false;
+      return;
+    }
+    const marker = line.match(/^\s*(`{3,}|~{3,})/);
+    if (marker) {
+      if (fence === null) fence = marker[1][0];
+      else if (marker[1][0] === fence) fence = null;
+      openCode = false;
+      return;
+    }
+    if (fence !== null) return;
+    if (line.trim() === "") {
+      openCode = false;
+      return;
+    }
+    let prose = line;
+    if (openCode) {
+      const close = prose.indexOf("`");
+      if (close === -1) return;
+      prose = blank(prose.slice(0, close + 1)) + prose.slice(close + 1);
+      openCode = false;
+    }
+    prose = prose.replace(/`[^`]*`/g, blank);
+    const open = prose.indexOf("`");
+    if (open !== -1) {
+      prose = prose.slice(0, open) + blank(prose.slice(open));
+      openCode = true;
+    }
+    prose = prose.replace(/\|\s*[—–]\s*(?=\|)/g, blank);
+    for (const hit of prose.matchAll(SPACED_DASH)) {
+      alerts.push({
+        Check: "Louise.SpacedDash",
+        Message: "Don't put a space before or after a dash.",
+        Severity: "error",
+        Line: i + 1,
+        Span: [hit.index + 1, hit.index + 3],
+      });
+    }
+  });
+  return alerts;
+}
+
+/**
+ * Adds the spaced dashes Vale missed. On each line, Vale's Google.EmDash
+ * findings account for that many raw hits, and only the rest are added, so a
+ * dash is never reported twice.
+ */
+function addMissedDashes(byFile, files) {
+  for (const file of files.filter((f) => /\.mdx?$/.test(f))) {
+    const found = new Map();
+    for (const a of byFile[file] ?? []) {
+      if (a.Check === "Google.EmDash") found.set(a.Line, (found.get(a.Line) ?? 0) + 1);
+    }
+    const perLine = new Map();
+    for (const hit of spacedDashes(fs.readFileSync(file, "utf8"))) {
+      perLine.set(hit.Line, [...(perLine.get(hit.Line) ?? []), hit]);
+    }
+    const missed = [];
+    for (const [line, hits] of perLine) missed.push(...hits.slice(found.get(line) ?? 0));
+    if (missed.length > 0) byFile[file] = [...(byFile[file] ?? []), ...missed];
+  }
 }
 
 function printAlerts(alerts, files) {

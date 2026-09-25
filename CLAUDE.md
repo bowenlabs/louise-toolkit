@@ -16,7 +16,7 @@ Dependencies flow **one way**: `astroidjs` → `louise-toolkit`, never the rever
 
 ## Toolchain
 
-- **Node 26** — `.nvmrc` and `engines`, matching the CI runner. An older Node
+- **Node 26:** `.nvmrc` and `engines`, matching the CI runner. An older Node
   runs fine right up until it doesn't, and the mismatch is invisible in a diff.
 - **Installs go through `corepack pnpm`**, against the pinned version in
   `packageManager`. A globally-installed pnpm produces a store error rather than
@@ -39,7 +39,7 @@ hardest, because a green `pnpm test` isn't evidence of a working change:
 | A test stub missing a method                 | Vitest's _unhandled rejection_ report | 1,159 passed          |
 
 Both times the suite reported success while the run failed. Grepping the vitest
-summary for `Tests` hides it — **check the exit code**, and read the `Errors`
+summary for `Tests` hides it: **check the exit code**, and read the `Errors`
 line if there's one.
 
 One more the suite can't replace: `node scripts/ci/checks/export-map.mjs`, run
