@@ -1,6 +1,6 @@
 # ADR 0005: Inline section and block editing with on-canvas chrome, a block layer, and the fragment-render contract
 
-- **Status:** Proposed (2026-07-18). **§2 (the three-attribute marker contract)
+- **Status:** Implemented (2026-07-19, #182). Proposed 2026-07-18. **§2 (the three-attribute marker contract)
   and §3 (the per-layer chrome) are superseded by [ADR 0010](./0010-editable-node-model.md)**
   (2026-07-28). The fragment-render contract, instant structural ops, and the
   inspector stand and are generalized there. Note especially that this ADR's
@@ -272,3 +272,19 @@ for illustration; production uses ProseKit marks, never `execCommand`.)
 - [ ] **Reference.** Convert one `workers/site` section (for example, `Hero`)
       onto blocks as the proving slice, mirroring ADR 0001/0003's "ship with a
       slice".
+
+## Amendment (2026-09-24): what shipped
+
+#182 closed on 2026-07-19 with every phase above shipped, including the
+Reference slice. The unchecked boxes in the adoption checklist are historical.
+One part of §3 landed differently:
+
+- **The dock is gone** (#229). Everything it did now happens on the canvas: the
+  hover toolbar reorders and deletes, the inspector edits array membership and
+  non-inline fields, and a floating "+" adds a section.
+- **Version history opens in its own right-side drawer,** from a History button on
+  the edit bar, not in the Settings drawer. The Settings drawer belongs to
+  `mountLouise`, and the sections editor mounts independently of it, so folding
+  history into it would couple the two surfaces. The history drawer reuses the
+  `.louise-drawer` styles. Merging the two drawers is an open follow-up, not a
+  decision.

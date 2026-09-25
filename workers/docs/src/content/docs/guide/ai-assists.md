@@ -80,3 +80,27 @@ disables caching for a call, and `skipCache: true` forces a fresh run.
 
 Omit `gateway` and calls go straight to Workers AI—the gateway is purely
 additive.
+
+## Troubleshooting
+
+The assists are best-effort, so a failing model doesn't throw. The helper returns
+`null` and the route answers `502` (`"Rewrite unavailable"` or
+`"Suggestion unavailable"`). A `503` means something else: no runner, because
+the binding is absent or generation is turned off.
+
+When an assist starts answering `502`:
+
+1. **Check `wrangler tail`.** [`runAi`](/reference/ai/#runairunner-model-inputs-options)
+   logs the underlying error before it returns `null`: a retired model, an unmet
+   JSON schema, or a quota.
+2. **Check the model ID against the [Workers AI model
+   catalog](https://developers.cloudflare.com/workers-ai/models/).** Cloudflare
+   deprecates models on a schedule, and a retired model fails every call. If
+   rewrite and SEO both fail, suspect the shared text model rather than one
+   feature. The helpers take a per-call `model` option, so you can pin a
+   current one.
+
+If you call `runAi` yourself with JSON mode (`response_format` of type
+`json_schema`), read the result as an object: Workers AI returns the parsed
+JSON under `response`, not a string. Code that expects text gets nothing back
+from a structured call.

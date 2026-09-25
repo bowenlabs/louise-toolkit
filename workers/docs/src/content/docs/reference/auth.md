@@ -248,6 +248,23 @@ const next = safeNextPath(url.searchParams.get("next"), "/account");
 - `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the
   lower-level halves `activeCaptcha` combines.
 
+When captcha is on, Better Auth's captcha plugin guards `/sign-in/magic-link`
+and rejects any request without an `x-captcha-response` **header**. A token in
+the request body doesn't count. Send the widget's token as that header from the
+sign-in form:
+
+```ts
+const token = widget?.token();
+await fetch("/api/auth/sign-in/magic-link", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    ...(token ? { "x-captcha-response": token } : {}),
+  },
+  body: JSON.stringify({ email, callbackURL: "/" }),
+});
+```
+
 ## Generating the auth schema
 
 Better Auth doesn't ship hand-written table DDL—it _derives_ its tables (user,
@@ -276,6 +293,16 @@ Then apply it like any Drizzle/D1 migration (`wrangler d1 migrations apply`).
 Re-run the command whenever the auth config changes—never hand-edit the output.
 The programmatic generator is also exported as
 `generateAuthSchemaSql(config): string`.
+
+### Upgrading Better Auth
+
+Before you move a site to a new Better Auth minor, diff the site's migrated auth
+tables against what `generateAuthSchemaSql` (or `louise gen-auth-schema`)
+produces for the same config and `tablePrefix`. A column the runtime expects but
+the database lacks doesn't fail the build or the type-check. It fails at request
+time, when Better Auth reads the user, so every session lookup errors and
+editors can't sign in. Add any missing columns in a migration before you deploy
+the upgrade.
 
 ### Where the auth tables live
 

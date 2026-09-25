@@ -1,6 +1,7 @@
 # ADR 0002: Real-time multi-editor collaboration via a per-page Durable Object
 
-- **Status:** Proposed (2026-07-15)
+- **Status:** Implemented (2026-07-19). Proposed 2026-07-15. The build departs from
+  the decision in two places; see the amendment.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #71 (milestone: Platform features push, epic #102)
 - **Related:** #68 (auto-save), #70 (KV write-buffer), #69 (D1 Sessions API), #109 (drawer action footer)
@@ -229,3 +230,36 @@ when PR 1 lands.
 - Whether `realtime` implies a specific `bufferKv` interaction on the fallback path, or the DO
   fully owns coalescing when connected (leaning: DO owns it when connected; KV buffer only on
   the fetch-fallback path).
+
+## Amendment (2026-09-24): as built
+
+#71 closed on 2026-07-19 with PR 1 (#147, #153, #156), then #232 (the protocol and
+persistence) and #240 (the client). Two things differ from the decision above,
+and one scope limit is worth recording.
+
+### Field state lives in `ctx.storage`, not in memory
+
+The decision says the DO "owns authoritative in-memory field state." In-memory
+state doesn't survive hibernation, and a hibernatable socket is the reason for
+choosing the WebSocket Hibernation API. So field values, revisions, locks, the
+flush target, and the last writer all live in `ctx.storage`. Only presence is
+rebuilt on wake, from `getWebSockets()` and each socket's attachment. That also
+merged PR 2 and PR 3 of the staging plan into one PR (#232).
+
+### The rich-text soft-lock never broadcasts the locked field
+
+Section 2 says a peer sees the locked body read-only. As built, the DO goes
+further: it drops a `change` to a locked field from anyone but the holder, and it
+never broadcasts a locked field's value at all. Peers reload the field when the
+lock is released. Raw rich text never crosses from one editor's socket to
+another's, which closes a cross-editor script-injection path. Only plain-text
+fields echo live.
+
+### Sections are presence-only in v1
+
+The sections surface is server-rendered, not bound to a client store, so applying
+a peer's whole-array change live needs a re-render pipeline. v1 shows presence on
+sections and keeps their persistence on the debounced-fetch draft path.
+
+The rest holds as decided: one write path (the DO's alarm calls `applySaveDraft`),
+opt-in per collection, and degrading to fetch auto-save when the socket drops.

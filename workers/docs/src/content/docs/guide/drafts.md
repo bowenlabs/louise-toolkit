@@ -127,6 +127,21 @@ draft, never a superseded one.
 `resumeDraft` returns the whole snapshot. Which fields a page renders from it is
 your schema's business.
 
+### Writing to the live row directly
+
+A write that bypasses the routes (a raw SQL `UPDATE` to a page's `sections`, a
+one-off script, a migration) changes only the live row. View mode shows it
+right away, but edit mode doesn't: `resumeDraft` prefers any pending draft,
+whether it's in the KV buffer or a draft version newer than the live pointer.
+The editor keeps seeing the draft, and the next save builds on the draft, so
+publishing overwrites your direct write.
+
+To change a page that has a pending draft, do one of the following:
+
+- Make the change through the editor or the API, so it lands on the draft.
+- Discard the pending draft first with `POST /api/louise/pages/:id/discard` (body
+  `{ versionId }`). Discarding also clears the KV buffer.
+
 ### Read-your-writes behind read replication
 
 Resuming a draft reads back what auto-save just wrote. On a default D1 database

@@ -1,6 +1,6 @@
 # ADR 0004: Edge caching published pages through a cookie-aware Worker Cache API layer
 
-- **Status:** Accepted, gated off (2026-07-17). The mechanism ships behind `LOUISE_EDGE_CACHE` (default **false**). Flip it on only after the preview-deploy runbook below passes.
+- **Status:** Accepted (2026-07-17). The mechanism ships behind `LOUISE_EDGE_CACHE` (default **false**). It's been on for the reference site since 2026-07-18; see the amendment.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #95 (in the Platform features push milestone, epic #102)
 - **Related:** #163 (root-cause issue, closed), #73 (edit-chrome Server Island), #88 (publish Workflow purge), #69 (D1 Sessions read-your-writes)
@@ -58,3 +58,19 @@ The mechanism ships **behind `LOUISE_EDGE_CACHE` (default false)**. With the fla
 7. Only after steps 3–6 pass on preview: set `LOUISE_EDGE_CACHE=true` in the prod `wrangler.jsonc` and redeploy.
 
 If any step fails, leave `LOUISE_EDGE_CACHE=false` (the proven-safe `no-store` state) and reopen the investigation on the preview, not prod.
+
+## Amendment (2026-09-24): enabled on the reference site
+
+`LOUISE_EDGE_CACHE` has been `"true"` in `workers/site/wrangler.jsonc` since #184
+(2026-07-18), after the runbook passed. The library default stays **false**, so
+every other site still opts in through the same runbook.
+
+- **Rollback:** set `LOUISE_EDGE_CACHE` back to `"false"` (or comment the line out)
+  and redeploy. That returns the site to the proven `no-store` state. Pages already
+  in `caches.default` age out within `PAGE_CACHE_MAX_AGE`, because neither Dev Mode
+  nor Purge Everything clears that cache.
+- **What to watch for:** an editor served a public or stale page. That's the
+  failure both earlier attempts hit (#162, #165).
+- **For other code:** `isEditRequest` and `LOUISE_EDIT_COOKIE` are exported from
+  `louise-toolkit/worker`, so a site's bypass predicate and the middleware read one
+  cookie name and can't drift apart.

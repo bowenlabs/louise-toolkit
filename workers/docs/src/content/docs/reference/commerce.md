@@ -432,6 +432,9 @@ import {
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                             |
 | **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                          |
 | **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                           |
+| **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                     |
+| **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                           |
+| **Invoices**              | `createInvoice`, `publishInvoice`, `retrieveInvoice`, `SquareInvoice`, `InvoicePaymentRequestInput`                                                                                                                                          |
 | **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                  |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
@@ -481,3 +484,64 @@ the order's `location_id` is strongly implied by Square staff but never stated i
 the docs—if you sell the same item at two locations with different rates,
 confirm it against your own catalog before trusting it.
 :::
+
+### Team, labor, and invoices
+
+**Team.** `searchTeamMembers` filters by `status` (default `ACTIVE`) and
+`locationIds` only, because the Team API has no email filter. It returns the
+first page, up to `limit` (default 200). To link Square records to your own
+users, set `referenceId` to your user ID when you create the team member, then
+match on `referenceId` in the results.
+
+**Labor.** A team member holds only one open timecard at a time.
+`updateTimecard` replaces the whole record, and Square requires a wage on it,
+so an update that omits `wage` fails. To clock someone out, read the timecard
+first and send its `wage` and `version` back with the new `endAt`:
+
+```ts
+const card = await retrieveTimecard(config, timecardId);
+if (!card) throw new Error("No such timecard");
+await updateTimecard(config, card.id, {
+  locationId: card.locationId,
+  teamMemberId: card.teamMemberId,
+  startAt: card.startAt,
+  endAt: new Date().toISOString(),
+  version: card.version,
+  wage: card.wage
+    ? {
+        title: card.wage.title ?? undefined,
+        hourlyRateCents: card.wage.hourlyRateCents,
+        currency: card.wage.currency,
+      }
+    : undefined,
+});
+```
+
+Square rejects a stale `version`, so a concurrent change fails your update
+rather than being overwritten.
+
+**Invoices.** `createInvoice` makes a draft invoice for an existing open order:
+the order carries the line items and total, and the invoice adds the recipient
+and a payment schedule. `paymentRequests` takes exactly one `BALANCE` as the
+last request, preceded by an optional `DEPOSIT`, 2 to 12 `INSTALLMENT`
+requests, or both. Omit `amountCents` on the `BALANCE` to cover whatever remains.
+
+```ts
+const draft = await createInvoice(config, {
+  locationId,
+  orderId,
+  customerId,
+  paymentRequests: [
+    { type: "DEPOSIT", dueDate: "2026-10-01", amountCents: 5000 },
+    { type: "BALANCE", dueDate: "2026-10-15" },
+  ],
+});
+const invoice = await publishInvoice(config, draft.id, draft.version);
+```
+
+Nothing is collected until you call `publishInvoice` with the draft's
+`version`. With the default `deliveryMethod` of `SHARE_MANUALLY`, the
+published invoice carries a `publicUrl` to Square's hosted payment page for you
+to send. Pass `"EMAIL"` to have Square email the customer instead. To reconcile
+payments, call `retrieveInvoice` and read each payment request's
+`totalCompletedAmountCents`.

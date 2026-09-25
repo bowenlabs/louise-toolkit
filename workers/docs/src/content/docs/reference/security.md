@@ -241,6 +241,43 @@ const res = await next();
 louiseSecurityHeaders(res, { hostname: url.hostname });
 ```
 
+### Allowing the bundled font: `allowCspDataFonts(response)`
+
+Louise's theme inlines its brand font as a `data:` `@font-face` (see
+[Fonts](/reference/theme/#fonts)), and every edit surface loads it. A strict
+`font-src` blocks that. `allowCspDataFonts` adds `data:` to the response's
+existing `font-src`. If the policy has no `font-src` but has a `default-src`,
+it appends a `font-src` built from `default-src` plus `data:`, so nothing else
+loosens. It's a no-op without a CSP header, when fonts are already
+unrestricted, or when `data:` is already allowed.
+
+The `@louise-toolkit/astro` middleware (`createLouiseMiddleware`) calls it on
+every response, so a site that uses the middleware needs no `font-src` change.
+Call it yourself only if you assemble responses without that middleware.
+
+### Payment SDK origins
+
+A payment SDK that mounts a card form can load its own stylesheet and fonts into
+**your** page, not only into its iframe. Allowing its origin in `script-src`
+alone isn't enough: the script loads, but the blocked stylesheet stops the card
+form from mounting. Add the SDK's origins to `style-src` and `font-src` too.
+
+For Square, `squareWebPaymentsCsp(options?)` from
+`louise-toolkit/commerce/square-web` returns the origins per directive
+(`script`, `style`, `frame`, `connect`, `font`). Merge each list into the
+matching directive of your policy:
+
+```ts
+import { squareWebPaymentsCsp } from "louise-toolkit/commerce/square-web";
+
+const square = squareWebPaymentsCsp({ wallets: true });
+// square.style → style-src, square.font → font-src, and so on.
+```
+
+It allows both Square environments by default, because a CSP is usually fixed
+at build time while the environment is a runtime secret. Pass
+`environments: ["production"]` only when you compute the policy per request.
+
 ### Keeping preview hosts out of search: `isNoindexHost(hostname, options?)`
 
 A preview deploy is a full copy of the site, so an indexed one competes with
