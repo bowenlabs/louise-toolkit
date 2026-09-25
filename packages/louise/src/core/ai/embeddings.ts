@@ -74,6 +74,89 @@ function isNumberArray(v: unknown): v is number[] {
   return Array.isArray(v) && v.every((n) => typeof n === "number");
 }
 
+/** How many texts {@link embedMany} sends in one call by default. Workers AI's
+ *  BGE embedding models accept up to 100 inputs per request. */
+export const EMBED_MANY_BATCH = 100;
+
+export interface EmbedManyOptions extends EmbedOptions {
+  /** Texts per Workers AI call. Default {@link EMBED_MANY_BATCH}; lower it for a
+   *  model that takes fewer inputs per request. A positive integer. */
+  batchSize?: number;
+}
+
+/**
+ * Embed many texts, in as few Workers AI calls as the model allows: one call
+ * per {@link EmbedManyOptions.batchSize} texts instead of one per text. Use it
+ * for bulk work, such as backfilling a collection's vectors; {@link embed}
+ * stays the call for a single text.
+ *
+ * Returns one entry per input, in input order: the text's vector, or `null`
+ * when the text is blank or its batch failed. Best-effort like the rest of
+ * `core/ai`, so it never throws. A batch fails as a whole when the runner is
+ * absent, the call errors, or the response doesn't hold exactly one vector per
+ * text, and the caller can retry just the `null` entries.
+ *
+ * @example
+ * ```ts
+ * import { embedMany } from "louise-toolkit/ai";
+ *
+ * const texts = rows.map((row) => row.body);
+ * const vectors = await embedMany(env.AI, texts);
+ * const failed = texts.filter((_, i) => vectors[i] === null);
+ * ```
+ *
+ * @throws {RangeError} When `batchSize` isn't a positive integer. That's a
+ *   programming error, not a runtime failure, so it isn't swallowed.
+ */
+export async function embedMany(
+  runner: AiRunner | undefined,
+  texts: readonly string[],
+  opts: EmbedManyOptions = {},
+): Promise<(number[] | null)[]> {
+  const batchSize = opts.batchSize ?? EMBED_MANY_BATCH;
+  if (!(Number.isInteger(batchSize) && batchSize > 0)) {
+    throw new RangeError(`embedMany: batchSize must be a positive integer, got ${batchSize}`);
+  }
+  const out: (number[] | null)[] = texts.map(() => null);
+  // Blank texts never reach the model; their entries stay null.
+  const pending = texts.flatMap((text, i) => (text.trim() ? [{ i, text: text.trim() }] : []));
+  if (!runner) return out;
+
+  for (let start = 0; start < pending.length; start += batchSize) {
+    const batch = pending.slice(start, start + batchSize);
+    const result = await runAi(
+      runner,
+      opts.model ?? DEFAULT_EMBEDDING_MODEL,
+      { text: batch.map((item) => item.text) },
+      opts.gateway ? { gateway: opts.gateway } : undefined,
+    );
+    const vectors = extractVectors(result, batch.length);
+    if (!vectors) continue;
+    batch.forEach((item, j) => {
+      out[item.i] = vectors[j]!;
+    });
+  }
+  return out;
+}
+
+/** Pull `count` vectors out of a batch response (`{ data: number[][] }`), or
+ *  `null` when it holds a different number, so a vector is never paired with
+ *  the wrong text. A one-text batch also takes {@link embed}'s single shapes. */
+function extractVectors(out: unknown, count: number): number[][] | null {
+  const data =
+    out && typeof out === "object" && !Array.isArray(out)
+      ? ((out as Record<string, unknown>).data ?? (out as Record<string, unknown>).result)
+      : undefined;
+  if (Array.isArray(data) && data.length === count && data.every(isNumberArray)) {
+    return data as number[][];
+  }
+  if (count === 1) {
+    const single = extractVector(out);
+    return single ? [single] : null;
+  }
+  return null;
+}
+
 // ── Vectorize index contract ─────────────────────────────────────────────────
 
 /** A value Vectorize accepts in a vector's metadata—JSON primitives plus a
@@ -176,6 +259,60 @@ export async function indexContent(
   } catch {
     return false;
   }
+}
+
+/** One row for {@link indexContents}. */
+export interface IndexContentItem {
+  id: number;
+  text: string;
+  /** Extra metadata for this row's vector, merged over the call's `metadata`. */
+  metadata?: Record<string, VectorMetadataValue>;
+}
+
+/**
+ * The batch form of {@link indexContent}: embed many rows with
+ * {@link embedMany} and upsert their vectors, so a backfill of a whole
+ * collection makes one Workers AI call per 100 rows instead of one per row.
+ * Returns the IDs whose vectors were stored. A row whose text is blank or
+ * whose embedding failed is left out, and so is every row in an upsert that
+ * errors. Best-effort, so it never throws.
+ */
+export async function indexContents(
+  index: VectorIndex | undefined,
+  runner: AiRunner | undefined,
+  namespace: string,
+  items: readonly IndexContentItem[],
+  opts: IndexContentOptions & Pick<EmbedManyOptions, "batchSize"> = {},
+): Promise<number[]> {
+  if (!index || items.length === 0) return [];
+  const vectors = await embedMany(
+    runner,
+    items.map((item) => item.text),
+    opts,
+  );
+  const records: VectorRecord[] = [];
+  items.forEach((item, i) => {
+    const values = vectors[i];
+    if (!values) return;
+    records.push({
+      id: contentVectorId(namespace, item.id),
+      values,
+      namespace,
+      metadata: { collection: namespace, docId: item.id, ...opts.metadata, ...item.metadata },
+    });
+  });
+  const stored: number[] = [];
+  // Vectorize takes at most 1,000 vectors per upsert from a Worker binding.
+  for (let start = 0; start < records.length; start += 1000) {
+    const batch = records.slice(start, start + 1000);
+    try {
+      await index.upsert(batch);
+      for (const record of batch) stored.push(record.metadata!.docId as number);
+    } catch {
+      // best-effort, like indexContent: the rows left out are what to retry.
+    }
+  }
+  return stored;
 }
 
 /**
