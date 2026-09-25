@@ -135,6 +135,9 @@ Write new prose to the guide from the start. The details that trip people up:
 
 - **Dashes:** `word—word`, with no space on either side of the dash, in
   comments too.
+- **Separators:** a dash is only for sentences. Page titles use a pipe
+  (`Overview | Ghostfire admin`); items side by side use a middle dot
+  (`Jane Doe · Founder`, an image's alt text, a button label with a price).
 - **Contractions:** use them ("isn't," "doesn't").
 - **Voice:** second person and present tense, with no "we," "will," or "simply."
 - **Examples:** use Google's [example conventions](https://developers.google.com/style/examples)
