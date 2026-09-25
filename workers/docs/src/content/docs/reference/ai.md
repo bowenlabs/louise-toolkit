@@ -193,14 +193,26 @@ function indexContents(
 ): Promise<number[]>;
 ```
 
-`embedMany` embeds many texts in one Workers AI call per `batchSize` texts
-(default `EMBED_MANY_BATCH`, 100, the most the BGE models take per request),
-instead of one call per text. It returns one entry per input, in order: the
-vector, or `null` for a blank text or a failed batch, so you can retry just the
-`null` entries. `indexContents` is the batch form of `indexContent`, for a
-backfill: it embeds with `embedMany`, upserts the vectors, and returns the row
-IDs it stored. Use `embed` and `indexContent` for one row at a time, such as on
-publish.
+`embedMany` returns the vector `embed` would give each text, one entry per
+input, in order: the vector, or `null` for a blank text or a failed call, so you
+can retry just the `null` entries. `indexContents` is the batch form of
+`indexContent`, for a backfill: it embeds with `embedMany`, upserts the vectors,
+and returns the row IDs it stored. Use `embed` and `indexContent` for one row at
+a time, such as on publish.
+
+**Batching needs CLS pooling.** Workers AI's BGE models pool token vectors by
+their mean unless you ask otherwise, and under mean pooling a batch changes
+each text's vector: a short text batched with a longer one comes back
+measurably different, and matches its queries less well. So `embedMany` sends
+one text per call by default. Pass `pooling: "cls"`, the pooling BGE was
+trained with, and it sends `batchSize` texts per call (default
+`EMBED_MANY_BATCH`, 100, the most the BGE models take per request), with the
+same vectors as one at a time.
+
+Mean and CLS vectors don't mix, so pass the same `pooling` to every call that
+writes to an index and to `semanticSearch` on it. To move an existing index to
+CLS, re-embed every row with `indexContents` and `pooling: "cls"`, then switch
+your searches.
 
 `semanticSearch` takes an optional `minScore`: a match scored below it is
 dropped, so a query that matches nothing returns `[]` rather than the `topK`
@@ -248,7 +260,7 @@ const top = fuseRankings([{ ids: keywordSlugs }, { ids: semanticSlugs, weight: 0
 ## Types
 
 `AiRunner`, `AiGatewayOptions`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
-`SeoSuggestion`, `SeoOptions`, `EmbedOptions`, `VectorIndex`, `VectorRecord`,
+`SeoSuggestion`, `SeoOptions`, `EmbedOptions`, `EmbeddingPooling`, `VectorIndex`, `VectorRecord`,
 `VectorMatch`, `IndexContentOptions`, `SemanticSearchOptions`, `RankedList`,
 `FuseRankingsOptions`. Constants: `DEFAULT_ALT_TEXT_MODEL`, `MAX_ALT_TEXT_LENGTH`,
 `DEFAULT_TEXT_MODEL`, `REWRITE_MODES`, `SEO_TITLE_MAX`, `SEO_DESCRIPTION_MAX`,

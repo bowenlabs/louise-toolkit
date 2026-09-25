@@ -22,11 +22,29 @@ import { type AiGatewayOptions, type AiRunner, runAi } from "./index.js";
  *  Overridable per call so a site can swap models (create a matching index). */
 export const DEFAULT_EMBEDDING_MODEL = "@cf/baai/bge-base-en-v1.5";
 
+/**
+ * How a BGE English v1.5 model turns its token vectors into one text vector.
+ * `"mean"` averages them, and it's what Workers AI does when you don't ask.
+ * `"cls"` takes the first token's vector, the pooling BGE was trained with.
+ *
+ * The two give different vectors for the same text, so the vectors you store
+ * and the queries you search them with have to use the same pooling. Only
+ * `"cls"` gives the same vector for a text whether it's embedded alone or in a
+ * batch; see {@link embedMany}.
+ */
+export type EmbeddingPooling = "mean" | "cls";
+
 export interface EmbedOptions {
   /** Embedding model id. Default {@link DEFAULT_EMBEDDING_MODEL}. */
   model?: string;
   /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
+  /**
+   * The pooling to ask a BGE English v1.5 model for. Omit it for Workers AI's
+   * default, `"mean"`, or for a model that doesn't take the option. Use the
+   * same value when you index and when you search.
+   */
+  pooling?: EmbeddingPooling;
 }
 
 /**
@@ -49,7 +67,7 @@ export async function embed(
   const out = await runAi(
     runner,
     opts.model ?? DEFAULT_EMBEDDING_MODEL,
-    { text: input },
+    { text: input, ...(opts.pooling ? { pooling: opts.pooling } : {}) },
     opts.gateway ? { gateway: opts.gateway } : undefined,
   );
   return extractVector(out);
@@ -79,16 +97,24 @@ function isNumberArray(v: unknown): v is number[] {
 export const EMBED_MANY_BATCH = 100;
 
 export interface EmbedManyOptions extends EmbedOptions {
-  /** Texts per Workers AI call. Default {@link EMBED_MANY_BATCH}; lower it for a
-   *  model that takes fewer inputs per request. A positive integer. */
+  /** Texts per Workers AI call when `pooling` is `"cls"`. Default
+   *  {@link EMBED_MANY_BATCH}; lower it for a model that takes fewer inputs per
+   *  request. A positive integer. With any other pooling, each text gets its
+   *  own call. */
   batchSize?: number;
 }
 
 /**
- * Embed many texts, in as few Workers AI calls as the model allows: one call
- * per {@link EmbedManyOptions.batchSize} texts instead of one per text. Use it
- * for bulk work, such as backfilling a collection's vectors; {@link embed}
- * stays the call for a single text.
+ * Embed many texts, returning the vectors {@link embed} would return for each
+ * one. Use it for bulk work, such as backfilling a collection's vectors;
+ * {@link embed} stays the call for a single text.
+ *
+ * With `pooling: "cls"`, it sends up to {@link EmbedManyOptions.batchSize}
+ * texts in each Workers AI call. With mean pooling, Workers AI's default, it
+ * sends one text per call, because a batch changes a text's vector: a short
+ * text batched with a longer one comes back measurably different from the same
+ * text embedded alone, and matches its queries less well. So to embed in
+ * batches, index and search with `pooling: "cls"`.
  *
  * Returns one entry per input, in input order: the text's vector, or `null`
  * when the text is blank or its batch failed. Best-effort like the rest of
@@ -117,17 +143,19 @@ export async function embedMany(
   if (!(Number.isInteger(batchSize) && batchSize > 0)) {
     throw new RangeError(`embedMany: batchSize must be a positive integer, got ${batchSize}`);
   }
+  // Only CLS pooling gives a text the same vector in a batch as alone.
+  const perCall = opts.pooling === "cls" ? batchSize : 1;
   const out: (number[] | null)[] = texts.map(() => null);
   // Blank texts never reach the model; their entries stay null.
   const pending = texts.flatMap((text, i) => (text.trim() ? [{ i, text: text.trim() }] : []));
   if (!runner) return out;
 
-  for (let start = 0; start < pending.length; start += batchSize) {
-    const batch = pending.slice(start, start + batchSize);
+  for (let start = 0; start < pending.length; start += perCall) {
+    const batch = pending.slice(start, start + perCall);
     const result = await runAi(
       runner,
       opts.model ?? DEFAULT_EMBEDDING_MODEL,
-      { text: batch.map((item) => item.text) },
+      { text: batch.map((item) => item.text), ...(opts.pooling ? { pooling: opts.pooling } : {}) },
       opts.gateway ? { gateway: opts.gateway } : undefined,
     );
     const vectors = extractVectors(result, batch.length);
@@ -271,8 +299,9 @@ export interface IndexContentItem {
 
 /**
  * The batch form of {@link indexContent}: embed many rows with
- * {@link embedMany} and upsert their vectors, so a backfill of a whole
- * collection makes one Workers AI call per 100 rows instead of one per row.
+ * {@link embedMany} and upsert their vectors in bulk. With `pooling: "cls"`, a
+ * backfill of a whole collection makes one Workers AI call per 100 rows
+ * instead of one per row; search it with the same pooling.
  * Returns the IDs whose vectors were stored. A row whose text is blank or
  * whose embedding failed is left out, and so is every row in an upsert that
  * errors. Best-effort, so it never throws.
