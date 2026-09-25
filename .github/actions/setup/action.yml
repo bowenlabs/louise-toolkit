@@ -37,7 +37,7 @@ runs:
     # managing its own.
     - uses: actions/setup-node@v7
       with:
-        node-version: 26
+        node-version-file: .nvmrc
 
     # The Vite+ install is a curl-fetched tarball, not an npm dependency, so it
     # is cached by version rather than by lockfile.

@@ -2,6 +2,10 @@ packages:
   - packages/*
   - workers/*
 
+# Refuse to install on the wrong Node rather than warn: `engines` alone only
+# prints "Unsupported engine" and carries on. The version is .nvmrc.
+engineStrict: true
+
 # Dedupe @cloudflare/workers-types onto the v5 that packages/louise targets.
 # wrangler declares an optional ^4 peer, which otherwise pulls a second (v4) copy
 # into workers/site + workers/sandbox — splitting drizzle-orm into two
