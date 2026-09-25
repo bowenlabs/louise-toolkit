@@ -4,13 +4,14 @@
 // person actually reads lives in strings: an error message a route returns, a
 // button label, an empty state. This module finds those strings with the
 // TypeScript parser and renders each file's strings as a Markdown document,
-// one paragraph per string, with a map back to the source line. The ratchet in
-// vale-ratchet.mjs lints the documents and counts findings per source file.
+// one paragraph per string, with a map back to the source line. The lint
+// runner (lint-docs.mjs) lints the documents when it's given `--strings`, and
+// reports each finding against its source file and line.
 //
 // What counts as user-facing, and why each is in:
 //
-//   - The first argument to `new Louise…Error(…)`. ADR 0012 makes these safe
-//     to show, and routes do show them.
+//   - The first argument to `new Louise…Error(…)` or `new Astroid…Error(…)`.
+//     ADR 0012 makes these safe to show, and routes do show them.
 //   - `error` and `message` values in an object passed to `json(…)`: the body
 //     a route returns.
 //   - JSX text, and the JSX attributes a person reads or a screen reader
@@ -20,12 +21,35 @@
 // maintaining the code reads those, and they follow the style in comments, not
 // here. A template literal's `${…}` becomes a code span, so an interpolated
 // value is never linted as prose.
+//
+// It needs the TypeScript parser, and a style package can't ship one. So it
+// loads `typescript` from the repository being linted, resolving from each
+// source file's own folder, since a site installs it in its app package rather
+// than at the root.
 import { createRequire } from "node:module";
+import path from "node:path";
 
-const require = createRequire(import.meta.url);
-const ts = require("typescript");
+let ts;
 
-const ERROR_CLASS = /^Louise\w*Error$/;
+/** Loads `typescript` as installed for `fileName`, once. */
+function loadTypeScript(fileName) {
+  if (ts) return ts;
+  const bases = [path.resolve(fileName), path.join(process.cwd(), "package.json")];
+  for (const base of bases) {
+    try {
+      ts = createRequire(base)("typescript");
+      return ts;
+    } catch {
+      // Try the next base.
+    }
+  }
+  throw new Error(
+    "The strings check needs the `typescript` package, and none resolves from " +
+      `${fileName} or the repository root. Install it, or drop \`--strings\`.`,
+  );
+}
+
+const ERROR_CLASS = /^(Louise|Astroid)\w*Error$/;
 const BODY_KEYS = new Set(["error", "message"]);
 const READ_ATTRS = new Set(["title", "aria-label", "placeholder", "alt", "label"]);
 
@@ -52,6 +76,7 @@ function textOf(node, sf) {
  * on. Returns an empty list for files with none.
  */
 export function extractStrings(fileName, text) {
+  loadTypeScript(fileName);
   const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
   const found = [];

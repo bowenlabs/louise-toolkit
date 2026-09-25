@@ -103,3 +103,13 @@ Decision 2 left publishing the house style as a follow-up. It's done, and the sh
 **Separators aren't dashes.** Linting `.astro` templates surfaced spaced dashes used as separators rather than punctuation: page titles (`Overview — Ghostfire admin`), testimonial attributions, and joined spec lines. Unspacing them would have changed visible titles and layouts on every client site, so separators get their own characters instead. Page titles use a pipe (`Overview | Ghostfire admin`), and items side by side use a middle dot (`Jane Doe · Founder`). A dash is only for sentences.
 
 **User-facing strings are now checked (decision 5).** `scripts/ci/checks/copy-extract.mjs` finds them with the TypeScript parser: the first argument to `new Louise…Error(…)`, the `error` and `message` values a route returns through `json(…)`, JSX text, and the JSX attributes a person reads or a screen reader announces (`title`, `aria-label`, `placeholder`, `alt`, `label`). The ratchet lints each file's strings as a Markdown document and counts the findings under the source path with a ` (strings)` suffix. Log lines, test names, and CI-script messages stay out: a maintainer reads those, and they follow the comment style instead.
+
+## Amendment (2026-09-25, strings checked in every repository)
+
+The strings check (decision 5) now ships in the house package, as `vale/package/styles/Louise/copy-extract.mjs` beside the lint runner, instead of living in this repository's `scripts/ci/checks/`. The sites carry most of the copy a customer reads, in Solid islands, and nothing linted it.
+
+- The runner gains `--strings=<regex>`: user-facing strings in the TypeScript files it matches are linted and reported under ` (strings)`, as they were here. Without the flag, nothing changes.
+- A style package can't ship a TypeScript parser, so the extractor loads `typescript` from the repository being linted, resolving from each source file's own folder, because a site installs it in its app package rather than at the root.
+- Error messages count from `new Astroid…Error(…)` as well as `new Louise…Error(…)`.
+
+This repository's ratchet calls the runner's `lintStrings` with the same sources as before, so its baseline is unchanged. It shipped in house package `vale-v1.3.0`.

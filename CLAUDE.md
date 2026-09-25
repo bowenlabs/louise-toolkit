@@ -161,8 +161,9 @@ each with its reason in `vale/package/.vale.ini`: `LyHyphens` and `Quotes`.
 `lint:docs` runs the house package's lint runner (`vale/package/styles/Louise/lint-docs.mjs`) over Markdown, code comments, and `.astro` templates, and also lints **user-facing strings**: error messages from `new
 Louise…Error(…)`, `error` and `message` in a `json(…)` body, JSX text, and the
 JSX attributes people read (`title`, `aria-label`, `placeholder`, `alt`,
-`label`). `scripts/ci/checks/copy-extract.mjs` defines the list. A finding in
-one shows up as `path/to/file.tsx (strings)`.
+`label`). `vale/package/styles/Louise/copy-extract.mjs` defines the list, and it
+ships in the house package, so the sites run it too. A finding in one shows up
+as `path/to/file.tsx (strings)`.
 
 `lint:docs` is a **per-file ratchet** against `vale/baseline.json`, which holds
 the few findings that remain:

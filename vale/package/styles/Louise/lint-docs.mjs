@@ -3,7 +3,8 @@
 // package, so `vale sync` puts it at `.vale/Louise/lint-docs.mjs`, and a
 // repository's `lint:docs` script is one line:
 //
-//   node .vale/Louise/lint-docs.mjs [--exclude=<regex>]... [--baseline=<file> [--update]]
+//   node .vale/Louise/lint-docs.mjs [--exclude=<regex>]... [--strings=<regex>]...
+//                                   [--baseline=<file> [--update]]
 //
 // What it lints, from `git ls-files`: Markdown and MDX; comments in TypeScript
 // and JavaScript; and in `.astro` files, both the template's text and the
@@ -24,11 +25,18 @@
 // starts the next. `spacedDashes` reads the
 // raw Markdown instead and reports what Vale missed, as `Louise.SpacedDash`.
 //
+// With `--strings`, it also lints user-facing strings (error messages, `json(…)`
+// bodies, JSX text, and readable JSX attributes) in the TypeScript files the
+// patterns match, using copy-extract.mjs beside this file. Findings count under
+// the source path with a ` (strings)` suffix. That needs the `typescript`
+// package, loaded from the repository being linted.
+//
 // Without `--baseline`, any error-level finding fails the run. With it, the run
 // is a per-file ratchet: a file may not gain findings, and a file that loses
 // findings fails until `--update` records it. `--update` only lowers counts.
 //
-// No dependencies beyond Node itself, so it runs in any repository.
+// No dependencies beyond Node itself, so it runs in any repository; only
+// `--strings` needs TypeScript.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -247,6 +255,42 @@ function addMissedDashes(byFile, files) {
   }
 }
 
+const STRINGS = " (strings)";
+
+/**
+ * Lints the user-facing strings in each file that matches one of `sources`, as
+ * a Markdown document per file, and maps every finding back to its source file
+ * and line. Returns alerts keyed `<file> (strings)`.
+ */
+export async function lintStrings(files, sources, { configPath = ".vale.ini" } = {}) {
+  const targets = files.filter((f) => /\.tsx?$/.test(f) && sources.some((re) => re.test(f)));
+  if (targets.length === 0) return {};
+  const { stringsDocument } = await import("./copy-extract.mjs");
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "louise-strings-")));
+  const docs = new Map();
+  try {
+    for (const file of targets) {
+      const doc = stringsDocument(file, fs.readFileSync(file, "utf8"));
+      if (doc.count === 0) continue;
+      const docPath = path.join(dir, `${file.replaceAll("/", "__")}.md`);
+      fs.writeFileSync(docPath, doc.markdown);
+      docs.set(docPath, { file, sourceLine: doc.sourceLine });
+    }
+    const byFile = {};
+    for (const [key, list] of Object.entries(lintFiles([...docs.keys()], { configPath }))) {
+      const doc = docs.get(path.resolve(key));
+      if (!doc) continue;
+      byFile[doc.file + STRINGS] = list.map((a) => ({
+        ...a,
+        Line: doc.sourceLine[a.Line - 1] ?? a.Line,
+      }));
+    }
+    return byFile;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function printAlerts(alerts, files) {
   for (const file of files) {
     for (const a of alerts[file] ?? []) {
@@ -301,14 +345,17 @@ export function ratchet(alerts, baselinePath, { update = false } = {}) {
   return 0;
 }
 
-function main(argv) {
+async function main(argv) {
   const exclude = argv
     .filter((a) => a.startsWith("--exclude="))
+    .map((a) => new RegExp(a.slice(10)));
+  const strings = argv
+    .filter((a) => a.startsWith("--strings="))
     .map((a) => new RegExp(a.slice(10)));
   const baseline = argv.find((a) => a.startsWith("--baseline="))?.slice(11);
   const update = argv.includes("--update");
   const files = collectFiles({ exclude });
-  const alerts = lintFiles(files);
+  const alerts = { ...lintFiles(files), ...(await lintStrings(files, strings)) };
   if (baseline) return ratchet(alerts, baseline, { update });
   const total = Object.values(alerts).reduce((n, l) => n + l.length, 0);
   printAlerts(alerts, Object.keys(alerts).sort());
@@ -317,5 +364,5 @@ function main(argv) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  process.exit(main(process.argv.slice(2)));
+  process.exit(await main(process.argv.slice(2)));
 }
