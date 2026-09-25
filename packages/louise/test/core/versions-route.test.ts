@@ -9,11 +9,11 @@ import { latestPendingDraft, versionsRoute } from "../../src/core/editor/index.j
 // publish happy path runs against a real local D1 in the astro-preview E2E
 // (there is no async in-memory SQLite harness in this repo).
 //
-// One behaviour that path guards and this file cannot: `applySaveDraft` now
-// converts a `LouiseValidationError` thrown by the collection's `beforeChange`
-// hook (for example, an unknown section `_type`) into a 422, not the unhandled 500 it
-// used to be. Reaching that throw needs a real D1 (a mock returns 404 on the
-// current-row SELECT first), so it's asserted served, in CI's scaffold live-smoke leg
+// `applySaveDraft` converts a `LouiseValidationError` thrown by the collection's
+// `beforeChange` hook (for example, an unknown section `_type`) into a 422, with or
+// without an open KV buffer. That needs a D1 stand-in that answers the live-row
+// SELECT (this no-op one returns 404 first), so it's in
+// `buffered-save-draft.test.ts`, and served in CI's scaffold live-smoke leg
 // ("versionsRoute answers 422 for a bad section").
 const noopD1 = {
   prepare: () => ({

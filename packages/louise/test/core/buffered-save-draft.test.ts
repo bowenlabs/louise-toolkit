@@ -8,9 +8,10 @@ import {
   draftBufferKey,
   readDraftBuffer,
   resumeDraft,
+  versionsRoute,
   writeDraftBuffer,
 } from "../../src/core/editor/index.js";
-import { LouiseAccessDeniedError } from "../../src/core/errors.js";
+import { LouiseAccessDeniedError, LouiseValidationError } from "../../src/core/errors.js";
 import { sanitizeRichHtml } from "../../src/core/security/sanitize.js";
 
 // A buffered auto-save (a KV buffer exists and the flush interval hasn't
@@ -156,5 +157,119 @@ describe("applySaveDraft—a buffered save", () => {
     );
 
     expect(JSON.stringify(resumed ?? {})).not.toMatch(/onerror|<script/i);
+  });
+});
+
+// A write the collection rejects answers 422 whether or not a buffer is open.
+// Before #529, a save that merged into an open buffer skipped `beforeChange`,
+// answered `200 { buffered: true }`, and only failed at publish. These drive the
+// route itself, with the body from that report.
+
+const SECTION_TYPES = new Set(["hero", "text"]);
+
+const pagesTable = sqliteTable("pages", {
+  id: integer("id").primaryKey(),
+  title: text("title"),
+  sections: text("sections", { mode: "json" }),
+});
+
+const pagesConfig = defineCollection({
+  slug: "pages",
+  fields: { title: { type: "text" }, sections: { type: "json" } },
+  versions: { drafts: true },
+  hooks: {
+    beforeChange: [
+      ({ data }) => {
+        const sections = Array.isArray(data.sections) ? data.sections : [];
+        const bad = sections.findIndex(
+          (section) => !SECTION_TYPES.has((section as { _type?: string })._type ?? ""),
+        );
+        if (bad >= 0) {
+          throw new LouiseValidationError("Invalid sections", [
+            { path: `sections.${bad}._type`, message: "Unknown section type", severity: "error" },
+          ]);
+        }
+        return data;
+      },
+    ],
+  },
+});
+
+const LIVE_PAGE = [1, "Live title", JSON.stringify([{ _type: "hero" }])];
+const SEEDED = { title: "Live title", sections: [{ _type: "hero" }, { _type: "text" }] };
+
+/** A D1 stand-in: the live row for the pages table, no versions yet. */
+const pagesD1 = {
+  prepare: (sql: string) => {
+    const rows = sql.includes("pages_versions") ? [] : [LIVE_PAGE];
+    const stmt = { raw: async () => rows, all: async () => ({ results: rows }) };
+    return { ...stmt, bind: () => stmt };
+  },
+} as unknown as D1Database;
+
+const postDraft = (body: unknown) =>
+  new Request("https://site.example/api/louise/pages/1/versions", {
+    method: "POST",
+    headers: { origin: "https://site.example", "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+describe("versionsRoute—an invalid draft save", () => {
+  it.each([
+    { path: "merges into an open buffer", seeded: true },
+    { path: "opens a new buffer", seeded: false },
+  ])("answers 422 when the save $path", async ({ seeded }) => {
+    const kv = memoryKv();
+    const key = draftBufferKey("pages", 1);
+    if (seeded) {
+      const now = Date.now();
+      await writeDraftBuffer(kv, key, { data: SEEDED, updatedAt: now, flushedAt: now });
+    }
+    const route = versionsRoute({
+      table: pagesTable,
+      versionsTable: collectionVersionsTable(pagesConfig),
+      config: pagesConfig,
+      resolveEditor: () => editor,
+      bufferKv: () => kv,
+    });
+
+    const res = await route(
+      postDraft({ sections: [{ _type: "notASection" }] }),
+      { DB: pagesD1 },
+      {} as ExecutionContext,
+    );
+
+    expect(res?.status).toBe(422);
+    expect(await res?.json()).toMatchObject({
+      violations: [{ path: "sections.0._type", message: "Unknown section type" }],
+    });
+    // The rejected write never reached the buffer.
+    expect((await readDraftBuffer(kv, key))?.data ?? null).toEqual(seeded ? SEEDED : null);
+  });
+
+  it("answers 422 when the site's validate rejects a save that merges into an open buffer", async () => {
+    const kv = memoryKv();
+    const key = draftBufferKey("pages", 1);
+    const now = Date.now();
+    await writeDraftBuffer(kv, key, { data: SEEDED, updatedAt: now, flushedAt: now });
+
+    const result = await applySaveDraft(
+      { DB: pagesD1 },
+      {
+        table: pagesTable,
+        versionsTable: collectionVersionsTable(pagesConfig),
+        config: pagesConfig,
+        bufferKv: () => kv,
+        validate: (data) => {
+          if (data.title === "") throw new Error("A page needs a title");
+        },
+      },
+      editor,
+      1,
+      { title: "" },
+    );
+
+    expect(result).toMatchObject({ ok: false, status: 422, error: "A page needs a title" });
+    expect((await readDraftBuffer(kv, key))?.data).toEqual(SEEDED);
   });
 });
