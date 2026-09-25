@@ -28,9 +28,12 @@ export {
   // into `louise-toolkit/src/...` for it breaks on a published tarball (#327).
   applySettingsPatch,
   partitionSettingsPatch,
+  sanitizeSettingsPatch,
   type SettingsPartition,
   type SettingsPatchConfig,
   type SettingsRouteConfig,
+  type SettingsRouteHooks,
+  type SettingsSanitize,
   settingsRoute,
   validateSettingsImages,
   validateSettingsLinks,
