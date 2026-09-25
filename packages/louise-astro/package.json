@@ -1,6 +1,6 @@
 {
   "name": "@louise-toolkit/astro",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Astro adapter for louise-toolkit: middleware, Actions, content-layer loaders, and the forms schema bridge.",
   "keywords": [
     "astro",
