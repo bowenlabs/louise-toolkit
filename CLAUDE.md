@@ -48,9 +48,9 @@ workspace is blind to a symbol that exists in `src/` and was never re-exported:
 the bug that only bites someone installing the package. Three such symbols were
 found this way while extracting the Astro adapter.
 
-The full set, mirroring `.github/workflows/ci.yml` job by job. When that file
-gains a step, this list gains it too; a step missing here is one nobody runs
-before pushing.
+The full set, mirroring `.github/workflows/ci.yml` job by job, plus the secret
+scan from `secrets.yml`. When a workflow gains a step, this list gains it too; a
+step missing here is one nobody runs before pushing.
 
 ```sh
 # Lint & dead code
@@ -65,6 +65,9 @@ corepack pnpm run lint:docs                       # Vale ratchet (after `vale sy
 corepack pnpm run knip                            # dead code
 corepack pnpm run lint:release
 corepack pnpm audit --prod
+
+# Secrets (its own workflow, secrets.yml)
+gitleaks git --redact .                           # every commit; `brew install gitleaks`
 
 # Type-check & unit tests
 corepack pnpm -C packages/louise run typecheck
