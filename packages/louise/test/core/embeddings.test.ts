@@ -234,6 +234,42 @@ describe("semanticSearch", () => {
     expect(await semanticSearch(index, r, "pages", "q")).toEqual([{ id: 2, score: 0.8 }]);
   });
 
+  it("keeps every match when no minScore is set (no default floor)", async () => {
+    const { runner: r } = runner({ data: [[1]] });
+    const { index } = fakeIndex([
+      { id: "pages:1", score: 0.9 },
+      { id: "pages:2", score: 0.05 },
+      { id: "pages:3", score: -0.4 },
+    ]);
+    expect(await semanticSearch(index, r, "pages", "q")).toEqual([
+      { id: 1, score: 0.9 },
+      { id: 2, score: 0.05 },
+      { id: 3, score: -0.4 },
+    ]);
+  });
+
+  it("drops matches scored below minScore and keeps one exactly at it", async () => {
+    const { runner: r } = runner({ data: [[1]] });
+    const { index, queries } = fakeIndex([
+      { id: "pages:1", score: 0.9 },
+      { id: "pages:2", score: 0.6 },
+      { id: "pages:3", score: 0.59 },
+    ]);
+    const hits = await semanticSearch(index, r, "pages", "q", { minScore: 0.6 });
+    expect(hits).toEqual([
+      { id: 1, score: 0.9 },
+      { id: 2, score: 0.6 },
+    ]);
+    // The floor filters results; it doesn't change what's asked of the index.
+    expect(queries[0]?.options).toEqual({ topK: 20, namespace: "pages" });
+  });
+
+  it("returns [] when every match is below minScore", async () => {
+    const { runner: r } = runner({ data: [[1]] });
+    const { index } = fakeIndex([{ id: "pages:1", score: 0.2 }]);
+    expect(await semanticSearch(index, r, "pages", "q", { minScore: 0.5 })).toEqual([]);
+  });
+
   it("returns [] when the query throws (falls back to keyword search)", async () => {
     const { runner: r } = runner({ data: [[1]] });
     const index: VectorIndex = {

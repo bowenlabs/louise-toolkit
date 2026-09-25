@@ -150,7 +150,12 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
   `search.fields` is indexed by flattening every string leaf, so structured
-  `sections` content is searchable. Also **mount before `pagesRoute`**.
+  `sections` content is searchable. Also **mount before `pagesRoute`**. Pass
+  `vector: { index, ai }` to add a semantic layer: the route embeds the query,
+  queries Vectorize, and merges both result lists with
+  [`fuseRankings`](/reference/ai/#rank-fusion). Without the bindings it stays
+  FTS-only. `vector.minScore` drops semantic matches below a score floor before
+  the merge; it has no default.
 - **`mediaRoute`**—wraps [`louise-toolkit/media`](/guide/media/): magic-byte-
   sniffed uploads (recording intrinsic `width`/`height`), the registry list,
   `PATCH` to set an asset's [`alt`/`caption`](/guide/media/#asset-level-alt-caption-and-dimensions)

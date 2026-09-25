@@ -435,3 +435,7 @@ function capLength(s: string, max: number): string {
 // (embeddings.ts) since it adds the Vectorize index contract on top of the
 // Workers AI runner these editorial assists use.
 export * from "./embeddings.js";
+
+// Rank fusion for hybrid search (#555). Pure and binding-free: it merges the
+// ranked lists that keyword, semantic, or any other retriever returns.
+export * from "./fusion.js";
