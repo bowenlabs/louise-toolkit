@@ -1,3 +1,4 @@
+import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { inquiries, media, pages, siteSettings } from "../../src/core/db/index.js";
@@ -13,6 +14,7 @@ import {
   resolveFieldValue,
   runEditorRoute,
   type SaveCollectionConfig,
+  sanitizeSettingsPatch,
   saveRoute,
   seedRoute,
   settingsRoute,
@@ -261,6 +263,124 @@ describe("settingsRoute (guard + dispatch)", () => {
       ctx,
     );
     expect(res?.status).toBe(405);
+  });
+});
+
+describe("sanitizeSettingsPatch", () => {
+  const clamp = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 5) : "");
+
+  it("runs keys that have a sanitizer and copies the rest", () => {
+    const patch = { heroHeadline: "  Hello, world  ", siteName: "Kept as is" };
+    expect(sanitizeSettingsPatch(patch, { heroHeadline: clamp })).toEqual({
+      heroHeadline: "Hello",
+      siteName: "Kept as is",
+    });
+  });
+
+  it("doesn't mutate the input patch", () => {
+    const patch = { heroHeadline: "  Hello, world  " };
+    sanitizeSettingsPatch(patch, { heroHeadline: clamp });
+    expect(patch).toEqual({ heroHeadline: "  Hello, world  " });
+  });
+
+  it("ignores inherited properties of the sanitizer map", () => {
+    // `toString` is on every object's prototype; it must not be called as a
+    // sanitizer for a patched key of that name.
+    expect(sanitizeSettingsPatch({ toString: "x" }, { heroHeadline: clamp })).toEqual({
+      toString: "x",
+    });
+  });
+});
+
+describe("settingsRoute (sanitize + read hooks)", () => {
+  const settingsUrl = "https://site.example/api/louise/settings";
+  const origin = "https://site.example";
+
+  // Drizzle's D1 driver reads a select through `raw()`, one array per row in
+  // the table's column order, and writes through `run()`.
+  function settingsD1(custom: Record<string, unknown>) {
+    const writes: unknown[][] = [];
+    const row = Object.values(getTableColumns(siteSettings)).map((c) =>
+      c.name === "id" ? 1 : c.name === "custom" ? JSON.stringify(custom) : null,
+    );
+    const statement = (binds: unknown[]) => ({
+      async raw() {
+        return [row];
+      },
+      async all() {
+        return { results: [] };
+      },
+      async run() {
+        writes.push(binds);
+        return { success: true, meta: { changes: 1 } };
+      },
+    });
+    const db = {
+      prepare: () => ({ ...statement([]), bind: (...binds: unknown[]) => statement(binds) }),
+    };
+    return { db: db as unknown as D1Database, writes };
+  }
+
+  const cfg = () => ({
+    table: siteSettings,
+    columns: [],
+    customKeys: ["heroHeadline", "nav"],
+    resolveEditor: () => editor,
+  });
+
+  const patch = (body: unknown) =>
+    new Request(settingsUrl, {
+      method: "PATCH",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("stores the sanitized value, not the raw one", async () => {
+    const { db, writes } = settingsD1({});
+    const route = settingsRoute({
+      ...cfg(),
+      sanitize: { heroHeadline: (v: unknown) => String(v).trim().slice(0, 5) },
+    });
+    const res = await route(patch({ heroHeadline: "  Hello, world  " }), { DB: db }, ctx);
+    expect(res?.status).toBe(200);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain(JSON.stringify({ heroHeadline: "Hello" }));
+  });
+
+  it("still rejects an unsafe link a sanitizer passes through", async () => {
+    const { db, writes } = settingsD1({});
+    const route = settingsRoute({ ...cfg(), sanitize: { nav: (v: unknown) => v } });
+    const res = await route(
+      patch({ nav: [{ label: "Home", href: "javascript:alert(1)" }] }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(422);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("passes the merged settings through `read` on GET", async () => {
+    const { db } = settingsD1({ heroHeadline: "Stored" });
+    const route = settingsRoute({
+      ...cfg(),
+      read: (settings) => ({ aboutBlurb: "Default", ...settings }),
+    });
+    const res = await route(new Request(settingsUrl, { method: "GET" }), { DB: db }, ctx);
+    const body = (await res?.json()) as { settings: Record<string, unknown> };
+    expect(body.settings.heroHeadline).toBe("Stored");
+    expect(body.settings.aboutBlurb).toBe("Default");
+  });
+
+  it("returns the merged settings unchanged without `read`", async () => {
+    const { db } = settingsD1({ heroHeadline: "Stored" });
+    const res = await settingsRoute(cfg())(
+      new Request(settingsUrl, { method: "GET" }),
+      { DB: db },
+      ctx,
+    );
+    const body = (await res?.json()) as { settings: Record<string, unknown> };
+    expect(body.settings.heroHeadline).toBe("Stored");
+    expect(body.settings).not.toHaveProperty("aboutBlurb");
   });
 });
 

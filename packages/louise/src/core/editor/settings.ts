@@ -22,7 +22,39 @@ import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
-export interface SettingsRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
+/** A settings key's sanitizer: clamp or normalize an incoming value, and return
+ *  the value to store. */
+export type SettingsSanitize = (value: unknown) => unknown;
+
+/**
+ * The site-supplied halves of the `settings` route: per-key sanitizing on write,
+ * and a transform on read. Both are optional, and a route without them behaves
+ * exactly as before.
+ *
+ * Separate from {@link SettingsRouteConfig} so a host that generates the route
+ * call can take these from a site-owned module and spread them in, while it
+ * keeps the rest of the config.
+ */
+export interface SettingsRouteHooks {
+  /**
+   * Per-key sanitizers, run on a patch before it's validated or written. A
+   * patched key with an entry here is stored as the sanitizer's return value;
+   * a key without one passes through unchanged. The allowlist still decides
+   * what's written: a sanitizer for a key outside `columns` and `customKeys`
+   * never runs on anything that gets stored.
+   *
+   * Sanitized values still go through the link-scheme and media-URL checks, so
+   * a sanitizer can't let an unsafe `href` or an external image through.
+   */
+  sanitize?: Record<string, SettingsSanitize>;
+  /** Transform the merged settings on GET, for example to fill keys an older
+   *  row lacks from the site's defaults. Pure; must not mutate its input. */
+  read?: (settings: Record<string, unknown>) => Record<string, unknown>;
+}
+
+export interface SettingsRouteConfig<
+  Env extends EditorRouteEnv = EditorRouteEnv,
+> extends SettingsRouteHooks {
   /** The `site_settings` table (composed from `siteSettingsColumns` or the
    *  ready-made `siteSettings`). */
   table: SQLiteTable;
@@ -108,6 +140,23 @@ export function validateSettingsImages(
   return violations;
 }
 
+/**
+ * Run each patched key that has a sanitizer through it, and return the new
+ * patch. Keys without a sanitizer are copied unchanged, and the input isn't
+ * mutated. Pure, so the sanitize step is unit-testable independently of D1.
+ */
+export function sanitizeSettingsPatch(
+  patch: Record<string, unknown>,
+  sanitize: Record<string, SettingsSanitize>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const fn = Object.hasOwn(sanitize, key) ? sanitize[key] : undefined;
+    out[key] = fn ? fn(value) : value;
+  }
+  return out;
+}
+
 export interface SettingsPartition {
   /** Base columns to patch, keyed by Drizzle property name. */
   columnUpdates: Record<string, unknown>;
@@ -158,6 +207,8 @@ export interface SettingsPatchConfig {
   imageKeys?: string[];
   mediaBase?: string;
   id?: number;
+  /** Per-key sanitizers. See {@link SettingsRouteHooks.sanitize}. */
+  sanitize?: Record<string, SettingsSanitize>;
 }
 
 export type SettingsPatchResult =
@@ -171,8 +222,8 @@ export type SettingsPatchResult =
     };
 
 /**
- * Apply an already-validated settings patch to the singleton row: enforce
- * media-strictness on image keys, split the patch into base-column vs `custom`
+ * Apply an already-validated settings patch to the singleton row: run the
+ * site's per-key sanitizers, enforce media-strictness on image keys, split the patch into base-column vs `custom`
  * updates ({@link partitionSettingsPatch}), and write. Carries no transport/parse
  * concern—the raw {@link settingsRoute} (POST/PATCH) and a host's `settings`
  * Action each validate their own input, then converge here, so the merge + write
@@ -181,8 +232,9 @@ export type SettingsPatchResult =
 export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRouteEnv>(
   env: Env,
   config: SettingsPatchConfig,
-  patch: Record<string, unknown>,
+  rawPatch: Record<string, unknown>,
 ): Promise<SettingsPatchResult> {
+  const patch = config.sanitize ? sanitizeSettingsPatch(rawPatch, config.sanitize) : rawPatch;
   const table = config.table;
   const rowId = config.id ?? 1;
   const pkCol = getTableConfig(table).columns.find((c) => c.primary) as SQLiteColumn | undefined;
@@ -252,7 +304,8 @@ export function settingsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (isRead) {
       const rows = (await db(env.DB).select().from(table).limit(1)) as Record<string, unknown>[];
       const current = rows[0];
-      return json({ settings: current ? flatten(current) : {} });
+      const settings = current ? flatten(current) : {};
+      return json({ settings: config.read ? config.read(settings) : settings });
     }
 
     const parsedPatch = await standardValidate(s.record(), await request.json().catch(() => null));
