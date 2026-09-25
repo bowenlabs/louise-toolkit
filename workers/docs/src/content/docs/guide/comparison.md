@@ -47,8 +47,8 @@ current docs. The point is architectural shape, not a feature scorecard._
   D1 and R2 as the datastore. No Node runtime, no database server to operate, no
   hosted content lake in the loop. Published pages ship **no editor JS** (the
   client self-gates to edit mode).
-- **It owns render + edit + schema, but not your markup.** Louise is not headless
-  —it renders, edits, and stores—yet the site still owns every pixel; editors
+- **It owns render + edit + schema, but not your markup.** Louise is not headless—it
+  renders, edits, and stores—yet the site still owns every pixel; editors
   change content and structured sections through _your_ components.
 - **Content is one primitive of many.** Commerce (Stripe / Square / Fourthwall),
   forms, media, auth, AI (Workers AI: alt text, rewrite, SEO, embeddings),

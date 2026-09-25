@@ -40,8 +40,8 @@ export interface DescribeContext {
 }
 
 /** The path head that addresses site settings instead of the page's `sections`
- *  JSON. A settings path carries no index, so reorders never re-stamp it—*
-  which is what lets these markers live outside the sections host (Nav,
+ *  JSON. A settings path carries no index, so reorders never re-stamp it,
+ *  which is what lets these markers live outside the sections host (Nav,
  *  Footer) where nothing would re-stamp them. */
 export const SHARED_PATH_HEAD = "settings";
 
