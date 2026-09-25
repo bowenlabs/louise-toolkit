@@ -137,11 +137,11 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   // as a 422 with the per-field violations, the same shape `deps.validate`
   // produces above, rather than letting it escape the route as an unhandled 500.
   // A non-validation throw (a real DB failure) still propagates unchanged.
-  const saveDraft = async (
-    data: Record<string, unknown>,
-  ): Promise<{ ok: true; version: unknown } | { ok: false; result: SaveDraftResult }> => {
+  const asUnprocessable = async <T>(
+    run: () => Promise<T>,
+  ): Promise<{ ok: true; value: T } | { ok: false; result: SaveDraftResult }> => {
     try {
-      return { ok: true, version: await api.saveDraft(context, id, data as never) };
+      return { ok: true, value: await run() };
     } catch (err) {
       if (err instanceof LouiseValidationError) {
         const { message, violations } = violationsOf(err);
@@ -153,6 +153,14 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
       throw err;
     }
   };
+  const saveDraft = (data: Record<string, unknown>) =>
+    asUnprocessable(() => api.saveDraft(context, id, data as never));
+  // A buffered save never reaches `api.saveDraft`, so it runs the same access
+  // check, `beforeChange` hooks, and field check here. Without this, the buffer
+  // held raw input: HTML the collection's hook would sanitize went to KV as
+  // sent, and `resumeDraft` rendered it in edit mode.
+  const prepareDraft = (data: Record<string, unknown>) =>
+    asUnprocessable(() => api.prepareDraft(context, data as never));
 
   // Read the coalescing buffer *first*: when one exists it is already the merge
   // base (it's always ≥ the D1 draft), which makes the version query below dead
@@ -202,16 +210,24 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
     if (shouldFlushBuffer(buffered, now, flushMs)) {
       const saved = await saveDraft(merged);
       if (!saved.ok) return saved.result;
-      await writeDraftBuffer(kv, bufferKey, { data: merged, updatedAt: now, flushedAt: now });
+      // Buffer what D1 stored (after the hooks), not the raw merge.
+      const stored = (saved.value as { versionData?: unknown }).versionData;
+      await writeDraftBuffer(kv, bufferKey, {
+        data: isRecord(stored) ? stored : merged,
+        updatedAt: now,
+        flushedAt: now,
+      });
       return {
         ok: true,
         status: 201,
-        body: { version: saved.version, buffered: false },
+        body: { version: saved.value, buffered: false },
         bookmark: d1Bookmark(session) ?? undefined,
       };
     }
+    const prepared = await prepareDraft(merged);
+    if (!prepared.ok) return prepared.result;
     await writeDraftBuffer(kv, bufferKey, {
-      data: merged,
+      data: prepared.value,
       updatedAt: now,
       flushedAt: buffered ? buffered.flushedAt : now,
     });
@@ -230,9 +246,13 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   return {
     ok: true,
     status: 201,
-    body: { version: saved.version },
+    body: { version: saved.value },
     bookmark: d1Bookmark(session) ?? undefined,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Extract per-field violations from a thrown validation error, if present. */

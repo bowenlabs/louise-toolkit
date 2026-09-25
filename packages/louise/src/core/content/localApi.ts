@@ -725,6 +725,18 @@ export interface VersionedLocalApi<
   TContext = unknown,
 > extends LocalApi<TTable, TContext> {
   findVersions(context: TContext, parentId: number): Promise<InferSelectModel<TVersionsTable>[]>;
+  /**
+   * The checks and transforms every draft write runs, without writing: the
+   * `update` access check, the collection's `beforeChange` hooks (where a site
+   * sanitizes rich text), and the unknown-field check. Returns the snapshot a
+   * saved draft would hold. For a caller that keeps a draft somewhere other
+   * than the versions table, such as the editor's KV auto-save buffer, so that
+   * copy never skips what {@link saveDraft} enforces.
+   */
+  prepareDraft(
+    context: TContext,
+    input: Partial<InferInsertModel<TTable>>,
+  ): Promise<Record<string, unknown>>;
   /** Inserts a new version row holding `input` as a draft snapshot. */
   saveDraft(
     context: TContext,
@@ -887,6 +899,13 @@ export function createVersionedLocalApi<
         .where(eq(versionsParentIdColumn, parentId))
         .orderBy(desc(versionsIdColumn));
       return rows as InferSelectModel<TVersionsTable>[];
+    },
+
+    async prepareDraft(context, input) {
+      await checkAccess(config, "update", context);
+      const data = await runBeforeChange(config, input as Record<string, unknown>);
+      rejectUnknownFields(config, data);
+      return data;
     },
 
     async saveDraft(context, id, input) {
