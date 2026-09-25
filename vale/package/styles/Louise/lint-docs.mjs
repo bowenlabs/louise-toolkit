@@ -177,6 +177,11 @@ export function spacedDashes(text) {
   const lines = text.split("\n");
   let frontMatter = lines[0] === "---";
   let fence = null;
+  // Inline code can wrap onto the next line of a paragraph.
+  let openCode = false;
+  // Mask with a letter, not spaces, so masked code can't manufacture a space
+  // beside a dash that has none (`a`—`b` is correct).
+  const blank = (m) => "x".repeat(m.length);
   lines.forEach((line, i) => {
     if (frontMatter) {
       if (i > 0 && line === "---") frontMatter = false;
@@ -186,13 +191,28 @@ export function spacedDashes(text) {
     if (marker) {
       if (fence === null) fence = marker[1][0];
       else if (marker[1][0] === fence) fence = null;
+      openCode = false;
       return;
     }
     if (fence !== null) return;
-    // Mask with a letter, not spaces, so masked code can't manufacture a space
-    // beside a dash that has none (`a`—`b` is correct).
-    const blank = (m) => "x".repeat(m.length);
-    const prose = line.replace(/`[^`]*`/g, blank).replace(/\|\s*[—–]\s*(?=\|)/g, blank);
+    if (line.trim() === "") {
+      openCode = false;
+      return;
+    }
+    let prose = line;
+    if (openCode) {
+      const close = prose.indexOf("`");
+      if (close === -1) return;
+      prose = blank(prose.slice(0, close + 1)) + prose.slice(close + 1);
+      openCode = false;
+    }
+    prose = prose.replace(/`[^`]*`/g, blank);
+    const open = prose.indexOf("`");
+    if (open !== -1) {
+      prose = prose.slice(0, open) + blank(prose.slice(open));
+      openCode = true;
+    }
+    prose = prose.replace(/\|\s*[—–]\s*(?=\|)/g, blank);
     for (const hit of prose.matchAll(SPACED_DASH)) {
       alerts.push({
         Check: "Louise.SpacedDash",
