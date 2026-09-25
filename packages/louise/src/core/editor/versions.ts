@@ -392,13 +392,12 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       // the freshest edits (the buffer may hold writes not yet flushed)—this
       // becomes the newest draft version.
       //
-      // This flush runs the collection's `beforeChange` hook, so a coalesced
-      // auto-save that the buffer never validated (a bad section absorbed into
-      // KV and answered 200) is validated HERE, at publish. The validation error
-      // must surface as a 422 with its violations, not the raw 500 an uncaught
-      // throw before the try/catch below would produce—the bad content is
-      // correctly kept off the live page either way, but the editor needs the
-      // violations, not a 500.
+      // This flush runs the collection's `beforeChange` hook again. Every
+      // buffered save already ran it through `prepareDraft`, so this rarely
+      // throws, but a hook can still reject what it once accepted (a section
+      // type the site has since removed). That error must surface as a 422
+      // with its violations, not the raw 500 an uncaught throw before the
+      // try/catch below would produce.
       if (kv) {
         const buffered = await readDraftBuffer(kv, bufferKey);
         if (buffered) {
