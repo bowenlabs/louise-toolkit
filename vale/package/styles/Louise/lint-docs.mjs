@@ -241,8 +241,11 @@ export function spacedDashes(text) {
  */
 function addMissedDashes(byFile, files) {
   for (const file of files.filter((f) => /\.mdx?$/.test(f))) {
+    // Key by the same relative path lintFiles uses, so a file passed by its
+    // absolute path (a strings document) merges with Vale's findings.
+    const key = path.relative(process.cwd(), path.resolve(file));
     const found = new Map();
-    for (const a of byFile[file] ?? []) {
+    for (const a of byFile[key] ?? []) {
       if (a.Check === "Google.EmDash") found.set(a.Line, (found.get(a.Line) ?? 0) + 1);
     }
     const perLine = new Map();
@@ -251,7 +254,7 @@ function addMissedDashes(byFile, files) {
     }
     const missed = [];
     for (const [line, hits] of perLine) missed.push(...hits.slice(found.get(line) ?? 0));
-    if (missed.length > 0) byFile[file] = [...(byFile[file] ?? []), ...missed];
+    if (missed.length > 0) byFile[key] = [...(byFile[key] ?? []), ...missed];
   }
 }
 
@@ -280,10 +283,8 @@ export async function lintStrings(files, sources, { configPath = ".vale.ini" } =
     for (const [key, list] of Object.entries(lintFiles([...docs.keys()], { configPath }))) {
       const doc = docs.get(path.resolve(key));
       if (!doc) continue;
-      byFile[doc.file + STRINGS] = list.map((a) => ({
-        ...a,
-        Line: doc.sourceLine[a.Line - 1] ?? a.Line,
-      }));
+      const mapped = list.map((a) => ({ ...a, Line: doc.sourceLine[a.Line - 1] ?? a.Line }));
+      byFile[doc.file + STRINGS] = [...(byFile[doc.file + STRINGS] ?? []), ...mapped];
     }
     return byFile;
   } finally {

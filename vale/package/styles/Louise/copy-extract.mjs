@@ -20,7 +20,9 @@
 // Deliberately out: log lines, test names, and CI-script messages. A person
 // maintaining the code reads those, and they follow the style in comments, not
 // here. A template literal's `${…}` becomes a code span, so an interpolated
-// value is never linted as prose.
+// value is never linted as prose. The span holds ASCII (`value`), because Vale
+// miscounts a multibyte character at the start of a line and reports the next
+// finding twice.
 //
 // It needs the TypeScript parser, and a style package can't ship one. So it
 // loads `typescript` from the repository being linted, resolving from each
@@ -58,14 +60,14 @@ function textOf(node, sf) {
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   if (ts.isTemplateExpression(node)) {
     let out = node.head.text;
-    for (const span of node.templateSpans) out += `\`…\`${span.literal.text}`;
+    for (const span of node.templateSpans) out += `\`value\`${span.literal.text}`;
     return out;
   }
   if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     const left = textOf(node.left, sf);
     const right = textOf(node.right, sf);
     if (left === null && right === null) return null;
-    return `${left ?? "`…`"}${right ?? "`…`"}`;
+    return `${left ?? "`value`"}${right ?? "`value`"}`;
   }
   if (ts.isParenthesizedExpression(node)) return textOf(node.expression, sf);
   return null;
@@ -110,7 +112,19 @@ export function extractStrings(fileName, text) {
         }
       }
     } else if (ts.isJsxText(node)) {
-      add(node, node.text);
+      // Text that touches an `{expression}` keeps a code span in its place, so
+      // a spaced dash right after or before a value still has the space the
+      // check needs to see.
+      const siblings = node.parent?.children ?? [];
+      const at = siblings.indexOf(node);
+      let text = node.text;
+      if (/^[ \t]/.test(text) && at > 0 && ts.isJsxExpression(siblings[at - 1])) {
+        text = `\`value\`${text}`;
+      }
+      if (/[ \t]$/.test(text) && at < siblings.length - 1 && ts.isJsxExpression(siblings[at + 1])) {
+        text = `${text}\`value\``;
+      }
+      add(node, text);
     } else if (ts.isJsxAttribute(node) && node.initializer) {
       const name = node.name.getText(sf);
       if (READ_ATTRS.has(name)) {
