@@ -50,7 +50,9 @@ export const artworks = defineCollection({
 export const content = defineContentConfig({ collections: [artworks] });
 // #endregion
 
-// The Drizzle tables a site keeps in its schema file for `artworks`.
+// The Drizzle tables a site keeps in its schema file for `artworks`. The `id`
+// column is the one the Local API requires; `artworks` doesn't declare it as a
+// field, so a table built by `collectionToTable` wouldn't have it.
 const schema = {
   artworks: sqliteTable("artworks", {
     id: integer("id").primaryKey({ autoIncrement: true }),
