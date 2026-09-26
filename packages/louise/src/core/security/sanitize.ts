@@ -22,6 +22,9 @@
 // data-text-color="…">`), and the builder block containers. Keep this in
 // sync with the client; that coupling is why the sanitizer lives in the
 // package alongside the richtext it guards.
+//
+// A second, narrower preset, `sanitizeModelHtml`, holds model-generated HTML to
+// a subset of this allowlist. See "The model preset" below.
 
 import { ELEMENT_NODE, transformSync, walkSync } from "ultrahtml";
 import sanitizeElements from "ultrahtml/transformers/sanitize";
@@ -202,4 +205,126 @@ export function sanitizeRichHtml(html: string, options: SanitizeOptions = {}): s
   // With media-strictness on, a non-media image had its src stripped above;
   // remove the resulting src-less <img> so nothing broken persists.
   return options.mediaBase ? out.replace(SRCLESS_IMG, "") : out;
+}
+
+// ── The model preset (#465) ──────────────────────────────────────────────────
+//
+// Model output is less trustworthy than an editor's: a prompt injection in the
+// content a model was given can steer what it writes. So model-written HTML is
+// held to a NARROWER allowlist than a human's—text structure only. No images
+// (a tracking pixel or a hotlink), no embeds, no `style` or `class` (content
+// that borrows site styling to pass as something it isn't), and links only to
+// HTTP, HTTPS, or `mailto`, with `rel` forced.
+//
+// The model sets are a subset of the human ones, never a sibling list: a test
+// asserts every model-allowed tag and attribute is also human-allowed, so the
+// two can't drift apart in the wrong direction.
+
+/** Tags {@link sanitizeModelHtml} keeps: block and inline text structure only.
+ *  Every entry is also in {@link ALLOWED_TAGS}. */
+export const MODEL_ALLOWED_TAGS = [
+  "p",
+  "br",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "code",
+  "pre",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "a",
+];
+
+/** Attributes {@link sanitizeModelHtml} keeps, per tag. Every entry is also in
+ *  {@link ATTR_ALLOW}. `rel` isn't here: the sanitizer writes it rather than
+ *  accepting it, so a model can't choose its own. */
+export const MODEL_ATTR_ALLOW: Record<string, Set<string>> = {
+  a: new Set(["href"]),
+};
+
+/** The `rel` every link in model output carries, whatever the input said. */
+export const MODEL_LINK_REL = "noopener noreferrer nofollow";
+
+/** Tags the human preset allows and the model preset doesn't. These are
+ *  unwrapped—the element goes, its text stays—so a model that wraps a
+ *  paragraph in a `<div>` or a `<span>` loses the wrapper, not the words.
+ *  Anything the human preset rejects is dropped with its contents, same as
+ *  there. */
+const MODEL_UNWRAP_TAGS = ALLOWED_TAGS.filter((t) => !MODEL_ALLOWED_TAGS.includes(t));
+
+/** Absolute HTTP, HTTPS, or `mailto` only. No relative path, hash, or other scheme. */
+const MODEL_SAFE_URL = /^(?:https?:|mailto:)/i;
+
+/** The part of a parent node the link unwrap touches. */
+type UhParent = { children: unknown[] };
+
+/** Strict attribute scrub for the model preset. An `<a>` whose `href` doesn't
+ *  survive is unwrapped, keeping its text; one whose `href` does survive gets
+ *  {@link MODEL_LINK_REL}. */
+function modelAttributes() {
+  return (doc: UhNode) => {
+    const deadLinks: { node: UhNode; parent: UhParent }[] = [];
+    walkSync(doc as never, (node: unknown, parent: unknown) => {
+      const el = node as UhNode;
+      if (el.type !== ELEMENT_NODE || !el.name || !el.attributes) return;
+      const allowed = MODEL_ATTR_ALLOW[el.name] ?? NO_ATTRS;
+      for (const name of Object.keys(el.attributes)) {
+        const value = String(el.attributes[name] ?? "").trim();
+        if (!allowed.has(name) || (name === "href" && !MODEL_SAFE_URL.test(value))) {
+          delete el.attributes[name];
+        }
+      }
+      if (el.name !== "a") return;
+      if (el.attributes.href) el.attributes.rel = MODEL_LINK_REL;
+      else if (parent) deadLinks.push({ node: el, parent: parent as UhParent });
+    });
+    // Innermost first: the walk is depth-first, so the reverse order unwraps a
+    // nested dead link before its ancestor.
+    for (let i = deadLinks.length - 1; i >= 0; i--) {
+      const { node, parent } = deadLinks[i]!;
+      parent.children = parent.children.flatMap((c) =>
+        c === node ? ((node as unknown as UhParent).children ?? []) : [c],
+      );
+    }
+    return doc;
+  };
+}
+
+/**
+ * Sanitize model-generated HTML down to text structure: paragraphs, line
+ * breaks, headings, lists, block quotes, bold, italic, code, and links. Run it
+ * on any HTML a model wrote before you store it, in place of
+ * {@link sanitizeRichHtml}, which is tuned for what a person types in the
+ * editor.
+ *
+ * - A tag outside {@link MODEL_ALLOWED_TAGS} that the human preset allows
+ *   (`div`, `span`, `u`, and the like) is unwrapped, keeping its text. A tag
+ *   neither preset allows, including `img`, `iframe`, `script`, and `style`, is
+ *   dropped with its contents.
+ * - Every attribute is dropped except `href` on `<a>`, so no `style`, `class`,
+ *   `on*` handler, or `data-*` attribute survives.
+ * - An `href` must be absolute HTTP, HTTPS, or `mailto`. A link without one is
+ *   unwrapped to its text, and a link with one gets
+ *   `rel="noopener noreferrer nofollow"` ({@link MODEL_LINK_REL}).
+ *
+ * Synchronous, like {@link sanitizeRichHtml}, and a plain `(html) => string`, so
+ * you can pass it anywhere a route takes a `sanitize` function.
+ */
+export function sanitizeModelHtml(html: string): string {
+  const transformers = [
+    sanitizeElements({
+      allowElements: MODEL_ALLOWED_TAGS,
+      blockElements: MODEL_UNWRAP_TAGS,
+      allowComments: false,
+    }),
+    modelAttributes(),
+  ] as Parameters<typeof transformSync>[1];
+  return transformSync(html, transformers).replace(DANGEROUS_TOKENS, "");
 }

