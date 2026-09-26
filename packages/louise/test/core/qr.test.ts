@@ -218,7 +218,7 @@ describe("qr encode", () => {
   });
 
   it("round-trips multi-byte UTF-8", () => {
-    const s = "https://example.com/café-猫-🎨";
+    const s = "https://example.com/café-猫-\u{1F3A8}"; // a four-byte code point, escaped
     expect(decodeQr(encodeQr(s, { ecc: "M" }))).toBe(s);
   });
 

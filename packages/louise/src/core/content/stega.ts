@@ -13,7 +13,7 @@
 // whole blocks, buttons); use stega for prose. Reuses the existing `EditRef` /
 // `encodeEditRef` / `decodeEditRef` contract, so the editor side is unchanged.
 //
-// ⚠️ Preview-only. Never encode production HTML; zero-width chars would leak
+// Preview-only. Never encode production HTML; zero-width chars would leak
 // into <title>, meta/OG tags and search indexes. Gate `encodeDocument` behind
 // the same preview/edit flag that controls `data-louise-field` rendering, and
 // always `stegaClean()` a value before persisting it (see `stega-clean.ts`).

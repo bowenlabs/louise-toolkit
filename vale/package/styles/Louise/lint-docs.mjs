@@ -25,6 +25,14 @@
 // starts the next. `spacedDashes` reads the
 // raw Markdown instead and reports what Vale missed, as `Louise.SpacedDash`.
 //
+// A second reads every linted file's raw text, code included: `Louise.Emoji`.
+// The stack draws its icons from Phosphor and uses no emoji, in an interface or
+// in prose. It has to read code, not only what Vale sees, because the emoji
+// that reaches a person is usually a string literal: a badge's label, a
+// button's text. CHANGELOG.md is exempt, because what it records has already
+// shipped. A test that needs an emoji as input writes it as an escape,
+// `"\u{1F600}"`.
+//
 // With `--strings`, it also lints user-facing strings (error messages, `json(…)`
 // bodies, JSX text, and readable JSX attributes) in the TypeScript files the
 // patterns match, using copy-extract.mjs beside this file. Findings count under
@@ -121,7 +129,7 @@ function splitAstro(text) {
  * Runs Vale over the files and returns `{ [file]: alerts[] }`, keyed by the
  * real paths. `configPath` is the repository's `.vale.ini`.
  */
-export function lintFiles(files, { configPath = ".vale.ini" } = {}) {
+export function lintFiles(files, { configPath = ".vale.ini", emoji = true } = {}) {
   const vale = valeCommand();
   const args = [`--config=${path.resolve(configPath)}`, "--output=JSON", "--no-exit"];
   args.push("--minAlertLevel=error");
@@ -170,6 +178,7 @@ export function lintFiles(files, { configPath = ".vale.ini" } = {}) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
   addMissedDashes(byFile, files);
+  if (emoji) addEmojis(byFile, files);
   return byFile;
 }
 
@@ -258,6 +267,41 @@ function addMissedDashes(byFile, files) {
   }
 }
 
+// Emoji presented as emoji by default, a text symbol forced into emoji form
+// with U+FE0F, and a keycap. A plain `✓` or `→` is a symbol, not an emoji,
+// and isn't matched.
+const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|[#*0-9]\uFE0F?\u20E3/gu;
+
+/** Every emoji in raw text, code included. Returns Vale-shaped alerts. */
+export function emojis(text) {
+  const alerts = [];
+  text.split("\n").forEach((line, i) => {
+    for (const hit of line.matchAll(EMOJI)) {
+      // Vale counts columns in characters, not UTF-16 units.
+      const column = [...line.slice(0, hit.index)].length + 1;
+      alerts.push({
+        Check: "Louise.Emoji",
+        Message: "Don't use emoji. In an interface, use a Phosphor icon; in prose, use words.",
+        Severity: "error",
+        Line: i + 1,
+        Span: [column, column],
+      });
+    }
+  });
+  return alerts;
+}
+
+/** Adds `Louise.Emoji` findings, skipping CHANGELOG.md, which has shipped. */
+function addEmojis(byFile, files) {
+  for (const file of files) {
+    if (path.basename(file) === "CHANGELOG.md") continue;
+    const hits = emojis(fs.readFileSync(file, "utf8"));
+    if (hits.length === 0) continue;
+    const key = path.relative(process.cwd(), path.resolve(file));
+    byFile[key] = [...(byFile[key] ?? []), ...hits];
+  }
+}
+
 const STRINGS = " (strings)";
 
 /**
@@ -280,7 +324,9 @@ export async function lintStrings(files, sources, { configPath = ".vale.ini" } =
       docs.set(docPath, { file, sourceLine: doc.sourceLine });
     }
     const byFile = {};
-    for (const [key, list] of Object.entries(lintFiles([...docs.keys()], { configPath }))) {
+    // The emoji check already read these files whole, strings included.
+    const found = lintFiles([...docs.keys()], { configPath, emoji: false });
+    for (const [key, list] of Object.entries(found)) {
       const doc = docs.get(path.resolve(key));
       if (!doc) continue;
       const mapped = list.map((a) => ({ ...a, Line: doc.sourceLine[a.Line - 1] ?? a.Line }));

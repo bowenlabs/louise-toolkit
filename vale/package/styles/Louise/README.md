@@ -9,6 +9,7 @@ Bowen Labs repository consumes.
 | Rule           | What it checks                                                                                                   |
 | -------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `Louise.Names` | The stack's product and tool names, spelled the way their owners spell them (`daisyUI`, `GitHub`, `TypeScript`). |
+| `Louise.Emoji` | No emoji anywhere: icons come from Phosphor, and prose uses words. Run by the lint runner, below, not by Vale.   |
 
 The vocabulary in `../config/vocabularies/Louise/accept.txt` lists the names
 that aren't dictionary words, so no rule flags them as misspellings or wrong
@@ -45,3 +46,10 @@ It also reports `Louise.SpacedDash`, a spaced dash in Markdown that Vale's
 `Google.EmDash` can't see: one that bold text or inline code follows, where the
 dash and the markup fall in different text nodes. It reads the raw Markdown and
 skips front matter, code, and table cells that hold only a dash.
+
+And it reports `Louise.Emoji` for any emoji in a linted file's raw text, code
+included, because the emoji a person sees is usually a string literal: a
+badge's label, a button's text. The stack draws its icons from
+[Phosphor](https://phosphoricons.com) instead. CHANGELOG.md is exempt, because
+it records what has already shipped. A test that needs an emoji as input writes
+it as an escape, `"\u{1F600}"`.

@@ -187,6 +187,22 @@ the few findings that remain:
 A style-only rewrite of an ADR isn't an amendment, as long as no decision, date,
 or status line changes.
 
+## Icons are Phosphor, and there's no emoji
+
+**Every icon on the stack comes from [Phosphor](https://phosphoricons.com)**,
+and nothing uses emoji: not an interface, not a doc, not a comment, not a
+commit or PR. Import the raw SVG from `@phosphor-icons/core` and inline it, as
+`packages/louise/src/client/icons.tsx` does, so it inherits `currentColor` with
+no icon font or runtime fetch. A pseudo-element that can't hold markup takes
+the icon as a CSS image (the soft-lock badge in `client/styles.ts`). In prose,
+say it in words.
+
+`lint:docs` enforces it as `Louise.Emoji`, over the raw text of every file it
+reads, code included, because an emoji that reaches a person is usually a string
+literal. It ships in the house package, so every repository on the stack gets
+it. CHANGELOGs are exempt, since they record what already shipped. A test that
+needs an emoji as input writes it as an escape: `"\u{1F600}"`.
+
 ## Site facts are parameters
 
 A fact about a site or its business (time zone, currency, country, locale,

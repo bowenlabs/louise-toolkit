@@ -26,8 +26,9 @@ describe("codePointToUtf16", () => {
   });
 
   it("accounts for astral characters (a code point that is two UTF-16 units)", () => {
-    // "a😀b": code points a(0) 😀(1) b(2); 😀 is one code point, two UTF-16 units.
-    const t = "a😀b";
+    // "a", U+1F600, "b": code points a(0) U+1F600(1) b(2); U+1F600 is one code
+    // point, two UTF-16 units. Escaped, because the house style has no emoji.
+    const t = "a\u{1F600}b";
     expect(codePointToUtf16(t, 0)).toBe(0);
     expect(codePointToUtf16(t, 1)).toBe(1); // start of the emoji
     expect(codePointToUtf16(t, 2)).toBe(3); // after the emoji (1 + 2 units)
@@ -63,8 +64,8 @@ describe("blockMatchesToDecorations", () => {
   });
 
   it("maps spans correctly across an astral character", () => {
-    // "😀 teh": "teh" starts at code point 2, UTF-16 index 3.
-    const block: BlockText = { pos: 0, text: "😀 teh" };
+    // U+1F600, then " teh": "teh" starts at code point 2, UTF-16 index 3.
+    const block: BlockText = { pos: 0, text: "\u{1F600} teh" };
     const [dec] = blockMatchesToDecorations([{ block, matches: [match(2, 5, "the")] }]);
     // base 1 + utf16(2)=3 → from 4 ; utf16(5)=6 → to 7
     expect(dec).toMatchObject({ from: 4, to: 7 });

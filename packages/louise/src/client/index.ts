@@ -279,7 +279,8 @@ function setFieldLock(el: HTMLElement, byName: string | null): void {
   if (byName) {
     el.classList.add("louise-locked");
     el.setAttribute("aria-disabled", "true");
-    el.dataset.louiseLockedBy = `🔒 ${byName} is editing`;
+    // The badge's lock icon is CSS (`.louise-locked::before`), not part of the text.
+    el.dataset.louiseLockedBy = `${byName} is editing`;
   } else {
     el.classList.remove("louise-locked");
     el.removeAttribute("aria-disabled");

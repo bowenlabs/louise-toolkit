@@ -34,6 +34,8 @@ import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw";
 // SEO suggest, #75/#166).
 import sparkle from "@phosphor-icons/core/assets/regular/star-four.svg?raw";
 import link from "@phosphor-icons/core/assets/regular/link.svg?raw";
+// A field a peer is editing: the soft-lock badge.
+import lock from "@phosphor-icons/core/assets/regular/lock-simple.svg?raw";
 // Version history—the conventional "rewind the clock" affordance.
 import history from "@phosphor-icons/core/assets/regular/clock-counter-clockwise.svg?raw";
 
@@ -69,6 +71,7 @@ export const icons = {
   starFill,
   sparkle,
   link,
+  lock,
   history,
 } as const;
 

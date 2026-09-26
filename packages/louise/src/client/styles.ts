@@ -7,8 +7,14 @@
 // Google Fonts, no runtime fetch—and pulled in with `?raw` so it's baked
 // into the bundle exactly like the Phosphor icons (see icons.tsx).
 import brandFontsCss from "../theme/fonts.css?raw";
+import { icons } from "./icons.js";
 
 const LOUISE_BLUE = "#1481ef";
+
+/** An icon as a CSS image, for a pseudo-element that can't hold markup. An
+ *  image can't inherit `currentColor`, so the color is baked in. */
+const iconUrl = (svg: string, color: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(svg.replace('fill="currentColor"', `fill="${color}"`))}")`;
 
 const CSS = `
 :root {
@@ -217,9 +223,9 @@ const CSS = `
   top: -10px;
   left: 8px;
   z-index: 2;
-  padding: 2px 8px;
+  padding: 2px 8px 2px 22px;
   border-radius: 999px;
-  background: var(--louise-orange);
+  background: var(--louise-orange) ${iconUrl(icons.lock, "#fff")} no-repeat 8px center / 11px 11px;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
