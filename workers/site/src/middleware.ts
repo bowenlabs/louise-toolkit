@@ -1,4 +1,6 @@
+import type { APIContext, MiddlewareNext } from "astro";
 import { defineMiddleware } from "astro:middleware";
+import { isNoindexHost, louiseSecurityHeaders } from "louise-toolkit/security";
 import { getEditorGate } from "./lib/louise/gate.js";
 import { EDIT_COOKIE, resolveEditorFromCookie, SESSION_MAX_AGE } from "./lib/louise/session.js";
 
@@ -7,7 +9,18 @@ import { EDIT_COOKIE, resolveEditorFromCookie, SESSION_MAX_AGE } from "./lib/lou
 // editor routes), while `locals.editMode` only decides whether the page renders
 // edit affordances. Edit mode is a sticky cookie toggled by `?louise` /
 // `?louise=off`; entering it requires a valid session.
+//
+// Every page response, redirects included, also gets the toolkit's baseline
+// security headers, plus `X-Robots-Tag: noindex` on a `*.workers.dev` copy.
+// Here rather than in page code: a streamed page has already sent its headers
+// by the time page code runs.
 export const onRequest = defineMiddleware(async (context, next) => {
+  const { hostname } = context.url;
+  const headers = { hostname, noindex: isNoindexHost(hostname) };
+  return louiseSecurityHeaders(await handle(context, next), headers);
+});
+
+async function handle(context: APIContext, next: MiddlewareNext): Promise<Response> {
   const editor = await resolveEditorFromCookie(context.request, getEditorGate());
 
   const url = context.url;
@@ -35,4 +48,4 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.editor = editor;
   context.locals.editMode = editMode && !!editor;
   return next();
-});
+}

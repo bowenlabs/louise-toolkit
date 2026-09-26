@@ -34,6 +34,7 @@ import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
 import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
 import { realtimeRoute } from "louise-toolkit/realtime";
+import { louiseSecurityHeaders } from "louise-toolkit/security";
 import { composeWorker, withEdgeCache, type WorkerRoute } from "louise-toolkit/worker";
 import { startWorkflow } from "louise-toolkit/workflows";
 import { ogCacheStore } from "./lib/og/cache.js";
@@ -93,13 +94,13 @@ async function serveDocs(url: URL, request: Request, env: WorkerEnv): Promise<Re
   const assetUrl = new URL(url);
   assetUrl.pathname = `/_docs${url.pathname}`;
   const res = await env.ASSETS.fetch(new Request(assetUrl, request));
-  const location = res.headers.get("location");
-  if (location?.startsWith("/_docs/")) {
-    const headers = new Headers(res.headers);
-    headers.set("location", location.slice("/_docs".length));
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-  }
-  return res;
+  // ASSETS headers are immutable, and the docs never pass through the Astro
+  // middleware, so copy them once to add the baseline security headers.
+  const headers = new Headers(res.headers);
+  const location = headers.get("location");
+  if (location?.startsWith("/_docs/")) headers.set("location", location.slice("/_docs".length));
+  const out = new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  return louiseSecurityHeaders(out, { hostname: url.hostname });
 }
 
 /* ── Louise Toolkit editor routes ─────────────────────────────────────────── */
@@ -306,11 +307,10 @@ const mediaAssetRoute: WorkerRoute<WorkerEnv> = async (request, env) => {
   obj.writeHttpMetadata(headers);
   headers.set("etag", obj.httpEtag);
   headers.set("cache-control", "public, max-age=31536000, immutable");
-  // Serve with the stored (magic-byte-verified) content type and forbid MIME
-  // sniffing—this route bypasses the Astro middleware that sets nosniff
-  // elsewhere, so set it here as defense-in-depth against a polyglot upload.
-  headers.set("x-content-type-options", "nosniff");
-  return new Response(obj.body, { headers });
+  // Serve with the stored (magic-byte-verified) content type. This route runs
+  // before the Astro middleware, so it applies the baseline security headers
+  // itself; their `nosniff` is the defense against a polyglot upload.
+  return louiseSecurityHeaders(new Response(obj.body, { headers }), { hostname: url.hostname });
 };
 
 const ogRoute: WorkerRoute<WorkerEnv> = (request) => {
