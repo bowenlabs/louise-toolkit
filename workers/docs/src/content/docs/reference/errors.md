@@ -184,6 +184,7 @@ The toolkit's own fallbacks call `reportDegraded` with these names:
 | `worker.healing`                             | A `withHealing` rule served its `fallback`                               |
 | `worker.kvCache.read`, `.write`, `.bust`     | `kvCached` or `kvBust` couldn't reach KV                                 |
 | `ai.run`                                     | A Workers AI call failed, so the assist returned `null`                  |
+| `ai.truncated`                               | A model's answer hit its output token cap, so the assist returned `null` |
 | `ai.vectors.upsert`, `.delete`, `.query`     | A Vectorize call failed, so indexing or semantic search was skipped      |
 | `analytics.vitals`                           | A Core Web Vitals data point wasn't written                              |
 | `media.imageProxy`                           | The image proxy couldn't resize and fell back                            |

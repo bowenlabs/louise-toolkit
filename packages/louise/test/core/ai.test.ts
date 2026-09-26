@@ -16,6 +16,7 @@ import {
   SEO_TITLE_MAX,
   suggestSeo,
 } from "../../src/core/ai/index.js";
+import { type DegradedEvent, onDegraded } from "../../src/core/errors.js";
 
 /** A fake runner that returns a canned output and records the call. */
 function runner(output: unknown): {
@@ -149,15 +150,47 @@ describe("runAiText—truncation (#466)", () => {
     expect((await runAiText(r, "m", {}))?.truncated).toBe(false);
   });
 
-  it("logs a truncated answer with the model ID", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("reports a truncated answer as the ai.truncated degrade, with the model ID", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const events: DegradedEvent[] = [];
+    const off = onDegraded((event) => events.push(event));
     try {
-      const r = runner({ response: "Half a", finish_reason: "length" }).runner;
+      const r = runner({
+        response: "Half a",
+        finish_reason: "length",
+        usage: { completion_tokens: 16 },
+      }).runner;
       await runAiText(r, "@cf/example/model", { max_tokens: 16 });
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0][0])).toContain("@cf/example/model");
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        name: "ai.truncated",
+        message: "answer hit the output token cap",
+        details: {
+          model: "@cf/example/model",
+          finishReason: "length",
+          completionTokens: 16,
+          maxTokens: 16,
+        },
+      });
+      expect(error).toHaveBeenCalledTimes(1);
+      const line = String(error.mock.calls[0][0]);
+      expect(line).toContain("[louise] degraded ai.truncated:");
+      expect(line).toContain("@cf/example/model");
     } finally {
-      warn.mockRestore();
+      off();
+      error.mockRestore();
+    }
+  });
+
+  it("reports nothing for an answer that finished", async () => {
+    const events: DegradedEvent[] = [];
+    const off = onDegraded((event) => events.push(event));
+    try {
+      const r = runner({ response: "A whole sentence.", finish_reason: "stop" }).runner;
+      await runAiText(r, "m", { max_tokens: 16 });
+      expect(events).toHaveLength(0);
+    } finally {
+      off();
     }
   });
 });

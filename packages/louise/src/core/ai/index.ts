@@ -169,7 +169,8 @@ const TRUNCATED_FINISH_REASONS = new Set(["length", "max_tokens"]);
  * The same contract as {@link runAi}: `null` when `runner` is absent or the call
  * throws, and it never throws. Otherwise it returns the text along with
  * `truncated`, read from `inputs.max_tokens` and what the model reported. A
- * truncated answer is logged with the model ID, so it shows in `wrangler tail`.
+ * truncated answer is reported with `reportDegraded` as `ai.truncated`, with the
+ * model ID, so it shows in `wrangler tail` and an `onDegraded` listener hears it.
  *
  * Check `truncated` before you store or show the text. A cut-off answer reads as
  * complete until someone notices that it stops mid-sentence.
@@ -190,7 +191,11 @@ export async function runAiText(
   const truncated =
     (finishReason !== null && TRUNCATED_FINISH_REASONS.has(finishReason.toLowerCase())) || hitCap;
   if (truncated) {
-    console.warn(`[louise-toolkit/ai] answer truncated at the output cap (${model})`, {
+    // A cut-off answer is a degrade: the helpers refuse it and the caller keeps
+    // its fallback. Report it in the same shape as `ai.run`, so one search finds
+    // both and an `onDegraded` listener hears it.
+    reportDegraded("ai.truncated", "answer hit the output token cap", {
+      model,
       finishReason,
       completionTokens: usage?.completionTokens ?? null,
       maxTokens,
