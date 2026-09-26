@@ -29,9 +29,9 @@ primary and error used as text on the page. White on the brand blue `#1481ef`
 is only 3.88:1, and on the brand orange `#db6327` 3.60:1, so each theme gets
 there its own way:
 
-| Theme         | Primary/info                     | Error                            |
-| ------------- | -------------------------------- | -------------------------------- |
-| `louise`      | `#0f6ecd` under white (5.08:1)   | `#b8501f` under white (4.99:1)   |
+| Theme         | Primary/info                       | Error                              |
+| ------------- | ---------------------------------- | ---------------------------------- |
+| `louise`      | `#0f6ecd` under white (5.08:1)     | `#b8501f` under white (4.99:1)     |
 | `louise-dark` | `#1481ef` under `#0e141b` (4.77:1) | `#db6327` under `#0e141b` (5.14:1) |
 
 No single blue clears 4.5:1 both under white text and as text on a dark base,

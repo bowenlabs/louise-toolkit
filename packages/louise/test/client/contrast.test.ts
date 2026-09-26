@@ -23,7 +23,9 @@ const channel = (value: number): number => {
 
 function luminance(hex: string): number {
   const n = Number.parseInt(hex.slice(1), 16);
-  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+  return (
+    0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255)
+  );
 }
 
 function contrast(a: string, b: string): number {
@@ -69,7 +71,12 @@ describe.each(["louise", "louise-dark"])("the %s theme", (name) => {
 });
 
 describe("the editor chrome", () => {
-  const css = stylesSource.slice(stylesSource.indexOf("const CSS = `"));
+  // Comments out, so a failure names the selector alone, and the interpolated
+  // ring blue spelled as its token, so its braces don't split a rule in two.
+  const css = stylesSource
+    .slice(stylesSource.indexOf("const CSS = `"))
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll("${LOUISE_BLUE}", "var(--louise-blue)");
   const ringBlue = /const LOUISE_BLUE = "(#[0-9a-f]{6})";/i.exec(stylesSource)?.[1];
   const textBlue = /--louise-blue-strong:\s*(#[0-9a-f]{6});/i.exec(css)?.[1];
 
@@ -81,11 +88,13 @@ describe("the editor chrome", () => {
   });
 
   it("never sets text on, or in, the ring blue", () => {
-    const onRingBlue = /background:\s*(?:var\(--louise-blue\)|\$\{LOUISE_BLUE\})/;
+    const onRingBlue = /background:\s*var\(--louise-blue\)/;
     const whiteText = /(?<![-\w])color:\s*#fff(?:fff)?\b/i;
-    const inRingBlue = /(?<![-\w])color:\s*(?:var\(--louise-blue\)|\$\{LOUISE_BLUE\})/;
+    const inRingBlue = /(?<![-\w])color:\s*var\(--louise-blue\)/;
     const offenders = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter(([, , body]) => (onRingBlue.test(body) && whiteText.test(body)) || inRingBlue.test(body))
+      .filter(
+        ([, , body]) => (onRingBlue.test(body) && whiteText.test(body)) || inRingBlue.test(body),
+      )
       .map(([, selector]) => selector.trim());
     expect(offenders).toEqual([]);
   });
