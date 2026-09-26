@@ -397,6 +397,10 @@ describe("createLouiseMiddleware — apiGate (ADR 0012)", () => {
       await mw(apiContext(path, { method: "POST" }), next);
       expect(calls.n, path).toBe(1);
     }
+    // The status probe is an anonymous GET from outside, with no Origin.
+    const status = route();
+    await mw(apiContext("/api/louise/status", { origin: null }), status.next);
+    expect(status.calls.n).toBe(1);
   });
 
   it("exempts a site's own public path, and nothing else", async () => {

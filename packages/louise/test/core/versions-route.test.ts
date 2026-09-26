@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { collectionVersionsTable, defineCollection } from "../../src/core/content/index.js";
 import { pages } from "../../src/core/db/index.js";
-import { latestPendingDraft, versionsRoute } from "../../src/core/editor/index.js";
+import {
+  type DraftBufferKV,
+  draftBufferKey,
+  latestPendingDraft,
+  readDraftBuffer,
+  versionsRoute,
+  writeDraftBuffer,
+} from "../../src/core/editor/index.js";
 
 // The route short-circuits (fall-through / auth / bad-id) before ever touching
 // the DB, so these contract tests need only a no-op D1. The draft-merge /
@@ -146,5 +153,193 @@ describe("latestPendingDraft — merge base / publish target", () => {
   it("carries the snapshot so a partial save can layer over it", () => {
     const base = latestPendingDraft([draft(5, { body: "wip", sections: [] })], 1);
     expect(base?.versionData).toEqual({ body: "wip", sections: [] });
+  });
+});
+
+// Publishing an explicit `versionId` (#535). `api.publish` finds the page
+// through the version row's `parentId`, so the route has to check that the
+// version belongs to the page in the path, and check it before the draft buffer
+// flush, or a rejected publish still writes the URL page's buffered work to D1.
+
+function memoryKv(): DraftBufferKV & { store: Map<string, string> } {
+  const store = new Map<string, string>();
+  return {
+    store,
+    async get(key) {
+      return store.get(key) ?? null;
+    },
+    async put(key, value) {
+      store.set(key, value);
+    },
+    async delete(key) {
+      store.delete(key);
+    },
+  };
+}
+
+/**
+ * A D1 stand-in that records every statement. A lookup in `pages_versions`
+ * answers with one version whose `parent_id` is `versionParentId` (none when
+ * it's `null`), and any other read answers with page 1. An `insert` throws, so
+ * a test can tell whether the route reached the draft flush.
+ */
+function publishD1(versionParentId: number | null) {
+  const statements: string[] = [];
+  const d1 = {
+    prepare: (sql: string) => {
+      statements.push(sql);
+      if (/^insert/i.test(sql)) throw new Error("reached the draft flush");
+      const rows = sql.includes('"pages_versions"')
+        ? versionParentId === null
+          ? []
+          : [[versionParentId]]
+        : [[1]];
+      const stmt = {
+        raw: async () => rows,
+        all: async () => ({ results: rows }),
+        run: async () => ({ success: true }),
+      };
+      return { ...stmt, bind: () => stmt };
+    },
+  } as unknown as D1Database;
+  return { d1, statements };
+}
+
+const BUFFERED = { title: "Unpublished work on page 1" };
+
+async function bufferedRoute() {
+  const kv = memoryKv();
+  const now = Date.now();
+  await writeDraftBuffer(kv, draftBufferKey("pages", 1), {
+    data: BUFFERED,
+    updatedAt: now,
+    flushedAt: now,
+  });
+  const r = versionsRoute({
+    table: pages,
+    versionsTable: pagesVersions,
+    config,
+    resolveEditor: () => editor,
+    bufferKv: () => kv,
+  });
+  return { kv, route: r };
+}
+
+/** A POST to `/api/louise/pages/1/<action>` whose body is exactly `text`. */
+const rawReq = (action: "publish" | "discard", text: string) =>
+  new Request(`https://site.example/api/louise/pages/1/${action}`, {
+    method: "POST",
+    headers: { origin: "https://site.example", "content-type": "application/json" },
+    body: text,
+  });
+
+const publishReq = (body: unknown) => rawReq("publish", JSON.stringify(body));
+
+describe("versionsRoute—publishing an explicit versionId", () => {
+  it("answers 404 when the version belongs to another page, without flushing the buffer", async () => {
+    const { kv, route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(2);
+
+    const res = await r(publishReq({ versionId: 9 }), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(404);
+    expect(await res?.json()).toEqual({ error: "Version not found" });
+    // The version lookup is the only statement: no draft insert, no publish.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toContain('"pages_versions"');
+    expect((await readDraftBuffer(kv, draftBufferKey("pages", 1)))?.data).toEqual(BUFFERED);
+  });
+
+  it("answers 404 when the version doesn't exist, without flushing the buffer", async () => {
+    const { kv, route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(null);
+
+    const res = await r(publishReq({ versionId: 9 }), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(404);
+    expect(statements.some((sql) => /^(insert|update)/i.test(sql))).toBe(false);
+    expect((await readDraftBuffer(kv, draftBufferKey("pages", 1)))?.data).toEqual(BUFFERED);
+  });
+
+  it("goes on to flush the buffer when the version belongs to the page", async () => {
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    await expect(r(publishReq({ versionId: 9 }), { DB: d1 }, ctx)).rejects.toThrow();
+
+    expect(statements.some((sql) => /^insert into "pages_versions"/i.test(sql))).toBe(true);
+  });
+
+  it.each([0, -3])("answers 400 for versionId %d before any DB access", async (versionId) => {
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    const res = await r(publishReq({ versionId }), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(400);
+    expect(statements).toEqual([]);
+  });
+
+  it.each(["0", "-1", "07", "1.5"])("answers 400 for page id %s", async (pageId) => {
+    const res = await route(() => editor)(
+      req("POST", `/api/louise/pages/${pageId}/publish`),
+      { DB: noopD1 },
+      ctx,
+    );
+    expect(res?.status).toBe(400);
+  });
+});
+
+// Only an ABSENT `versionId` means "publish the latest draft". Before, a body
+// the schema rejected (a string, a fraction, `null`) was read as absent, so
+// `{ "versionId": "7" }` published the newest draft instead of version 7.
+describe("versionsRoute—a versionId that's present but not a positive integer", () => {
+  it.each([
+    ['{"versionId":"7"}'],
+    ['{"versionId":"abc"}'],
+    ['{"versionId":1.5}'],
+    ['{"versionId":null}'],
+    ['{"versionId":true}'],
+    ['{"versionId":{}}'],
+    ["[7]"],
+    ["null"],
+    ['{"versionId":7'],
+  ])("publish answers 400 for %s before any DB access or flush", async (text) => {
+    const { kv, route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    const res = await r(rawReq("publish", text), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(400);
+    expect(statements).toEqual([]);
+    expect((await readDraftBuffer(kv, draftBufferKey("pages", 1)))?.data).toEqual(BUFFERED);
+  });
+
+  it.each([["{}"], [""]])("publish with body %j still takes the latest draft", async (text) => {
+    // The latest-draft path flushes the buffer first, which this D1 stand-in
+    // answers by throwing on the insert.
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    await expect(r(rawReq("publish", text), { DB: d1 }, ctx)).rejects.toThrow();
+
+    expect(statements.some((sql) => /^insert into "pages_versions"/i.test(sql))).toBe(true);
+  });
+
+  it.each([
+    ['{"versionId":"7"}'],
+    ['{"versionId":0}'],
+    ['{"versionId":1.5}'],
+    ['{"versionId":null}'],
+    ['{"versionId":"abc"}'],
+    ["{}"],
+  ])("discard answers 400 for %s before any DB access", async (text) => {
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    const res = await r(rawReq("discard", text), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(400);
+    expect(statements).toEqual([]);
   });
 });

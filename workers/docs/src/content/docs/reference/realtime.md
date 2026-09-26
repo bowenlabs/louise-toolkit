@@ -143,3 +143,6 @@ everyone else on the page.
 `RealtimePeer`, `RealtimeLocks`, `RealtimeServerMessage`, `RealtimeClientMessage`,
 `RealtimeRouteConfig`. Constants: `REALTIME_PROTOCOL_VERSION`. Also
 `presenceMessage` and `parseClientMessage`.
+
+`EditSessionTarget.id` is a [`PageId`](/reference/content/#page-and-version-ids),
+parsed from the upgrade path, so `persist` passes it straight to `applySaveDraft`.

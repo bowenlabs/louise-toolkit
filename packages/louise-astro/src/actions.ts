@@ -37,6 +37,7 @@
 
 import { z } from "astro/zod";
 import type { EditorSession } from "louise-toolkit/auth";
+import { toPageId } from "louise-toolkit/content";
 import { D1_BOOKMARK_COOKIE } from "louise-toolkit/db";
 import { applyFieldSave, type SaveCollectionConfig } from "louise-toolkit/editor";
 import { applySettingsPatch, type SettingsPatchConfig } from "louise-toolkit/editor";
@@ -271,7 +272,9 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
 
   return {
     input: z.object({
-      id: z.number().int(),
+      // Positive, like every row ID, so `toPageId` below can't throw on input
+      // this schema accepted.
+      id: z.number().int().positive(),
       data: z.record(z.string(), z.unknown()),
     }),
     handler: async (
@@ -283,7 +286,7 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
         resolved.getEnv(context),
         config,
         editor,
-        input.id,
+        toPageId(input.id),
         input.data,
       );
       if (!result.ok) throwActionError(resolved.ActionError, result.status, result.error);

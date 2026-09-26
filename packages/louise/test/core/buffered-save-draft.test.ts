@@ -1,7 +1,11 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
-import { collectionVersionsTable, defineCollection } from "../../src/core/content/index.js";
+import {
+  collectionVersionsTable,
+  defineCollection,
+  toPageId,
+} from "../../src/core/content/index.js";
 import {
   applySaveDraft,
   type DraftBufferKV,
@@ -92,7 +96,7 @@ describe("applySaveDraft—a buffered save", () => {
       { DB: fakeD1 },
       { table: docs, versionsTable: collectionVersionsTable(config), config, bufferKv: () => kv },
       editor,
-      1,
+      toPageId(1),
       { body: HOSTILE },
     );
 
@@ -112,7 +116,7 @@ describe("applySaveDraft—a buffered save", () => {
       { DB: fakeD1 },
       { table: docs, versionsTable, config, bufferKv: () => kv },
       editor,
-      1,
+      toPageId(1),
       { body: HOSTILE },
     );
     const resumed = await resumeDraft(
@@ -134,7 +138,7 @@ describe("applySaveDraft—a buffered save", () => {
         { DB: fakeD1 },
         { table: docs, versionsTable: collectionVersionsTable(config), config, bufferKv: () => kv },
         editor,
-        1,
+        toPageId(1),
         { title: "Changed" },
       ),
     ).rejects.toBeInstanceOf(LouiseAccessDeniedError);
@@ -265,7 +269,7 @@ describe("versionsRoute—an invalid draft save", () => {
         },
       },
       editor,
-      1,
+      toPageId(1),
       { title: "" },
     );
 

@@ -65,8 +65,8 @@ export interface LouiseMiddlewareApiGate {
   prefix?: string;
   /**
    * Paths under the prefix an anonymous request may still reach, on top of the
-   * toolkit's own public routes at their default mounts (forms and vitals—see
-   * `isLouisePublicPath`).
+   * toolkit's own public routes at their default mounts (forms, vitals, and
+   * status—see `isLouisePublicPath`).
    *
    * A path, not a mark on the route, because middleware runs before it knows
    * which route file will answer: a route can't declare itself public here the

@@ -27,8 +27,9 @@
 // browser to `signInPath` rather than rendering an empty app.
 
 import { QueryClientProvider } from "@tanstack/solid-query";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { render } from "solid-js/web";
+import { screenTitle, type StudioNavItem } from "../studio/navigation.js";
 import { injectStyles } from "../styles.js";
 import type { DashboardApi } from "./dashboard/types.js";
 import { DrawerFooter, PanelActionsProvider } from "./panel-actions.jsx";
@@ -36,6 +37,7 @@ import { createSettingsQueryClient, isApiStatus } from "./query.js";
 import {
   type FrameworkPanel,
   FrameworkNav,
+  frameworkButtons,
   initialPanel,
   type SurfaceConfig,
   SurfacePanels,
@@ -80,6 +82,26 @@ export function Studio(props: StudioConfig): ReturnType<typeof PanelActionsProvi
   };
   const navigate: DashboardApi["open"] = (target) =>
     "panel" in target ? setOverlay(target.panel) : selectTab(target.tab);
+
+  // Each panel titles the document (`Media | Studio`), so a browser tab, a
+  // history entry, and a screen reader's page announcement each say where the
+  // editor is. The titles come from `screenTitle`, the same wording a routed
+  // studio uses, keyed by a path per panel and per tab. The page's own title
+  // comes back on unmount.
+  const screens = (): StudioNavItem[] => [
+    ...frameworkButtons(props).map((b) => ({ to: `/panel/${b.id}`, label: b.label })),
+    { to: "/panel/health", label: "Health" },
+    ...tabs().map((t) => ({ to: `/tab/${t.id}`, label: t.label })),
+  ];
+  const previousTitle = document.title;
+  createEffect(() => {
+    const at = overlay();
+    const path = at ? `/panel/${at}` : `/tab/${tab() ?? ""}`;
+    document.title = screenTitle(screens(), path, { suffix: props.title ?? "Studio" });
+  });
+  onCleanup(() => {
+    document.title = previousTitle;
+  });
 
   return (
     <div class="louise-studio" data-theme="louise">

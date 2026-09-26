@@ -48,9 +48,12 @@ export const LOUISE_FORMS_PATH = `${LOUISE_API_PREFIX}/forms`;
 /** `vitalsRoute`'s default mount. */
 export const LOUISE_VITALS_PATH = `${LOUISE_API_PREFIX}/vitals`;
 
+/** `statusRoute`'s default mount. */
+export const LOUISE_STATUS_PATH = `${LOUISE_API_PREFIX}/status`;
+
 /**
  * Whether `pathname` is where one of the toolkit's own public routes mounts
- * by default—a form submission or the vitals beacon.
+ * by default—a form submission, the vitals beacon, or the status probe.
  *
  * `composeWorker` doesn't need this: it can see a {@link publicRoute} mark
  * before the route runs. A gate that can't—framework middleware, which runs
@@ -58,7 +61,11 @@ export const LOUISE_VITALS_PATH = `${LOUISE_API_PREFIX}/vitals`;
  * anonymous visitor can still submit a form mounted as a framework route.
  */
 export function isLouisePublicPath(pathname: string): boolean {
-  return pathname === LOUISE_VITALS_PATH || pathname.startsWith(`${LOUISE_FORMS_PATH}/`);
+  return (
+    pathname === LOUISE_VITALS_PATH ||
+    pathname === LOUISE_STATUS_PATH ||
+    pathname.startsWith(`${LOUISE_FORMS_PATH}/`)
+  );
 }
 
 /** Whether `pathname` falls under `prefix`, on a segment boundary. */
@@ -112,7 +119,7 @@ const PUBLIC = Symbol.for("louise-toolkit.publicRoute");
 
 /**
  * Mark a route as reachable without an editor session under the gated prefix:
- * a contact form, a vitals beacon. The route that is public says so here,
+ * a contact form, a vitals beacon, a status probe. The route that is public says so here,
  * rather than a path list in the site's config that drifts from the code.
  * A public route still does its own checks (origin, validation, rate limit).
  */

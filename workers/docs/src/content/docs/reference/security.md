@@ -1,6 +1,6 @@
 ---
 title: security
-description: "louise-toolkit/security—editor-HTML sanitizer, KV rate limiter, session-secret helper, and security headers."
+description: "louise-toolkit/security—editor and model HTML sanitizers, KV rate limiter, session-secret helper, and security headers."
 sidebar:
   order: 10
 ---
@@ -8,6 +8,7 @@ sidebar:
 ```ts
 import {
   sanitizeRichHtml,
+  sanitizeModelHtml,
   plainText,
   metaDescription,
   hasRichText,
@@ -52,6 +53,56 @@ media-hosted images are kept. Omit it to keep any safe `http(s)`/relative `src`
 (the default). See [strict media](/guide/media/#strict-media-every-image-from-the-library).
 
 `ALLOWED_TAGS` and `ATTR_ALLOW` are exported for composing a variant.
+
+## `sanitizeModelHtml(html)`
+
+```ts
+function sanitizeModelHtml(html: string): string;
+```
+
+The stricter preset, for HTML a model wrote. Model output is less trustworthy
+than an editor's: a prompt injection in the content you gave the model can steer
+what it writes, so it gets a narrower allowlist than a person does. Run it on
+write, before you store the HTML, in place of `sanitizeRichHtml`:
+
+```ts
+const draft = sanitizeModelHtml(modelHtml);
+```
+
+What survives is text structure:
+
+- **Tags:** `p`, `br`, `h1` through `h4`, `ul`, `ol`, `li`, `blockquote`,
+  `strong`, `b`, `em`, `i`, `code`, `pre`, and `a`.
+- **Attributes:** `href` on `a`, and nothing else. No `style`, no `class`, no
+  `on*` handler, no `data-*`.
+- **Links:** `href` must be absolute `http(s)` or `mailto`. Every surviving link
+  gets `rel="noopener noreferrer nofollow"`, whatever the input said. A link with
+  any other `href`, or none, is unwrapped to its text.
+
+What doesn't survive, and how:
+
+- A tag `sanitizeRichHtml` allows but this preset doesn't (`div`, `span`, `u`,
+  `section`, `figure`, and the like) is **unwrapped**. The element goes and its
+  text stays, so a model that wraps a paragraph in a `<div>` doesn't lose the
+  paragraph.
+- Anything else, including `img`, `iframe`, `object`, `embed`, `svg`, `script`,
+  and `style`, is **dropped with its contents**, the same as in `sanitizeRichHtml`.
+
+The model allowlist is a subset of the human one, never a separate list. A test
+asserts every tag and attribute in `MODEL_ALLOWED_TAGS` and `MODEL_ATTR_ALLOW` is
+also in `ALLOWED_TAGS` and `ATTR_ALLOW`, so widening the model preset past what a
+person can write fails the build. `rel` is the one exception: the sanitizer
+writes it (`MODEL_LINK_REL`) rather than accepting it.
+
+The function takes one argument, so you can pass it anywhere a route takes a
+`sanitize: (html) => string` option. Once a person opens the content in the
+editor and saves it, it's human-authored and goes through `sanitizeRichHtml`
+like any other edit, which doesn't keep the forced `rel`.
+
+The toolkit's own AI assists don't produce HTML. [`rewriteText`](/reference/ai/#rewritetextrunner-text-opts),
+`suggestSeo`, and `generateAltText` all return plain text, and the editor
+inserts a rewrite as text rather than parsing it. Reach for this preset when your
+own code asks a model for HTML, or when an agent writes rich text into a field.
 
 ## Rich text as text
 

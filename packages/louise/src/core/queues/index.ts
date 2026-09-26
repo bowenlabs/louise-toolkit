@@ -4,8 +4,8 @@
 //
 // Thin wrapper over Cloudflare Queues' `Queue`/`MessageBatch` bindings.
 // Producer side is a single `enqueue()` call; consumer side is a batch
-// runner that acks each message on success and calls `retry()` on
-// failure. Cloudflare Queues—not this module—owns the actual
+// runner that acks each message on success and, on failure, logs the error
+// and calls `retry()`. Cloudflare Queues—not this module—owns the actual
 // redelivery/backoff schedule and DLQ routing: once a message exceeds the
 // queue's configured `max_retries`, CF routes it to that queue's
 // `dead_letter_queue` automatically (set in wrangler.jsonc, not here).
@@ -54,6 +54,13 @@ export type QueueMessageHandler<T> = (
  * doesn't block the rest of the batch from acking. Never throws itself;
  * a handler's own errors are caught and turned into a `retry()` so a
  * Worker's `queue()` export can call this directly as its entire body.
+ *
+ * Before each retry, `processBatch` logs the failure with `console.error`:
+ * the queue name, the message id, and the delivery attempt, with the error
+ * itself as the second argument. Without that line, a failure leaves no trace
+ * in Workers Logs—once the queue's `max_retries` is spent, Cloudflare moves
+ * the message to the dead-letter queue, or drops it if there's none, and logs
+ * nothing.
  */
 export async function processBatch<T>(
   batch: MessageBatch<T>,
@@ -63,7 +70,11 @@ export async function processBatch<T>(
     try {
       await handler(message.body, { attempts: message.attempts });
       message.ack();
-    } catch {
+    } catch (err) {
+      console.error(
+        `[louise] queue handler failed on ${batch.queue} (message ${message.id}, attempt ${message.attempts}); marking it for retry`,
+        err,
+      );
       message.retry();
     }
   }

@@ -20,6 +20,21 @@ export { type EditorsRouteConfig, editorsRoute } from "./editors.js";
 export { type FormRouteConfig, type FormRouteEnv, formRoute } from "./form.js";
 export { type HealthRouteConfig, healthRoute } from "./health.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
+export {
+  ageCheck,
+  d1Check,
+  type RunStatusChecksOptions,
+  runStatusChecks,
+  STATUS_CHECK_TIMEOUT_MS,
+  type StatusCheck,
+  type StatusCheckReport,
+  type StatusCheckResult,
+  type StatusD1,
+  type StatusReport,
+  statusRoute,
+  type StatusRouteConfig,
+  type StatusTimestamp,
+} from "./status.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
   // `applySettingsPatch` + its config are the route-free core of a settings write.
@@ -62,7 +77,13 @@ export {
   type OverviewRouteConfig,
   overviewRoute,
 } from "./overview.js";
-export { DEFAULT_PAGE_FIELDS, type PagesRouteConfig, pagesRoute, pickFields } from "./pages.js";
+export {
+  DEFAULT_PAGE_FIELDS,
+  type PagesRouteConfig,
+  type PagesWrite,
+  pagesRoute,
+  pickFields,
+} from "./pages.js";
 export { type SearchRouteConfig, type SearchVectorConfig, searchRoute } from "./search.js";
 export { DEFAULT_SEO_FIX_BATCH, type SeoFixRouteConfig, seoFixRoute } from "./seo-fix.js";
 export { type AiRouteConfig, aiRoute } from "./ai.js";

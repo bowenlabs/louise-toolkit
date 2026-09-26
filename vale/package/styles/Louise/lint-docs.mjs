@@ -26,8 +26,8 @@
 // raw Markdown instead and reports what Vale missed, as `Louise.SpacedDash`.
 //
 // With `--strings`, it also lints user-facing strings (error messages, `json(…)`
-// bodies, JSX text, and readable JSX attributes) in the TypeScript files the
-// patterns match, using copy-extract.mjs beside this file. Findings count under
+// bodies, JSX text and expressions, readable JSX attributes, status and
+// confirmation messages) in the TypeScript files the patterns match, using copy-extract.mjs beside this file. Findings count under
 // the source path with a ` (strings)` suffix. That needs the `typescript`
 // package, loaded from the repository being linted.
 //

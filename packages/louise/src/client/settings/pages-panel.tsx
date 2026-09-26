@@ -322,7 +322,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
         return;
       }
       if (!res.ok) {
-        setError("Couldn’t suggest SEO right now — leaving your fields as they are.");
+        setError("Couldn’t suggest SEO right now. Your fields are as you left them.");
         return;
       }
       const data = (await res.json().catch(() => null)) as {
@@ -332,7 +332,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       if (data?.title) edited(setSeoTitle)(data.title);
       if (data?.description) edited(setSeoDescription)(data.description);
     } catch {
-      setError("Couldn’t suggest SEO right now — leaving your fields as they are.");
+      setError("Couldn’t suggest SEO right now. Your fields are as you left them.");
     } finally {
       setSeoBusy(false);
     }
