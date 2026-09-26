@@ -108,10 +108,10 @@ When an assist starts answering `502`:
    rewrite and SEO both fail, suspect the shared text model rather than one
    feature. The helpers take a per-call `model` option, so you can pin a
    current one.
-3. **Look for `answer truncated at the output cap` in `wrangler tail`.** The
+3. **Look for `[louise] degraded ai.truncated` in `wrangler tail`.** The
    helpers refuse an answer that hit its `max_tokens`, because a cut-off rewrite
    would replace a passage with a fragment and cut-off alt text would read as
-   finished. The log names the model, its finish reason, and the tokens it
+   finished. The line names the model, its finish reason, and the tokens it
    generated against the cap. If it's frequent, the model is wordier than the cap
    allows: raise `maxTokens`, or pick a model that answers more briefly.
 
