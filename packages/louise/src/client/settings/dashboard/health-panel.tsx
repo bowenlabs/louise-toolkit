@@ -11,11 +11,7 @@
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";
 import type { CwvSummary } from "../../../core/analytics/index.js";
-import {
-  HEALTH_STALE_AFTER_MS,
-  type HealthSummary,
-  isStale,
-} from "../../../core/health/index.js";
+import { HEALTH_STALE_AFTER_MS, type HealthSummary, isStale } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
 import { apiGet, louiseQueryKeys } from "../query.js";
 import type { DashboardApi } from "./types.js";
