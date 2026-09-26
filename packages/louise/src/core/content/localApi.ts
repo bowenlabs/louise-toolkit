@@ -14,7 +14,15 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import type { BaseSQLiteDatabase, SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
+import type { BatchItem } from "drizzle-orm/batch";
+import {
+  type BaseSQLiteDatabase,
+  integer,
+  type SQLiteColumnBuilderBase,
+  type SQLiteTableWithColumns,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 import { LouiseAccessDeniedError, LouiseContentError } from "../errors.js";
 import { collectionSearchTableName, extractSearchText } from "./codegen.js";
 import { diffDocuments, type FieldChange } from "./patch.js";
@@ -84,12 +92,16 @@ export interface LocalApi<TTable extends AnyTable, TContext = unknown> {
     options?: { limit?: number },
   ): Promise<InferSelectModel<TTable>[]>;
   /**
-   * Rebuild the FTS5 index from the current main-table rows—clears the index
-   * and re-inserts every row's search text. For backfilling after the FTS table
-   * is first created (an empty `search.fields`-configured migration) or after a
-   * bulk import that bypassed the Local API. Gated by `read` access; returns the
-   * number of rows indexed. A no-op (returns 0) when the collection has no
-   * `search` config.
+   * Rebuild the FTS5 index from the current main-table rows—replaces every
+   * row's entry in place, in batches that each commit as one transaction, then
+   * removes the entries whose row no longer exists. The index never empties
+   * along the way, so a search during a rebuild returns whole results, and a
+   * rebuild that fails partway leaves every entry old or new, never missing.
+   * For backfilling after the FTS table is first created (an empty
+   * `search.fields`-configured migration) or after a bulk import that bypassed
+   * the Local API; to update one row after a write, use {@link reindexDoc}.
+   * Gated by `read` access; returns the number of rows indexed. A no-op
+   * (returns 0) when the collection has no `search` config.
    */
   reindexSearch(context: TContext): Promise<number>;
   create(context: TContext, input: InferInsertModel<TTable>): Promise<InferSelectModel<TTable>>;
@@ -389,28 +401,75 @@ async function runAfterDelete(config: CollectionConfig, id: number): Promise<voi
 // createVersionedLocalApi rather than a user-facing hook. FTS5 has no
 // native UPSERT; a plain DELETE-then-INSERT keyed by rowid (== the main
 // table's `id`) is the standard pattern for keeping an external,
-// non-content FTS5 table in sync with its source row.
+// non-content FTS5 table in sync with its source row. The pair goes out as
+// one batch, which D1 commits as one transaction, so a reader sees the old
+// entry or the new one—never neither—and a failure between the two can't
+// drop the row from search (#573).
 async function syncSearchIndex(
   db: BaseSQLiteDatabase<"async", unknown>,
   config: CollectionConfig,
   doc: AnyRecord,
 ): Promise<void> {
+  await runAtomically(db, searchIndexStatements(db, config, doc));
+}
+
+/** A Drizzle table object for a collection's FTS5 table, so its statements are
+ *  query builders. Drizzle's D1 driver can't batch a raw `db.run(sql…)` that has
+ *  bound parameters, but it can batch a builder. Cached per config. */
+const searchTables = new WeakMap<CollectionConfig, AnyTable>();
+function searchTable(config: CollectionConfig): AnyTable {
+  let table = searchTables.get(config);
+  if (!table) {
+    const columns: Record<string, SQLiteColumnBuilderBase> = { rowid: integer("rowid") };
+    for (const key of config.search?.fields ?? []) columns[key] = text(key);
+    table = sqliteTable(collectionSearchTableName(config), columns) as AnyTable;
+    searchTables.set(config, table);
+  }
+  return table;
+}
+
+/** The unexecuted DELETE and INSERT that replace one row's FTS entry, or none
+ *  for a non-searchable collection or a row without a numeric ID (the FTS
+ *  rowid). Drizzle statements run only when awaited or batched, so the caller
+ *  decides how they commit. */
+function searchIndexStatements(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  config: CollectionConfig,
+  doc: AnyRecord,
+): SearchIndexStatement[] {
   const fields = config.search?.fields;
-  if (!fields?.length) return;
+  if (!fields?.length) return [];
   const id = doc.id;
-  if (typeof id !== "number") return;
-  const fts = sql.identifier(collectionSearchTableName(config));
-  const columnList = sql.join(
-    fields.map((key) => sql.identifier(key)),
-    sql.raw(", "),
-  );
+  if (typeof id !== "number") return [];
+  const fts = searchTable(config);
   const values = extractSearchText(config, doc);
-  const valueList = sql.join(
-    values.map((value) => sql`${value}`),
-    sql.raw(", "),
-  );
-  await db.run(sql`DELETE FROM ${fts} WHERE rowid = ${id}`);
-  await db.run(sql`INSERT INTO ${fts} (rowid, ${columnList}) VALUES (${id}, ${valueList})`);
+  const entry: Record<string, unknown> = { rowid: id };
+  fields.forEach((key, index) => {
+    entry[key] = values[index];
+  });
+  return [db.delete(fts).where(eq(fts.rowid, id)), db.insert(fts).values(entry)];
+}
+
+type SearchIndexStatement = BatchItem<"sqlite">;
+
+/** Rows per reindex batch: two statements each, so 100 statements a batch. A
+ *  batch is one D1 transaction, and a transaction blocks every other write to
+ *  the database while it runs, so a whole-table rebuild commits in slices
+ *  rather than in one long transaction. */
+const REINDEX_BATCH_ROWS = 50;
+
+/** Run statements as one batch, which D1 and libsql commit as one transaction.
+ *  A driver without `batch` runs them in order instead, the prior behavior. */
+async function runAtomically(
+  db: BaseSQLiteDatabase<"async", unknown>,
+  statements: readonly SearchIndexStatement[],
+): Promise<void> {
+  if (statements.length === 0) return;
+  if (canBatch(db)) {
+    await db.batch(statements);
+    return;
+  }
+  for (const statement of statements) await statement;
 }
 
 async function removeFromSearchIndex(
@@ -419,8 +478,8 @@ async function removeFromSearchIndex(
   id: number,
 ): Promise<void> {
   if (!config.search?.fields.length) return;
-  const fts = sql.identifier(collectionSearchTableName(config));
-  await db.run(sql`DELETE FROM ${fts} WHERE rowid = ${id}`);
+  const fts = searchTable(config);
+  await db.delete(fts).where(eq(fts.rowid, id));
 }
 
 /**
@@ -597,12 +656,24 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
     async reindexSearch(context) {
       await checkAccess(config, "read", context);
       if (!config.search?.fields.length) return 0;
+      // Replace each row's entry in place, then drop only the entries whose row
+      // is gone. Emptying the table first would let a search during the rebuild
+      // return partial results, and leave them partial if the rebuild failed
+      // partway (#573). Each batch commits as one transaction, so a reader sees
+      // every entry either before or after its replacement.
       const fts = sql.identifier(collectionSearchTableName(config));
-      await db.run(sql`DELETE FROM ${fts}`);
       const rows = await db.select().from(table);
-      for (const row of rows) {
-        await syncSearchIndex(db, config, toNestedDoc(row as Record<string, unknown>) as AnyRecord);
+      for (let start = 0; start < rows.length; start += REINDEX_BATCH_ROWS) {
+        const statements = rows
+          .slice(start, start + REINDEX_BATCH_ROWS)
+          .flatMap((row) =>
+            searchIndexStatements(db, config, toNestedDoc(row as Record<string, unknown>) as AnyRecord),
+          );
+        await runAtomically(db, statements);
       }
+      // A subquery rather than `NOT IN (…)` over bound IDs: SQLite caps bound
+      // parameters, and it also keeps an entry for a row created since the read.
+      await db.run(sql`DELETE FROM ${fts} WHERE rowid NOT IN (SELECT ${idColumn} FROM ${table})`);
       return rows.length;
     },
 
@@ -786,8 +857,8 @@ export interface VersionedLocalApi<
 
 /** A driver that exposes D1/libsql's atomic `batch([...])`. The generic
  *  `BaseSQLiteDatabase` type doesn't declare it (it's driver-specific), so the
- *  publish path feature-detects it: batch atomically where available, fall back
- *  to sequential writes on any driver that lacks it. */
+ *  publish path and the search sync feature-detect it: batch atomically where
+ *  available, fall back to sequential writes on any driver that lacks it. */
 interface BatchableDb {
   batch(statements: readonly unknown[]): Promise<unknown[]>;
 }

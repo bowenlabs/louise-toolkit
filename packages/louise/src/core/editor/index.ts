@@ -62,7 +62,13 @@ export {
   type OverviewRouteConfig,
   overviewRoute,
 } from "./overview.js";
-export { DEFAULT_PAGE_FIELDS, type PagesRouteConfig, pagesRoute, pickFields } from "./pages.js";
+export {
+  DEFAULT_PAGE_FIELDS,
+  type PagesRouteConfig,
+  type PagesWrite,
+  pagesRoute,
+  pickFields,
+} from "./pages.js";
 export { type SearchRouteConfig, type SearchVectorConfig, searchRoute } from "./search.js";
 export { DEFAULT_SEO_FIX_BATCH, type SeoFixRouteConfig, seoFixRoute } from "./seo-fix.js";
 export { type AiRouteConfig, aiRoute } from "./ai.js";

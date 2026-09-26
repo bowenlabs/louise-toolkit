@@ -137,7 +137,12 @@ export const ALL: APIRoute = (ctx) =>
   through `sanitizeRichHtml` before store. An optional `validate(data, ctx)` hook
   runs after allowlisting and before the write—throw `LouiseValidationError`
   (for example, via [`assertValidSections`](/guide/sections/#validation)) to reject with a
-  `422` carrying the per-field `violations`.
+  `422` carrying the per-field `violations`. An optional `afterWrite(editor,
+{ operation, id })` hook runs after each create, update, and delete, and a
+  throw from it never fails the write. Plain CRUD writes don't touch the search
+  index, so pass `afterWrite: (_editor, { id }) => reindexDoc(db(env.DB), pages,
+pagesCollection, id)` to keep that one row searchable, rather than rebuilding
+  the whole index with `reindexSearch` after every edit.
 - **`versionsRoute`**—the [draft/publish + version history](/guide/drafts/)
   surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
   (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest
