@@ -104,7 +104,7 @@ export interface FourthwallRateLimits {
 // window boundary—a fixed window lets 2× the limit through across a boundary,
 // which is exactly the burst a limiter is for.
 //
-// ⚠️ WHAT THIS CANNOT DO. The buckets live in module state, so they are per
+// WHAT THIS CANNOT DO. The buckets live in module state, so they are per
 // ISOLATE. Two Workers isolates, or a cron and a queue consumer running
 // concurrently, each get a full bucket and can together exceed the shop's real
 // budget. This prevents the failure that actually happens—one loop hammering

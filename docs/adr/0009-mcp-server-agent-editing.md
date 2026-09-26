@@ -1,6 +1,6 @@
 # ADR 0009: Louise MCP server, agent-editable content over the Local API
 
-- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice.
+- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice. **Amended 2026-09-26** (see _Amendment (2026-09-26)_ below) when slice 2 landed: the route serves both protocol eras, and the official SDK client tests it without shipping in it.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #103 (in the Platform features push milestone, epic #102)
 - **Related:** #75 / #99 (AI assists, which become MCP consumers), #16 (Local API + access), #10 (editor routes / `composeWorker`), ADR 0006 (keep hand-rolled `composeWorker`, zero-dep core)
@@ -110,6 +110,49 @@ So there's nothing at this layer to derive an argument schema from.
 Generating the tool anyway would mean inventing a block catalog to satisfy the
 slice plan, which is the wrong order. It arrives with slice 4, where the write
 path establishes what inserting a block actually means.
+
+## Amendment (2026-09-26, at slice 2)
+
+The 2026-07-28 revision that the first amendment pointed slice 2 at turned out
+to change the part of the protocol that decision 1 names. It removes the
+`initialize` handshake and protocol-level sessions. Every request carries its
+version and the client's capabilities in `_meta`, a server must implement
+`server/discover`, and the Streamable HTTP transport checks the
+`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers against the body.
+
+### The route serves both eras
+
+Implementing only 2026-07-28 would leave the route unreachable from most
+clients. The official TypeScript client, 2.1.0 at the time of writing, still
+opens with `initialize` unless a caller opts in to the new negotiation, and a
+client of the older era has no way to move forward to a newer server. The
+revision defines a dual-era server for exactly this case, so `mcpRoute` is one:
+
+- A request whose `_meta` names a protocol version is served statelessly, as
+  2026-07-28 defines it.
+- An `initialize` opens the 2025-11-25, 2025-06-18 or 2025-03-26 handshake.
+
+Neither era needs state here, so the cost of serving both is a few branches
+rather than a second implementation. The route never mints a session ID in
+either era, and it answers `GET` and `DELETE` with `405`. Decision 1's
+`initialize`/`tools/list`/`tools/call` becomes `server/discover` or
+`initialize`, plus `tools/list` and `tools/call`.
+
+### The SDK tests the route, without shipping in it
+
+The core still has no runtime dependency, and the hand-rolled transport
+stands. The official `@modelcontextprotocol/client` is a devDependency instead:
+the route's tests connect it in both eras. A client nobody here wrote is the
+evidence that the hand-rolled route speaks the protocol, and a devDependency
+never reaches a site.
+
+### `tools/list` asks `can()` before it lists a tool
+
+Decision 3 reuses `can()` for every call. `tools/list` now asks it too, and
+leaves out a collection whose `read` access function refuses the editor, so an
+agent never chooses a tool only to be refused. The Local API still checks on
+the call. Because the list depends on who asks, a 2026-07-28 `tools/list` marks
+its result `cacheScope: "private"`.
 
 ## Consequences
 
