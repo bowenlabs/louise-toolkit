@@ -383,14 +383,29 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     }
 
     // POST /:id/publish—promote a draft to live. `versionId` in the body (a
-    // version of this page, else 404), else the newest still-*pending* draft (a superseded draft—one publishing has
-    // already moved past—must not silently go live). See `latestPendingDraft`.
+    // version of this page, else 404), else the newest still-*pending* draft (a
+    // superseded draft—one publishing has already moved past—must not silently
+    // go live). See `latestPendingDraft`.
+    //
+    // Only an absent `versionId` (an empty body, `{}`) means "the latest draft".
+    // A `versionId` that's present but isn't a positive JSON integer (`"7"`,
+    // `1.5`, `null`, `0`), or a body that isn't a JSON object, is a 400: falling
+    // back to the latest draft would publish something the caller never named.
+    // The body takes a JSON number, as `discard` does; `parseVersionId`'s
+    // decimal strings are for path parameters and tool arguments, not here.
     if (action === "publish" && method === "POST") {
-      const parsedBody = await standardValidate(
-        PUBLISH_BODY,
-        await request.json().catch(() => null),
-      );
-      const requestedVersionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
+      const bodyText = await request.text();
+      let body: unknown = {};
+      if (bodyText.trim() !== "") {
+        try {
+          body = JSON.parse(bodyText);
+        } catch {
+          return json({ error: "Invalid JSON" }, 400);
+        }
+      }
+      const parsedBody = await standardValidate(PUBLISH_BODY, body);
+      if (!parsedBody.ok) return json({ error: "Bad versionId" }, 400);
+      const requestedVersionId = parsedBody.value.versionId;
       const explicitVersionId =
         requestedVersionId === undefined ? undefined : parseVersionId(requestedVersionId);
       if (requestedVersionId !== undefined && explicitVersionId === undefined) {

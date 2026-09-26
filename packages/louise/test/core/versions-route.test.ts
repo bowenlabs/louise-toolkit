@@ -225,12 +225,15 @@ async function bufferedRoute() {
   return { kv, route: r };
 }
 
-const publishReq = (body: unknown, pageId = 1) =>
-  new Request(`https://site.example/api/louise/pages/${pageId}/publish`, {
+/** A POST to `/api/louise/pages/1/<action>` whose body is exactly `text`. */
+const rawReq = (action: "publish" | "discard", text: string) =>
+  new Request(`https://site.example/api/louise/pages/1/${action}`, {
     method: "POST",
     headers: { origin: "https://site.example", "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: text,
   });
+
+const publishReq = (body: unknown) => rawReq("publish", JSON.stringify(body));
 
 describe("versionsRoute—publishing an explicit versionId", () => {
   it("answers 404 when the version belongs to another page, without flushing the buffer", async () => {
@@ -284,5 +287,59 @@ describe("versionsRoute—publishing an explicit versionId", () => {
       ctx,
     );
     expect(res?.status).toBe(400);
+  });
+});
+
+// Only an ABSENT `versionId` means "publish the latest draft". Before, a body
+// the schema rejected (a string, a fraction, `null`) was read as absent, so
+// `{ "versionId": "7" }` published the newest draft instead of version 7.
+describe("versionsRoute—a versionId that's present but not a positive integer", () => {
+  it.each([
+    ['{"versionId":"7"}'],
+    ['{"versionId":"abc"}'],
+    ['{"versionId":1.5}'],
+    ['{"versionId":null}'],
+    ['{"versionId":true}'],
+    ['{"versionId":{}}'],
+    ["[7]"],
+    ["null"],
+    ['{"versionId":7'],
+  ])("publish answers 400 for %s before any DB access or flush", async (text) => {
+    const { kv, route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    const res = await r(rawReq("publish", text), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(400);
+    expect(statements).toEqual([]);
+    expect((await readDraftBuffer(kv, draftBufferKey("pages", 1)))?.data).toEqual(BUFFERED);
+  });
+
+  it.each([["{}"], [""]])("publish with body %j still takes the latest draft", async (text) => {
+    // The latest-draft path flushes the buffer first, which this D1 stand-in
+    // answers by throwing on the insert.
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    await expect(r(rawReq("publish", text), { DB: d1 }, ctx)).rejects.toThrow();
+
+    expect(statements.some((sql) => /^insert into "pages_versions"/i.test(sql))).toBe(true);
+  });
+
+  it.each([
+    ['{"versionId":"7"}'],
+    ['{"versionId":0}'],
+    ['{"versionId":1.5}'],
+    ['{"versionId":null}'],
+    ['{"versionId":"abc"}'],
+    ["{}"],
+  ])("discard answers 400 for %s before any DB access", async (text) => {
+    const { route: r } = await bufferedRoute();
+    const { d1, statements } = publishD1(1);
+
+    const res = await r(rawReq("discard", text), { DB: d1 }, ctx);
+
+    expect(res?.status).toBe(400);
+    expect(statements).toEqual([]);
   });
 });
