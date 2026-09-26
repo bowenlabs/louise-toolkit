@@ -20,6 +20,21 @@ export { type EditorsRouteConfig, editorsRoute } from "./editors.js";
 export { type FormRouteConfig, type FormRouteEnv, formRoute } from "./form.js";
 export { type HealthRouteConfig, healthRoute } from "./health.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
+export {
+  ageCheck,
+  d1Check,
+  type RunStatusChecksOptions,
+  runStatusChecks,
+  STATUS_CHECK_TIMEOUT_MS,
+  type StatusCheck,
+  type StatusCheckReport,
+  type StatusCheckResult,
+  type StatusD1,
+  type StatusReport,
+  statusRoute,
+  type StatusRouteConfig,
+  type StatusTimestamp,
+} from "./status.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
   // `applySettingsPatch` + its config are the route-free core of a settings write.

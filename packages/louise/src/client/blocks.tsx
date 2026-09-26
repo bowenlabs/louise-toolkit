@@ -156,10 +156,10 @@ const MAX_COLUMNS = 6;
 const ROW_PRESETS: { label: string; title: string; cols: string }[] = [
   { label: "1", title: "One column", cols: "1fr" },
   { label: "1:1", title: "Two equal", cols: "1fr 1fr" },
-  { label: "6:4", title: "Two — wide left", cols: "6fr 4fr" },
-  { label: "4:6", title: "Two — wide right", cols: "4fr 6fr" },
+  { label: "6:4", title: "Two—wide left", cols: "6fr 4fr" },
+  { label: "4:6", title: "Two—wide right", cols: "4fr 6fr" },
   { label: "1:1:1", title: "Three equal", cols: "1fr 1fr 1fr" },
-  { label: "4:4:2", title: "Three — narrow right", cols: "4fr 4fr 2fr" },
+  { label: "4:4:2", title: "Three—narrow right", cols: "4fr 4fr 2fr" },
   { label: "1:1:1:1", title: "Four equal", cols: "1fr 1fr 1fr 1fr" },
 ];
 

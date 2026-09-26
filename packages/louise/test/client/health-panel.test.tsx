@@ -11,6 +11,7 @@ import {
   type DashboardApi,
   HealthPanel,
 } from "../../src/client/settings/index.js";
+import { SurfacePanels } from "../../src/client/settings/surface.jsx";
 
 let host: HTMLElement;
 let dispose: (() => void) | undefined;
@@ -172,6 +173,70 @@ describe("HealthPanel", () => {
     mount(() => <HealthPanel navigate={() => {}} />);
     await vi.waitFor(() => expect(host.textContent).toContain("No broken links found."));
     expect(host.textContent).toContain("Not measured yet");
+  });
+});
+
+describe("HealthPanel — stale last check", () => {
+  const HOUR = 60 * 60 * 1000;
+  const checkedHoursAgo = (hours: number) => ({
+    brokenLinks: 0,
+    missingAlt: 0,
+    seoGaps: 0,
+    checkedAt: new Date(Date.now() - hours * HOUR).toISOString(),
+    brokenLinkDetails: [],
+  });
+
+  it("shows a recent check as a plain muted line", async () => {
+    stubHealth(checkedHoursAgo(2));
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Last checked 2h ago."));
+    expect(host.querySelector(".louise-health-stale")).toBeNull();
+    expect(host.textContent).not.toContain("Out of date");
+  });
+
+  it("marks a check older than 36 hours as out of date, in words as well as color", async () => {
+    stubHealth(checkedHoursAgo(72));
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Out of date:"));
+    const line = host.querySelector(".louise-health-stale");
+    expect(line?.getAttribute("data-state")).toBe("stale");
+    expect(line?.textContent).toContain("last checked");
+    expect(line?.textContent).toContain("might have stopped running");
+    expect(line?.textContent).toContain("Ask your developer");
+  });
+
+  it("says there's no record when the timestamp can't be read", async () => {
+    stubHealth({ ...checkedHoursAgo(0), checkedAt: "not a date" });
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Out of date:"));
+    expect(host.textContent).toContain("there’s no record of when the last check ran");
+  });
+
+  it("takes the threshold as a parameter", async () => {
+    stubHealth(checkedHoursAgo(3));
+    mount(() => <HealthPanel navigate={() => {}} staleAfterMs={HOUR} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Out of date:"));
+    expect(host.textContent).toContain("last checked 3h ago.");
+  });
+
+  it("reads the threshold from the dashboard config", async () => {
+    stubHealth(checkedHoursAgo(3));
+    mount(() => (
+      <SurfacePanels
+        config={{ dashboard: { healthStaleAfterMs: HOUR } }}
+        overlay="health"
+        tab={undefined}
+        navigate={() => {}}
+      />
+    ));
+    await vi.waitFor(() => expect(host.textContent).toContain("Out of date:"));
+  });
+
+  it("keeps a 72-hour-old check fresh under a weekly threshold", async () => {
+    stubHealth(checkedHoursAgo(72));
+    mount(() => <HealthPanel navigate={() => {}} staleAfterMs={7 * 24 * HOUR} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Last checked"));
+    expect(host.querySelector(".louise-health-stale")).toBeNull();
   });
 });
 
