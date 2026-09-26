@@ -161,6 +161,20 @@ describe("isStale", () => {
     expect(isStale(ago(365 * 24 * HOUR), Number.POSITIVE_INFINITY, now)).toBe(false);
   });
 
+  it("flags everything with a NaN or negative threshold, so a misconfigured one shows", () => {
+    expect(isStale(ago(0), Number.NaN, now)).toBe(true);
+    expect(isStale(ago(-HOUR), Number.NaN, now)).toBe(true);
+    expect(isStale(ago(0), -1, now)).toBe(true);
+    // Age 0, not negative, so skew can't outrun a negative threshold.
+    expect(isStale(ago(-HOUR), -1, now)).toBe(true);
+  });
+
+  it("counts a number outside the Date range as unreadable", () => {
+    // `new Date(1e16)` is an invalid date, not a time in the far future.
+    expect(isStale(1e16, HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale(-1e16, HEALTH_STALE_AFTER_MS, now)).toBe(true);
+  });
+
   it("defaults `now` to the current time", () => {
     expect(isStale(new Date().toISOString(), HOUR)).toBe(false);
     expect(isStale(new Date(Date.now() - 2 * HOUR).toISOString(), HOUR)).toBe(true);

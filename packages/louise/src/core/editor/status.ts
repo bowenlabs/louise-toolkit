@@ -14,6 +14,8 @@
 // is booleans and ages, never an error's text, every check has a timeout, and
 // `reuseMs` lets a burst of callers share one finished run of the checks.
 
+import { timestampAge } from "../health/age.js";
+import { isStale } from "../health/index.js";
 import { LOUISE_STATUS_PATH, publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { json, matchPath } from "./shared.js";
@@ -214,9 +216,12 @@ export type StatusTimestamp = string | number | Date;
  * job's last success. `read` returns the timestamp, or `null` when there's
  * none yet.
  *
- * A missing or unparseable timestamp fails, with no age. One in the future
- * (clock skew) passes with an age of 0, and an age of exactly `maxAgeMs`
- * passes.
+ * It applies {@link isStale}'s rule, so it agrees with the Health panel. A
+ * missing or unparseable timestamp fails, with no age, and so does a number
+ * outside the `Date` range. One in the future (clock skew) passes with an age
+ * of 0, and an age of exactly `maxAgeMs` passes. Pass `Infinity` to always
+ * pass. A `NaN` or negative limit fails everything, so a misconfigured
+ * monitor never reports healthy.
  *
  * @example ageCheck(async (env) => (await readHealthSummary(env.KV))?.checkedAt, 36 * 60 * 60 * 1000)
  */
@@ -228,10 +233,9 @@ export function ageCheck<Env>(
 ): StatusCheck<Env> {
   return async (env) => {
     const value = await read(env);
-    if (value === null || value === undefined) return { ok: false };
-    const at = value instanceof Date ? value.getTime() : new Date(value).getTime();
-    if (!Number.isFinite(at)) return { ok: false };
-    const ageMs = Math.max(0, Date.now() - at);
-    return { ok: ageMs <= maxAgeMs, ageMs };
+    const now = Date.now();
+    const ageMs = timestampAge(value, now);
+    if (ageMs === undefined) return { ok: false };
+    return { ok: !isStale(value, maxAgeMs, now), ageMs };
   };
 }
