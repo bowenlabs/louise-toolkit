@@ -81,7 +81,12 @@ Related builders: `collectionToTable`, `collectionVersionsTable`,
 
 ```ts
 import { gte } from "drizzle-orm";
-import { createLocalApi, createVersionedLocalApi } from "louise-toolkit/content";
+import {
+  createLocalApi,
+  createVersionedLocalApi,
+  toPageId,
+  toVersionId,
+} from "louise-toolkit/content";
 import { db } from "louise-toolkit/db";
 import { artworks, type Context } from "./content.config";
 import * as schema from "./schema"; // your Drizzle tables: artworks, artworksVersions
@@ -103,8 +108,8 @@ const versioned = createVersionedLocalApi<
   Context
 >(orm, schema.artworks, schema.artworksVersions, artworks);
 const snapshot = { title: "Still life, revised", slug: "still-life", year: 2026 };
-const draft = await versioned.saveDraft(context, artwork.id, snapshot);
-const live = await versioned.publish(context, draft.id);
+const draft = await versioned.saveDraft(context, toPageId(artwork.id), snapshot);
+const live = await versioned.publish(context, toVersionId(draft.id));
 ```
 
 Here `env.DB` is your D1 binding and `session` is the signed-in editor's

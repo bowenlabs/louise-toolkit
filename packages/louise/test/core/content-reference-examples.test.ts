@@ -18,6 +18,8 @@ import {
   defineCollection,
   defineContentConfig,
   type JsonValue,
+  toPageId,
+  toVersionId,
 } from "../../src/core/content/index.js";
 import { db } from "../../src/core/db/index.js";
 import { LouiseAccessDeniedError } from "../../src/core/errors.js";
@@ -80,8 +82,8 @@ async function localApiExample(env: { DB: D1Database }, session: EditorSession |
     Context
   >(orm, schema.artworks, schema.artworksVersions, artworks);
   const snapshot = { title: "Still life, revised", slug: "still-life", year: 2026 };
-  const draft = await versioned.saveDraft(context, artwork.id, snapshot);
-  const live = await versioned.publish(context, draft.id);
+  const draft = await versioned.saveDraft(context, toPageId(artwork.id), snapshot);
+  const live = await versioned.publish(context, toVersionId(draft.id));
   // #endregion
   return { artwork, recent, draft, live };
 }
