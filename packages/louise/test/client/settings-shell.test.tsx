@@ -127,6 +127,13 @@ describe("Settings shell — two-group registry split", () => {
     expect(tabLabels()).not.toContain("Pages");
   });
 
+  it("names the drawer Settings, after the button that opens it", () => {
+    stubFetch(() => jsonResponse({}));
+    mount(() => <Settings userName="Kai" />);
+    openDrawer();
+    expect(host.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Settings");
+  });
+
   it("shows the first tab by default and switches on tab click (home disabled)", () => {
     stubFetch(() => jsonResponse({}));
     mount(() => (

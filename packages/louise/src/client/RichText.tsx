@@ -133,7 +133,7 @@ function ResizableImage(props: SolidNodeViewProps) {
               type="button"
               class="louise-rt-alt-btn"
               classList={{ "is-unset": !alt() }}
-              title={alt() ? `Alt text: ${alt()}` : "Add alt text — describe this image"}
+              title={alt() ? `Alt text: ${alt()}` : "Add alt text to describe this image"}
               aria-label={alt() ? `Edit alt text: ${alt()}` : "Add alt text for this image"}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setEditingAlt(true)}

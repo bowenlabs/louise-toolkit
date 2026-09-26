@@ -44,7 +44,7 @@ function ContentStatusCard(props: { api: DashboardApi }) {
     const parts: string[] = [];
     if (c.drafts) parts.push(`${c.drafts} ${plural(c.drafts, "draft")}`);
     if (c.unpublished) parts.push(`${c.unpublished} with unpublished changes`);
-    return parts.length ? `${parts.join(" · ")} — ready to publish.` : "Everything is published.";
+    return parts.length ? `${parts.join(" · ")}. Ready to publish.` : "Everything is published.";
   };
 
   return (

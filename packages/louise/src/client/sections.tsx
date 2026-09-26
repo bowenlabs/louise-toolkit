@@ -415,7 +415,7 @@ function SourceSettingsGroup(props: { source: ExternalSource; onSaved: () => voi
     setError("");
     apiSend("PATCH", "/api/louise/settings", { [key]: values() ?? {} }).then(
       () => props.onSaved(),
-      () => setError("Couldn’t save — this change hasn’t taken effect"),
+      () => setError("Couldn’t save. This change hasn’t taken effect."),
     );
   };
 
@@ -541,14 +541,14 @@ function SharedValuePanel(props: {
     setError("");
     apiSend("PATCH", "/api/louise/settings", { [props.name]: value() ?? "" }).then(
       () => props.onSaved(value() ?? ""),
-      () => setError("Couldn’t save — this change hasn’t taken effect"),
+      () => setError("Couldn’t save. This change hasn’t taken effect."),
     );
   };
 
   return (
     <div class="louise-inspector-group">
       <p class="louise-shared-band" role="note">
-        {usedIn() ? `Used in ${usedIn()} — ` : ""}saves immediately, everywhere.
+        {usedIn() ? `Used in ${usedIn()}. ` : ""}Saves immediately, everywhere.
       </p>
       <Show when={value() !== null}>
         <label class="louise-field">

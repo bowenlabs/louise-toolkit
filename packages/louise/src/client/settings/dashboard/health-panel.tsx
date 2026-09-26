@@ -186,7 +186,7 @@ export function HealthPanel(props: {
                 fixer={altFix}
                 reviewLabel="Review in Media"
                 onReview={() => props.navigate({ panel: "media" })}
-                unavailableNote="AI descriptions aren’t set up for this site — add them by hand in Media."
+                unavailableNote="AI descriptions aren’t set up for this site. Add them by hand in Media."
               />
 
               <AiFixSection
@@ -197,7 +197,7 @@ export function HealthPanel(props: {
                 fixer={seoFix}
                 reviewLabel="Review in Pages"
                 onReview={() => props.navigate({ panel: "pages" })}
-                unavailableNote="AI SEO isn’t set up for this site — add titles/descriptions by hand in Pages."
+                unavailableNote="AI SEO isn’t set up for this site. Add titles/descriptions by hand in Pages."
               />
 
               <PerformanceSection cwv={s().cwv} />

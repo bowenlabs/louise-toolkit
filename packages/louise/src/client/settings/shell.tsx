@@ -135,7 +135,7 @@ export function Settings(props: SettingsConfig) {
           class="louise-drawer"
           role="dialog"
           aria-modal="true"
-          aria-label="Louise explorer"
+          aria-label="Settings"
           ref={(el) => onCleanup(wireDialogA11y(el, { onClose: () => setOpen(false) }))}
         >
           <header class="louise-drawer-head">
