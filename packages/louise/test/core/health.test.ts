@@ -161,8 +161,9 @@ describe("isStale", () => {
     expect(isStale(ago(365 * 24 * HOUR), Number.POSITIVE_INFINITY, now)).toBe(false);
   });
 
-  it("never flags anything with a NaN threshold, and flags everything with a negative one", () => {
-    expect(isStale(ago(365 * 24 * HOUR), Number.NaN, now)).toBe(false);
+  it("flags everything with a NaN or negative threshold, so a misconfigured one shows", () => {
+    expect(isStale(ago(0), Number.NaN, now)).toBe(true);
+    expect(isStale(ago(-HOUR), Number.NaN, now)).toBe(true);
     expect(isStale(ago(0), -1, now)).toBe(true);
     // Age 0, not negative, so skew can't outrun a negative threshold.
     expect(isStale(ago(-HOUR), -1, now)).toBe(true);

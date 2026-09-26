@@ -124,7 +124,9 @@ It works for any job's last success, not only the health scan: a snapshot's
 - A **timestamp in the future counts as fresh**, so clock skew between the job
   and the reader doesn't raise a false alarm.
 - The age has to **exceed** `maxAgeMs`, so an age of exactly `maxAgeMs` is
-  fresh. Pass `Infinity` to turn the check off.
+  fresh. Pass `Infinity` to turn the check off. A `NaN` or negative threshold
+  flags everything, so a misconfigured one shows up instead of hiding a job
+  that stopped.
 
 `HEALTH_STALE_AFTER_MS` is 36 hours: a daily scan can run late or miss one run
 and still read as fresh, but two missed runs in a row read as stale.

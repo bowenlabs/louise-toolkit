@@ -275,6 +275,11 @@ describe("ageCheck", () => {
           ok: boolean;
         };
         expect(ok, `${String(value)} against ${limit}`).toBe(!isStale(value, limit, now));
+        // A misconfigured monitor fails closed; `Infinity` is the way to turn it off.
+        if (Number.isNaN(limit)) expect(ok, `${String(value)} against NaN`).toBe(false);
+        if (limit === Number.POSITIVE_INFINITY && typeof value === "number" && value < 1e16) {
+          expect(ok, `${value} against Infinity`).toBe(true);
+        }
       }
     }
   });

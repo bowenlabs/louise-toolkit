@@ -220,7 +220,8 @@ export type StatusTimestamp = string | number | Date;
  * missing or unparseable timestamp fails, with no age, and so does a number
  * outside the `Date` range. One in the future (clock skew) passes with an age
  * of 0, and an age of exactly `maxAgeMs` passes. Pass `Infinity` to always
- * pass. A `NaN` limit passes everything, and a negative one fails everything.
+ * pass. A `NaN` or negative limit fails everything, so a misconfigured
+ * monitor never reports healthy.
  *
  * @example ageCheck(async (env) => (await readHealthSummary(env.KV))?.checkedAt, 36 * 60 * 60 * 1000)
  */

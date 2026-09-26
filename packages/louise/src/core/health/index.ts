@@ -114,8 +114,9 @@ export const HEALTH_STALE_AFTER_MS = 36 * 60 * 60 * 1000;
  * - A timestamp in the future (clock skew between the job and the reader) is
  *   age 0, so it counts as fresh.
  * - The age has to exceed `maxAgeMs`, so an age of exactly `maxAgeMs` is fresh.
- *   Pass `Infinity` to turn the check off. A `NaN` threshold never flags
- *   anything, and a negative one flags everything.
+ *   Pass `Infinity` to turn the check off. A `NaN` or negative threshold flags
+ *   everything, so a misconfigured threshold shows up as out of date instead of
+ *   hiding a job that stopped.
  *
  * `ageCheck` (the status route's check) applies this same rule.
  *
@@ -131,7 +132,8 @@ export function isStale(
   now: Date | number = Date.now(),
 ): boolean {
   const age = timestampAge(timestamp, now instanceof Date ? now.getTime() : now);
-  return age === undefined || age > maxAgeMs;
+  // Written as "not within the limit" so a NaN limit counts as stale.
+  return age === undefined || !(age <= maxAgeMs);
 }
 
 /** Persist the summary. Omit `ttlSeconds` to keep it until the next scan overwrites. */
