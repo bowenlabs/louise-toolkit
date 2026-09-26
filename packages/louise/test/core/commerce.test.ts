@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   centsToMajor,
+  currencyDigits,
+  formatMoney,
   hmacSha256Base64,
   hmacSha256Hex,
+  parseMoney,
   safeEqual,
 } from "../../src/core/commerce/index.js";
 import { verifyStripeSignature } from "../../src/core/commerce/stripe.js";
@@ -29,6 +32,94 @@ describe("centsToMajor", () => {
   it("converts minor units to major", () => {
     expect(centsToMajor(2500)).toBe(25);
     expect(centsToMajor(99)).toBe(0.99);
+  });
+
+  it("takes the currency's minor-unit count", () => {
+    expect(centsToMajor(1250, 0)).toBe(1250); // JPY
+    expect(centsToMajor(1235, 3)).toBe(1.235); // BHD
+  });
+});
+
+describe("currencyDigits", () => {
+  it("reads the minor-unit count from the currency", () => {
+    expect(currencyDigits("USD")).toBe(2);
+    expect(currencyDigits("JPY")).toBe(0);
+    expect(currencyDigits("BHD")).toBe(3);
+  });
+
+  it("refuses a malformed code", () => {
+    expect(() => currencyDigits("dollars")).toThrow(RangeError);
+  });
+});
+
+// Intl separates a symbol from its number with a no-break space in some
+// locales; compare with ordinary spaces so the expectations stay readable.
+const spaced = (text: string) => text.replace(/[\u00a0\u202f]/g, " ");
+
+describe("formatMoney", () => {
+  it("formats in the currency's own minor unit, never an assumed 2", () => {
+    expect(formatMoney({ amount: 125000, currency: "USD" }, { locale: "en-US" })).toBe("$1,250.00");
+    expect(formatMoney({ amount: 1250, currency: "JPY" }, { locale: "en-US" })).toBe("¥1,250");
+    expect(spaced(formatMoney({ amount: 1235, currency: "BHD" }, { locale: "en-US" }))).toBe(
+      "BHD 1.235",
+    );
+  });
+
+  it("keeps a price's full minor unit", () => {
+    expect(formatMoney({ amount: 1250, currency: "USD" }, { locale: "en-US" })).toBe("$12.50");
+  });
+
+  it("follows the locale", () => {
+    expect(spaced(formatMoney({ amount: 120050, currency: "EUR" }, { locale: "de-DE" }))).toBe(
+      "1.200,50 €",
+    );
+  });
+
+  it("passes Intl options through: whole units for a dashboard total", () => {
+    const total = { amount: 123456, currency: "USD" };
+    expect(formatMoney(total, { locale: "en-US", maximumFractionDigits: 0 })).toBe("$1,235");
+  });
+});
+
+describe("parseMoney", () => {
+  const usd = { locale: "en-US", currency: "USD" };
+
+  it("reads back what formatMoney prints", () => {
+    for (const [money, locale] of [
+      [{ amount: 120050, currency: "USD" }, "en-US"],
+      [{ amount: 120050, currency: "EUR" }, "de-DE"],
+      [{ amount: 120050, currency: "EUR" }, "fr-FR"],
+      [{ amount: 123456789, currency: "INR" }, "en-IN"],
+      [{ amount: 1250, currency: "JPY" }, "ja-JP"],
+      [{ amount: 1235, currency: "BHD" }, "en-US"],
+    ] as const) {
+      const text = formatMoney(money, { locale });
+      expect(parseMoney(text, { locale, currency: money.currency }), text).toBe(money.amount);
+    }
+  });
+
+  it("takes an amount the way a person types it", () => {
+    expect(parseMoney("$1,200.50", usd)).toBe(120050);
+    expect(parseMoney("1,200.50", usd)).toBe(120050);
+    expect(parseMoney("1200.5", usd)).toBe(120050);
+    expect(parseMoney(" 12 ", usd)).toBe(1200);
+    expect(parseMoney("USD 12.50", usd)).toBe(1250);
+    expect(parseMoney("1.200,50 €", { locale: "de-DE", currency: "EUR" })).toBe(120050);
+    expect(parseMoney("1 200,50", { locale: "fr-FR", currency: "EUR" })).toBe(120050);
+  });
+
+  it("refuses a group separator where the locale doesn't put one", () => {
+    expect(parseMoney("12.5", { locale: "de-DE", currency: "EUR" })).toBeNull();
+    expect(parseMoney("1,20", usd)).toBeNull();
+    expect(parseMoney(",200", usd)).toBeNull();
+    expect(parseMoney("1,2345,678", usd)).toBeNull();
+  });
+
+  it("stays strict about the amount", () => {
+    for (const input of ["", "$", "-12", "1e3", "12.345", "1.2.3", "12,50", "twelve"]) {
+      expect(parseMoney(input, usd), input).toBeNull();
+    }
+    expect(parseMoney("12.5", { locale: "en-US", currency: "JPY" })).toBeNull();
   });
 });
 

@@ -14,12 +14,15 @@ Fourthwall is two of the four, split along its trust boundary:
 
 ## `louise-toolkit/commerce` (shared base)
 
-The primitives every provider client shares: a money shape and the webhook
-signature crypto. Import them directly if you verify a custom provider's webhook.
+The primitives every provider client shares: a money shape, its conversions and
+formatting, and the webhook signature crypto. Import them directly if you verify
+a custom provider's webhook.
 
 ```ts
 import {
   centsToMajor,
+  formatMoney,
+  parseMoney,
   hmacSha256Hex,
   hmacSha256Base64,
   safeEqual,
@@ -27,14 +30,17 @@ import {
 } from "louise-toolkit/commerce";
 ```
 
-| Export                               | Purpose                                                                                  |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `Money`                              | `{ amount, currency }`—amount in the currency's minor unit (cents).                      |
-| `centsToMajor(cents)`                | Minor units → major (`2500` → `25`).                                                     |
-| `majorToCents(amount, digits?)`      | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                |
-| `parseMoneyInput(text, digits?)`     | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.   |
-| `hmacSha256Hex` / `hmacSha256Base64` | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
-| `safeEqual(a, b)`                    | Constant-time-ish compare—use it to check a computed signature against a header value.   |
+| Export                                   | Purpose                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Money`                                  | `{ amount, currency }`—amount in the currency's minor unit (cents).                      |
+| `centsToMajor(cents, digits?)`           | Minor units → major (`2500` → `25`). The default of 2 digits suits USD, not JPY or BHD.  |
+| `currencyDigits(currency)`               | A currency's minor-unit count from `Intl`: 2 for USD, 0 for JPY, 3 for BHD.              |
+| `formatMoney(money, { locale })`         | A `Money` as text (`"$1,250.00"`). Other `Intl.NumberFormat` options pass through.       |
+| `parseMoney(text, { locale, currency })` | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.      |
+| `majorToCents(amount, digits?)`          | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                |
+| `parseMoneyInput(text, digits?)`         | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.   |
+| `hmacSha256Hex` / `hmacSha256Base64`     | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
+| `safeEqual(a, b)`                        | Constant-time-ish compare—use it to check a computed signature against a header value.   |
 
 ### Checking a cart against the live catalog
 
