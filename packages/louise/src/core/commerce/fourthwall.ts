@@ -19,6 +19,7 @@
 // every catalog read was one page of an unknown default size, presented as the
 // whole collection. `getCollectionProducts` walks it now.
 
+import { reportDegraded } from "../degraded.js";
 import { s } from "../schema/index.js";
 import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { hmacSha256Base64, safeEqual } from "./index.js";
@@ -227,7 +228,12 @@ export async function getProduct(token: string, slug: string): Promise<FwProduct
   try {
     const data = await sfGet(token, `/products/${encodeURIComponent(slug)}`);
     return (data ?? null) as FwProduct | null;
-  } catch {
+  } catch (err) {
+    // A 404 is a real "no such product." Anything else, a rejected token or an
+    // outage, reads the same to the caller, so it's reported.
+    if (!(err instanceof UpstreamError && err.status === 404)) {
+      reportDegraded("commerce.fourthwall.product", err, { slug });
+    }
     return null;
   }
 }

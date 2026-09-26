@@ -1,6 +1,6 @@
 ---
 title: errors
-description: "louise-toolkit/errors—LouiseError and its typed subclasses."
+description: "louise-toolkit/errors—LouiseError, its typed subclasses, and reportDegraded for a fallback that fired."
 sidebar:
   order: 7
 ---
@@ -84,3 +84,109 @@ try {
   throw e;
 }
 ```
+
+## `reportDegraded(name, cause?, details?)`
+
+```ts
+function reportDegraded(name: string, cause?: unknown, details?: DegradedDetails): void;
+```
+
+Reports that a fallback fired: the code caught a failure and served something
+lesser, such as seed or stale content, an empty result, or a skipped side
+effect, rather than failing the request. Degrading beats crashing, but a
+degrade is quiet by design. A page that falls back to seed content still
+answers 200, so without a report nothing notices until a person looks.
+
+It logs exactly one line at error level, in a fixed shape:
+
+```text
+[louise] degraded <name>: <cause> <details as JSON>
+```
+
+```text
+[louise] degraded commerce.products: UpstreamError: Fourthwall GET /products 401: bad token {"source":"seed"}
+```
+
+- **`name`** says which fallback fired. Keep it stable and dotted, area first
+  (`content.read`, `commerce.products`), so one search finds every occurrence
+  across deploys.
+- **`cause`** is whatever the `catch` caught: an `Error` logs as
+  `Name: message`, and anything else as its string form. An `UpstreamError`
+  logs the way `upstreamLogLine` ([`/security`](/reference/security/)) formats
+  it, with the operation and what the provider said. The line stays one line,
+  and a long message is cut at 500 characters.
+- **`details`** is optional, small, JSON-serializable context, such as an ID, a
+  count, or a status. It's logged, so never put a secret, a token, or personal
+  data in it, including a visitor's IP address.
+
+It returns nothing and **never throws**, whatever `cause` and `details` hold: a
+string, `undefined`, a circular object, or an object whose getters throw. A
+reporter that threw would turn a graceful degrade into the crash it was written
+to avoid.
+
+Call it in every `catch` that serves seed or stale content, and in every
+best-effort `catch` that swallows an error:
+
+```ts
+import { reportDegraded } from "louise-toolkit/errors";
+
+let products: Product[];
+try {
+  products = await listProducts(env);
+} catch (err) {
+  reportDegraded("commerce.products", err, { source: "seed" });
+  products = seedProducts;
+}
+```
+
+Search a log stream for `[louise] degraded` to see every fallback, or for
+`[louise] degraded commerce.` to see one area. In `wrangler tail`, add
+`--search "[louise] degraded"`. `DEGRADED_LOG_PREFIX` exports the prefix.
+
+### `onDegraded(listener)`
+
+```ts
+function onDegraded(listener: (event: DegradedEvent) => void): () => void;
+
+interface DegradedEvent {
+  readonly name: string;
+  readonly message: string; // the cause as one line of text
+  readonly cause: unknown; // the original cause, as passed
+  readonly details: DegradedDetails | undefined;
+}
+```
+
+Listens for every `reportDegraded` call in the isolate, for example, to forward
+degrades to an error tracker or count them in a metric. It returns a function
+that removes the listener. Listeners run synchronously after the log line, and
+a listener that throws is ignored. Register one at module scope rather than per
+request, because the listener set lives as long as the isolate. Louise's own
+incident capture is meant to hook in here, so your `reportDegraded` calls don't
+need to change when it does.
+
+### Where the toolkit reports
+
+The toolkit's own fallbacks call `reportDegraded` with these names:
+
+| Name                                         | Fallback                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `security.rateLimit`                         | A KV, native, or Durable Object rate limiter failed open                 |
+| `security.readSecret`                        | A declared secret binding threw on read, so the feature behind it is off |
+| `forms.turnstile`                            | Siteverify was unreachable, so the submission was refused                |
+| `forms.notify.webhook`, `forms.notify.email` | A submission notification failed                                         |
+| `editor.pages.afterWrite`                    | The pages route's `afterWrite` hook threw                                |
+| `editor.overview`                            | A dashboard slice threw and was left out (`details.slice` names it)      |
+| `editor.search`                              | The editor search failed and answered no results                         |
+| `editor.draftBuffer`                         | A buffered draft didn't parse, so resume fell back to the D1 draft       |
+| `editor.submissions`                         | A stored submission didn't parse and was listed empty                    |
+| `health.summary`                             | The stored health summary didn't parse, so the card is hidden            |
+| `worker.resolveEditor`                       | `resolveEditor` threw, so the request was treated as signed out          |
+| `worker.healing`                             | A `withHealing` rule served its `fallback`                               |
+| `worker.kvCache.read`, `.write`, `.bust`     | `kvCached` or `kvBust` couldn't reach KV                                 |
+| `ai.run`                                     | A Workers AI call failed, so the assist returned `null`                  |
+| `ai.vectors.upsert`, `.delete`, `.query`     | A Vectorize call failed, so indexing or semantic search was skipped      |
+| `analytics.vitals`                           | A Core Web Vitals data point wasn't written                              |
+| `media.imageProxy`                           | The image proxy couldn't resize and fell back                            |
+| `realtime.persist`                           | A realtime session's `persist` failed and is retried on the next alarm   |
+| `commerce.fourthwall.product`                | `getProduct` returned `null` for a reason other than a 404               |
+| `commerce.square.paymentLink`                | `retrievePaymentLink` returned `null` for a reason other than a 404      |

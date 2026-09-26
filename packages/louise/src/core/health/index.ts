@@ -12,6 +12,7 @@
 // so it stays "absent" (card hidden) until the first scan writes one.
 
 import type { CwvSummary } from "../analytics/index.js";
+import { reportDegraded } from "../degraded.js";
 import type { BrokenLink } from "../browser/link-check.js";
 
 /** The KV surface the health store needs—structural so the real `KVNamespace`
@@ -159,7 +160,8 @@ export async function readHealthSummary(
   if (!raw) return null;
   try {
     return JSON.parse(raw) as HealthSummary;
-  } catch {
+  } catch (err) {
+    reportDegraded("health.summary", err, { key });
     return null;
   }
 }

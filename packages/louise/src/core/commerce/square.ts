@@ -12,6 +12,7 @@
 // an Order, then charge it with a Web Payments SDK card token via /v2/payments
 // (card data is tokenized in the browser and never reaches the Worker).
 
+import { reportDegraded } from "../degraded.js";
 import { s } from "../schema/index.js";
 import { readUpstreamBody, UpstreamError, upstreamFetch } from "../security/upstream.js";
 import { centsToMajor, hmacSha256Base64, safeEqual, type Money } from "./index.js";
@@ -3239,7 +3240,12 @@ export async function retrievePaymentLink(
       `/v2/online-checkout/payment-links/${encodeURIComponent(linkId)}`,
     );
     return res.payment_link ? mapPaymentLink(res.payment_link) : null;
-  } catch {
+  } catch (err) {
+    // A 404 is the "no longer exists" this documents. Anything else, a rejected
+    // token or an outage, reads the same to the caller, so it's reported.
+    if (!(err instanceof UpstreamError && err.status === 404)) {
+      reportDegraded("commerce.square.paymentLink", err, { linkId });
+    }
     return null;
   }
 }

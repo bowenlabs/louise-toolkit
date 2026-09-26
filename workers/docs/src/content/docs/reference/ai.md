@@ -100,8 +100,9 @@ function runAi(
 ```
 
 The low-level call: runs a model best-effort and returns its raw output, or
-`null` when `runner` is absent or the call throws (**never throws**—it logs the
-cause so it shows in `wrangler tail`). `env.AI` satisfies `AiRunner` structurally—pass it directly. `AiGatewayOptions` (`{ id, cacheKey?, cacheTtl?, skipCache? }`)
+`null` when `runner` is absent or the call throws (**never throws**—it reports
+the cause with [`reportDegraded`](/reference/errors/#reportdegradedname-cause-details)
+as `ai.run`, so it shows in `wrangler tail`). `env.AI` satisfies `AiRunner` structurally—pass it directly. `AiGatewayOptions` (`{ id, cacheKey?, cacheTtl?, skipCache? }`)
 routes a call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
 for response caching, cost caps, fallbacks, and logging.
 

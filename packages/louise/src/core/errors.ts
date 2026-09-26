@@ -197,3 +197,14 @@ export class LouiseApiError extends LouiseError {
     this.name = "LouiseApiError";
   }
 }
+
+// A fallback that fired is the error that didn't surface, so its reporter
+// lives on this subpath too. See degraded.ts.
+export {
+  DEGRADED_LOG_PREFIX,
+  onDegraded,
+  reportDegraded,
+  type DegradedDetails,
+  type DegradedEvent,
+  type DegradedListener,
+} from "./degraded.js";

@@ -32,6 +32,8 @@
 //   // and where the limit is consumed (for example, Better Auth's rateLimit.customStorage):
 //   durableRateLimitStorage(env.RATE_LIMIT_DO)
 
+import { reportDegraded } from "../degraded.js";
+
 /** One consume decision. Mirrors Better Auth's `BetterAuthRateLimitStorage`. */
 export interface DurableRateLimitResult {
   allowed: boolean;
@@ -149,7 +151,8 @@ export interface DurableRateLimitStorage {
  *
  * **Fails open**, like `security/rate-limit`: any transport error allows the
  * request. A limiter outage must never take down sign-in—the alternative is an
- * unreachable DO locking every editor out of their own site.
+ * unreachable DO locking every editor out of their own site. Each open is
+ * reported with `reportDegraded`.
  */
 export function durableRateLimitStorage(ns: RateLimitNamespace): DurableRateLimitStorage {
   return {
@@ -167,7 +170,12 @@ export function durableRateLimitStorage(ns: RateLimitNamespace): DurableRateLimi
             body: JSON.stringify({ window: rule.window, max: rule.max }),
           }),
         );
-        if (!res.ok) return { allowed: true, retryAfter: null };
+        if (!res.ok) {
+          reportDegraded("security.rateLimit", `limiter answered ${res.status}`, {
+            backend: "durable-object",
+          });
+          return { allowed: true, retryAfter: null };
+        }
         const body = (await res.json()) as Partial<DurableRateLimitResult>;
         // Only a definite `false` blocks; an unreadable answer is not a block.
         if (body?.allowed === false) {
@@ -178,7 +186,9 @@ export function durableRateLimitStorage(ns: RateLimitNamespace): DurableRateLimi
           };
         }
         return { allowed: true, retryAfter: null };
-      } catch {
+      } catch (err) {
+        // The key stays out of the report: it's usually a visitor's IP address.
+        reportDegraded("security.rateLimit", err, { backend: "durable-object" });
         return { allowed: true, retryAfter: null };
       }
     },

@@ -13,6 +13,7 @@
 import { asc, eq, getTableColumns } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
+import { reportDegraded } from "../degraded.js";
 import { LouiseValidationError } from "../errors.js";
 import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
@@ -192,8 +193,9 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (!config.afterWrite) return;
     try {
       await config.afterWrite(editor, write);
-    } catch {
+    } catch (err) {
       // Best-effort—a post-write hook (for example, search reindex) must never fail the write.
+      reportDegraded("editor.pages.afterWrite", err);
     }
   };
 
