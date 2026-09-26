@@ -24,16 +24,15 @@ repos."_
 
 That premise no longer holds, and the consuming sites prove it:
 
-- **Version/identity drift.** `themidwestartist.com` and `coracle.coffee` are on
-  `louisecms@0.9` (the _old_ package name); `ghostfire.coffee` is on
-  `louise-toolkit@0.13`. Three sites, two package identities. There's no single
-  shared version to speak of.
+- **Version/identity drift.** Two of the client sites are on `louisecms@0.9`
+  (the _old_ package name); the third is on `louise-toolkit@0.13`. Three sites,
+  two package identities. There's no single shared version to speak of.
 - **The sites already left the abstraction behind.** All three already use
   `@astrojs/solid-js` islands, `src/actions/` (Astro Actions), `src/islands/`,
-  `src/loaders/`, and `live.config.ts`. `themidwestartist.com` already depends on
-  `hono`. The toolkit's own `workers/site` reference app is the _only_ one without
+  `src/loaders/`, and `live.config.ts`. One of them already depends on `hono`.
+  The toolkit's own `workers/site` reference app is the _only_ one without
   these: the reference is behind the real sites.
-- **The recommended split is already in production.** `themidwestartist.com`'s
+- **The recommended split is already in production.** One site's
   `actions/index.ts` header reads: _"Astro-native mutation surface … Editor
   mutations live under `/api/louise/*`."_ Its `ContactForm.tsx` island already
   calls `actions.inquiry(...)`. The architecture below is largely **ratifying
@@ -131,7 +130,7 @@ Astro-adapter detail, not a replacement for the primitive.
 - [ ] **Schema:** make Zod the default; derive collection/form schemas through
       the `collectionToAstroSchema`-style bridge; treat `s.*` as legacy/optional.
 - [ ] **Actions:** give public/editor mutations Zod `input` schemas (close the
-      `accept:"form"` + hand-written-interface gap seen in `themidwestartist`'s
+      `accept:"form"` + hand-written-interface gap seen in one site's
       `inquiry` action) for end-to-end inference.
 - [ ] **Reference site:** bring `louise-toolkit/workers/site` up to the sites'
       pattern: `@astrojs/solid-js` islands, `src/actions/`, typed Action save.

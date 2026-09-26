@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineImageProxy } from "../../src/core/media/index.js";
 
-// The scenario is themidwestartist.com's /api/img/fw: signed third-party image
+// The scenario is a client site's /api/img/fw: signed third-party image
 // URLs fixed at 1920px, resized at the edge on the way through.
 
 const HOST = "imgproxy.example.dev";

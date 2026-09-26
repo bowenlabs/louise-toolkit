@@ -13,9 +13,9 @@ No repository in the stack measured test coverage. The suites pass, and the coun
 | `@louise-toolkit/astro` | 95%                 | 93%        | Little                                                                                                                                      |
 | `astroidjs`             | about 91% (ceiling) |            | `portal/scaffold`, `commerce/loader`, `auth`                                                                                                |
 | `louise-toolkit`        | 73%                 | 70%        | `content/localApi` at 17%, `editor/versions` at 26%, `content/visual-editing` at 15%, `client/blocks.tsx` at 8%, `content/schema-gen` at 0% |
-| themidwestartist.com    | about 33% (ceiling) |            | Studio screens, islands, 32 of 34 API routes                                                                                                |
-| coracle.coffee          | about 34% (ceiling) |            | 26 islands, 11 API routes                                                                                                                   |
-| ghostfire.coffee        | about 6% (ceiling)  |            | Everything outside `src/lib`; no CI at all                                                                                                  |
+| Client site A           | about 33% (ceiling) |            | Studio screens, islands, 32 of 34 API routes                                                                                                |
+| Client site B           | about 34% (ceiling) |            | 26 islands, 11 API routes                                                                                                                   |
+| Client site C           | about 6% (ceiling)  |            | Everything outside `src/lib`; no CI at all                                                                                                  |
 
 The site ceilings count which source files a test imports, so the real numbers are lower.
 
@@ -38,7 +38,7 @@ When lines and statements reach 80, `autoUpdate` comes off and both pin at 80.
 Where each repository starts:
 
 - **Fixed at 80 now:** `@louise-toolkit/astro`, `astroidjs`.
-- **Ratchet:** `louise-toolkit` (from 72 and 70), and the three sites from their measured numbers. `ghostfire.coffee` gets CI at the same time, because a floor with no CI is a comment.
+- **Ratchet:** `louise-toolkit` (from 72 and 70), and the three sites from their measured numbers. Client site C gets CI at the same time, because a floor with no CI is a comment.
 
 ### 3. The kit closes its gap deliberately, not by the ratchet alone
 
@@ -53,7 +53,7 @@ Writing tests for site code that epic #481 is about to pull into the kit or dele
 - **`test` scripts run with coverage** in every repository, so the local command and the CI step measure the same thing. Coverage adds a few seconds to each run.
 - **`coverage/` is gitignored**, and `json-summary` is written alongside the terminal summary for tooling.
 - **A PR that raises coverage carries a config change.** `autoUpdate` edits the thresholds in `vitest.config.ts`. That's the point: the new floor is reviewed with the tests that earned it.
-- **Two-config sites measure the unit config only.** coracle.coffee and themidwestartist.com run a second vitest config to render `.astro` components. Its numbers aren't merged; the floor is the unit suite's.
+- **Two-config sites measure the unit config only.** Client sites A and B run a second vitest config to render `.astro` components. Its numbers aren't merged; the floor is the unit suite's.
 
 ## Alternatives considered
 

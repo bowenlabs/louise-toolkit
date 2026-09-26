@@ -11,7 +11,7 @@ import {
 } from "../../src/core/commerce/square.js";
 import { UpstreamError } from "../../src/core/security/index.js";
 
-// The account-side calls coracle.coffee reached around the toolkit for with a
+// The account-side calls a client site reached around the toolkit for with a
 // hand-written fetch: cards on file, a customer's phone, and the loyalty
 // program. Each test drives the real request path against a routed fake.
 

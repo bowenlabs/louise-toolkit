@@ -1,4 +1,4 @@
-// Per-field rich-text modes (coracle.coffee#35). `richText` alone is
+// Per-field rich-text modes. `richText` alone is
 // all-or-nothing, which falls apart the moment one page has both kinds of rich
 // text: a site whose headings need `inline` (so editing an <h1> can't produce a
 // nested <p>) would force that same single-line mode onto a prose body and lose

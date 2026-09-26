@@ -10,7 +10,7 @@
 // settings shell—which would pull the whole drawer bundle in behind it.
 
 /** Fired by the drawer's History icon to open the sections **version-history
- *  drawer** (coracle.coffee#36). History is deliberately NOT a Settings panel:
+ *  drawer**. History is deliberately NOT a Settings panel:
  *  versions are per-PAGE and the sections surface mounts independently of
  *  `mountSettings`, so the drawer stays on the sections side and only the trigger
  *  moved into Settings. */

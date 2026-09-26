@@ -10,7 +10,7 @@ The question was whether Louise needs "an abstraction layer or a token gate" for
 
 **Inbound, the auth model is right, but opt-in.** Every editor route factory calls `guardEditor` (same-origin check on writes plus a resolved editor session), and all of them do. The three client sites also mount 38 of their own routes under `/api/louise/*`, and every one of them is guarded as well. So `/api/louise/*` is, in practice, editor-only, except for two deliberate public routes: `formRoute` (`/api/louise/forms/<name>`) and `vitalsRoute` (`/api/louise/vitals`). Nothing enforces that, though. Each route opts in, and a route that forgets to is open. ADR 0006 recorded the repetition and left `withEditorGuard(routes)` as an optional follow-up.
 
-**The middleware doesn't see the API.** `composeWorker` runs its routes before Astro. On coracle and tma (whose worker entry Astroid generates), `/api/louise/*` responses never pass through `createLouiseMiddleware`: they get no security headers, and no rate-limit rule can match them. Astroid knows about this for rate limiting (`rate-rules.ts` leaves out the contact form because "a rule here would never fire"). The same gap applies to headers, and nothing records that. ghostfire mounts the same factories as Astro API routes through `runEditorRoute`, so there the middleware does apply. Which protections a request gets depends on how the site happened to mount the route.
+**The middleware doesn't see the API.** `composeWorker` runs its routes before Astro. On the two client sites whose worker entry Astroid generates, `/api/louise/*` responses never pass through `createLouiseMiddleware`: they get no security headers, and no rate-limit rule can match them. Astroid knows about this for rate limiting (`rate-rules.ts` leaves out the contact form because "a rule here would never fire"). The same gap applies to headers, and nothing records that. The third client site mounts the same factories as Astro API routes through `runEditorRoute`, so there the middleware does apply. Which protections a request gets depends on how the site happened to mount the route.
 
 **Outbound, there is no shared client.** Square (`sqFetch`), Fourthwall (`fwFetch`, `sfGet`), Stripe (`stripePost`), Turnstile, content webhooks, and form-notify webhooks each call `fetch` directly. None sets a timeout or a redirect policy. Upstream error text (Square's `detail`, up to 200 characters of a Fourthwall body, Stripe's message) goes into `Error.message`, and at least one route (the sandbox's `/api/checkout`) sends that straight to the browser. The two places that fetch a URL someone typed in (content webhooks, the image proxy) each wrote their own checks. The webhook one relies on a hostname regular expression and a comment claiming `global_fetch_strictly_public` is set; it isn't set in either Worker's `wrangler.jsonc`.
 
@@ -31,7 +31,7 @@ Bearer tokens are for callers that aren't browsers. The first one is the MCP ser
 A new core function, `louiseApiGate`, becomes the one place where "is this request allowed into the API at all" is decided. It's framework-agnostic and lives in `louise-toolkit/worker`. Two callers use it:
 
 - `composeWorker({ gate: { resolveEditor } })` runs it before any route under the protected prefix.
-- `createLouiseMiddleware` in `@louise-toolkit/astro` runs it for sites that mount routes as Astro API routes (ghostfire), so both mounting styles get the same boundary.
+- `createLouiseMiddleware` in `@louise-toolkit/astro` runs it for sites that mount routes as Astro API routes, so both mounting styles get the same boundary.
 
 **Deny by default.** A request under `/api/louise/` must resolve to an editor unless it matches a route that declared itself public. Unknown paths get 401 before they can get 404, so an anonymous caller can't enumerate routes.
 
@@ -95,7 +95,7 @@ This ADR adds no DTO or serializer layer. Most editor routes return editor-owned
 
 - `/api/louise/*` becomes editor-only by construction. Today that's only true because every route remembered, and 38 site routes plus about 15 factories show the convention holds, so turning the gate on changes no current behavior. A future route that forgets its guard is denied instead of open.
 - A site with its own deliberately public route under `/api/louise/` (none exist today) has to wrap it in `publicRoute`, or it starts returning 401. The changeset has to say this plainly.
-- Route responses on coracle and tma get the security headers and `no-store` they were missing.
+- Route responses on the two Astroid-generated sites get the security headers and `no-store` they were missing.
 - Provider failures stop leaking upstream text to browsers, and a slow provider can no longer hold a request open indefinitely.
 - `WorkerRoute`, `runEditorRoute`, and `dependencies: {}` are unchanged.
 - The bearer path of ADR 0009 now has a defined home: a second credential kind in `louiseApiGate`, with the cookie-vs-token rule from §2. ADR 0009 §5 gets an amendment pointing here when slice 3 lands.
@@ -106,7 +106,7 @@ Each slice is one PR, shipped `minor` with an upgrade note.
 
 1. **`louiseApiGate` + `publicRoute` + `composeWorker({ gate })`**, with `formRoute` and `vitalsRoute` marked. Includes headers and `no-store`. Tests: an unguarded factory behind the gate is denied, a WebSocket upgrade is origin-checked, a public route still answers anonymously, and an unknown path returns 401, not 404.
 2. **`createLouiseMiddleware` runs the gate** for Astro-mounted routes.
-3. **Astroid turns it on** in the generated worker and middleware (astroidjs repo). Then coracle, tma, and ghostfire pick it up through the normal upgrade.
+3. **Astroid turns it on** in the generated worker and middleware (astroidjs repo). Then the three client sites pick it up through the normal upgrade.
 4. **`upstreamFetch` + `UpstreamError`**, then move each provider client onto them, one provider per commit. Stop the sandbox echoing upstream errors.
 5. **`fetchPublicUrl`**, move content webhooks and form-notify onto it, and turn on `global_fetch_strictly_public` in the reference Workers and Astroid's template.
 

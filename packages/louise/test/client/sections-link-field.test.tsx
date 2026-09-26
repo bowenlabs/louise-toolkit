@@ -1,4 +1,4 @@
-// The `link` + `toggle` inspector fields (coracle.coffee#38).
+// The `link` + `toggle` inspector fields.
 //
 // A destination has no visible text node to click, so it's always wrench-edited.
 // Before this it rendered as a bare text input; now it gets a page picker fed by
@@ -182,7 +182,7 @@ describe("inspector — link field", () => {
   });
 
   it("maps slugs through pagePathForSlug and dedupes by path", async () => {
-    // The home-row alias (coracle QA, louise-toolkit#348): the DB row a site
+    // The home-row alias (client-site QA, louise-toolkit#348): the DB row a site
     // serves at `/` mapped to `/home` by default, so the picker offered "Home"
     // twice—once as the built-in `/`, once as a duplicate-content alias.
     // The site maps the slug; the picker collapses the pair by path, built-in

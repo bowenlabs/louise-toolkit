@@ -7,7 +7,7 @@ import {
   stripEmptyHeadings,
 } from "../../src/core/security/index.js";
 
-// Ported from themidwestartist.com, where each case was a production bug—`content="<div><p>Don't
+// Ported from a client site, where each case was a production bug—`content="<div><p>Don't
 // be a stranger.</p></div>"` in a meta tag, and an
 // emptied `<h3></h3>` hero heading in every screen reader's heading list—plus
 // the three things the port fixed on the way up (marked "fixed").
@@ -147,7 +147,7 @@ describe("stripEmptyHeadings", () => {
   });
 
   it("keeps a heading whose only content is an image", () => {
-    const heading = '<h2><img src="/m/logo.svg" alt="Coracle"></h2>';
+    const heading = '<h2><img src="/m/logo.svg" alt="Example Organization"></h2>';
     expect(stripEmptyHeadings(heading)).toBe(heading);
   });
 

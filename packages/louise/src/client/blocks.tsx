@@ -32,7 +32,7 @@ import {
 import { createSignal, For, onCleanup, Show } from "solid-js";
 import { wirePopoverDismiss } from "./a11y.js";
 import { Icon } from "./icons.jsx";
-// The link editor moved out to be shared with the sections inspector (#38)—same
+// The link editor moved out to be shared with the sections inspector—same
 // control, two hosts. It was defined privately here first.
 import { LinkField } from "./link-field.jsx";
 

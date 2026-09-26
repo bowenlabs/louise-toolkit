@@ -143,7 +143,7 @@ export interface SectionsEditorProps {
   richTextModes?: Record<string, SectionRichTextOptions>;
   /**
    * Code-defined routes to offer in a `link` field's page picker, alongside the
-   * `pages` rows it fetches (#38).
+   * `pages` rows it fetches.
    *
    * The picker's page list comes from `/api/louise/pages`, which only knows about
    * DB-backed pages. A site's hand-authored routes—`/shop`, `/contact`—have no
@@ -380,7 +380,7 @@ function MultiSelectField(props: {
  * are the mirror's knobs, stored in site settings and shared by every page that
  * renders the section, so they PATCH `/api/louise/settings` the moment a value
  * commits—they cannot ride the page draft, and pretending they could would
- * stage a lie (spec §4/§5, bowenlabs/coracle.coffee#47). The caption says so
+ * stage a lie. The caption says so
  * because the surrounding groups all stage.
  *
  * Values are read once per open. A failed load disables nothing silently—the
@@ -961,15 +961,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     if (next) void loadVersions();
   };
 
-  // Whether Louise Settings is mounted, and so owns the History trigger
-  // (coracle.coffee#36). Seeded from the drawer root for the Settings-mounted-first
+  // Whether Louise Settings is mounted, and so owns the History trigger.
+  // Seeded from the drawer root for the Settings-mounted-first
   // order, then flipped by SETTINGS_READY_EVENT for the other one.
   const [settingsMounted, setSettingsMounted] = createSignal(false);
 
   onMount(() => {
     // The link picker's choices are module-level (shared by every wrench on the
     // page), so register the site's code routes once here rather than threading
-    // the prop down to each field (#38).
+    // the prop down to each field.
     setBuiltInRoutes(props.builtInRoutes);
     setPagePathForSlug(props.pagePathForSlug);
 
@@ -1748,7 +1748,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           {errorDetail() || "Couldn’t save"}
         </span>
       </Show>
-      {/* History moved into the Settings drawer's top strip (coracle.coffee#36)—the
+      {/* History moved into the Settings drawer's top strip—the
           drawer itself stays here, only the trigger moved. This button is the
           fallback for hosts that mount sections WITHOUT mountSettings, which would
           otherwise have no way to reach version history at all. */}
@@ -2088,7 +2088,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                               }}
                             />
                           </Match>
-                          {/* Destination (#38): a page picker + free URL, rather
+                          {/* Destination: a page picker + free URL, rather
                               than the bare text input an href used to get. Commits
                               on change (not per keystroke)—commitField re-renders
                               the section through the fragment route. */}
@@ -2105,7 +2105,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                               />
                             </div>
                           </Match>
-                          {/* Toggle (#38): a real boolean, so "open in new tab"
+                          {/* Toggle: a real boolean, so "open in new tab"
                               stores true/false rather than a yes/no string that
                               would read truthy either way in the site render. */}
                           <Match when={field.type === "toggle"}>

@@ -1,4 +1,4 @@
-// coracle.coffee#36—the editor's account/history controls, which span THREE
+// The editor's account/history controls, which span THREE
 // independent mounts (the edit bar, the sections surface, the Settings drawer).
 // Covers the two things that only break at the seam between them:
 //
@@ -110,7 +110,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("History trigger — Settings strip drives the sections drawer (#36)", () => {
+describe("History trigger — Settings strip drives the sections drawer", () => {
   it("shows a History icon once a sections surface is mounted, and opening it closes Settings", async () => {
     stubFetch();
     const host = pageHost();
@@ -188,7 +188,7 @@ describe("History trigger — Settings strip drives the sections drawer (#36)", 
   });
 });
 
-describe("Edit bar — Done became Sign out (#36)", () => {
+describe("Edit bar — Done became Sign out", () => {
   it("ends the session, then leaves edit mode", async () => {
     const calls = stubFetch();
     const assign = vi.fn();

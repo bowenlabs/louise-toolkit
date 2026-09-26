@@ -247,7 +247,7 @@ describe("createLouiseMiddleware — extend survives an auth failure", () => {
     // resolveEditor throws on every request. That must degrade to "signed
     // out"—never to "extend was skipped", because extend is what writes
     // locals.tenant, and skipping it silently turns every tenant subdomain
-    // into the ordinary site. Found live on themidwestartist.com's Wave 4.
+    // into the ordinary site. Found live on a client site.
     let extended = false;
     const mw = createLouiseMiddleware({
       resolveEditor: () => {

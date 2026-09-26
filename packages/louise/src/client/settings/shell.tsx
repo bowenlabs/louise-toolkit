@@ -148,7 +148,7 @@ export function Settings(props: SettingsConfig) {
               {/* History sits with the framework icons but is NOT one: it opens
                   the sections version drawer rather than an overlay panel, so it
                   never takes `is-active`/`aria-pressed`. Hidden when no sections
-                  surface is mounted (coracle.coffee#36). */}
+                  surface is mounted. */}
               <Show when={hasHistory()}>
                 <button
                   class="louise-drawer-close louise-frame-btn"
@@ -217,7 +217,7 @@ export function mountSettings(config: SettingsConfig): void {
   // Tell an already-mounted sections surface that History now has a home up here,
   // so it can drop its own fallback button. The two mount in either order; the
   // sections side also checks for #louise-drawer-root directly, covering the case
-  // where Settings got there first (coracle.coffee#36).
+  // where Settings got there first.
   window.dispatchEvent(new CustomEvent(SETTINGS_READY_EVENT));
   // A soft navigation (#74) replaces <body>, orphaning this drawer while its
   // window listeners (for example, the OPEN_SETTINGS_EVENT handler) live on—so a Settings
