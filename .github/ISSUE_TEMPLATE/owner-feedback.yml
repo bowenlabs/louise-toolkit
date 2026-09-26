@@ -1,0 +1,43 @@
+name: Owner feedback
+description: Something a site owner asked for, liked, or found hard, for the team and Louise to learn from.
+labels: ["owner-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Record what the owner said and where. Leave out contact details and anything private: Louise reads every issue, and some of these repositories are public.
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      description: Which site the owner runs.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - A request
+        - A problem
+        - Praise
+        - A question
+    validations:
+      required: true
+  - type: textarea
+    id: said
+    attributes:
+      label: What the owner said
+      description: Their words, or a close paraphrase.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page, screen, or flow, such as the studio's Settings page.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What they were trying to do, and anything that led up to it.
