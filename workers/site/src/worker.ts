@@ -313,9 +313,12 @@ const mediaAssetRoute: WorkerRoute<WorkerEnv> = async (request, env) => {
   return louiseSecurityHeaders(new Response(obj.body, { headers }), { hostname: url.hostname });
 };
 
-const ogRoute: WorkerRoute<WorkerEnv> = (request) => {
+// Like /media, this runs before the Astro middleware, so it adds the baseline
+// security headers itself.
+const ogRoute: WorkerRoute<WorkerEnv> = async (request) => {
   const url = new URL(request.url);
-  return url.pathname === "/og.png" ? handleOgImage(url) : undefined;
+  if (url.pathname !== "/og.png") return undefined;
+  return louiseSecurityHeaders(await handleOgImage(url), { hostname: url.hostname });
 };
 
 // Public Core Web Vitals ingestion (#106): the visitor beacon (Vitals.astro)

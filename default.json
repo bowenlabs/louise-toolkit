@@ -47,7 +47,7 @@
     {
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<7",
-      "description": "Held on 5.x. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1, and Astro's tooling (@astrojs/check) depends on that API. Lift when 7.1 ships AND @astrojs/check supports it — two conditions, not one."
+      "description": "Held below 7. TypeScript 7.0 is GA but ships without a stable programmatic API until 7.1, and Astro's tooling (@astrojs/check) depends on that API. 6.x updates still come through. Lift when 7.1 ships AND @astrojs/check supports it — two conditions, not one."
     },
     {
       "matchPackageNames": ["vite-plus"],
