@@ -99,6 +99,13 @@ update the running code needs and tells the owner to ask their developer. The
 section only appears when something is pending. A deploy can land between scans,
 so check live when you read the summary, too, and replace the stored list.
 
+## Watching the scan from outside
+
+The Health panel is behind the editor session, so nothing outside can read it.
+To have an outside probe notice a scan that stopped running, mount
+[`statusRoute`](/reference/editor/#the-status-route) with an `ageCheck` on
+`checkedAt`. It answers 503 once the last scan is older than the limit you set.
+
 ## Types
 
 `HealthSummary`, `HealthInput`, `HealthKV`. Constants: `HEALTH_KV_KEY`
