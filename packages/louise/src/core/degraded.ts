@@ -14,6 +14,8 @@
 // site that already imports those has it at hand. Kit modules import it from
 // here directly.
 
+import { UpstreamError, upstreamLogLine } from "./security/upstream.js";
+
 /** Small, JSON-serializable context for a degrade: an id, a count, a status.
  *  It's logged, so never put a secret, a token, or personal data in it. */
 export type DegradedDetails = Readonly<Record<string, unknown>>;
@@ -22,7 +24,8 @@ export type DegradedDetails = Readonly<Record<string, unknown>>;
 export interface DegradedEvent {
   /** Which fallback fired, as a stable dotted name, for example, `"forms.notify.webhook"`. */
   readonly name: string;
-  /** The cause, reduced to one line of text: `"TypeError: fetch failed"`. */
+  /** The cause, reduced to one line of text: `"TypeError: fetch failed"`. An
+   *  `UpstreamError` adds its operation and what the provider said. */
   readonly message: string;
   /** The original cause, as passed. `undefined` when there wasn't one. */
   readonly cause: unknown;
@@ -121,6 +124,16 @@ export function onDegraded(listener: DegradedListener): () => void {
 /** One line of text for any thrown value, without ever throwing itself. */
 function describeCause(cause: unknown): string {
   if (cause === undefined) return "no cause given";
+  if (isError(cause) && isUpstream(cause)) {
+    // Its `message` is the user-safe summary; a log line wants the operation
+    // and what the provider said, which `upstreamLogLine` adds.
+    try {
+      const name = safeText(read(cause, "name") ?? "UpstreamError", "UpstreamError");
+      return clip(safeText(`${name}: ${upstreamLogLine(cause)}`, name), MAX_MESSAGE);
+    } catch {
+      // Fall through to the plain `Error` path.
+    }
+  }
   if (isError(cause)) {
     const name = safeText(read(cause, "name") ?? "Error", "Error");
     const message = safeText(read(cause, "message") ?? "", "");
@@ -133,6 +146,15 @@ function describeCause(cause: unknown): string {
 function isError(value: unknown): value is Error {
   try {
     return value instanceof Error;
+  } catch {
+    return false;
+  }
+}
+
+/** `instanceof UpstreamError`, guarded like {@link isError}. */
+function isUpstream(value: Error): value is UpstreamError {
+  try {
+    return value instanceof UpstreamError;
   } catch {
     return false;
   }

@@ -78,11 +78,7 @@ describe("the kit reports its own fallbacks", () => {
   it("a KV cache that can't be read, written, or busted", async () => {
     expect(await kvCached(brokenKv, "k", async () => 1, { ttlSeconds: 60 })).toBe(1);
     await kvBust(brokenKv, "k");
-    expect(names()).toEqual([
-      "worker.kvCache.read",
-      "worker.kvCache.write",
-      "worker.kvCache.bust",
-    ]);
+    expect(names()).toEqual(["worker.kvCache.read", "worker.kvCache.write", "worker.kvCache.bust"]);
   });
 
   it("a healed route that serves its fallback, with the pathname only", async () => {

@@ -92,7 +92,8 @@ When an assist starts answering `502`:
 
 1. **Check `wrangler tail`.** [`runAi`](/reference/ai/#runairunner-model-inputs-options)
    logs the underlying error before it returns `null`: a retired model, an unmet
-   JSON schema, or a quota.
+   JSON schema, or a quota. Search for `[louise] degraded ai.run`; the line
+   names the model.
 2. **Check the model ID against the [Workers AI model
    catalog](https://developers.cloudflare.com/workers-ai/models/).** Cloudflare
    deprecates models on a schedule, and a retired model fails every call. If

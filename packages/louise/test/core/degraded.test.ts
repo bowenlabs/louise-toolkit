@@ -6,6 +6,7 @@ import {
   reportDegraded,
   type DegradedEvent,
 } from "../../src/core/errors.js";
+import { UpstreamError } from "../../src/core/security/upstream.js";
 
 let error: MockInstance<typeof console.error>;
 
@@ -40,6 +41,16 @@ describe("reportDegraded", () => {
   it("names a Louise error by its class", () => {
     reportDegraded("db.read", new LouiseDbError("D1 unavailable"));
     expect(logged()).toBe("[louise] degraded db.read: LouiseDbError: D1 unavailable");
+  });
+
+  it("logs an upstream failure's operation and what the provider said", () => {
+    reportDegraded(
+      "commerce.products",
+      new UpstreamError("Fourthwall", 401, { operation: "GET /products", detail: "bad token" }),
+    );
+    expect(logged()).toBe(
+      "[louise] degraded commerce.products: UpstreamError: Fourthwall GET /products 401: bad token",
+    );
   });
 
   it("leaves the details off when there are none", () => {
