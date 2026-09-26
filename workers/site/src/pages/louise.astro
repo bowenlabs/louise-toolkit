@@ -75,9 +75,15 @@ if (Astro.request.method === "POST") {
       }
       /* The editor chrome's primary button: white on #0f6ecd is 5.08:1 and on the
          #0b5cad hover 6.67:1. White on the brand #1481ef is only 3.88:1. Source of
-         truth: .louise-btn-primary in packages/louise/src/client/styles.ts. */
+         truth: .louise-btn-primary in packages/louise/src/client/styles.ts.
+         Against the #1e293b card, though, the fill is only 2.88:1 at rest and
+         2.19:1 on hover, under the 3:1 a control's boundary needs (WCAG 1.4.11).
+         The border is the brand blue, the chrome's ring color, at 3.77:1 against
+         the card in both states, so the button's edge holds without changing
+         the label's fill. It also matches the input's 1px border, so the two
+         are the same height. */
       button {
-        padding: 11px 12px; border: 0; border-radius: 9px; cursor: pointer;
+        padding: 11px 12px; border: 1px solid #1481ef; border-radius: 9px; cursor: pointer;
         background: #0f6ecd; color: #fff; font-weight: 600; font-size: 15px;
       }
       button:hover { background: #0b5cad; }

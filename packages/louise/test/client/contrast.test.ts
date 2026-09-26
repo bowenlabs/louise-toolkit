@@ -22,6 +22,7 @@ const stylesSource = read("../../src/client/styles.ts");
 // fails here rather than on the live site.
 const siteThemeCss = read("../../../../workers/site/src/styles/louise.css");
 const siteSignInSource = read("../../../../workers/site/src/pages/louise.astro");
+const siteEditDemoSource = read("../../../../workers/site/src/sections/EditDemo.astro");
 
 const channel = (value: number): number => {
   const c = value / 255;
@@ -42,6 +43,20 @@ function luminance(hex: string): number {
 function contrast(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
+}
+
+/** A translucent `rgba(…)` tint composited over white in sRGB, as a hex. */
+function tintOnWhite(rgba: string | undefined): string {
+  const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(rgba ?? "");
+  expect(m, `${rgba} isn't an rgba() tint`).not.toBeNull();
+  const alpha = Number(m![4]);
+  return `#${[m![1], m![2], m![3]]
+    .map((c) =>
+      Math.round(Number(c) * alpha + 255 * (1 - alpha))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 
 /** The `--color-*` tokens of one `@plugin "daisyui/theme"` block, keyed without the prefix. */
@@ -111,6 +126,37 @@ describe("the reference site", () => {
       const fill = hex(body, "background");
       expect(fill).toBeDefined();
       expect(contrast(text!, fill!)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("gives the sign-in button a 3:1 edge against its card", () => {
+    // WCAG 1.4.11: the text-stop fill is only 2.88:1 on the dark card, so the
+    // button's boundary is its border, which has to hold at rest and on hover.
+    const style = siteSignInSource.slice(siteSignInSource.indexOf("<style>"));
+    const card = /\.card \{([^}]*)\}/.exec(style)?.[1] ?? "";
+    const rest = /\bbutton \{([^}]*)\}/.exec(style)?.[1] ?? "";
+    const hover = /\bbutton:hover \{([^}]*)\}/.exec(style)?.[1] ?? "";
+    const cardFill = /(?<![-\w])background:\s*(#[0-9a-f]{3,6})\b/i.exec(card)?.[1];
+    const edge = /(?<![-\w])border:\s*\d+px solid (#[0-9a-f]{3,6})\b/i.exec(rest)?.[1];
+    expect(cardFill).toBeDefined();
+    expect(edge, "the button needs a solid border").toBeDefined();
+    expect(hover, "hover mustn't drop the border").not.toMatch(/(?<![-\w])border(?:-color)?:/);
+    expect(contrast(edge!, cardFill!)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("gives the edit demo's status text 4.5:1 on its bar", () => {
+    // The mock's address bar carries "Published" in view mode and "Editing" in
+    // edit mode, both as small bold text.
+    const barAt = siteEditDemoSource.indexOf("lt-demo-status-view");
+    const bar = siteEditDemoSource.slice(siteEditDemoSource.lastIndexOf("<div", barAt), barAt);
+    const barFill = /\bbg-\[(#[0-9a-f]{6})\]/i.exec(bar)?.[1];
+    expect(barFill).toBeDefined();
+    for (const status of ["lt-demo-status-view", "lt-demo-status-edit"]) {
+      const text = new RegExp(`${status}[^"]*\\btext-\\[(#[0-9a-f]{6})\\]`, "i").exec(
+        siteEditDemoSource,
+      )?.[1];
+      expect(text, status).toBeDefined();
+      expect(contrast(text!, barFill!), status).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
@@ -214,19 +260,36 @@ describe("the editor chrome", () => {
       // The tint is translucent over the bar's white, so composite it first.
       const { color } = declarations(selector);
       const { background } = declarations(`${selector}:hover`);
-      const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(background ?? "");
-      expect(m, `${selector}:hover background`).not.toBeNull();
-      const alpha = Number(m![4]);
-      const tint = `#${[m![1], m![2], m![3]]
-        .map((c) =>
-          Math.round(Number(c) * alpha + 255 * (1 - alpha))
-            .toString(16)
-            .padStart(2, "0"),
-        )
-        .join("")}`;
-      expect(contrast(resolve(color!), tint)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(resolve(color!), tintOnWhite(background))).toBeGreaterThanOrEqual(4.5);
     },
   );
+
+  // Active controls that put blue on a blue tint. The toolbar's buttons are
+  // icon-only today, so 3:1 would do, but 4.5:1 holds for a text label later;
+  // the drawer tabs carry text now. Toolbar and drawer are both white, so the
+  // translucent tint composites over white.
+  const activeOnTint = [".louise-tb-btn", ".louise-drawer-close", ".louise-tab"];
+
+  it.each(activeOnTint)("keeps active %s over 4.5:1 on its tint", (control) => {
+    const { color, background } = declarations(`${control}.is-active`);
+    expect(contrast(resolve(color!), tintOnWhite(background))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(activeOnTint)("keeps active %s apart from hover and rest", (control) => {
+    // A blue tint and a blue foreground, where hover, if the control has one,
+    // is a gray tint, and rest is a gray foreground with no fill.
+    const active = declarations(`${control}.is-active`);
+    const rest = declarations(control);
+    const hoverRule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].some(
+      ([, selector]) => selector.trim() === `${control}:hover`,
+    );
+    if (hoverRule) {
+      const hover = declarations(`${control}:hover`);
+      expect(tintOnWhite(active.background)).not.toBe(tintOnWhite(hover.background));
+    }
+    expect(tintOnWhite(active.background)).not.toBe("#ffffff");
+    expect(resolve(active.color!)).not.toBe(resolve(rest.color!));
+  });
 
   it("colors the Done action with a text stop", () => {
     // The action bar is white; Done is orange text on it.
