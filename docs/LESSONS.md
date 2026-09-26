@@ -144,6 +144,11 @@ model that has reached end of life, comes back as a plain "unavailable." Check
 `wrangler tail` for the logged error and the Workers AI model catalog before you
 debug your own code. See the AI assists guide's troubleshooting section.
 
+The `ai-models.yml` workflow now checks the toolkit's own defaults every week,
+and fails when one is gone from the catalog or has a retirement date. It can't
+see a model a site passes in itself, so check those against the catalog when
+Cloudflare announces retirements.
+
 ### `caches.default` ignores Dev Mode and Purge Everything
 
 Neither Cloudflare Development Mode nor Purge Everything reaches a Worker's
