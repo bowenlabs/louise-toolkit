@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AiRunner, aiRunner } from "../../src/core/ai/index.js";
+import { type AiRunner, aiRunner, REWRITE_MAX_CHARS } from "../../src/core/ai/index.js";
 import type { EditorSession } from "../../src/core/auth/index.js";
 import { pages } from "../../src/core/db/index.js";
 import { aiRoute, seoFixRoute } from "../../src/core/editor/index.js";
@@ -68,6 +68,46 @@ describe("aiRoute — rewrite", () => {
   it("400s an invalid body (missing text)", async () => {
     const res = (await route({})(req("POST", "/api/louise/ai/rewrite", {}), env, ctx)) as Response;
     expect(res.status).toBe(400);
+  });
+
+  it("413s a selection past the cap, with a message the toolbar can show (#550)", async () => {
+    let called = false;
+    const counting: AiRunner = {
+      run: async () => {
+        called = true;
+        return { response: "x" };
+      },
+    };
+    const res = (await route({ ai: counting })(
+      req("POST", "/api/louise/ai/rewrite", { text: "a".repeat(REWRITE_MAX_CHARS + 1) }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("shorter passage");
+    expect(body.error).toContain(REWRITE_MAX_CHARS.toLocaleString("en-US"));
+    // Refused before the model: nothing is spent on it.
+    expect(called).toBe(false);
+  });
+
+  it("accepts a selection exactly at the cap", async () => {
+    const res = (await route({})(
+      req("POST", "/api/louise/ai/rewrite", { text: "a".repeat(REWRITE_MAX_CHARS) }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(200);
+  });
+
+  it("502s a truncated rewrite, so the client keeps the original text (#466)", async () => {
+    const r = route({ ai: fakeRunner({ response: "The first half", finish_reason: "length" }) });
+    const res = (await r(
+      req("POST", "/api/louise/ai/rewrite", { text: "a long passage" }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(502);
   });
 
   it("returns the rewritten text on success", async () => {

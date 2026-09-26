@@ -4,8 +4,10 @@ import {
   type HealthKV,
   type HealthSummary,
   HEALTH_KV_KEY,
+  HEALTH_STALE_AFTER_MS,
   MAX_BROKEN_LINK_DETAILS,
   healthIssueCount,
+  isStale,
   readHealthSummary,
   summarizeHealth,
   writeHealthSummary,
@@ -110,5 +112,67 @@ describe("read/writeHealthSummary", () => {
     expect(store.has("custom:health")).toBe(true);
     expect(puts[0]?.options).toEqual({ expirationTtl: 3600 });
     expect(await readHealthSummary(kv, "custom:health")).toEqual(summary);
+  });
+});
+
+describe("isStale", () => {
+  const HOUR = 60 * 60 * 1000;
+  const now = new Date("2026-09-26T12:00:00.000Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+
+  it("defaults the threshold to 36 hours", () => {
+    expect(HEALTH_STALE_AFTER_MS).toBe(36 * HOUR);
+  });
+
+  it("is fresh inside the threshold and stale past it", () => {
+    expect(isStale(ago(HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(false);
+    expect(isStale(ago(35 * HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(false);
+    expect(isStale(ago(37 * HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale(ago(7 * 24 * HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(true);
+  });
+
+  it("counts an age of exactly the threshold as fresh", () => {
+    expect(isStale(ago(36 * HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(false);
+    expect(isStale(ago(36 * HOUR + 1), HEALTH_STALE_AFTER_MS, now)).toBe(true);
+  });
+
+  it("accepts an ISO string, epoch milliseconds, or a Date, and a numeric `now`", () => {
+    const then = now.getTime() - 2 * HOUR;
+    expect(isStale(new Date(then).toISOString(), HOUR, now)).toBe(true);
+    expect(isStale(then, HOUR, now)).toBe(true);
+    expect(isStale(new Date(then), HOUR, now)).toBe(true);
+    expect(isStale(then, 3 * HOUR, now.getTime())).toBe(false);
+  });
+
+  it("treats a missing or unparseable timestamp as stale", () => {
+    expect(isStale(undefined, HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale(null, HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale("", HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale("not a date", HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale(Number.NaN, HEALTH_STALE_AFTER_MS, now)).toBe(true);
+    expect(isStale(new Date("nope"), HEALTH_STALE_AFTER_MS, now)).toBe(true);
+  });
+
+  it("treats a timestamp in the future as fresh (clock skew)", () => {
+    expect(isStale(ago(-HOUR), HEALTH_STALE_AFTER_MS, now)).toBe(false);
+  });
+
+  it("never flags anything with an Infinity threshold", () => {
+    expect(isStale(ago(365 * 24 * HOUR), Number.POSITIVE_INFINITY, now)).toBe(false);
+  });
+
+  it("defaults `now` to the current time", () => {
+    expect(isStale(new Date().toISOString(), HOUR)).toBe(false);
+    expect(isStale(new Date(Date.now() - 2 * HOUR).toISOString(), HOUR)).toBe(true);
+  });
+
+  it("reads a summary's `checkedAt` directly", () => {
+    const summary = summarizeHealth({
+      brokenLinks: [],
+      missingAlt: 0,
+      seoGaps: 0,
+      now: new Date(now.getTime() - 48 * HOUR),
+    });
+    expect(isStale(summary.checkedAt, HEALTH_STALE_AFTER_MS, now)).toBe(true);
   });
 });

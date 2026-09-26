@@ -88,6 +88,10 @@ export interface SettingsConfig {
     /** Override the health-detail endpoint the Health drill-in reads.
      *  Default `/api/louise/health` (wire `healthRoute` server-side). */
     healthEndpoint?: string;
+    /** How old the last health check can get, in milliseconds, before the Health
+     *  panel marks it out of date. Default 36 hours (`HEALTH_STALE_AFTER_MS` from
+     *  `louise-toolkit/health`), which suits a daily scan. */
+    healthStaleAfterMs?: number;
   };
   /** `false` → open on Pages (no Home landing), as before. Default `true`. */
   home?: boolean;

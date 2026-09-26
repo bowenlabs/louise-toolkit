@@ -4,6 +4,7 @@
 //   docs.louisetoolkit.com/*  → static Starlight bundle folded into /_docs (serveDocs)
 //   /api/louise/*         → louise-toolkit/editor routes (pages/save/settings/media/
 //                           inquiries/seed), guarded by the cookie editor gate
+//   /api/louise/status    → public status for an outside probe (200 or 503)
 //   /media/*              → uploaded R2 objects (self-hosted media, no public bucket)
 //   /og.png?slug=&title=  → resvg/WASM OG card, content-hash cached
 //   else                  → Astro SSR (marketing + published content pages)
@@ -15,7 +16,9 @@ import { vitalsRoute } from "louise-toolkit/analytics";
 import { checkLinks, ogCacheKey, ogCardSvg, ogImage } from "louise-toolkit/browser";
 import {
   DEFAULT_PAGE_FIELDS,
+  ageCheck,
   aiRoute,
+  d1Check,
   formRoute,
   healthRoute,
   inquiriesRoute,
@@ -27,11 +30,13 @@ import {
   seedRoute,
   seoFixRoute,
   settingsRoute,
+  statusRoute,
   versionsRoute,
 } from "louise-toolkit/editor";
 import { assertValidSections, reindexDoc } from "louise-toolkit/content";
 import { db, inquiriesForm } from "louise-toolkit/db";
 import { defineForm } from "louise-toolkit/forms";
+import { readHealthSummary } from "louise-toolkit/health";
 import { enqueue, processBatch, type SideEffectJob } from "louise-toolkit/queues";
 import { realtimeRoute } from "louise-toolkit/realtime";
 import { louiseSecurityHeaders } from "louise-toolkit/security";
@@ -326,6 +331,20 @@ const ogRoute: WorkerRoute<WorkerEnv> = async (request) => {
 // Unauthenticated by design (anonymous field data), so it sits outside editorRoutes.
 const vitalsIngestRoute = vitalsRoute<WorkerEnv>({ dataset: (env) => env.ANALYTICS });
 
+// Public status for an outside probe (#557): 200 when D1 answers and the daily
+// health scan has run within 36 hours, else 503. The body is booleans and
+// ages, never error text. Anyone can call it, so both checks stay cheap (a
+// `SELECT 1` that reads no rows and one KV read), and `reuseMs` answers a
+// burst of requests from one finished run.
+const HOUR_MS = 60 * 60 * 1000;
+const siteStatusRoute = statusRoute<WorkerEnv>({
+  checks: {
+    db: d1Check((env) => env.DB),
+    healthScan: ageCheck(async (env) => (await readHealthSummary(env.RL))?.checkedAt, 36 * HOUR_MS),
+  },
+  reuseMs: 10_000,
+});
+
 // The durable publish pipeline (#88). Re-exported from the Worker entry so
 // wrangler's `[[workflows]]` `class_name` can find it.
 export { PublishWorkflow } from "./workflows/publish.js";
@@ -336,7 +355,14 @@ export { EditSessionDO } from "./realtime/edit-session.js";
 export default composeWorker<WorkerEnv>({
   // docs host first (never touches the content); then the editor API, media, OG;
   // everything else falls through to Astro SSR.
-  routes: [docsRoute, ...editorRoutes, vitalsIngestRoute, mediaAssetRoute, ogRoute],
+  routes: [
+    docsRoute,
+    ...editorRoutes,
+    vitalsIngestRoute,
+    siteStatusRoute,
+    mediaAssetRoute,
+    ogRoute,
+  ],
   // Route caching (#95/#163): a cookie-aware Worker Cache API layer over the Astro
   // SSR fallback. Public GETs edge-cache (keyed by URL); an edit-mode request
   // (the `louise_edit` cookie) bypasses the cache entirely and always renders
@@ -350,14 +376,27 @@ export default composeWorker<WorkerEnv>({
   // Side-effect consumer (#77): drain the deferred reindex jobs enqueued on the
   // publish path. processBatch acks each message on success and retries on a
   // thrown error; Cloudflare Queues owns the backoff/DLQ (wrangler.jsonc).
+  // A job this consumer doesn't handle throws rather than falling through, so
+  // it retries, lands in the dead-letter queue, and shows up in Workers Logs
+  // instead of being acked as done (#558).
   async queue(batch, env) {
     await processBatch(batch as MessageBatch<SideEffectJob>, async (job) => {
-      if (job.kind === "reindex" && job.collection === "pages") {
-        await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
-        // Embed-on-publish (#86): mirror the FTS sync into Vectorize on the same
-        // deferred job. Best-effort—a missing binding / embed error is
-        // swallowed, so it never fails (or retries) the FTS reindex above.
-        await syncPageVector(env, job.id);
+      switch (job.kind) {
+        case "reindex": {
+          if (job.collection !== "pages") {
+            throw new Error(`No reindex handler for the "${job.collection}" collection`);
+          }
+          await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
+          // Embed-on-publish (#86): mirror the FTS sync into Vectorize on the same
+          // deferred job. Best-effort—a missing binding / embed error is
+          // swallowed, so it never fails (or retries) the FTS reindex above.
+          await syncPageVector(env, job.id);
+          return;
+        }
+        default: {
+          const unhandled: never = job.kind;
+          throw new Error(`Unknown side-effect job kind: ${String(unhandled)}`);
+        }
       }
     });
   },

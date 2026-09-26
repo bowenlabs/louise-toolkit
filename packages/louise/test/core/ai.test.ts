@@ -8,8 +8,11 @@ import {
   DEFAULT_TEXT_MODEL,
   generateAltText,
   MAX_ALT_TEXT_LENGTH,
+  REWRITE_MAX_CHARS,
+  REWRITE_MAX_TOKENS,
   rewriteText,
   runAi,
+  runAiText,
   SEO_TITLE_MAX,
   suggestSeo,
 } from "../../src/core/ai/index.js";
@@ -69,6 +72,96 @@ describe("runAi", () => {
   });
 });
 
+describe("runAiText—truncation (#466)", () => {
+  it("returns null, like runAi, without a runner or on a thrown error", async () => {
+    expect(await runAiText(undefined, "m", { max_tokens: 10 })).toBeNull();
+    const r: AiRunner = {
+      run: async () => {
+        throw new Error("down");
+      },
+    };
+    expect(await runAiText(r, "m", { max_tokens: 10 })).toBeNull();
+  });
+
+  it("reads a finished answer as not truncated", async () => {
+    const r = runner({
+      response: "A whole sentence.",
+      usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+    }).runner;
+    expect(await runAiText(r, "m", { max_tokens: 64 })).toEqual({
+      output: {
+        response: "A whole sentence.",
+        usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+      },
+      text: "A whole sentence.",
+      truncated: false,
+      finishReason: null,
+      usage: { promptTokens: 20, completionTokens: 5, totalTokens: 25 },
+    });
+  });
+
+  it("detects truncation from a finish reason, in each shape a model reports one", async () => {
+    // With no usage at all, so only the finish reason can tell.
+    const shapes: unknown[] = [
+      { response: "Half a", finish_reason: "length" },
+      { response: "Half a", stop_reason: "max_tokens" },
+      { response: "Half a", finishReason: "MAX_TOKENS" },
+      { choices: [{ message: { content: "Half a" }, finish_reason: "length" }] },
+    ];
+    for (const out of shapes) {
+      const result = await runAiText(runner(out).runner, "m", { max_tokens: 512 });
+      expect(result?.truncated, JSON.stringify(out)).toBe(true);
+      expect(result?.text).toBe("Half a");
+      expect(result?.usage).toBeNull();
+    }
+  });
+
+  it("detects truncation from usage when the model reports no finish reason", async () => {
+    // Workers AI often reports usage without a finish reason. Generating the
+    // whole cap is the only sign the answer was cut off.
+    const atCap = runner({ response: "Half a", usage: { completion_tokens: 128 } }).runner;
+    const result = await runAiText(atCap, "m", { max_tokens: 128 });
+    expect(result?.finishReason).toBeNull();
+    expect(result?.truncated).toBe(true);
+
+    // The `output_tokens` spelling counts too.
+    const other = runner({ response: "Half a", usage: { output_tokens: 130 } }).runner;
+    expect((await runAiText(other, "m", { max_tokens: 128 }))?.truncated).toBe(true);
+
+    // One token under the cap is a finished answer.
+    const under = runner({ response: "Whole.", usage: { completion_tokens: 127 } }).runner;
+    expect((await runAiText(under, "m", { max_tokens: 128 }))?.truncated).toBe(false);
+  });
+
+  it("treats a finish reason of stop as finished, when usage is under the cap", async () => {
+    const r = runner({
+      response: "Whole.",
+      finish_reason: "stop",
+      usage: { completion_tokens: 3 },
+    }).runner;
+    const result = await runAiText(r, "m", { max_tokens: 128 });
+    expect(result?.finishReason).toBe("stop");
+    expect(result?.truncated).toBe(false);
+  });
+
+  it("can't read usage against a cap that wasn't requested", async () => {
+    const r = runner({ response: "Whole.", usage: { completion_tokens: 900 } }).runner;
+    expect((await runAiText(r, "m", {}))?.truncated).toBe(false);
+  });
+
+  it("logs a truncated answer with the model ID", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const r = runner({ response: "Half a", finish_reason: "length" }).runner;
+      await runAiText(r, "@cf/example/model", { max_tokens: 16 });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain("@cf/example/model");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
 describe("generateAltText", () => {
   it("returns null without a runner", async () => {
     expect(await generateAltText(undefined, new Uint8Array([1, 2, 3]))).toBeNull();
@@ -113,6 +206,16 @@ describe("generateAltText", () => {
       },
     };
     expect(await generateAltText(r, new Uint8Array([1]))).toBeNull();
+  });
+
+  it("never stores a truncated caption—it returns null for the empty-alt fallback", async () => {
+    // Tidying would sentence-case the fragment and make it look finished.
+    const byReason = runner({ description: "a red mug on a", finish_reason: "length" }).runner;
+    expect(await generateAltText(byReason, new Uint8Array([1]))).toBeNull();
+
+    const byUsage = runner({ description: "a red mug on a", usage: { completion_tokens: 128 } });
+    expect(await generateAltText(byUsage.runner, new Uint8Array([1]))).toBeNull();
+    expect(byUsage.calls[0].inputs.max_tokens).toBe(128);
   });
 
   it("caps very long captions with an ellipsis", async () => {
@@ -164,6 +267,29 @@ describe("rewriteText", () => {
     };
     expect(await rewriteText(r, "original")).toBeNull();
   });
+
+  it("never returns a truncated rewrite, so the selection keeps its original text", async () => {
+    const byReason = runner({ response: "The first half of", finish_reason: "length" }).runner;
+    expect(await rewriteText(byReason, "original")).toBeNull();
+
+    const byUsage = runner({
+      response: "The first half of",
+      usage: { completion_tokens: REWRITE_MAX_TOKENS },
+    });
+    expect(await rewriteText(byUsage.runner, "original")).toBeNull();
+    expect(byUsage.calls[0].inputs.max_tokens).toBe(REWRITE_MAX_TOKENS);
+
+    // A caller's own cap is the one the usage is read against.
+    const custom = runner({ response: "Short.", usage: { completion_tokens: 64 } }).runner;
+    expect(await rewriteText(custom, "original", { maxTokens: 64 })).toBeNull();
+    expect(await rewriteText(custom, "original", { maxTokens: 65 })).toBe("Short.");
+  });
+
+  it("sizes its input cap from its output cap", () => {
+    // The route's 413 rests on this relationship: three characters per token
+    // of output cap.
+    expect(REWRITE_MAX_CHARS).toBe(REWRITE_MAX_TOKENS * 3);
+  });
 });
 
 describe("suggestSeo", () => {
@@ -211,6 +337,14 @@ describe("suggestSeo", () => {
     const seo = await suggestSeo(r, "x");
     expect((seo?.title as string).length).toBeLessThanOrEqual(SEO_TITLE_MAX);
     expect(seo?.description).toBeNull();
+  });
+
+  it("returns null when the output cap cut the reply off, even if it parses", async () => {
+    const r = runner({
+      response: { title: "Coffee", description: "Freshly roasted beans from" },
+      usage: { completion_tokens: 256 },
+    }).runner;
+    expect(await suggestSeo(r, "x")).toBeNull();
   });
 
   it("returns null when the reply isn't parseable JSON", async () => {

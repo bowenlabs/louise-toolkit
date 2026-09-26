@@ -6,7 +6,7 @@ sidebar:
 ---
 
 ```ts
-import { runAi, generateAltText, rewriteText, suggestSeo } from "louise-toolkit/ai";
+import { runAi, runAiText, generateAltText, rewriteText, suggestSeo } from "louise-toolkit/ai";
 ```
 
 Optional Workers AI editorial assists and semantic search. Every helper
@@ -15,6 +15,11 @@ returns `null` / `[]`—a save, upload, or publish is never blocked or broken by
 AI. The binding is passed in and the model id is a plain string, so the module is
 catalog-agnostic. Binding: `AI` (+ `VECTORIZE` for search). No required peers.
 See the [AI assists guide](/guide/ai-assists/).
+
+Every generation helper here returns plain text, never HTML, so none of their
+output needs an HTML sanitizer. If your own code asks a model for HTML, run it
+through [`sanitizeModelHtml`](/reference/security/#sanitizemodelhtmlhtml) before
+you store it.
 
 ## `aiRunner(env)`—turning generation off
 
@@ -100,6 +105,55 @@ cause so it shows in `wrangler tail`). `env.AI` satisfies `AiRunner` structurall
 routes a call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
 for response caching, cost caps, fallbacks, and logging.
 
+## `runAiText(runner, model, inputs, options?)`
+
+```ts
+function runAiText(
+  runner: AiRunner | undefined,
+  model: string,
+  inputs: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<AiTextResult | null>;
+
+interface AiTextResult {
+  output: unknown; // the raw model output
+  text: string | null;
+  truncated: boolean;
+  finishReason: string | null;
+  usage: AiUsage | null;
+}
+
+interface AiUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+}
+```
+
+`runAi` for text generation: the same `null` on a missing runner or a thrown
+error, plus whether the output token cap cut the answer off. The helpers below
+use it, and it's the call to reach for when you generate text yourself.
+
+An answer is `truncated` when either is true:
+
+- The model reports a finish reason of `length` or `max_tokens`, as
+  `finish_reason` or `stop_reason`, at the top level or on the first of
+  `choices`.
+- The model generated at least the `max_tokens` in `inputs`, read from
+  `usage.completion_tokens` or `usage.output_tokens`.
+
+Workers AI doesn't always report a finish reason, so the token count is the
+check that works on every model that reports usage. A model that reports
+neither can't be checked, and reads as not truncated. A truncated answer is
+logged with the model ID, so it shows in `wrangler tail`.
+
+Check `truncated` before you store or show the text:
+
+```ts
+const out = await runAiText(env.AI, model, { messages, max_tokens: 256 });
+if (!out?.text || out.truncated) return null; // keep what you had
+```
+
 ## `generateAltText(runner, image, opts?)`
 
 ```ts
@@ -114,7 +168,9 @@ Generate concise alt text for an image via a vision model
 (`DEFAULT_ALT_TEXT_MODEL`). The result is tidied—whitespace-collapsed,
 "an image of…" lead-ins stripped, sentence-cased, and capped at
 `MAX_ALT_TEXT_LENGTH` (240) chars. `null` when the runner is absent, the model
-errors, or it yields no text; the caller keeps its empty-alt fallback.
+errors, it yields no text, or the output cap cut its answer off; the caller keeps
+its empty-alt fallback. A cut-off caption is never returned, because tidying it
+would make half a sentence look finished.
 
 ## `rewriteText(runner, text, opts?)`
 
@@ -128,7 +184,14 @@ Rewrite a passage via an instruct model (`DEFAULT_TEXT_MODEL`), transforming it
 per `opts.mode` (default `"tighten"`). The reply is stripped of wrapping quotes
 and any "Here is the rewrite:" preamble. `REWRITE_MODES` lists the four modes in
 menu order (for a toolbar). `null` when the runner is absent, the input is blank,
-or the model returns nothing—the caller keeps the original text.
+the model returns nothing, or the output cap cut its answer off—the caller keeps
+the original text rather than swapping in a fragment.
+
+The output cap defaults to `REWRITE_MAX_TOKENS` (512), and a passage longer than
+`REWRITE_MAX_CHARS` (1,536 characters, three per token of the cap) is likely to
+come back cut off. `aiRoute` refuses a longer selection with a `413`; if you call
+`rewriteText` yourself, bound the input the same way, or raise `maxTokens` with
+it.
 
 ```ts
 const tighter = await rewriteText(env.AI, draft, { mode: "tighten" });
@@ -149,7 +212,8 @@ Suggest an SEO title + meta description from page content, using Workers AI JSON
 mode to force a `{ title, description }` object. Fields are length-capped
 (`SEO_TITLE_MAX` 60, `SEO_DESCRIPTION_MAX` 155); a missing field becomes `null`,
 and a result with neither is `null` overall. `null` when the runner is absent,
-the content is blank, or the reply can't be parsed.
+the content is blank, the output cap cut the reply off, or the reply can't be
+parsed.
 
 ## Semantic search (embeddings)
 
@@ -259,10 +323,10 @@ const top = fuseRankings([{ ids: keywordSlugs }, { ids: semanticSlugs, weight: 0
 
 ## Types
 
-`AiRunner`, `AiGatewayOptions`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
+`AiRunner`, `AiGatewayOptions`, `AiTextResult`, `AiUsage`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
 `SeoSuggestion`, `SeoOptions`, `EmbedOptions`, `EmbeddingPooling`, `VectorIndex`, `VectorRecord`,
 `VectorMatch`, `IndexContentOptions`, `SemanticSearchOptions`, `RankedList`,
 `FuseRankingsOptions`. Constants: `DEFAULT_ALT_TEXT_MODEL`, `MAX_ALT_TEXT_LENGTH`,
-`DEFAULT_TEXT_MODEL`, `REWRITE_MODES`, `SEO_TITLE_MAX`, `SEO_DESCRIPTION_MAX`,
+`DEFAULT_TEXT_MODEL`, `REWRITE_MODES`, `REWRITE_MAX_TOKENS`, `REWRITE_MAX_CHARS`, `SEO_TITLE_MAX`, `SEO_DESCRIPTION_MAX`,
 `DEFAULT_EMBEDDING_MODEL`, `RRF_K`.
 `contentVectorId` / `parseContentVectorId` compose and recover the vector id.

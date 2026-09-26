@@ -9,12 +9,20 @@ import {
   defineDocChangeHandler,
   defineKeymap,
   defineNodeAttr,
+  definePlugin,
   htmlFromNode,
   union,
   type Editor,
   type NodeJSON,
 } from "prosekit/core";
-import { DOMSerializer } from "@prosekit/pm/model";
+import {
+  DOMSerializer,
+  Fragment,
+  type Node as PMNode,
+  type Schema,
+  Slice,
+} from "@prosekit/pm/model";
+import { Plugin } from "@prosekit/pm/state";
 import { defineBlockquote } from "prosekit/extensions/blockquote";
 import { defineImageUploadHandler, uploadImage } from "prosekit/extensions/image";
 import { defineLink } from "prosekit/extensions/link";
@@ -86,6 +94,22 @@ const REWRITE_ACTIONS = [
   { mode: "simplify", label: "Simplify" },
   { mode: "fix", label: "Fix grammar" },
 ] as const;
+
+/** Shown in the sparkle menu when a rewrite fails for any reason other than
+ *  length. The selection is never touched on failure, so it says so. */
+const REWRITE_FAILED = "Couldn’t rewrite that. Your text is unchanged.";
+
+/**
+ * The message for a failed rewrite. A `413` means the selection is past the
+ * server's cap, and its `error` says what to do about it, so it's shown as is.
+ * Anything else gets {@link REWRITE_FAILED}: a `400` or `502` body is written for
+ * logs, not for the person editing.
+ */
+async function rewriteFailure(res: Response): Promise<string> {
+  if (res.status !== 413) return REWRITE_FAILED;
+  const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof data?.error === "string" && data.error ? data.error : REWRITE_FAILED;
+}
 
 /**
  * Resizable image node view: wraps the image node's DOM in ProseKit's
@@ -165,17 +189,82 @@ function ResizableImage(props: SolidNodeViewProps) {
   );
 }
 
-/** Serialize a doc as **inline** HTML—the inline content of its block(s),
- *  concatenated, with no block wrapper. `inline` rich-text fields (a heading, a
- *  tagline) store inline HTML that the site drops into its own element via
- *  `set:html` (`<h1 set:html={value}>`); serializing the whole doc would emit a
- *  `<p>`/`<h2>` wrapper that then nests inside that element and loses its style. */
+/** Serialize a doc as **inline** HTML—the inline content of its block(s), with
+ *  no block wrapper. `inline` rich-text fields (a heading, a tagline) store inline
+ *  HTML that the site drops into its own element via `set:html`
+ *  (`<h1 set:html={value}>`); serializing the whole doc would emit a `<p>`/`<h2>`
+ *  wrapper that then nests inside that element and loses its style.
+ *
+ *  Blocks are joined with one space (#449). The inline paste rule keeps the doc
+ *  to one block, but a doc seeded with several can still reach this point, and
+ *  joining them with nothing runs the last word of one into the first word of
+ *  the next. No space is added where a block already ends or starts with
+ *  whitespace, and empty blocks contribute nothing. */
 function inlineHTMLFromDoc(editor: Editor): string {
   const { doc } = editor.view.state;
   const serializer = DOMSerializer.fromSchema(doc.type.schema);
   const host = document.createElement("div");
-  doc.forEach((block) => host.appendChild(serializer.serializeFragment(block.content)));
+  let previous: string | null = null;
+  doc.forEach((block) => {
+    if (block.content.size === 0) return;
+    const text = block.textContent;
+    if (previous !== null && !/\s$/.test(previous) && !/^\s/.test(text)) host.append(" ");
+    host.appendChild(serializer.serializeFragment(block.content));
+    previous = text;
+  });
   return host.innerHTML;
+}
+
+/** A line break inside pasted text, with any whitespace around it. */
+const LINE_BREAK = /\s*(?:\r\n?|\n)\s*/g;
+
+/** Flatten pasted content into one run of inline content (#449), for `inline`
+ *  mode. The Enter keys are already suppressed there, but a paste of several
+ *  lines or blocks would still split the field into paragraphs. This keeps the
+ *  inline content of every textblock, joins the textblocks with one space
+ *  (skipped where one side already has whitespace), and turns each line
+ *  break—a newline in text or a hard break—into a space. Block leaves, such as an
+ *  image, are dropped: an inline field never stores them anyway. */
+function flattenToInline(slice: Slice, schema: Schema): Slice {
+  const runs: PMNode[][] = [];
+  let run: PMNode[] = [];
+  const endRun = () => {
+    if (run.length > 0) runs.push(run);
+    run = [];
+  };
+  const inline = (node: PMNode): PMNode => {
+    if (node.isText) return schema.text((node.text ?? "").replace(LINE_BREAK, " "), node.marks);
+    if (node.type.name === "hardBreak") return schema.text(" ", node.marks);
+    return node;
+  };
+  const visit = (node: PMNode) => {
+    if (node.isInline) {
+      run.push(inline(node));
+    } else if (node.isTextblock) {
+      endRun();
+      node.forEach((child) => run.push(inline(child)));
+      endRun();
+    } else {
+      node.forEach(visit);
+    }
+  };
+  slice.content.forEach(visit);
+  endRun();
+
+  const nodes: PMNode[] = [];
+  for (const next of runs) {
+    const last = nodes.at(-1);
+    const first = next[0];
+    const lastText = last?.isText ? (last.text ?? "") : "";
+    const firstText = first?.isText ? (first.text ?? "") : "";
+    if (last && !/\s$/.test(lastText) && !/^\s/.test(firstText)) nodes.push(schema.text(" "));
+    nodes.push(...next);
+  }
+  if (nodes.length === 0) return Slice.empty;
+  // An open paragraph: its inline content merges into whatever block the
+  // selection is in, so the paste never adds a block.
+  const paragraph = schema.nodes.paragraph.create(null, Fragment.fromArray(nodes));
+  return new Slice(Fragment.from(paragraph), 1, 1);
 }
 
 function louiseExtension(blocks = false, grammar = false, inline = false) {
@@ -183,9 +272,19 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
     defineBasicExtension(),
     // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
     // the block-splitting keys so the value stays one inline run—paired with
-    // inlineHTMLFromDoc, the field never gains a block wrapper.
+    // inlineHTMLFromDoc, the field never gains a block wrapper. A paste or a drop
+    // goes through `transformPasted`, which flattens it to one run too (#449).
     ...(inline
-      ? [defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true })]
+      ? [
+          defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true }),
+          definePlugin(
+            new Plugin({
+              props: {
+                transformPasted: (slice, view) => flattenToInline(slice, view.state.schema),
+              },
+            }),
+          ),
+        ]
       : []),
     defineBlockquote(),
     defineTextColor(),
@@ -245,8 +344,9 @@ export interface RichTextProps {
   /** Inline mode (#182): a single-line rich-text field—a heading or tagline the
    *  site renders inside its own element (`<h1 set:html={value}>`). Like `minimal`
    *  for chrome (inline formatting only), but ALSO constrains the value to inline
-   *  HTML: block-splitting keys are suppressed and the value serializes with no
-   *  block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
+   *  HTML: block-splitting keys are suppressed, a multi-line paste is flattened
+   *  to one line with a space where each line break was, and the value
+   *  serializes with no block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
    *  nests in the element and loses its brand style. The level stays whatever the
    *  site's element is—the editor never changes it. */
   inline?: boolean;
@@ -304,11 +404,17 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
   // AI rewrite (#75/#166): opt-in, degrade-gracefully. The sparkle menu POSTs the
   // selected text to /api/louise/ai/rewrite and swaps in the result. `aiAvailable`
   // starts true and flips off on the first 503 (the AI binding isn't provisioned),
-  // retiring the control for the session; a 502/model hiccup leaves the original
-  // text untouched.
+  // retiring the control for the session. Any other failure leaves the original
+  // text untouched and keeps the menu open with a message (`aiError`), so a
+  // too-long selection (413) says what to do instead of silently doing nothing.
   const [aiOpen, setAiOpen] = createSignal(false);
   const [aiBusy, setAiBusy] = createSignal(false);
   const [aiAvailable, setAiAvailable] = createSignal(true);
+  const [aiError, setAiError] = createSignal<string | null>(null);
+  const closeAi = () => {
+    setAiOpen(false);
+    setAiError(null);
+  };
 
   const runRewrite = async (mode: string) => {
     const view = editor().view;
@@ -316,7 +422,9 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
     if (empty) return;
     const text = view.state.doc.textBetween(from, to, " ").trim();
     if (!text) return;
+    setAiError(null);
     setAiBusy(true);
+    let failure: string | null = null;
     try {
       const res = await fetch("/api/louise/ai/rewrite", {
         method: "POST",
@@ -324,15 +432,21 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
         body: JSON.stringify({ text, mode }),
       });
       // 503 → the AI binding is absent; hide the control for the rest of the
-      // session. 502/4xx → a model hiccup or bad response; keep the original text.
+      // session. Anything else not OK → keep the original text and say why.
       if (res.status === 503) {
         setAiAvailable(false);
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        failure = await rewriteFailure(res);
+        return;
+      }
       const data = (await res.json().catch(() => null)) as { text?: string } | null;
       const next = data?.text?.trim();
-      if (!next) return;
+      if (!next) {
+        failure = REWRITE_FAILED;
+        return;
+      }
       // Re-read state at apply time—the doc may have changed during the request.
       // Bail if the captured range no longer fits (avoids an out-of-range insert).
       const size = editor().view.state.doc.content.size;
@@ -340,10 +454,12 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
       const tr = editor().view.state.tr.insertText(next, from, to);
       editor().view.dispatch(tr);
     } catch {
-      // Network error → quiet no-op, keeping the original text.
+      // Network error → keep the original text.
+      failure = REWRITE_FAILED;
     } finally {
       setAiBusy(false);
-      setAiOpen(false);
+      if (failure) setAiError(failure);
+      else closeAi();
     }
   };
 
@@ -563,7 +679,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
             aria-controls="louise-tb-ai-menu"
             disabled={!active().hasSelection || aiBusy()}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setAiOpen((v) => !v)}
+            onClick={() => (aiOpen() ? closeAi() : setAiOpen(true))}
           >
             <Icon name="sparkle" />
           </button>
@@ -576,12 +692,19 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
               role="group"
               aria-label="Rewrite with AI"
               ref={(el) =>
-                onCleanup(
-                  wirePopoverDismiss(el, { onClose: () => setAiOpen(false), trigger: aiTrigger }),
-                )
+                onCleanup(wirePopoverDismiss(el, { onClose: closeAi, trigger: aiTrigger }))
               }
             >
               <Show when={!aiBusy()} fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}>
+                {/* Above the modes, so it reads first; the editor can reselect
+                    and pick a mode again without reopening the menu. */}
+                <Show when={aiError()}>
+                  {(message) => (
+                    <p class="louise-tb-ai-error" role="alert">
+                      {message()}
+                    </p>
+                  )}
+                </Show>
                 <For each={REWRITE_ACTIONS}>
                   {(a) => (
                     <button

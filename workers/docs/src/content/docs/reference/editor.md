@@ -18,6 +18,9 @@ import {
   formRoute,
   inquiriesRoute,
   seedRoute,
+  statusRoute,
+  d1Check,
+  ageCheck,
   runEditorRoute,
 } from "louise-toolkit/editor";
 ```
@@ -131,6 +134,7 @@ export const ALL: APIRoute = (ctx) =>
 | `inquiriesRoute`    | `/api/louise/inquiries`              | GET list · DELETE one                                                   |
 | `submissionsRoute`  | `/api/louise/submissions/<form>`     | GET list · DELETE one—a form's rows in the shared table                 |
 | `seedRoute`         | `/api/louise/seed`                   | seeds the `site_settings` singleton (idempotent)                        |
+| `statusRoute`       | `/api/louise/status`                 | **public** GET · HEAD: 200 or 503 from the site's checks                |
 
 - **`pagesRoute`**—content pages CRUD. Create/update are allowlisted to
   `fields` (defaults `DEFAULT_PAGE_FIELDS`) and rich fields (`body`) are run
@@ -199,6 +203,82 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   sanitized before write.
 - **`inquiriesRoute`**—read-mostly: list submissions newest-first, delete one
   by `?id=`.
+- **`statusRoute`**—the **public** route an outside probe reads. See
+  [The status route](#the-status-route).
+
+## The status route
+
+`statusRoute` answers whether the site works, for something outside Cloudflare
+to poll. It answers `GET` and `HEAD` at `/api/louise/status` with 200 when every
+check passes and 503 when any check fails, throws, or times out. It's a
+[`publicRoute`](/reference/worker/#the-editor-api-gate-gate-and-publicrouteroute),
+so the API gate lets an anonymous probe through, and the
+`@louise-toolkit/astro` middleware exempts its default path too.
+
+```ts
+import { ageCheck, d1Check, statusRoute } from "louise-toolkit/editor";
+import { readHealthSummary } from "louise-toolkit/health";
+
+const HOUR = 60 * 60 * 1000;
+
+statusRoute<Env>({
+  checks: {
+    db: d1Check((env) => env.DB),
+    // A daily scan, so 36 hours leaves room for one late run.
+    healthScan: ageCheck(async (env) => (await readHealthSummary(env.KV))?.checkedAt, 36 * HOUR),
+    // Anything else that means "working" for your site: return true or false.
+    content: async (env) => !(await readsSeedContent(env)),
+  },
+  reuseMs: 10_000,
+});
+```
+
+```json
+{
+  "ok": false,
+  "checks": {
+    "db": { "ok": true },
+    "healthScan": { "ok": false, "ageMs": 190800000 },
+    "content": { "ok": true }
+  }
+}
+```
+
+**You supply the checks.** Only your site knows what "working" means, so the
+route has none of its own. A check is `(env, signal) => boolean | { ok, ageMs? }`,
+sync or async, and anything other than `true` or `{ ok: true }` counts as a
+failure. With no checks, the route answers 200 whenever the Worker runs. Two
+builders cover the generic cases:
+
+- **`d1Check(db)`** passes when the database answers `SELECT 1`. It reads no
+  rows, so it costs next to nothing. A missing binding fails it.
+- **`ageCheck(read, maxAgeMs)`** passes when the timestamp `read` returns (an
+  ISO string, epoch milliseconds, or a `Date`) is no older than `maxAgeMs`, and
+  reports the age: the last health scan, a catalog snapshot, any scheduled
+  job's last success. A missing or unparseable timestamp fails with no age. A
+  future one (clock skew) passes with an age of 0.
+
+**The body carries booleans and ages, never an error's text.** A check that
+throws is logged with `console.error` and reports `{ ok: false }`; the message
+and stack stay in your logs. The check names appear in the body, so don't put
+anything in a name you wouldn't publish. Every response, including a 405, has
+`Cache-Control: no-store`, so no cache between the probe and the Worker can
+answer for it.
+
+**Every check has a timeout,** `timeoutMs` (default `STATUS_CHECK_TIMEOUT_MS`,
+2 seconds). The checks run at once, so a hung dependency makes a 503 in about
+that long, not a hung probe. The check's `signal` aborts at the timeout; pass
+it to a `fetch` so the request stops too.
+
+**Keep the checks cheap: anyone can make them run.** Set `reuseMs` to reuse a
+finished result for that long, within one Worker isolate, so a burst of
+requests costs one run of the checks per isolate. It defaults to `0`: every
+request runs them.
+
+`runStatusChecks(env, checks, { timeoutMs })` is the same run without the
+route, for a scheduled job that wants the same answer. `path` changes the mount
+from `/api/louise/status`. If you move it, a framework middleware gate no
+longer exempts it by default: add the new path to `apiGate.isPublic`.
 
 ## Resuming a draft
 

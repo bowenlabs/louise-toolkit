@@ -7,6 +7,11 @@
 // Slice 1 is tool GENERATION only: pure, synchronous, no transport. The
 // Streamable-HTTP JSON-RPC route, the bearer-token session, and the draft-gated
 // write execution land in slices 2–4 (#234–#236).
+//
+// When the write tools land, any rich HTML an agent writes goes through
+// `sanitizeModelHtml` (louise-toolkit/security), not the editor's
+// `sanitizeRichHtml`: agent output is model output, and gets the stricter
+// preset (#465).
 
 export {
   collectionTools,
