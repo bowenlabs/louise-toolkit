@@ -170,6 +170,28 @@ function wrapWriteError(config: CollectionConfig, error: unknown): never {
   throw new LouiseContentError(`Write failed for collection "${config.slug}"`, error);
 }
 
+/**
+ * Returns the table's `id` column, the key `findByID`, `update`, `deleteByID`,
+ * search, and every versioned method look rows up by. Throws
+ * `LouiseContentError` naming the fix when the table has no `id` column, so a
+ * collection without one fails where the Local API is built rather than on its
+ * first query with an error about SQL. A table from `collectionToTable` gets
+ * the column only when the collection declares an `id` field with
+ * `autoIncrement: true`; a hand-written table needs its own.
+ */
+function requireIdColumn(table: AnyTable, config: CollectionConfig): AnyTable["id"] {
+  if (table.id !== undefined) return table.id;
+  const autoIncrementKey = Object.entries(config.fields).find(
+    ([, field]) => field.type === "number" && field.autoIncrement,
+  )?.[0];
+  const fix = autoIncrementKey
+    ? `Rename its autoIncrement field "${autoIncrementKey}" to "id", and set the field's \`name\` to keep the column name.`
+    : 'Add `id: { type: "number", autoIncrement: true }` to the collection\'s fields, or `id: integer("id").primaryKey({ autoIncrement: true })` to a table you wrote by hand.';
+  throw new LouiseContentError(
+    `Collection "${config.slug}" can't use the Local API because its table has no "id" column, which the Local API finds, updates, and deletes rows by. ${fix}`,
+  );
+}
+
 function notFound(config: CollectionConfig, id: number): never {
   throw new LouiseContentError(`No "${config.slug}" document found with id ${id}`);
 }
@@ -295,7 +317,8 @@ async function resolveRelationships<TContext>(
     ];
     if (ids.length === 0) continue;
 
-    const relatedRows = await db.select().from(relatedTable).where(inArray(relatedTable.id, ids));
+    const relatedIdColumn = requireIdColumn(relatedTable, relatedConfig);
+    const relatedRows = await db.select().from(relatedTable).where(inArray(relatedIdColumn, ids));
     const byId = new Map(relatedRows.map((row) => [(row as AnyRecord).id, row as AnyRecord]));
 
     result = result.map((row) => {
@@ -544,7 +567,8 @@ export async function reindexDoc(
   id: number,
 ): Promise<void> {
   if (!config.search?.fields.length) return;
-  const [row] = await db.select().from(table).where(eq(table.id, id));
+  const idColumn = requireIdColumn(table, config);
+  const [row] = await db.select().from(table).where(eq(idColumn, id));
   if (!row) {
     await removeFromSearchIndex(db, config, id);
     return;
@@ -556,6 +580,13 @@ export async function reindexDoc(
   await syncSearchIndex(db, config, doc);
 }
 
+/**
+ * Builds the access-controlled, validated Local API for one collection over its
+ * Drizzle `table`. The table needs an `id` column, which the API finds,
+ * updates, and deletes rows by: declare `id: { type: "number", autoIncrement:
+ * true }` in the collection's fields when the table comes from
+ * `collectionToTable`. Throws `LouiseContentError` when it's missing.
+ */
 export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
   db: BaseSQLiteDatabase<"async", unknown>,
   table: TTable,
@@ -564,7 +595,10 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
   options?: LocalApiOptions,
 ): LocalApi<TTable, TContext> {
   const deferReindex = options?.deferReindex;
-  const idColumn = table.id;
+  // Checked here, not on first use: `find`, `count`, and `create` don't key on
+  // `id`, so without this an API missing it works until the first `findByID`,
+  // `update`, or publish, and then fails with an error about SQL.
+  const idColumn = requireIdColumn(table, config);
   // Group fields are the only reason a document's shape (nested) ever
   // differs from its row's shape (flat columns)—skip the flatten/nest
   // round-trip entirely for the common case of a collection with none, so
@@ -891,6 +925,7 @@ export function createVersionedLocalApi<
 ): VersionedLocalApi<TTable, TVersionsTable, TContext> {
   const base = createLocalApi<TTable, TContext>(db, table, config, registry, options);
   const deferReindex = options?.deferReindex;
+  // `createLocalApi` above already threw if the table has no `id` column.
   const idColumn = table.id;
   const versionsIdColumn = versionsTable.id;
   const versionsParentIdColumn = versionsTable.parentId;

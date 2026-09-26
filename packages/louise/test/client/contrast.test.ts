@@ -1,11 +1,13 @@
-// WCAG 2.x contrast for the `louise` themes and the editor chrome (#545).
+// WCAG 2.x contrast for the `louise` themes, the editor chrome, and the reference
+// site's copy of the theme (#545).
 //
 // Text needs 4.5:1 (WCAG 1.4.3); a ring, border, or focus outline needs only 3:1
 // (1.4.11). The brand blue #1481ef sits between the two at 3.88:1 against white,
 // so it's a ring color, never a text color: text on the blue, or in it, uses the
-// one-stop-darker text stop. These tests compute the ratios from the source hex
-// values with the relative-luminance formula, so a palette edit that drops a pair
-// under the line fails here instead of on someone's screen.
+// one-stop-darker text stop. The chrome's orange and yellow work the same way.
+// These tests compute the ratios from the source hex values with the
+// relative-luminance formula, so a palette edit that drops a pair under the line
+// fails here instead of on someone's screen.
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -15,14 +17,23 @@ import { describe, expect, it } from "vitest";
 const read = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
 const themeCss = read("../../src/theme/louise.css");
 const stylesSource = read("../../src/client/styles.ts");
+// The reference site keeps its own copy of the theme, with its own bases, and its
+// own sign-in page. Both live in this repository, so a drift from the package
+// fails here rather than on the live site.
+const siteThemeCss = read("../../../../workers/site/src/styles/louise.css");
+const siteSignInSource = read("../../../../workers/site/src/pages/louise.astro");
 
 const channel = (value: number): number => {
   const c = value / 255;
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 };
 
+/** `#fff` as `#ffffff`, so every hex parses the same way. */
+const longHex = (hex: string): string =>
+  hex.length === 4 ? `#${hex.slice(1).replaceAll(/./g, "$&$&")}` : hex;
+
 function luminance(hex: string): number {
-  const n = Number.parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(longHex(hex).slice(1), 16);
   return (
     0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255)
   );
@@ -34,17 +45,24 @@ function contrast(a: string, b: string): number {
 }
 
 /** The `--color-*` tokens of one `@plugin "daisyui/theme"` block, keyed without the prefix. */
-function themeTokens(name: string): Record<string, string> {
-  const start = themeCss.indexOf(`name: "${name}";`);
+function themeTokens(name: string, css = themeCss): Record<string, string> {
+  const start = css.indexOf(`name: "${name}";`);
   expect(start, `theme ${name} not found`).toBeGreaterThan(-1);
-  const block = themeCss.slice(start, themeCss.indexOf("}", start));
+  const block = css.slice(start, css.indexOf("}", start));
   const tokens: Record<string, string> = {};
   for (const m of block.matchAll(/--color-([\w-]+):\s*(#[0-9a-f]{6});/gi)) tokens[m[1]] = m[2];
   return tokens;
 }
 
-describe.each(["louise", "louise-dark"])("the %s theme", (name) => {
-  const tokens = themeTokens(name);
+const THEMES = [
+  ["louise", "package", themeCss],
+  ["louise-dark", "package", themeCss],
+  ["louise", "reference site", siteThemeCss],
+  ["louise-dark", "reference site", siteThemeCss],
+] as const;
+
+describe.each(THEMES)("the %s theme in the %s", (name, _where, css) => {
+  const tokens = themeTokens(name, css);
 
   it("gives every -content color 4.5:1 against its fill", () => {
     const pairs: Array<[string, string]> = [];
@@ -70,15 +88,70 @@ describe.each(["louise", "louise-dark"])("the %s theme", (name) => {
   });
 });
 
+describe("the reference site", () => {
+  it("copies the package theme's text-bearing brand tokens", () => {
+    // The site's bases and radii are its own; the colors that carry text aren't.
+    const keys = ["primary", "info", "error"].flatMap((k) => [k, `${k}-content`]);
+    for (const name of ["louise", "louise-dark"]) {
+      const site = themeTokens(name, siteThemeCss);
+      const pkg = themeTokens(name);
+      for (const key of keys) expect(site[key], `${name} ${key}`).toBe(pkg[key]);
+    }
+  });
+
+  it("gives the sign-in button 4.5:1 at rest and on hover", () => {
+    const style = siteSignInSource.slice(siteSignInSource.indexOf("<style>"));
+    const rest = /\bbutton \{([^}]*)\}/.exec(style)?.[1] ?? "";
+    const hover = /\bbutton:hover \{([^}]*)\}/.exec(style)?.[1] ?? "";
+    const hex = (body: string, prop: string): string | undefined =>
+      new RegExp(`(?<![-\\w])${prop}:\\s*(#[0-9a-f]{3,6})\\b`, "i").exec(body)?.[1];
+    const text = hex(rest, "color");
+    expect(text).toBeDefined();
+    for (const body of [rest, hover]) {
+      const fill = hex(body, "background");
+      expect(fill).toBeDefined();
+      expect(contrast(text!, fill!)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
 describe("the editor chrome", () => {
-  // Comments out, so a failure names the selector alone, and the interpolated
-  // ring blue spelled as its token, so its braces don't split a rule in two.
+  // Comments out, so a failure names the selector alone, the interpolated ring
+  // blue spelled as its token, and any other interpolation, such as the
+  // soft-lock badge's icon, as a placeholder, so their braces don't split a rule
+  // in two.
   const css = stylesSource
     .slice(stylesSource.indexOf("const CSS = `"))
     .replaceAll(/\/\*[\s\S]*?\*\//g, "")
-    .replaceAll("${LOUISE_BLUE}", "var(--louise-blue)");
+    .replaceAll("${LOUISE_BLUE}", "var(--louise-blue)")
+    .replaceAll(/\$\{[^}]*\}/g, "interpolated");
   const ringBlue = /const LOUISE_BLUE = "(#[0-9a-f]{6})";/i.exec(stylesSource)?.[1];
   const textBlue = /--louise-blue-strong:\s*(#[0-9a-f]{6});/i.exec(css)?.[1];
+
+  // The `:root` palette, so a rule's `var(--louise-*)` resolves to its hex.
+  const palette: Record<string, string> = { "--louise-blue": ringBlue ?? "" };
+  for (const m of css.slice(0, css.indexOf("}")).matchAll(/(--louise-[\w-]+):\s*(#[0-9a-f]{6});/gi))
+    palette[m[1]] = m[2];
+  // The color that leads a value, so a `background` shorthand with an image
+  // after the color resolves too.
+  const resolve = (value: string): string => {
+    const [, token, hex] = /^(?:var\((--[\w-]+)\)|(#[0-9a-f]{3,6})\b)/i.exec(value) ?? [];
+    return token ? palette[token] : (hex ?? value);
+  };
+
+  /** `color` and `background` of every rule with exactly this selector, later rules winning. */
+  function declarations(selector: string): { color?: string; background?: string } {
+    const out: { color?: string; background?: string } = {};
+    let found = false;
+    for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (sel.trim() !== selector) continue;
+      found = true;
+      for (const [, prop, value] of body.matchAll(/(?<![-\w])(color|background):\s*([^;]+);/g))
+        out[prop as "color" | "background"] = value.trim();
+    }
+    expect(found, `rule ${selector} not found`).toBe(true);
+    return out;
+  }
 
   it("keeps the ring blue for 3:1 and the text stop for 4.5:1", () => {
     expect(ringBlue).toBeDefined();
@@ -87,14 +160,14 @@ describe("the editor chrome", () => {
     expect(contrast(textBlue!, "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("never sets text on, or in, the ring blue", () => {
-    const onRingBlue = /background:\s*var\(--louise-blue\)/;
+  it("never sets white text on, or any text in, a ring-only color", () => {
+    // Blue and orange are ring colors with a -strong text stop; the yellow is too
+    // light for white text at all.
+    const onRing = /background:\s*var\(--louise-(?:blue|orange|yellow)\)/;
     const whiteText = /(?<![-\w])color:\s*#fff(?:fff)?\b/i;
-    const inRingBlue = /(?<![-\w])color:\s*var\(--louise-blue\)/;
+    const inRing = /(?<![-\w])color:\s*var\(--louise-(?:blue|orange|yellow)\)/;
     const offenders = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter(
-        ([, , body]) => (onRingBlue.test(body) && whiteText.test(body)) || inRingBlue.test(body),
-      )
+      .filter(([, , body]) => (onRing.test(body) && whiteText.test(body)) || inRing.test(body))
       .map(([, selector]) => selector.trim());
     expect(offenders).toEqual([]);
   });
@@ -102,5 +175,62 @@ describe("the editor chrome", () => {
   it("fills white-text controls with a blue that clears 4.5:1", () => {
     // The primary button carried its own literal blue before #545; pin it to the stop.
     expect(css).toMatch(/\.louise-btn-primary \{ background: var\(--louise-blue-strong\);/);
+  });
+
+  // A badge's text and fill can come from two rules: the Core Web Vitals badge
+  // sets white text once and a fill per rating, so each pair is checked whole.
+  const badges: Array<[string, string[]]> = [
+    ["the soft-lock badge", [".louise-editable.louise-locked::before"]],
+    ["the unrated performance badge", [".louise-cwv-badge"]],
+    ...["good", "needs-improvement", "poor"].map((rating): [string, string[]] => [
+      `the ${rating} performance badge`,
+      [".louise-cwv-badge", `.louise-cwv-badge[data-rating="${rating}"]`],
+    ]),
+  ];
+
+  it.each(badges)("gives %s 4.5:1", (_label, selectors) => {
+    const { color, background } = Object.assign({}, ...selectors.map(declarations)) as {
+      color?: string;
+      background?: string;
+    };
+    expect(color).toBeDefined();
+    expect(background).toBeDefined();
+    expect(contrast(resolve(color!), resolve(background!))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("dims a locked field's content, not its badge", () => {
+    // Opacity on the field composites its ::before badge with it, so the badge's
+    // 4.5:1 above would only hold on paper.
+    const locked = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(
+      ([, selector]) => selector.trim() === ".louise-editable.louise-locked",
+    );
+    expect(locked).toBeDefined();
+    expect(locked![2]).not.toMatch(/(?<![-\w])(opacity|filter):/);
+  });
+
+  it.each([".louise-settings", ".louise-exit"])(
+    "keeps %s over 4.5:1 on its hover tint",
+    (selector) => {
+      // The tint is translucent over the bar's white, so composite it first.
+      const { color } = declarations(selector);
+      const { background } = declarations(`${selector}:hover`);
+      const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(background ?? "");
+      expect(m, `${selector}:hover background`).not.toBeNull();
+      const alpha = Number(m![4]);
+      const tint = `#${[m![1], m![2], m![3]]
+        .map((c) =>
+          Math.round(Number(c) * alpha + 255 * (1 - alpha))
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")}`;
+      expect(contrast(resolve(color!), tint)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it("colors the Done action with a text stop", () => {
+    // The action bar is white; Done is orange text on it.
+    const { color } = declarations(".louise-exit");
+    expect(contrast(resolve(color!), "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 });

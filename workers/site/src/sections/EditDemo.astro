@@ -16,9 +16,12 @@ interface Props {
 const { heading = "", headingAccent = "", _editIndex = 0, _editMode: edit = false } = Astro.props;
 const idx = _editIndex;
 
-// A dashed field outline + label, shown only while the demo is "editing".
+// A dashed field outline + label, shown only while the demo is "editing". The
+// label takes primary-content, not white: the landing runs the dark theme, whose
+// dark ink clears 4.5:1 on the blue where white is 3.88:1. The mock's orange text
+// and fill use #b8501f, the package theme's text stop, for the same reason.
 const markerTag =
-  "lt-demo-marker absolute -top-6 left-[-10px] rounded bg-primary px-[7px] py-0.5 font-mono text-[10px] font-semibold text-white whitespace-nowrap";
+  "lt-demo-marker absolute -top-6 left-[-10px] rounded bg-primary px-[7px] py-0.5 font-mono text-[10px] font-semibold text-primary-content whitespace-nowrap";
 ---
 
 <section class="mx-auto max-w-[1180px] px-[clamp(20px,4vw,48px)] py-[clamp(48px,6vw,70px)]">
@@ -66,7 +69,7 @@ const markerTag =
         >sunrise-bakery.com</span
       >
       <span class="lt-demo-status-view text-[11.5px] font-bold text-[#8ebe59]">Published</span>
-      <span class="lt-demo-status-edit text-[11.5px] font-bold text-[#db6327]"
+      <span class="lt-demo-status-edit text-[11.5px] font-bold text-[#b8501f]"
         >● Editing as louise@bakery</span
       >
     </div>
@@ -98,7 +101,7 @@ const markerTag =
           <span class={markerTag}>field="ctaLabel"</span>
           <span
             data-lt-demo-field
-            class="inline-block rounded-[10px] bg-[#db6327] px-[22px] py-[11px] text-[15px] font-bold text-white outline-none"
+            class="inline-block rounded-[10px] bg-[#b8501f] px-[22px] py-[11px] text-[15px] font-bold text-white outline-none"
           >
             Order now
           </span>

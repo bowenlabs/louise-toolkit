@@ -28,3 +28,6 @@ workers/site/public/_docs/
 
 # Built by scripts/vale-package.sh; published as a release asset, never committed.
 dist-vale/
+
+# JetBrains IDE settings, per machine.
+.idea/

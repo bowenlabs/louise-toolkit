@@ -9,6 +9,15 @@
  * theme for the marketing landing — same brand tokens, site-appropriate bases.
  *   blue #1481ef primary · gold #f3ae29 accent · greens for success ·
  *   orange #db6327 error. Auto light/dark via prefers-color-scheme (no JS).
+ *
+ * Contrast: the primary, info, and error tokens and their -content colors copy
+ * the package theme, packages/louise/src/theme/louise.css, which is the source
+ * of truth and explains the values. White on #1481ef is 3.88:1 and on #db6327
+ * 3.60:1, under the 4.5:1 that text needs, so the light theme fills with the
+ * darker text stops and the dark theme keeps the brand fills with dark ink on
+ * them. The bases and radii stay site-specific, which is why this is a copy and
+ * not an import. packages/louise/test/client/contrast.test.ts checks every pair
+ * here and fails if these tokens drift from the package's.
  */
 @plugin "daisyui/theme" {
   name: "louise";
@@ -21,7 +30,7 @@
   --color-base-300: #e6e9ef;
   --color-base-content: #14181f;
 
-  --color-primary: #1481ef;
+  --color-primary: #0f6ecd;
   --color-primary-content: #ffffff;
   --color-secondary: #4f6933;
   --color-secondary-content: #ffffff;
@@ -30,13 +39,13 @@
   --color-neutral: #14181f;
   --color-neutral-content: #f5f7f9;
 
-  --color-info: #1481ef;
+  --color-info: #0f6ecd;
   --color-info-content: #ffffff;
   --color-success: #8ebe59;
   --color-success-content: #16210b;
   --color-warning: #f3ae29;
   --color-warning-content: #231903;
-  --color-error: #db6327;
+  --color-error: #b8501f;
   --color-error-content: #ffffff;
 
   --radius-selector: 0.5rem;
@@ -60,8 +69,9 @@
   --color-base-300: #232a35;
   --color-base-content: #eef1f6;
 
+  /* Dark ink on the brand fills, as in the package's dark theme. */
   --color-primary: #1481ef;
-  --color-primary-content: #ffffff;
+  --color-primary-content: #0e141b;
   /* Light green is the green for dark backgrounds (brand colorway rule). */
   --color-secondary: #8ebe59;
   --color-secondary-content: #16210b;
@@ -71,13 +81,13 @@
   --color-neutral-content: #eef1f6;
 
   --color-info: #1481ef;
-  --color-info-content: #ffffff;
+  --color-info-content: #0e141b;
   --color-success: #8ebe59;
   --color-success-content: #16210b;
   --color-warning: #f3ae29;
   --color-warning-content: #231903;
   --color-error: #db6327;
-  --color-error-content: #ffffff;
+  --color-error-content: #0e141b;
 
   --radius-selector: 0.5rem;
   --radius-field: 0.625rem;
@@ -265,8 +275,11 @@
   text-decoration: none;
   font-weight: 600;
 }
+/* Hover mixes toward base-content: darker under white text in the light theme,
+   lighter under dark ink in the dark one, so the text keeps 4.5:1 either way. A
+   plain darken dropped the dark theme's ink to 4.27:1. */
 .pb-button a:hover {
-  filter: brightness(0.94);
+  background: color-mix(in oklab, var(--color-primary) 88%, var(--color-base-content));
 }
 .pb-hr {
   border: 0;

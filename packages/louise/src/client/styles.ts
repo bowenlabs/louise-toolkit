@@ -7,8 +7,14 @@
 // Google Fonts, no runtime fetch—and pulled in with `?raw` so it's baked
 // into the bundle exactly like the Phosphor icons (see icons.tsx).
 import brandFontsCss from "../theme/fonts.css?raw";
+import { icons } from "./icons.js";
 
 const LOUISE_BLUE = "#1481ef";
+
+/** An icon as a CSS image, for a pseudo-element that can't hold markup. An
+ *  image can't inherit `currentColor`, so the color is baked in. */
+const iconUrl = (svg: string, color: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(svg.replace('fill="currentColor"', `fill="${color}"`))}")`;
 
 const CSS = `
 :root {
@@ -21,8 +27,10 @@ const CSS = `
      where a ring, border, or focus outline only needs 3:1. Any rule that puts
      text on the blue, or colors text with it, uses --louise-blue-strong (5.08:1
      against white); --louise-blue stays for rings, borders, and outlines
-     (3.88:1). test/client/contrast.test.ts holds the line. node-chrome.ts
-     reads these with matching literal fallbacks; they're declared here so the
+     (3.88:1). The orange works the same way: --louise-orange-strong (5.02:1)
+     for text, --louise-orange (3.02:1) for rings. --louise-yellow (2.94:1) is
+     too light for white text at all, so text on it is dark ink.
+     test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
      whole palette is one overridable block rather than half tokens, half
      literals buried in TONE_CSS. */
   --louise-orange-strong: #b45309;
@@ -179,10 +187,14 @@ const CSS = `
   text-decoration: none;
   transition: background 120ms ease;
 }
+/* Both hover tints stay light enough to keep the text over 4.5:1: 4.61:1 for
+   Settings and 4.62:1 for Done. At 10% the blue tint was 4.49:1. */
 .louise-settings { color: var(--louise-blue-strong); }
-.louise-settings:hover { background: rgba(20, 129, 239, 0.1); }
-.louise-exit { color: var(--louise-orange); }
-.louise-exit:hover { background: rgba(234, 115, 23, 0.12); }
+.louise-settings:hover { background: rgba(20, 129, 239, 0.08); }
+/* Done is text, so it takes the orange text stop: --louise-orange is 3.02:1 on
+   the bar's white, and --louise-orange-strong 5.02:1. */
+.louise-exit { color: var(--louise-orange-strong); }
+.louise-exit:hover { background: rgba(234, 115, 23, 0.08); }
 
 /* Realtime presence (ADR 0002 / #71): a compact strip of the OTHER editors in the
    session, leading the bar. Empty at rest, so a solo editor sees nothing. */
@@ -208,21 +220,25 @@ const CSS = `
 }
 
 /* A rich field a peer holds (soft-lock): dimmed + non-interactive + a badge naming
-   the holder. Advisory only — the server also drops a non-holder's change. */
+   the holder. Advisory only — the server also drops a non-holder's change. The
+   badge fills with the orange text stop: white on it is 5.02:1, and on
+   --louise-orange 3.02:1. Only the field's content dims: opacity on the field
+   itself would fade its ::before badge too, and white on the faded orange is
+   2.49:1. */
 .louise-editable.louise-locked {
   position: relative;
   pointer-events: none;
-  opacity: 0.6;
 }
+.louise-editable.louise-locked > * { opacity: 0.6; }
 .louise-editable.louise-locked::before {
   content: attr(data-louise-locked-by);
   position: absolute;
   top: -10px;
   left: 8px;
   z-index: 2;
-  padding: 2px 8px;
+  padding: 2px 8px 2px 22px;
   border-radius: 999px;
-  background: var(--louise-orange);
+  background: var(--louise-orange-strong) ${iconUrl(icons.lock, "#fff")} no-repeat 8px center / 11px 11px;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -1470,7 +1486,12 @@ html[data-louise-studio] body {
   background: #64748b;
 }
 .louise-cwv-badge[data-rating="good"] { background: var(--louise-green); }
-.louise-cwv-badge[data-rating="needs-improvement"] { background: var(--louise-yellow); }
+/* White on the yellow is 2.94:1, so this one badge takes dark ink (5.90:1) and
+   keeps the yellow that says "could be faster". */
+.louise-cwv-badge[data-rating="needs-improvement"] {
+  background: var(--louise-yellow);
+  color: #231903;
+}
 .louise-cwv-badge[data-rating="poor"] { background: #dc2626; }
 /* A last check older than the threshold (#559). The text says "Out of date" too,
    so the amber isn't the only signal. Dark amber text keeps AA contrast. */

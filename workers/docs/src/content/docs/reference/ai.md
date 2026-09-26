@@ -146,7 +146,10 @@ An answer is `truncated` when either is true:
 Workers AI doesn't always report a finish reason, so the token count is the
 check that works on every model that reports usage. A model that reports
 neither can't be checked, and reads as not truncated. A truncated answer is
-logged with the model ID, so it shows in `wrangler tail`.
+reported with [`reportDegraded`](/reference/errors/#reportdegradedname-cause-details)
+as `ai.truncated`, with the model ID, its finish reason, and the tokens it
+generated against the cap, so it shows in `wrangler tail` and an
+[`onDegraded`](/reference/errors/#ondegradedlistener) listener hears it.
 
 Check `truncated` before you store or show the text:
 

@@ -71,6 +71,10 @@ import { contentConfigToSchema, generateSchemaSource } from "louise-toolkit/cont
 - `generateSchemaSource(config)` emits `.ts` source for a committed schema file
   (import-sorted so your formatter never flags it).
 
+A generated table has an `id` primary key only when the collection declares
+one, as `id: { type: "number", autoIncrement: true }`. The
+[Local API](#the-local-api) needs it.
+
 Related builders: `collectionToTable`, `collectionVersionsTable`,
 `relationshipJoinTables`, and full-text search helpers
 (`collectionSearchTableSQL`, `extractSearchText`).
@@ -122,6 +126,14 @@ createVersionedLocalApi(db, table, versionsTable, config, registry?, options?);
 
 - `table` is the collection's Drizzle table, and `versionsTable` is its
   companion from `collectionVersionsTable(config)`.
+- `table` needs an `id` column, because the Local API finds, updates, and
+  deletes rows by it. A table from `collectionToTable` or
+  `generateSchemaSource` has one only when the collection declares
+  `id: { type: "number", autoIncrement: true }` in its fields. A table you write
+  by hand, like `schema.artworks` above, needs
+  `id: integer("id").primaryKey({ autoIncrement: true })`. Without it,
+  `createLocalApi` and `createVersionedLocalApi` throw `LouiseContentError`
+  and name what to add.
 - `registry` is a `ContentRegistry`. `find` and `findByID` need one to resolve
   relationship fields with `depth: 1`.
 - `options.deferReindex` moves full-text index updates off the write path.
