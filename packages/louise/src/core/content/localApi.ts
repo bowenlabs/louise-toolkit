@@ -450,7 +450,8 @@ function searchIndexStatements(
   return [db.delete(fts).where(eq(fts.rowid, id)), db.insert(fts).values(entry)];
 }
 
-type SearchIndexStatement = BatchItem<"sqlite">;
+/** A statement that can go in a batch, or run alone when awaited. */
+type SearchIndexStatement = BatchItem<"sqlite"> & PromiseLike<unknown>;
 
 /** Rows per reindex batch: two statements each, so 100 statements a batch. A
  *  batch is one D1 transaction, and a transaction blocks every other write to
@@ -667,7 +668,11 @@ export function createLocalApi<TTable extends AnyTable, TContext = unknown>(
         const statements = rows
           .slice(start, start + REINDEX_BATCH_ROWS)
           .flatMap((row) =>
-            searchIndexStatements(db, config, toNestedDoc(row as Record<string, unknown>) as AnyRecord),
+            searchIndexStatements(
+              db,
+              config,
+              toNestedDoc(row as Record<string, unknown>) as AnyRecord,
+            ),
           );
         await runAtomically(db, statements);
       }

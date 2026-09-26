@@ -137,7 +137,9 @@ function sqliteD1(options: { failWhen?: (sql: string) => boolean } = {}) {
   } as unknown as D1Database;
 
   const addEntry = (id: number, title: string) =>
-    sqlite.prepare(`INSERT INTO pages_fts (rowid, title, body) VALUES (?, ?, ?)`).run(id, title, "");
+    sqlite
+      .prepare(`INSERT INTO pages_fts (rowid, title, body) VALUES (?, ?, ?)`)
+      .run(id, title, "");
   const seed = (id: number, title: string, { index = true } = {}) => {
     sqlite
       .prepare(`INSERT INTO pages (id, slug, title, body) VALUES (?, ?, ?, ?)`)
@@ -145,9 +147,11 @@ function sqliteD1(options: { failWhen?: (sql: string) => boolean } = {}) {
     if (index) addEntry(id, title);
   };
   const entryTitle = (id: number) =>
-    (sqlite.prepare(`SELECT title FROM pages_fts WHERE rowid = ?`).get(id) as
-      | { title: string }
-      | undefined)?.title;
+    (
+      sqlite.prepare(`SELECT title FROM pages_fts WHERE rowid = ?`).get(id) as
+        | { title: string }
+        | undefined
+    )?.title;
   const reset = () => {
     snapshots.length = 0;
     batches.length = 0;
