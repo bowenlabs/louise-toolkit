@@ -59,7 +59,7 @@ for (const { subpath, condition, target } of targets) {
 //    `louise-toolkit/src/...`.
 // ---------------------------------------------------------------------------
 const required = {
-  "./content": ["CollectionConfig", "FieldConfig"],
+  "./content": ["CollectionConfig", "FieldConfig", "PageId", "VersionId", "toPageId"],
   "./editor": [
     "EditorRouteEnv",
     "SaveCollectionConfig",

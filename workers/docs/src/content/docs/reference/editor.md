@@ -141,7 +141,7 @@ export const ALL: APIRoute = (ctx) =>
 - **`versionsRoute`**—the [draft/publish + version history](/guide/drafts/)
   surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
   (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest
-  draft), `POST …/:id/unpublish`. A save merges the edit over the current row and
+  draft; a `versionId` that isn't a version of page `:id` gets a `404`), `POST …/:id/unpublish`. A save merges the edit over the current row and
   stores a full snapshot in `${slug}_versions`; publish promotes it onto the live
   row and sets `published_version_id`. Takes `{ table, versionsTable, config,
 resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
@@ -234,7 +234,7 @@ its own endpoint rather than using the `WorkerRoute`s above—an Astro Action, s
 - `applyFieldSave(env, config, session, input)`—one inline field write, the body
   of `saveRoute`.
 - `applySaveDraft(env, deps, session, id, snapshot)`—a versioned draft write, the
-  body of the draft route. This is also what the realtime Durable Object calls, so
+  body of the draft route. `id` is a [`PageId`](/reference/content/#page-and-version-ids). This is also what the realtime Durable Object calls, so
   there is exactly one write path rather than two that can drift.
 - `applySettingsPatch(env, config, session, patch)`—a settings write, the body of
   `settingsRoute`.

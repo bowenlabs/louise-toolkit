@@ -16,6 +16,7 @@
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { EditorSession } from "../auth/types.js";
+import { type PageId, parsePageId, parseVersionId, toVersionId } from "../content/ids.js";
 import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { LouiseValidationError } from "../errors.js";
@@ -108,7 +109,7 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   env: Env,
   deps: SaveDraftDeps<Env>,
   editor: EditorSession,
-  id: number,
+  id: PageId,
   input: Record<string, unknown>,
 ): Promise<SaveDraftResult> {
   // Run this save's D1 work through a `first-primary` session: the write hits
@@ -299,6 +300,8 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 ): WorkerRoute<Env> {
   const base = cfg.path ?? "/api/louise/pages";
   const pkCol = getTableConfig(cfg.table).columns.find((c) => c.primary) as SQLiteColumn;
+  // The columns `collectionVersionsTable` generates, which the publish check reads.
+  const versionsCols = cfg.versionsTable as unknown as { id: SQLiteColumn; parentId: SQLiteColumn };
 
   return async (request, env) => {
     const path = new URL(request.url).pathname;
@@ -314,8 +317,8 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     )
       return undefined;
 
-    const id = Number(idStr);
-    if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
+    const id = parsePageId(idStr);
+    if (id === undefined) return json({ error: "Bad id" }, 400);
 
     const method = request.method;
     const isRead = method === "GET" && action === "versions";
@@ -379,15 +382,35 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       return json(result.body, result.status, setCookie ? { "set-cookie": setCookie } : undefined);
     }
 
-    // POST /:id/publish—promote a draft to live. `versionId` in the body, else
-    // the newest still-*pending* draft (a superseded draft—one publishing has
+    // POST /:id/publish—promote a draft to live. `versionId` in the body (a
+    // version of this page, else 404), else the newest still-*pending* draft (a superseded draft—one publishing has
     // already moved past—must not silently go live). See `latestPendingDraft`.
     if (action === "publish" && method === "POST") {
       const parsedBody = await standardValidate(
         PUBLISH_BODY,
         await request.json().catch(() => null),
       );
-      const explicitVersionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
+      const requestedVersionId = parsedBody.ok ? parsedBody.value.versionId : undefined;
+      const explicitVersionId =
+        requestedVersionId === undefined ? undefined : parseVersionId(requestedVersionId);
+      if (requestedVersionId !== undefined && explicitVersionId === undefined) {
+        return json({ error: "Bad versionId" }, 400);
+      }
+      // An explicit version must belong to the page in the path (#535).
+      // `api.publish` finds the page through the version row's `parentId`, so
+      // without this check a mismatched pair publishes a different page than the
+      // URL names. Check before the flush below, so a rejected publish leaves
+      // this page's buffered work where it was.
+      if (explicitVersionId !== undefined) {
+        const [version] = await database
+          .select({ parentId: versionsCols.parentId })
+          .from(cfg.versionsTable)
+          .where(eq(versionsCols.id, explicitVersionId))
+          .limit(1);
+        if ((version as { parentId?: unknown } | undefined)?.parentId !== id) {
+          return json({ error: "Version not found" }, 404);
+        }
+      }
       // Flush any buffered work to D1 first, so "publish the latest draft" sees
       // the freshest edits (the buffer may hold writes not yet flushed)—this
       // becomes the newest draft version.
@@ -421,7 +444,7 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           null;
         const latestDraft = latestPendingDraft(versions, publishedVersionId);
         if (!latestDraft) return json({ error: "No draft to publish" }, 400);
-        versionId = latestDraft.id as number;
+        versionId = toVersionId(latestDraft.id as number);
       }
       try {
         const page = await api.publish(context, versionId);
@@ -450,7 +473,8 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         await request.json().catch(() => null),
       );
       if (!parsedBody.ok) return json({ error: "Missing versionId" }, 400);
-      const versionId = parsedBody.value.versionId;
+      const versionId = parseVersionId(parsedBody.value.versionId);
+      if (versionId === undefined) return json({ error: "Bad versionId" }, 400);
       const versions = await api.findVersions(context, id);
       const target = versions.find((v) => (v as Record<string, unknown>).id === versionId) as
         | Record<string, unknown>

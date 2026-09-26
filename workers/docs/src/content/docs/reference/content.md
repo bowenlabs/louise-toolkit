@@ -75,6 +75,28 @@ database, and validates writes with the collection's
 `createVersionedLocalApi` adds draft/version history for collections that opt in
 with `versions`. `can(...)` evaluates access without performing the operation.
 
+### Page and version IDs
+
+A page ID and a version ID are both integers, so the versioned methods take
+branded types that keep them apart: `saveDraft`, `scheduleDraft`, `unpublish`,
+and `findVersions` take a `PageId`, and `publish`, `discardVersion`, and
+`diffVersions` take a `VersionId`. Passing one where the other belongs, or a
+plain `number`, is a type error. At runtime both are ordinary numbers.
+
+```ts
+import { parsePageId, toPageId, toVersionId } from "louise-toolkit/content";
+
+const page = toPageId(row.id); // a number you trust; throws unless it's a positive integer
+const [latest] = await api.findVersions(context, page);
+await api.publish(context, toVersionId(latest.id));
+
+const fromUrl = parsePageId(params.id); // untrusted input: undefined unless valid
+if (fromUrl === undefined) return new Response("Bad id", { status: 400 });
+```
+
+`parsePageId` and `parseVersionId` accept a positive integer or its decimal
+string, such as a route parameter or an agent's tool argument.
+
 ## Validation
 
 A chainable, immutable, Sanity-style rule builder:
