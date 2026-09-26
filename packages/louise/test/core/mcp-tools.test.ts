@@ -73,6 +73,20 @@ describe("collectionTools", () => {
     expect(publish?.operation).toBe("publish");
     expect(publish?.inputSchema.required).toEqual(["id"]);
   });
+
+  it("describes the document ID the way parsePageId reads it", () => {
+    // A positive integer, or its decimal string: what a model writes, and
+    // exactly what the dispatcher's `parsePageId` accepts (#535).
+    const tools = collectionTools(pages, { sections: {} });
+    for (const name of ["get_pages", "update_pages_field", "add_pages_section", "publish_pages"]) {
+      expect(props(byName(tools, name) as McpTool).id).toEqual({
+        type: ["integer", "string"],
+        minimum: 1,
+        pattern: "^[1-9][0-9]*$",
+        description: "Document ID.",
+      });
+    }
+  });
 });
 
 describe("argument schemas derived from fields", () => {

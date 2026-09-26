@@ -10,9 +10,10 @@
 // Writes are allowlisted (only configured fields) and rich fields sanitized
 // (louise-toolkit/security) before store; the table is the site's own `pages`.
 
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, getTableColumns } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
+import { reportDegraded } from "../degraded.js";
 import { LouiseValidationError } from "../errors.js";
 import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
@@ -49,6 +50,13 @@ async function runValidate(
     }
     throw err;
   }
+}
+
+/** The write a {@link PagesRouteConfig.afterWrite} hook runs after. */
+export interface PagesWrite {
+  operation: "create" | "update" | "delete";
+  /** The written row's ID. After a delete, the ID the row had. */
+  id: number;
 }
 
 /** The editable `pages` fields (Drizzle property keys) exposed by default. */
@@ -101,11 +109,22 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    */
   reservedSlugs?: Iterable<string>;
   /**
-   * Best-effort hook after a successful create/update/delete—for example, rebuild the
-   * search (FTS) index, which plain CRUD writes don't touch. A throw is
+   * Best-effort hook after a successful create/update/delete—for example, sync
+   * the search (FTS) index, which plain CRUD writes don't touch. A throw is
    * swallowed so search staleness can never fail the write itself.
+   *
+   * The second argument names the row the write touched, so you can update
+   * that one row's index entry with `reindexDoc` instead of rebuilding the
+   * whole index after every edit:
+   *
+   * ```ts
+   * afterWrite: (_editor, { id }) => reindexDoc(db(env.DB), pages, pagesCollection, id),
+   * ```
+   *
+   * `reindexDoc` re-reads the row, so the same call removes the entry after a
+   * delete.
    */
-  afterWrite?: (editor: EditorSession) => void | Promise<void>;
+  afterWrite?: (editor: EditorSession, write: PagesWrite) => void | Promise<void>;
   /**
    * The collection's version-snapshot table (`collectionVersionsTable(...)`),
    * when the page uses the draft/publish workflow. DELETE then cascades to it
@@ -147,6 +166,8 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   const table = config.table;
   const columns = getTableConfig(table).columns;
   const pkCol = columns.find((c) => c.primary) as SQLiteColumn;
+  // The primary key's Drizzle property key, to read a created row's ID back.
+  const pkKey = Object.entries(getTableColumns(table)).find(([, c]) => c === pkCol)?.[0] ?? "id";
   const orderCol = (columns.find((c) => c.name === "sort_order") ?? pkCol) as SQLiteColumn;
   const hasUpdatedAt = columns.some((c) => c.name === "updated_at");
   const reserved = new Set(config.reservedSlugs ?? []);
@@ -168,12 +189,13 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   };
 
   /** Fire the best-effort post-write hook, swallowing any error. */
-  const fireAfterWrite = async (editor: EditorSession): Promise<void> => {
+  const fireAfterWrite = async (editor: EditorSession, write: PagesWrite): Promise<void> => {
     if (!config.afterWrite) return;
     try {
-      await config.afterWrite(editor);
-    } catch {
+      await config.afterWrite(editor, write);
+    } catch (err) {
       // Best-effort—a post-write hook (for example, search reindex) must never fail the write.
+      reportDegraded("editor.pages.afterWrite", err);
     }
   };
 
@@ -210,7 +232,8 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
             .insert(table)
             .values(data as never)
             .returning();
-          await fireAfterWrite(g.editor);
+          const createdId = Number((created as Record<string, unknown> | undefined)?.[pkKey]);
+          await fireAfterWrite(g.editor, { operation: "create", id: createdId });
           return json({ page: created }, 201);
         } catch {
           return json({ error: "Create failed (missing required field or duplicate slug)" }, 400);
@@ -248,7 +271,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           .where(eq(pkCol, id))
           .returning();
         if (!updated) return json({ error: "Not found" }, 404);
-        await fireAfterWrite(g.editor);
+        await fireAfterWrite(g.editor, { operation: "update", id });
         return json({ page: updated });
       } catch {
         return json({ error: "Update failed (duplicate slug?)" }, 400);
@@ -261,7 +284,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (versionsTable && versionsParentCol) {
         await database.delete(versionsTable).where(eq(versionsParentCol, id));
       }
-      await fireAfterWrite(g.editor);
+      await fireAfterWrite(g.editor, { operation: "delete", id });
       return json({ ok: true });
     }
     return json({ error: "Method not allowed" }, 405);

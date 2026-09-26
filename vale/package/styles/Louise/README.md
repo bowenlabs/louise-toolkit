@@ -36,9 +36,12 @@ generates, whose text belongs to the generator.
 
 With `--strings=<regex>`, it also lints user-facing strings in the TypeScript
 files the pattern matches: error messages from `new Louise…Error(…)` and
-`new Astroid…Error(…)`, `error` and `message` in a `json(…)` body, JSX text, and
-the JSX attributes people read (`title`, `aria-label`, `placeholder`, `alt`,
-`label`). `copy-extract.mjs` defines the list. Findings show up as
+`new Astroid…Error(…)`, `error` and `message` in a `json(…)` body, JSX text,
+strings inside a JSX expression, the JSX attributes people read (`title`,
+`aria-label`, `placeholder`, `alt`, `label`), the first argument to
+`setError(…)`, `setMessage(…)`, and `confirm(…)`, and a `.textContent = …`
+assignment. Each string branch of a conditional value counts.
+`copy-extract.mjs` defines the list. Findings show up as
 `path/to/file.tsx (strings)`. This needs the `typescript` package, resolved from
 the repository being linted.
 

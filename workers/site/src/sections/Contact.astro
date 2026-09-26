@@ -84,7 +84,7 @@ const idx = _editIndex;
         });
         if (res.ok) {
           form.reset();
-          if (status) status.textContent = "Thanks — we’ll be in touch.";
+          if (status) status.textContent = "Thanks—we’ll be in touch.";
           return;
         }
         if (res.status === 422) {
@@ -92,9 +92,9 @@ const idx = _editIndex;
           if (status) status.textContent = body.violations?.[0]?.message ?? "Please check the form.";
           return;
         }
-        if (status) status.textContent = res.status === 429 ? "Too many messages — try again soon." : "Something went wrong.";
+        if (status) status.textContent = res.status === 429 ? "Too many messages. Try again soon." : "Something went wrong.";
       } catch {
-        if (status) status.textContent = "Network error — please try again.";
+        if (status) status.textContent = "Network error. Try again.";
       }
     });
   });

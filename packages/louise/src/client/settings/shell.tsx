@@ -88,6 +88,10 @@ export interface SettingsConfig {
     /** Override the health-detail endpoint the Health drill-in reads.
      *  Default `/api/louise/health` (wire `healthRoute` server-side). */
     healthEndpoint?: string;
+    /** How old the last health check can get, in milliseconds, before the Health
+     *  panel marks it out of date. Default 36 hours (`HEALTH_STALE_AFTER_MS` from
+     *  `louise-toolkit/health`), which suits a daily scan. */
+    healthStaleAfterMs?: number;
   };
   /** `false` → open on Pages (no Home landing), as before. Default `true`. */
   home?: boolean;
@@ -135,7 +139,7 @@ export function Settings(props: SettingsConfig) {
           class="louise-drawer"
           role="dialog"
           aria-modal="true"
-          aria-label="Louise explorer"
+          aria-label="Settings"
           ref={(el) => onCleanup(wireDialogA11y(el, { onClose: () => setOpen(false) }))}
         >
           <header class="louise-drawer-head">

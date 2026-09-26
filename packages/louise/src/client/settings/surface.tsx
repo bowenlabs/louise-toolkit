@@ -65,6 +65,9 @@ export interface SurfaceConfig {
     cards?: DashboardCard[];
     hide?: string[];
     healthEndpoint?: string;
+    /** How old the last health check can get, in milliseconds, before the Health
+     *  panel marks it out of date. Default 36 hours. */
+    healthStaleAfterMs?: number;
   };
 }
 
@@ -169,7 +172,11 @@ export function SurfacePanels(props: {
         <HomePanel cards={surfaceCards(props.config)} navigate={props.navigate} />
       </Show>
       <Show when={props.overlay === "health"}>
-        <HealthPanel navigate={props.navigate} endpoint={props.config.dashboard?.healthEndpoint} />
+        <HealthPanel
+          navigate={props.navigate}
+          endpoint={props.config.dashboard?.healthEndpoint}
+          staleAfterMs={props.config.dashboard?.healthStaleAfterMs}
+        />
       </Show>
       <Show when={props.overlay === "users"}>
         <UsersPanel endpoint={props.config.usersEndpoint} />

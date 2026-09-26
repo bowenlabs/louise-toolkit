@@ -15,6 +15,8 @@
 // eventually consistent and caps ~1 sustained write/sec per key, which is why it
 // is a scratch buffer and D1 stays authoritative.
 
+import { reportDegraded } from "../degraded.js";
+
 /** The KV surface the buffer needs—structural so the real `KVNamespace` fits
  *  without a hard dependency. Unlike `security`'s `KVLike`, this also needs
  *  `delete` (to clear a buffer on publish). */
@@ -59,7 +61,9 @@ export async function readDraftBuffer(
   try {
     const parsed = JSON.parse(raw) as BufferedDraft;
     return parsed && typeof parsed === "object" && parsed.data ? parsed : null;
-  } catch {
+  } catch (err) {
+    // A corrupt buffer falls back to the D1 draft, which can be behind it.
+    reportDegraded("editor.draftBuffer", err, { key });
     return null;
   }
 }

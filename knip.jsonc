@@ -18,7 +18,8 @@
       // .github/workflows/ci.yml, which knip doesn't read, and the .mjs checks
       // under scripts/ci/checks/ are invoked from those shell scripts by path.
       // Neither link is traceable, so both are entries.
-      "entry": ["scripts/**/*.sh", "scripts/ci/checks/*.mjs"],
+      // scripts/ai-eval/ is run by hand (CLAUDE.md), so nothing references it.
+      "entry": ["scripts/**/*.sh", "scripts/ci/checks/*.mjs", "scripts/ai-eval/run.mjs"],
     },
 
     // The library's package.json `exports` map points at ./dist/*, which only

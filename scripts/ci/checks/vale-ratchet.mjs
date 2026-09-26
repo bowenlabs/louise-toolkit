@@ -9,8 +9,9 @@
 // rather than from the synced .vale/ copy, so a change to the runner is tested
 // here before it ships in a package release.
 //
-// User-facing strings (error messages, `json(…)` bodies, JSX text, and readable
-// JSX attributes) come from the code a site or an editor user runs: the two
+// User-facing strings (error messages, `json(…)` bodies, JSX text and
+// expressions, readable JSX attributes, and status and confirmation messages;
+// copy-extract.mjs has the list) come from the code a site or an editor user runs: the two
 // packages and the workers. Their findings count under the source path with a
 // ` (strings)` suffix.
 //

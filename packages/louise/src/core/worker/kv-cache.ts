@@ -4,6 +4,8 @@
 // every request (a tenant by hostname, a settings row, a feature flag).
 // `withEdgeCache` caches whole responses; this caches one value.
 
+import { reportDegraded } from "../degraded.js";
+
 /** The subset of a KV namespace this uses. */
 export interface KvCacheStore {
   get(key: string): Promise<string | null>;
@@ -32,8 +34,9 @@ export interface KvCachedOptions {
  * Read `key` from KV, or run `load` and store what it returns (JSON). `null`
  * from `load` means "not found" and is cached too, unless `cacheMisses: false`.
  *
- * Fails open: a KV read or write that throws is ignored and `load` runs, so a
- * cache outage costs speed, never correctness. A value that no longer parses
+ * Fails open: a KV read or write that throws is reported with `reportDegraded`
+ * and otherwise ignored, and `load` runs, so a cache outage costs speed, never
+ * correctness. A value that no longer parses
  * is treated as a miss. `kv` may be `undefined` (unbound in dev)—then this
  * is just `load()`.
  *
@@ -51,7 +54,12 @@ export async function kvCached<T>(
       `kvCached ttlSeconds must be at least ${KV_MIN_TTL_SECONDS} (KV's minimum)`,
     );
   }
-  const raw = kv ? await kv.get(key).catch(() => null) : null;
+  const raw = kv
+    ? await kv.get(key).catch((err: unknown) => {
+        reportDegraded("worker.kvCache.read", err, { key });
+        return null;
+      })
+    : null;
   if (raw === MISS) return null;
   if (raw !== null) {
     try {
@@ -66,12 +74,18 @@ export async function kvCached<T>(
       .put(key, value === null ? MISS : JSON.stringify(value), {
         expirationTtl: options.ttlSeconds,
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        reportDegraded("worker.kvCache.write", err, { key });
+      });
   }
   return value;
 }
 
-/** Drop a cached key after the data behind it changes. Fails open, like the read. */
+/** Drop a cached key after the data behind it changes. Fails open, like the
+ *  read, but a failed bust means readers can see the old value for up to the
+ *  TTL, so it's reported with `reportDegraded`. */
 export async function kvBust(kv: KvCacheStore | undefined, key: string): Promise<void> {
-  await kv?.delete(key).catch(() => {});
+  await kv?.delete(key).catch((err: unknown) => {
+    reportDegraded("worker.kvCache.bust", err, { key });
+  });
 }

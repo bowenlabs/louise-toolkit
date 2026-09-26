@@ -13,6 +13,7 @@
 // dashboard with a 500), so a card degrades to "nothing to show" rather than an error. Mount
 // it before pagesRoute like searchRoute/versionsRoute.
 
+import { reportDegraded } from "../degraded.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
@@ -69,6 +70,7 @@ export interface OverviewRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv
 /** Run a slice resolver, collapsing an absent resolver or any thrown error to
  *  `undefined` so one broken slice can't take down the whole dashboard. */
 async function settle<Env, T>(
+  slice: keyof OverviewData,
   resolver: SliceResolver<Env, T> | undefined,
   env: Env,
 ): Promise<T | undefined> {
@@ -76,7 +78,7 @@ async function settle<Env, T>(
   try {
     return (await resolver(env)) ?? undefined;
   } catch (err) {
-    console.error("[louise] overview slice failed", err);
+    reportDegraded("editor.overview", err, { slice });
     return undefined;
   }
 }
@@ -99,9 +101,9 @@ export function overviewRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if ("response" in g) return g.response;
 
     const [content, inbox, health] = await Promise.all([
-      settle(config.content, env),
-      settle(config.inbox, env),
-      settle(config.health, env),
+      settle("content", config.content, env),
+      settle("inbox", config.inbox, env),
+      settle("health", config.health, env),
     ]);
 
     // Omit absent slices entirely (the card checks presence, not zero-vs-missing).

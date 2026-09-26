@@ -74,9 +74,10 @@ What the gate does:
   `Cache-Control: no-store` on gated responses. A header the route set itself
   wins, and a `101` WebSocket response is passed through untouched.
 
-`formRoute` and `vitalsRoute` are already public: a visitor submits a form, and
-every browser sends vitals. They still do their own origin, validation, and
-rate-limit checks. Mark any other route an anonymous caller must reach with
+`formRoute`, `vitalsRoute`, and `statusRoute` are already public: a visitor
+submits a form, every browser sends vitals, and an outside probe reads the
+status. They still do their own checks: origin, validation, rate limits, and a
+status body that carries no error text. Mark any other route an anonymous caller must reach with
 `publicRoute`. Without it, the gate returns 401:
 
 ```ts

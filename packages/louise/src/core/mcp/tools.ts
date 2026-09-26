@@ -159,10 +159,23 @@ function sectionObjectSchema(fields: Record<string, SectionField>): JsonSchema {
   return { type: "object", properties, additionalProperties: false };
 }
 
-/** The document id every per-document tool takes. */
+/**
+ * The document ID every per-document tool takes: a positive integer, or its
+ * decimal string, since a model writes either. This is exactly what
+ * `parsePageId` accepts, so the dispatcher that executes these tools brands the
+ * argument with it and answers a bad ID at the tool boundary (#535). `minimum`
+ * constrains only the number form and `pattern` only the string form.
+ */
+const DOC_ID: JsonSchema = {
+  type: ["integer", "string"],
+  minimum: 1,
+  pattern: "^[1-9][0-9]*$",
+  description: "Document ID.",
+};
+
 const ID_ARG: JsonSchema = {
   type: "object",
-  properties: { id: { type: ["string", "number"], description: "Document id." } },
+  properties: { id: DOC_ID },
   required: ["id"],
   additionalProperties: false,
 };
@@ -307,7 +320,7 @@ export function collectionTools(
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: ["string", "number"], description: "Document id." },
+        id: DOC_ID,
         // An enum, not a free string: a typo should fail at the tool boundary
         // rather than becoming a silently-ignored write.
         field: { type: "string", enum: editable, description: "Field to set." },
@@ -329,7 +342,7 @@ export function collectionTools(
       inputSchema: {
         type: "object",
         properties: {
-          id: { type: ["string", "number"], description: "Document id." },
+          id: DOC_ID,
           section: { type: "string", enum: names, description: "Section type to insert." },
           // Per-section prop shapes, keyed by section name, so a client can see
           // what each accepts without a second round trip.

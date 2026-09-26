@@ -70,7 +70,7 @@ export function OgPreview(props: {
       </div>
       <p class="louise-muted louise-settings-hint">
         {content().kind === "card"
-          ? "Auto-generated from the title — set a Social image above to override it."
+          ? "Auto-generated from the title. Set a Social image above to override it."
           : "Using your Social image."}
       </p>
     </div>

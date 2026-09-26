@@ -32,6 +32,8 @@
 //   }
 
 import type { EditorSession } from "../auth/types.js";
+import { type PageId, parsePageId } from "../content/ids.js";
+import { reportDegraded } from "../degraded.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "../editor/shared.js";
 import type { WorkerRoute } from "../worker/index.js";
 
@@ -106,7 +108,7 @@ const LAST_WRITER_KEY = "lastWriter";
  *  alarm flush (no request in scope) knows where to write. */
 export interface EditSessionTarget {
   slug: string;
-  id: number;
+  id: PageId;
 }
 
 /** The site-injected coalesced flush. Kept out of this framework-agnostic module
@@ -349,9 +351,8 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
       server.serializeAttachment(editor);
       // Remember which page this DO serves, for the alarm flush (no request there).
       const { slug, id: idStr } = targetFromUrl(request.url);
-      const id = Number(idStr);
-      if (slug && Number.isInteger(id))
-        await storage.put<EditSessionTarget>(TARGET_KEY, { slug, id });
+      const id = parsePageId(idStr);
+      if (slug && id !== undefined) await storage.put<EditSessionTarget>(TARGET_KEY, { slug, id });
       broadcast(ctx.getWebSockets(), presenceMessage(ctx.getWebSockets()));
       return new Response(null, { status: 101, webSocket: client });
     },
@@ -426,8 +427,11 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
             await config.persist(snapshot, editor, target);
             // Clear only what we flushed—edits that arrived mid-flush stay dirty.
             await storage.delete(keys);
-          } catch {
+          } catch (err) {
             // Persist failed—leave the snapshot dirty and re-arm below to retry.
+            // Reported, because a persist that keeps failing leaves every edit
+            // in the session unsaved while the editors see them land.
+            reportDegraded("realtime.persist", err, { fields: keys.length });
           }
         }
       }

@@ -37,6 +37,14 @@ retried independently**—one failing message doesn't block the rest from
 acking. `processBatch` never throws: a handler's own error is caught and turned
 into a `retry()`, so a Worker's `queue()` export can be the whole body.
 
+Before each retry, `processBatch` logs the failure with `console.error`: the
+queue name, the message id, and the delivery attempt, with the error itself as
+the second argument. The line lands in Workers Logs, so a message that
+exhausts its retries leaves a trace before Cloudflare moves it to the
+dead-letter queue. To surface a failure, throw from the handler: a handler
+that returns without throwing acks the message, and `processBatch` logs
+nothing.
+
 ```ts
 export default {
   async queue(batch: MessageBatch, env: Env) {
