@@ -1,5 +1,34 @@
 # louise-toolkit
 
+## 0.33.0
+
+### Minor Changes
+
+- 5a76d9f: `louise-toolkit/commerce` can now format a `Money` for a person and read the text back, in the currency's own minor unit.
+
+  - **`formatMoney(money, { locale, ...options })`** formats a `Money` with `Intl.NumberFormat`: `{ amount: 125000, currency: "USD" }` is `"$1,250.00"` in `en-US`, and 1250 JPY is `"¥1,250"`. It reads the minor-unit count from the currency instead of assuming two decimals. Other `Intl.NumberFormat` options pass through, so `maximumFractionDigits: 0` gives a whole-unit dashboard total.
+  - **`parseMoney(text, { locale, currency })`** reads what `formatMoney` prints, and what a person types the same way: `"$1,200.50"`, `"1200.5"`, and `"1.200,50 €"` in `de-DE` all come back as minor units. It checks that group separators sit where the locale puts them, so `"12.5"` in `de-DE` is `null` rather than 125 euros. `parseMoneyInput` stays the strict core underneath it.
+  - **`currencyDigits(currency)`** gives a currency's minor-unit count: 2 for USD, 0 for JPY, 3 for BHD.
+  - **`centsToMajor(cents, fractionDigits?)`** takes the minor-unit count, matching `majorToCents`. It always divided by 100, so a JPY amount came out a hundred times too small and a BHD amount ten times too large. The default is still 2, so existing calls return what they did.
+
+  Locale and currency have no defaults, because both are facts about the site.
+
+  **What to do:** nothing is required. If you call `centsToMajor` on a `Money` whose currency isn't two-decimal, pass `currencyDigits(money.currency)`. A hand-rolled `cents / 100` formatter can become `formatMoney`.
+
+- a632579: You can now check that a D1 database is migrated as far as the deployed code expects, before a deploy and in the Health panel. Schema migrations are applied by hand, and a deploy that lands before its migration used to fail later as a missing column on whatever route touched it first.
+
+  - **`migrationStatus(d1, expected)`** (`louise-toolkit/db`) compares the migration files the code was built with against D1's `d1_migrations` ledger. It returns what's `pending` (the database is behind), `applied`, and `unknown` (a newer deploy migrated the shared database). It's read-only. `assertMigrationsApplied` throws the new `LouisePendingMigrationsError`, whose `files` names the pending migrations, and `compareMigrations` is the pure comparison.
+  - **`louise migrations-check <database> [--remote]`** is the deploy gate. It reads the ledger through `wrangler d1 execute` and exits 1 when the database hasn't applied a `.sql` file in `--dir` (default `migrations`).
+  - **The Health panel** names pending migrations and tells the owner to ask their developer. Pass `pendingMigrations` to `summarizeHealth`. It counts toward `healthIssueCount` and the Health card.
+
+  **What to do:** nothing is required. To use the gate, put `louise migrations-check DB --remote &&` in front of your deploy command. The account token must be able to read D1. To show pending migrations to owners, bundle your migration file names (for example with `import.meta.glob`) and pass `migrationStatus(...).pending` to `summarizeHealth` and to your summary reads.
+
+### Patch Changes
+
+- 6b46d81: A `resolveEditor` that throws no longer crashes the request. Behind `composeWorker({ gate })`, a failed session lookup escaped the API gate, and the Worker answered with a 1101 error instead of refusing the request. Now the error is logged once per request and counts as "no editor", so the gate and every editor route's own guard answer 401, or 403 for a cross-origin write. `@louise-toolkit/astro`'s middleware already handled this case.
+
+  Nothing to change on upgrade.
+
 ## 0.32.0
 
 ### Minor Changes
