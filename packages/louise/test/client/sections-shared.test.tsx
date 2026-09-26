@@ -184,7 +184,7 @@ describe("shared values — the green editor (#376)", () => {
     // Static chrome surface + the two consuming pages (one JSON-string, one
     // array—both shapes count), phrased for a human.
     expect(band()?.textContent).toBe(
-      "Used in the header and 2 pages — saves immediately, everywhere.",
+      "Used in the header and 2 pages. Saves immediately, everywhere.",
     );
     const input = inspector()?.querySelector("input.louise-input") as HTMLInputElement;
     expect(input.value).toBe("918-555-0101");

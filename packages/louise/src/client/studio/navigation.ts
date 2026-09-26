@@ -90,7 +90,7 @@ export interface ScreenTitleOptions {
   suffix?: string;
   /** The title when no nav entry matches. Default: the suffix alone, else `"Studio"`. */
   fallback?: string;
-  /** Between label and suffix. Default: an em dash with a space on each side. */
+  /** Between label and suffix. Default: `" | "`, a pipe with a space on each side. */
   separator?: string;
 }
 
@@ -105,7 +105,7 @@ export function screenTitle(
   options: ScreenTitleOptions = {},
 ): string {
   const label = activeNavItem(nav, pathname)?.label;
-  const { suffix, separator = " — " } = options;
+  const { suffix, separator = " | " } = options;
   if (!label) return options.fallback ?? suffix ?? "Studio";
   return suffix ? `${label}${separator}${suffix}` : label;
 }

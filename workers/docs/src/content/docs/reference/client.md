@@ -356,6 +356,11 @@ Config is `SettingsConfig` minus the drawer-only bits, plus:
 `mountStudio` is idempotent on the default root and returns a disposer, so a
 router can unmount the island cleanly.
 
+Each panel titles the document with `screenTitle`: the panel's name, a pipe, then
+`title`, such as `Media | Acme Studio`, or `Media | Studio` without one. A browser
+tab, a history entry, and a screen reader's page announcement then each say where
+the editor is. The disposer puts the page's own title back.
+
 ### Two constraints worth understanding
 
 **The shell renders no data and no session-specific markup.** Every panel fetches
@@ -480,15 +485,15 @@ The route tree, the screens, the router and its type registration stay yours.
 `StudioShell` renders a skip link, a header with `brand` and a labelled nav of
 `<Link>`s, and a `<main>` holding the matched screen:
 
-|                   |                                                                |
-| ----------------- | -------------------------------------------------------------- |
-| `nav`             | The screens, in order: `{ to, label }`. `to` is root-relative. |
-| `brand`           | Header content before the nav. Omitted, none.                  |
-| `title`           | `{ suffix?, fallback?, separator? }` for the document title.   |
-| `navLabel`        | The nav's accessible name. Default `"Studio"`.                 |
-| `skipLabel`       | The skip link's text. Default `"Skip to content"`.             |
-| `headingSelector` | What gets focus after a navigation. Default the screen's `h1`. |
-| `children`        | The screen. Default the router's `<Outlet />`.                 |
+|                   |                                                                                                |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| `nav`             | The screens, in order: `{ to, label }`. `to` is root-relative.                                 |
+| `brand`           | Header content before the nav. Omitted, none.                                                  |
+| `title`           | `{ suffix?, fallback?, separator? }` for the document title. The separator defaults to a pipe. |
+| `navLabel`        | The nav's accessible name. Default `"Studio"`.                                                 |
+| `skipLabel`       | The skip link's text. Default `"Skip to content"`.                                             |
+| `headingSelector` | What gets focus after a navigation. Default the screen's `h1`.                                 |
+| `children`        | The screen. Default the router's `<Outlet />`.                                                 |
 
 Focus moves **after a navigation, not on first load**: the first screen arrived with
 the page, and taking focus then would skip a keyboard user past the nav. The frame

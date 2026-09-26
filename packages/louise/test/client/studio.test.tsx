@@ -94,6 +94,28 @@ describe("mountStudio", () => {
     expect(tabs).toEqual(["Orders"]);
   });
 
+  it("titles the document after the open panel, and restores the page's title", () => {
+    document.title = "Before";
+    const dispose = mountStudio({
+      tabs: [{ id: "orders", label: "Orders", panel: () => <p>ORDERS</p> }],
+    });
+    // Lands on Home.
+    expect(document.title).toBe("Home | Studio");
+    const frame = (label: string) =>
+      document.querySelector<HTMLButtonElement>(`.louise-frame-btn[aria-label="${label}"]`)!;
+    frame("Media").click();
+    expect(document.title).toBe("Media | Studio");
+    document.querySelector<HTMLButtonElement>(".louise-tab")!.click();
+    expect(document.title).toBe("Orders | Studio");
+    dispose();
+    expect(document.title).toBe("Before");
+  });
+
+  it("puts the site's title after the panel's", () => {
+    mount({ title: "Example Studio", home: false });
+    expect(document.title).toBe("Pages | Example Studio");
+  });
+
   it("disposes cleanly and takes its root with it", () => {
     const dispose = mountStudio({});
     expect(document.getElementById("louise-studio-root")).not.toBeNull();

@@ -66,7 +66,7 @@ describe("StudioShell", () => {
     const { dispose } = mountRouted("/orders");
     cleanup = dispose;
     await settle();
-    expect(document.title).toBe("Orders — Acme Studio");
+    expect(document.title).toBe("Orders | Acme Studio");
     expect(document.activeElement).toBe(document.body);
   });
 
@@ -74,11 +74,11 @@ describe("StudioShell", () => {
     const { router, host, dispose } = mountRouted("/");
     cleanup = dispose;
     await settle();
-    expect(document.title).toBe("Overview — Acme Studio");
+    expect(document.title).toBe("Overview | Acme Studio");
 
     await router.navigate({ to: "/orders" });
     await settle();
-    expect(document.title).toBe("Orders — Acme Studio");
+    expect(document.title).toBe("Orders | Acme Studio");
     const h1 = host.querySelector("main h1");
     expect(h1?.textContent).toBe("Orders");
     expect(document.activeElement).toBe(h1);
@@ -115,7 +115,7 @@ describe("StudioShell", () => {
     const { host, dispose } = mountRouted("/studio/orders", "/studio");
     cleanup = dispose;
     await settle();
-    expect(document.title).toBe("Orders — Acme Studio");
+    expect(document.title).toBe("Orders | Acme Studio");
     const hrefs = [...host.querySelectorAll("nav a")].map((a) => a.getAttribute("href"));
     // The router's own form: the root under a basepath is written with its
     // trailing slash.
