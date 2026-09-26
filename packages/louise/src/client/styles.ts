@@ -29,12 +29,15 @@ const CSS = `
      against white); --louise-blue stays for rings, borders, and outlines
      (3.88:1). The orange works the same way: --louise-orange-strong (5.02:1)
      for text, --louise-orange (3.02:1) for rings. --louise-yellow (2.94:1) is
-     too light for white text at all, so text on it is dark ink.
-     test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
+     too light for white text at all, so text on it is dark ink. Blue text on a
+     blue tint takes --louise-blue-deep, one stop darker again, because the tint
+     costs the strong stop its margin (4.39:1 on a 12% tint, 5.76:1 for the deep
+     stop). test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
      whole palette is one overridable block rather than half tokens, half
      literals buried in TONE_CSS. */
   --louise-orange-strong: #b45309;
   --louise-blue-strong: #0f6ecd;
+  --louise-blue-deep: #0b5cad;
   --louise-violet-strong: #6d28d9;
   /* ADR 0010 Phase B ring tones. Distinct from --louise-green/--louise-yellow
      on purpose: those carry save/publish semantics, and #ca8a04 fails contrast
@@ -533,7 +536,7 @@ html[data-louise-studio] body {
    --louise-blue-strong (5.08:1), the same blue as every other filled control,
    and the hover goes one stop darker again (6.67:1). */
 .louise-btn-primary { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
-.louise-btn-primary:hover { background: #0b5cad; }
+.louise-btn-primary:hover { background: var(--louise-blue-deep); }
 .louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 .louise-btn-block { width: 100%; justify-content: center; }
 /* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
@@ -1147,7 +1150,10 @@ html[data-louise-studio] body {
   transition: background 0.12s ease, color 0.12s ease;
 }
 .louise-tb-btn:hover { background: rgba(15, 23, 42, 0.06); }
-.louise-tb-btn.is-active { background: rgba(20, 129, 239, 0.12); color: var(--louise-blue-strong); }
+/* The icon buttons need 3:1 today; the deep stop clears 4.5:1 on the 12% tint
+   (5.76:1), so a text label added later passes too. The tint stays at 12%, so
+   the active state keeps its blue fill, apart from the gray hover. */
+.louise-tb-btn.is-active { background: rgba(20, 129, 239, 0.12); color: var(--louise-blue-deep); }
 .louise-tb-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: rgba(15, 23, 42, 0.12); }
 .louise-tb-color { position: relative; display: inline-flex; }
 /* Shown/hidden by <Show> (click-toggled state), so it defaults to flex — no
