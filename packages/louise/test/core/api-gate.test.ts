@@ -251,6 +251,40 @@ describe("louiseApiGate (standalone)", () => {
   });
 });
 
+describe("a resolveEditor that throws", () => {
+  const throwing = () => {
+    throw new Error("session store down");
+  };
+
+  it("fails closed: 401 for a read, 403 for a cross-origin write, never a crash", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const w = composeWorker({
+      routes: [forgetful],
+      fetch: async () => new Response(),
+      gate: { resolveEditor: throwing },
+    });
+    const read = await w.fetch!(req("/api/louise/forgot"), {} as never, ctx);
+    expect(read.status).toBe(401);
+    const write = await w.fetch!(
+      req("/api/louise/forgot", { method: "POST", origin: "https://evil.example" }),
+      {} as never,
+      ctx,
+    );
+    expect(write.status).toBe(403);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("refuses at a route's own guard, with no gate in front", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const route = inquiriesRoute({ table: inquiries, resolveEditor: throwing });
+    const res = await route(new Request(`${SITE}/api/louise/inquiries`), {} as never, ctx);
+    expect(res?.status).toBe(401);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+});
+
 describe("composeWorker without gate", () => {
   it("is unchanged: no gate, no added headers", async () => {
     const w = composeWorker({ routes: [forgetful], fetch: async () => new Response() });

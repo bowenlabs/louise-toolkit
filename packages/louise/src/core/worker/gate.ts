@@ -75,6 +75,10 @@ const resolved = new WeakMap<Request, Map<unknown, Promise<EditorSession | null>
 /**
  * `resolveEditor(request, env)`, memoized per request and resolver. The gate
  * and the route's own guard both ask; only the first asks the session store.
+ *
+ * A resolver that throws—a session lookup that failed, a missing binding—is
+ * logged once and counts as "no editor", so the request is refused with a 401
+ * or 403 rather than crashing the Worker. Auth fails closed.
  */
 export function resolveEditorOnce<Env>(
   request: Request,
@@ -88,7 +92,12 @@ export function resolveEditorOnce<Env>(
   }
   let editor = byResolver.get(resolveEditor);
   if (!editor) {
-    editor = Promise.resolve().then(() => resolveEditor(request, env));
+    editor = Promise.resolve()
+      .then(() => resolveEditor(request, env))
+      .catch((err: unknown) => {
+        console.error("[louise] resolveEditor failed; treating the request as signed out", err);
+        return null;
+      });
     byResolver.set(resolveEditor, editor);
   }
   return editor;
