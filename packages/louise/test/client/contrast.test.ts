@@ -264,19 +264,30 @@ describe("the editor chrome", () => {
     },
   );
 
-  it("keeps the active toolbar button's icon over 4.5:1 on its tint", () => {
-    // Icon-only today, so 3:1 would do; 4.5:1 holds for a text label later. The
-    // toolbar is white, so the translucent tint composites over white.
-    const { color, background } = declarations(".louise-tb-btn.is-active");
+  // Active controls that put blue on a blue tint. The toolbar's buttons are
+  // icon-only today, so 3:1 would do, but 4.5:1 holds for a text label later;
+  // the drawer tabs carry text now. Toolbar and drawer are both white, so the
+  // translucent tint composites over white.
+  const activeOnTint = [".louise-tb-btn", ".louise-drawer-close", ".louise-tab"];
+
+  it.each(activeOnTint)("keeps active %s over 4.5:1 on its tint", (control) => {
+    const { color, background } = declarations(`${control}.is-active`);
     expect(contrast(resolve(color!), tintOnWhite(background))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("keeps the active toolbar button apart from hover and rest", () => {
-    // A blue tint and a blue icon, where hover is a gray tint and rest a slate icon.
-    const active = declarations(".louise-tb-btn.is-active");
-    const hover = declarations(".louise-tb-btn:hover");
-    const rest = declarations(".louise-tb-btn");
-    expect(tintOnWhite(active.background)).not.toBe(tintOnWhite(hover.background));
+  it.each(activeOnTint)("keeps active %s apart from hover and rest", (control) => {
+    // A blue tint and a blue foreground, where hover, if the control has one,
+    // is a gray tint, and rest is a gray foreground with no fill.
+    const active = declarations(`${control}.is-active`);
+    const rest = declarations(control);
+    const hoverRule = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].some(
+      ([, selector]) => selector.trim() === `${control}:hover`,
+    );
+    if (hoverRule) {
+      const hover = declarations(`${control}:hover`);
+      expect(tintOnWhite(active.background)).not.toBe(tintOnWhite(hover.background));
+    }
+    expect(tintOnWhite(active.background)).not.toBe("#ffffff");
     expect(resolve(active.color!)).not.toBe(resolve(rest.color!));
   });
 

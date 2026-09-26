@@ -31,8 +31,8 @@ const CSS = `
      for text, --louise-orange (3.02:1) for rings. --louise-yellow (2.94:1) is
      too light for white text at all, so text on it is dark ink. Blue text on a
      blue tint takes --louise-blue-deep, one stop darker again, because the tint
-     costs the strong stop its margin (4.39:1 on a 12% tint, 5.76:1 for the deep
-     stop). test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
+     costs the strong stop its margin (4.39:1 on a 12% tint and 4.49:1 on a 10%
+     one; 5.76:1 and 5.89:1 for the deep stop). test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
      whole palette is one overridable block rather than half tokens, half
      literals buried in TONE_CSS. */
   --louise-orange-strong: #b45309;
@@ -366,9 +366,10 @@ const CSS = `
 .louise-drawer-close:hover {
   background: rgba(15, 23, 42, 0.05);
 }
-/* Cog while the Settings view is open. */
+/* Cog while the Settings view is open. Blue on a blue tint takes the deep stop
+   (5.89:1 on the 10% tint), as the active drawer tab does. */
 .louise-drawer-close.is-active {
-  color: var(--louise-blue-strong);
+  color: var(--louise-blue-deep);
   background: rgba(20, 129, 239, 0.1);
 }
 .louise-drawer-tabs {
@@ -387,9 +388,11 @@ const CSS = `
   font-weight: 500;
   color: #475569;
 }
+/* The tab's text label on the 10% tint: --louise-blue-strong is 4.49:1 here,
+   the deep stop 5.89:1. */
 .louise-tab.is-active {
   background: rgba(20, 129, 239, 0.1);
-  color: var(--louise-blue-strong);
+  color: var(--louise-blue-deep);
 }
 .louise-drawer-body {
   flex: 1;
