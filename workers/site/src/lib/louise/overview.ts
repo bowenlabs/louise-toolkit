@@ -13,6 +13,7 @@
 
 import type { OverviewContent, OverviewHealth, OverviewInbox } from "louise-toolkit/editor";
 import { readHealthSummary } from "louise-toolkit/health";
+import { withLiveMigrations } from "./migrations.js";
 
 /** Run a `SELECT COUNT(*) AS n` and return the count (0 when the row is absent).
  *  Shared with the health scan (health.ts). */
@@ -41,5 +42,6 @@ export async function overviewInbox(env: CloudflareEnv): Promise<OverviewInbox> 
 /** Site-health slice (#106): the persisted summary the cron scan writes. Returns
  *  undefined until the first scan, so the dashboard's Health card stays hidden. */
 export async function overviewHealth(env: CloudflareEnv): Promise<OverviewHealth | undefined> {
-  return (await readHealthSummary(env.RL)) ?? undefined;
+  const summary = await readHealthSummary(env.RL);
+  return summary ? withLiveMigrations(summary, env) : undefined;
 }

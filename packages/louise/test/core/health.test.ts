@@ -57,6 +57,24 @@ describe("summarizeHealth", () => {
     const s = summarizeHealth({ brokenLinks: [link("/a")], missingAlt: 2, seoGaps: 3 });
     expect(healthIssueCount(s)).toBe(6);
   });
+
+  it("carries pending migrations only when there are some, and counts each", () => {
+    const clean = summarizeHealth({
+      brokenLinks: [],
+      missingAlt: 0,
+      seoGaps: 0,
+      pendingMigrations: [],
+    });
+    expect(clean).not.toHaveProperty("pendingMigrations");
+    const behind = summarizeHealth({
+      brokenLinks: [],
+      missingAlt: 1,
+      seoGaps: 0,
+      pendingMigrations: ["0004_a.sql", "0005_b.sql"],
+    });
+    expect(behind.pendingMigrations).toEqual(["0004_a.sql", "0005_b.sql"]);
+    expect(healthIssueCount(behind)).toBe(3);
+  });
 });
 
 describe("read/writeHealthSummary", () => {

@@ -81,7 +81,8 @@ measured-and-poor, which is a real result.
 function healthIssueCount(summary: HealthSummary): number;
 ```
 
-The "N things need attention" number: broken links + missing alt + SEO gaps. CWV
+The "N things need attention" number: broken links + missing alt + SEO gaps +
+pending migrations. CWV
 is deliberately **not** in it—a slow LCP is not a countable defect the way a
 404 is, and adding it would make the number jump for something you can't fix by
 editing one page.
@@ -89,6 +90,14 @@ editing one page.
 `HealthSummary` is shape-compatible with `overview.health` (the extra detail field
 is ignored there), so the overview route can return a stored summary directly
 rather than re-mapping it.
+
+## Pending migrations
+
+Pass `pendingMigrations` to `summarizeHealth` (the `pending` list from
+[`migrationStatus`](/reference/db/)) and the Health panel names each database
+update the running code needs and tells the owner to ask their developer. The
+section only appears when something is pending. A deploy can land between scans,
+so check live when you read the summary, too, and replace the stored list.
 
 ## Types
 

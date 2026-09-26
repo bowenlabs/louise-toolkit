@@ -133,6 +133,16 @@ describe("HomePanel — built-in cards + summary", () => {
     cardActionByLabel("Review")!.click();
     expect(navigate).toHaveBeenCalledWith({ panel: "health" });
   });
+
+  it("the Health card counts pending database updates as issues", async () => {
+    stubOverview({
+      health: { brokenLinks: 0, missingAlt: 0, seoGaps: 0, pendingMigrations: ["0004_a.sql"] },
+    });
+    mount(() => <HomePanel cards={BUILTIN_CARDS} navigate={() => {}} />);
+
+    await vi.waitFor(() => expect(host.textContent).toContain("1 database update not applied"));
+    expect(summaryText()).toBe("1 thing needs your attention");
+  });
 });
 
 describe("HomePanel — footer empty slot (#109)", () => {

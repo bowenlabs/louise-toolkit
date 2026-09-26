@@ -90,3 +90,64 @@ config if you want that.
 Auth tables (`user`, `session`, …) are **not** here—they're generated from your
 [`auth`](/reference/auth/) config by Better Auth, not hand-written.
 :::
+
+## Checking that the database is migrated
+
+Schema migrations are applied out of band, with `wrangler d1 migrations apply`,
+and every deploy of a site can share one database. So a deploy can land before
+its migration, and the failure shows up later as a missing column on whatever
+route touches it first. These compare the migration files the code was built
+with against D1's ledger (`d1_migrations`). They're read-only: nothing here
+applies a migration.
+
+```ts
+function migrationStatus(
+  d1: D1Client,
+  expected: readonly string[],
+  options?: { table?: string },
+): Promise<MigrationStatus>;
+
+interface MigrationStatus {
+  applied: string[]; // expected, and in the ledger
+  pending: string[]; // expected, not in the ledger: the database is behind
+  unknown: string[]; // in the ledger, not expected: a newer deploy migrated it
+}
+```
+
+`expected` takes file names or paths. Bundle them at build time, for example with
+Vite's `import.meta.glob` (`?raw` keeps it from parsing the SQL):
+
+```ts
+import { migrationStatus } from "louise-toolkit/db";
+
+const MIGRATIONS = Object.keys(import.meta.glob("../migrations/*.sql", { query: "?raw" }));
+const { pending } = await migrationStatus(env.DB, MIGRATIONS);
+```
+
+A database with no ledger yet counts as having applied nothing. Pass `table` if
+your Wrangler config sets `migrations_table`.
+
+- **`assertMigrationsApplied(d1, expected, options?)`** throws a
+  `LouisePendingMigrationsError` whose `files` names the pending migrations.
+  Otherwise it returns the status, so you can still log `unknown`.
+- **`compareMigrations(expected, ledger)`** is the pure comparison, for a script
+  that reads the ledger its own way.
+- To show it to an owner, pass `pending` as `pendingMigrations` to
+  [`summarizeHealth`](/reference/health/). Check live when you read the summary,
+  too, because a deploy can land between scans.
+
+### The deploy gate
+
+`louise migrations-check` runs the same comparison before a deploy, and exits 1
+when the database is behind the code:
+
+```sh
+corepack pnpm exec louise migrations-check DB --remote
+```
+
+It reads the ledger through `wrangler d1 execute`, so run it where `wrangler` is
+on the `PATH` and can reach the account, and compares it with the `.sql` files in
+`--dir` (default `migrations`). `--config` picks the Wrangler config, and
+`--table` the ledger. A ledger that's ahead of the code is reported, not failed.
+Put it in front of the deploy command, for example
+`louise migrations-check DB --remote && wrangler deploy`.
