@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see the second amendment): the rewrite route caps its input, so one of the items out of scope here is done.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -122,9 +122,19 @@ Two smaller points the slices settled:
 - **Order in the middleware.** The gate runs right after the editor is resolved and before `extend`, `guard`, and `rewrite`: it needs only the editor, and a refused request shouldn't pay for the site's extra work. If `resolveEditor` throws, pages still degrade to public rendering as before, but the API fails closed.
 - **Behind both layers.** On a `composeWorker` site whose middleware also sets `apiGate`, the middleware check is a second pass over requests the worker already let through. It costs nothing, because the middleware resolves the editor on every request anyway.
 
+## Amendment (2026-09-26, the rewrite route caps its input)
+
+_Out of scope, tracked separately_ listed input-size caps on AI request bodies. The rewrite route has one now (#550):
+
+- `POST /api/louise/ai/rewrite` refuses `text` longer than `REWRITE_MAX_CHARS` (1,536 characters) with a `413`, before the model runs, and the editor toolbar shows the response's `error`.
+- The cap is sized from the rewrite's output cap (`REWRITE_MAX_TOKENS`, 512) at three characters per token, because a rewrite runs about as long as its input. It bounds spend, and it keeps a typical answer within the cap. A longer selection used to come back cut off and replace the passage with a fragment. The helpers now refuse a cut-off answer too (#466).
+- The SEO route already bounded its prompt: `suggestSeo` sends at most `maxContentChars` (4,000) characters of the content. It doesn't refuse a longer body, because the page's opening is enough to suggest from.
+
+Per-editor quotas on AI routes remain out of scope. A length cap bounds the cost of one call, not how many calls an editor makes.
+
 ## Out of scope, tracked separately
 
 - Per-editor quotas on AI routes.
 - Replay protection for Square and Fourthwall webhooks (no timestamp and no event-id dedupe in the verifier), and removing the signing secret from content-webhook queue messages.
 - Realtime: re-checking the session on an open socket, and validating `slug`. ADR 0002 §Auth says `slug` is validated, and it isn't, so 0002 needs an amendment.
-- Input-size caps on AI request bodies.
+- ~~Input-size caps on AI request bodies.~~ Done for the rewrite route (#550); see the second amendment.
