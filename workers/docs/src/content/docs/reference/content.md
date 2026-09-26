@@ -81,7 +81,12 @@ Related builders: `collectionToTable`, `collectionVersionsTable`,
 
 ```ts
 import { gte } from "drizzle-orm";
-import { createLocalApi, createVersionedLocalApi } from "louise-toolkit/content";
+import {
+  createLocalApi,
+  createVersionedLocalApi,
+  toPageId,
+  toVersionId,
+} from "louise-toolkit/content";
 import { db } from "louise-toolkit/db";
 import { artworks, type Context } from "./content.config";
 import * as schema from "./schema"; // your Drizzle tables: artworks, artworksVersions
@@ -103,8 +108,8 @@ const versioned = createVersionedLocalApi<
   Context
 >(orm, schema.artworks, schema.artworksVersions, artworks);
 const snapshot = { title: "Still life, revised", slug: "still-life", year: 2026 };
-const draft = await versioned.saveDraft(context, artwork.id, snapshot);
-const live = await versioned.publish(context, draft.id);
+const draft = await versioned.saveDraft(context, toPageId(artwork.id), snapshot);
+const live = await versioned.publish(context, toVersionId(draft.id));
 ```
 
 Here `env.DB` is your D1 binding and `session` is the signed-in editor's
@@ -138,6 +143,28 @@ check the `update` access function. `publish`, `publishScheduled`, and
 `unpublish` check `publish`, and `findVersions` and `diffVersions` check `read`.
 `can(config, operation, context)` evaluates access without performing the
 operation.
+
+### Page and version IDs
+
+A page ID and a version ID are both integers, so the versioned methods take
+branded types that keep them apart: `saveDraft`, `scheduleDraft`, `unpublish`,
+and `findVersions` take a `PageId`, and `publish`, `discardVersion`, and
+`diffVersions` take a `VersionId`. Passing one where the other belongs, or a
+plain `number`, is a type error. At runtime both are ordinary numbers.
+
+```ts
+import { parsePageId, toPageId, toVersionId } from "louise-toolkit/content";
+
+const page = toPageId(row.id); // a number you trust; throws unless it's a positive integer
+const [latest] = await api.findVersions(context, page);
+await api.publish(context, toVersionId(latest.id));
+
+const fromUrl = parsePageId(params.id); // untrusted input: undefined unless valid
+if (fromUrl === undefined) return new Response("Bad id", { status: 400 });
+```
+
+`parsePageId` and `parseVersionId` accept a positive integer or its decimal
+string, such as a route parameter or an agent's tool argument.
 
 ## Validation
 

@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { LouiseAccessDeniedError, LouiseContentError } from "../errors.js";
 import { collectionSearchTableName, extractSearchText } from "./codegen.js";
+import type { PageId, VersionId } from "./ids.js";
 import { diffDocuments, type FieldChange } from "./patch.js";
 import {
   type CollectionAccess,
@@ -800,7 +801,7 @@ export interface VersionedLocalApi<
   TVersionsTable extends AnyTable,
   TContext = unknown,
 > extends LocalApi<TTable, TContext> {
-  findVersions(context: TContext, parentId: number): Promise<InferSelectModel<TVersionsTable>[]>;
+  findVersions(context: TContext, parentId: PageId): Promise<InferSelectModel<TVersionsTable>[]>;
   /**
    * The checks and transforms every draft write runs, without writing: the
    * `update` access check, the collection's `beforeChange` hooks (where a site
@@ -816,7 +817,7 @@ export interface VersionedLocalApi<
   /** Inserts a new version row holding `input` as a draft snapshot. */
   saveDraft(
     context: TContext,
-    id: number,
+    id: PageId,
     input: Partial<InferInsertModel<TTable>>,
   ): Promise<InferSelectModel<TVersionsTable>>;
   /**
@@ -825,12 +826,17 @@ export interface VersionedLocalApi<
    */
   scheduleDraft(
     context: TContext,
-    id: number,
+    id: PageId,
     input: Partial<InferInsertModel<TTable>>,
     scheduledAt: Date,
   ): Promise<InferSelectModel<TVersionsTable>>;
-  /** Copies a version's snapshot onto the main row and marks it published. */
-  publish(context: TContext, versionId: number): Promise<InferSelectModel<TTable>>;
+  /**
+   * Copies a version's snapshot onto the main row it belongs to and marks it
+   * published. The version's own `parentId` names that row, so when
+   * `versionId` comes from a request about a particular page, check that the
+   * version belongs to that page first, as `versionsRoute` does.
+   */
+  publish(context: TContext, versionId: VersionId): Promise<InferSelectModel<TTable>>;
   /**
    * Publishes every still-draft version whose `scheduledAt` is at or before
    * `now` (default: the current time), oldest first. Returns the published main
@@ -839,14 +845,14 @@ export interface VersionedLocalApi<
    */
   publishScheduled(context: TContext, now?: Date): Promise<InferSelectModel<TTable>[]>;
   /** Clears the main row's published pointer; the row's data is untouched. */
-  unpublish(context: TContext, id: number): Promise<InferSelectModel<TTable>>;
+  unpublish(context: TContext, id: PageId): Promise<InferSelectModel<TTable>>;
   /**
    * Delete a single version row from the history (for example, discarding a draft).
    * Refuses to delete the currently-live version—its snapshot backs the live
    * row—throwing {@link LouiseContentError}; unpublish first if that's intended.
    * Access: `update` (same gate as saving a draft).
    */
-  discardVersion(context: TContext, versionId: number): Promise<void>;
+  discardVersion(context: TContext, versionId: VersionId): Promise<void>;
   /**
    * Field-level diff (issue #14) between two version snapshots' `versionData`:
    * the per-field added/removed/changed list a version-history UI renders.
@@ -855,8 +861,8 @@ export interface VersionedLocalApi<
    */
   diffVersions(
     context: TContext,
-    fromVersionId: number,
-    toVersionId: number,
+    fromVersionId: VersionId,
+    toVersionId: VersionId,
   ): Promise<FieldChange[]>;
 }
 
@@ -893,7 +899,7 @@ export function createVersionedLocalApi<
 
   // Core publish path, shared by publish() and publishScheduled(). Access is
   // checked by the public methods, not here.
-  async function doPublish(versionId: number): Promise<InferSelectModel<TTable>> {
+  async function doPublish(versionId: VersionId): Promise<InferSelectModel<TTable>> {
     const [version] = await db.select().from(versionsTable).where(eq(versionsIdColumn, versionId));
     if (!version) notFoundVersion(config, versionId);
     const versionRecord = version as Record<string, unknown>;
@@ -1037,7 +1043,7 @@ export function createVersionedLocalApi<
         .orderBy(asc(versionsIdColumn));
       const published: InferSelectModel<TTable>[] = [];
       for (const version of due) {
-        const versionId = (version as Record<string, unknown>).id as number;
+        const versionId = (version as Record<string, unknown>).id as VersionId;
         published.push(await doPublish(versionId));
       }
       return published;
