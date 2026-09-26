@@ -6,6 +6,7 @@
 // JSON `data` back to a flat row), DELETE removes one by id. Scoped to one
 // `form` name so each catalog form gets its own review tab over the one table.
 
+import { reportDegraded } from "../degraded.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
   type EditorRouteEnv,
@@ -57,7 +58,8 @@ export function submissionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         let data: Record<string, unknown> = {};
         try {
           data = JSON.parse(row.data) as Record<string, unknown>;
-        } catch {
+        } catch (err) {
+          reportDegraded("editor.submissions", err, { form: config.form, id: row.id });
           data = {};
         }
         return { ...data, id: row.id, createdAt: row.created_at };

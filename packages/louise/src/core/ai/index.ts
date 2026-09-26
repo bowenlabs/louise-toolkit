@@ -10,6 +10,8 @@
 // model catalog. That keeps the door open for routing `run` through AI Gateway
 // later (#87) without touching callers.
 
+import { reportDegraded } from "../degraded.js";
+
 /** The one capability these helpers need from a Workers AI binding: `run(model,
  *  inputs)`. `env.AI` satisfies this structurally—pass it directly. Hand-defined
  *  (rather than importing the workers-types `Ai` generic) so the module stays
@@ -118,9 +120,9 @@ export async function runAi(
     return await runner.run(model, inputs, options);
   } catch (err) {
     // Best-effort still, but not *silent*: a bare swallow hid two real prod
-    // failures (a retired model; an unmet JSON schema). Log so the cause shows in
-    // `wrangler tail`—the return contract (null on failure) is unchanged.
-    console.error(`[louise-toolkit/ai] model run failed (${model})`, err);
+    // failures (a retired model; an unmet JSON schema). Report so the cause shows
+    // in `wrangler tail`—the return contract (null on failure) is unchanged.
+    reportDegraded("ai.run", err, { model });
     return null;
   }
 }

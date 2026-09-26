@@ -18,7 +18,10 @@
 // it was without the proxy.
 //
 // Image Resizing must be enabled on the zone; locally (and on a zone without
-// it) every request takes the redirect fallback.
+// it) every request takes the redirect fallback, and each one logs a
+// `reportDegraded` line.
+
+import { reportDegraded } from "../degraded.js";
 
 export interface ImageProxyConfig {
   /** Where the route is mounted, for example, `"/api/img"`. Used to build URLs. */
@@ -164,7 +167,9 @@ export function defineImageProxy(config: ImageProxyConfig): ImageProxy {
             "content-security-policy": "default-src 'none'; sandbox",
           },
         });
-      } catch {
+      } catch (err) {
+        // The host only: a signed source URL carries its signature in the path.
+        reportDegraded("media.imageProxy", err, { host: origin.hostname, width });
         return config.onFailure === "error"
           ? new Response("Image unavailable", { status: 502 })
           : Response.redirect(origin.toString(), 302);

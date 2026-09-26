@@ -14,6 +14,7 @@
 
 import { requireEditor } from "../auth/guard.js";
 import type { EditorSession } from "../auth/types.js";
+import { reportDegraded } from "../degraded.js";
 import { louiseSecurityHeaders } from "../security/headers.js";
 import type { WorkerRoute } from "./index.js";
 
@@ -95,7 +96,8 @@ export function resolveEditorOnce<Env>(
     editor = Promise.resolve()
       .then(() => resolveEditor(request, env))
       .catch((err: unknown) => {
-        console.error("[louise] resolveEditor failed; treating the request as signed out", err);
+        // Treated as signed out: the request falls back to what a visitor sees.
+        reportDegraded("worker.resolveEditor", err);
         return null;
       });
     byResolver.set(resolveEditor, editor);

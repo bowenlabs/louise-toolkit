@@ -27,6 +27,7 @@ import {
 import { createLocalApi } from "../content/localApi.js";
 import type { CollectionConfig } from "../content/types.js";
 import { db } from "../db/index.js";
+import { reportDegraded } from "../degraded.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
 
@@ -128,7 +129,7 @@ export function searchRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         return json({ results });
       } catch (err) {
         // A malformed FTS query (or a missing index) shouldn't 500 a search box.
-        console.error("[louise] search failed", err);
+        reportDegraded("editor.search", err);
         return json({ results: [] });
       }
     }
