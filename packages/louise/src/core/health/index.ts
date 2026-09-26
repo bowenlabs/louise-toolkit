@@ -13,6 +13,7 @@
 
 import type { CwvSummary } from "../analytics/index.js";
 import { reportDegraded } from "../degraded.js";
+import { timestampAge } from "./age.js";
 import type { BrokenLink } from "../browser/link-check.js";
 
 /** The KV surface the health store needs—structural so the real `KVNamespace`
@@ -106,13 +107,17 @@ export const HEALTH_STALE_AFTER_MS = 36 * 60 * 60 * 1000;
  * quietly stopped running shows up instead of looking like one that ran an hour
  * ago. Pure: pass `now` for a deterministic result.
  *
- * - A missing or unparseable `timestamp` counts as stale. A job with no readable
- *   record of success hasn't shown that it ran, and a monitor that stays quiet
- *   about that is the failure this check exists to catch.
- * - A timestamp in the future (clock skew between the job and the reader) counts
- *   as fresh.
+ * - A missing or unparseable `timestamp` counts as stale, and so does a number
+ *   outside the `Date` range. A job with no readable record of success hasn't
+ *   shown that it ran, and a monitor that stays quiet about that is the failure
+ *   this check exists to catch.
+ * - A timestamp in the future (clock skew between the job and the reader) is
+ *   age 0, so it counts as fresh.
  * - The age has to exceed `maxAgeMs`, so an age of exactly `maxAgeMs` is fresh.
- *   Pass `Infinity` to turn the check off. A `NaN` threshold never flags anything.
+ *   Pass `Infinity` to turn the check off. A `NaN` threshold never flags
+ *   anything, and a negative one flags everything.
+ *
+ * `ageCheck` (the status route's check) applies this same rule.
  *
  * @param timestamp An ISO 8601 string (like `HealthSummary.checkedAt`), epoch
  *   milliseconds, or a `Date`.
@@ -125,16 +130,8 @@ export function isStale(
   maxAgeMs: number,
   now: Date | number = Date.now(),
 ): boolean {
-  if (timestamp == null || timestamp === "") return true;
-  const then =
-    timestamp instanceof Date
-      ? timestamp.getTime()
-      : typeof timestamp === "number"
-        ? timestamp
-        : Date.parse(timestamp);
-  if (!Number.isFinite(then)) return true;
-  const current = now instanceof Date ? now.getTime() : now;
-  return current - then > maxAgeMs;
+  const age = timestampAge(timestamp, now instanceof Date ? now.getTime() : now);
+  return age === undefined || age > maxAgeMs;
 }
 
 /** Persist the summary. Omit `ttlSeconds` to keep it until the next scan overwrites. */

@@ -8,6 +8,7 @@ import {
   type StatusD1,
   statusRoute,
 } from "../../src/core/editor/index.js";
+import { isStale } from "../../src/core/health/index.js";
 import {
   composeWorker,
   isLouisePublicPath,
@@ -257,8 +258,24 @@ describe("ageCheck", () => {
   });
 
   it("fails with no age when there's no timestamp or it can't be read", async () => {
-    for (const value of [null, undefined, "", "not a date", Number.NaN]) {
+    for (const value of [null, undefined, "", "not a date", Number.NaN, 1e16, new Date("nope")]) {
       expect(await at(value)(env, signal), String(value)).toEqual({ ok: false });
+    }
+  });
+
+  it("agrees with isStale on every edge, so the status route and the Health panel match", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(100 * HOUR);
+    const now = Date.now();
+    const values = [null, "", "not a date", 1e16, 0, 64 * HOUR, 64 * HOUR - 1, 101 * HOUR];
+    const limits = [36 * HOUR, 0, -1, Number.POSITIVE_INFINITY, Number.NaN];
+    for (const value of values) {
+      for (const limit of limits) {
+        const { ok } = (await ageCheck<Env>(() => value as never, limit)(env, signal)) as {
+          ok: boolean;
+        };
+        expect(ok, `${String(value)} against ${limit}`).toBe(!isStale(value, limit, now));
+      }
     }
   });
 
