@@ -62,6 +62,22 @@ export class LouiseDbError extends LouiseError {
   }
 }
 
+/**
+ * The database hasn't applied migrations the running code needs—a deploy
+ * landed before its `wrangler d1 migrations apply`. `files` names the pending
+ * migrations, in order. Thrown by `assertMigrationsApplied`
+ * (`louise-toolkit/db`); a subclass of LouiseDbError, so `instanceof
+ * LouiseDbError` still catches it.
+ */
+export class LouisePendingMigrationsError extends LouiseDbError {
+  constructor(public readonly files: readonly string[]) {
+    super(
+      `The database is missing ${files.length} ${files.length === 1 ? "migration" : "migrations"} this code needs: ${files.join(", ")}. Apply them with \`wrangler d1 migrations apply\`.`,
+    );
+    this.name = "LouisePendingMigrationsError";
+  }
+}
+
 /** For object-storage (R2) failures. */
 export class LouiseStorageError extends LouiseError {
   constructor(message: string, cause?: unknown) {

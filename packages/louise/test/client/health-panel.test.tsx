@@ -90,6 +90,37 @@ describe("HealthPanel", () => {
     expect(button("Review in Media")).toBeUndefined();
   });
 
+  it("names pending database updates and who applies them, only when there are some", async () => {
+    stubHealth({
+      brokenLinks: 0,
+      missingAlt: 0,
+      seoGaps: 0,
+      checkedAt: new Date().toISOString(),
+      brokenLinkDetails: [],
+      pendingMigrations: ["0004_add_tags.sql", "0005_backfill.sql"],
+    });
+    mount(() => <HealthPanel navigate={() => {}} />);
+
+    await vi.waitFor(() => expect(host.textContent).toContain("Database updates"));
+    expect(host.textContent).toContain("needs 2 database updates that haven’t been applied");
+    expect(host.textContent).toContain("Ask your developer to apply them");
+    expect(host.textContent).toContain("0004_add_tags.sql");
+    expect(host.textContent).toContain("0005_backfill.sql");
+  });
+
+  it("leaves the database section out when nothing is pending", async () => {
+    stubHealth({
+      brokenLinks: 0,
+      missingAlt: 0,
+      seoGaps: 0,
+      checkedAt: new Date().toISOString(),
+      brokenLinkDetails: [],
+    });
+    mount(() => <HealthPanel navigate={() => {}} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("No broken links found."));
+    expect(host.textContent).not.toContain("Database updates");
+  });
+
   it("renders a not-checked-yet state when no scan has run", async () => {
     stubHealth(null);
     mount(() => <HealthPanel navigate={() => {}} />);

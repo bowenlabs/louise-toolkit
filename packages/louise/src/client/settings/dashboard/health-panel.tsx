@@ -127,6 +127,27 @@ export function HealthPanel(props: {
                 Last checked {timeAgo(s().checkedAt) || "recently"}.
               </p>
 
+              {/* Pending schema migrations: the one problem an owner can't fix,
+                  so it says who can, and names the files for them. Only shown
+                  when there is one. */}
+              <Show when={(s().pendingMigrations ?? []).length > 0}>
+                <section class="louise-settings-group">
+                  <h3 class="louise-settings-title">Database updates</h3>
+                  <p class="louise-muted">{pendingMessage(s().pendingMigrations!.length)}</p>
+                  <div class="louise-list">
+                    <For each={s().pendingMigrations}>
+                      {(file) => (
+                        <div class="louise-list-item">
+                          <div class="louise-item-main">
+                            <div class="louise-item-title">{file}</div>
+                          </div>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </section>
+              </Show>
+
               {/* Broken links—listed for review; nothing to auto-fix here. */}
               <section class="louise-settings-group">
                 <h3 class="louise-settings-title">Broken links</h3>
@@ -187,6 +208,12 @@ export function HealthPanel(props: {
     </div>
   );
 }
+
+/** Owner wording for pending schema migrations: what it means and who fixes it. */
+const pendingMessage = (n: number) =>
+  n === 1
+    ? "This version of the site needs a database update that hasn’t been applied, so some pages or saves might fail. Ask your developer to apply it:"
+    : `This version of the site needs ${n} database updates that haven’t been applied, so some pages or saves might fail. Ask your developer to apply them:`;
 
 const fmtTime = (v?: number) =>
   v == null ? "—" : v < 1000 ? `${Math.round(v)}ms` : `${(v / 1000).toFixed(1)}s`;

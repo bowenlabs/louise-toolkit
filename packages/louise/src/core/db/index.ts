@@ -23,6 +23,9 @@ export function db<TSchema extends Record<string, unknown> = Record<string, neve
 // D1 Sessions API seam (openD1Session / d1Bookmark / bookmark cookie helpers).
 export * from "./session.js";
 
+// Whether the database is migrated as far as the code expects (read-only).
+export * from "./migrations.js";
+
 // Framework-generic tables offered for composition—import the `*Columns` to
 // extend, or the ready-made table when the generic set is enough. The `db()`
 // wrapper above stays schema-agnostic; these are opt-in building blocks (so the

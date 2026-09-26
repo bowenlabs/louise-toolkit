@@ -45,6 +45,11 @@ export interface HealthSummary {
   /** Real-visitor Core Web Vitals (#106 CWV)—present once the scan folds in a
    *  p75 snapshot from Analytics Engine; absent → the panel shows "not measured yet". */
   cwv?: CwvSummary;
+  /** Schema migrations the running code needs that the database hasn't applied
+   *  (`migrationStatus(…).pending` from `louise-toolkit/db`). Absent or empty
+   *  when the database is up to date. Worth checking live when the summary is
+   *  read, since a deploy can land between scans. */
+  pendingMigrations?: string[];
 }
 
 /** The raw parts of a scan, assembled by {@link summarizeHealth}. */
@@ -55,6 +60,8 @@ export interface HealthInput {
   missingAlt: number;
   /** Count of published pages missing an SEO title or description. */
   seoGaps: number;
+  /** Pending schema migrations, from `migrationStatus`. Omit if the site doesn't check. */
+  pendingMigrations?: readonly string[];
   /** Scan time (defaults to now)—injectable so tests are deterministic. */
   now?: Date;
 }
@@ -71,12 +78,18 @@ export function summarizeHealth(input: HealthInput): HealthSummary {
     seoGaps: asCount(input.seoGaps),
     checkedAt: (input.now ?? new Date()).toISOString(),
     brokenLinkDetails: input.brokenLinks.slice(0, MAX_BROKEN_LINK_DETAILS),
+    ...(input.pendingMigrations?.length ? { pendingMigrations: [...input.pendingMigrations] } : {}),
   };
 }
 
 /** Total number of issues in a summary—the dashboard's "N things need attention". */
 export function healthIssueCount(summary: HealthSummary): number {
-  return summary.brokenLinks + summary.missingAlt + summary.seoGaps;
+  return (
+    summary.brokenLinks +
+    summary.missingAlt +
+    summary.seoGaps +
+    (summary.pendingMigrations?.length ?? 0)
+  );
 }
 
 /** Persist the summary. Omit `ttlSeconds` to keep it until the next scan overwrites. */
