@@ -34,11 +34,6 @@ export interface Money {
   currency: string;
 }
 
-/** Minor units (cents) → major units—`2500` → `25`. */
-export function centsToMajor(cents: number): number {
-  return cents / 100;
-}
-
 /** Hex-encode raw bytes. */
 function toHex(buf: ArrayBuffer): string {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -96,5 +91,14 @@ export {
 // Catalog-mirror sync: which stored rows the provider dropped.
 export { type VanishedRowsOptions, vanishedRows } from "./sync.js";
 
-// Into minor units without float drift: a computed amount, or a typed one.
-export { majorToCents, parseMoneyInput } from "./money.js";
+// Money in and out of minor units without float drift, and to and from text.
+export {
+  centsToMajor,
+  currencyDigits,
+  formatMoney,
+  type FormatMoneyOptions,
+  majorToCents,
+  parseMoney,
+  type ParseMoneyOptions,
+  parseMoneyInput,
+} from "./money.js";
