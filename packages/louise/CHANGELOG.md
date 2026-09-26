@@ -1,5 +1,173 @@
 # louise-toolkit
 
+## 0.34.0
+
+### Minor Changes
+
+- 217efca: The AI helpers now refuse an answer that the output token cap cut off, and the rewrite route refuses a selection too long to rewrite. Before this, a cut-off answer was treated as complete: alt text could be stored as half a sentence, and a rewrite could replace a whole passage with its first half.
+
+  - **`runAiText(runner, model, inputs, options?)`** (`louise-toolkit/ai`) runs a text-generating model like `runAi` does, and returns `{ output, text, truncated, finishReason, usage }`, or `null` on the same failures. An answer counts as `truncated` when the model reports a finish reason of `length` or `max_tokens`, or when it generated at least the `max_tokens` requested. Workers AI doesn't always report a finish reason, so the token count covers that case. A truncated answer is reported with `reportDegraded` as `ai.truncated`, with the model ID. The new `AiTextResult` and `AiUsage` types describe the result.
+  - **`generateAltText`, `rewriteText`, and `suggestSeo` return `null` for a truncated answer**, the same as for a model error. An upload keeps its empty alt, the rewrite route answers `502` and the selection keeps its text, and the SEO fix skips the page.
+  - **`POST /api/louise/ai/rewrite` answers `413` for `text` longer than `REWRITE_MAX_CHARS` (1,536 characters)**, before it calls the model. The limit is sized from the rewrite's output cap, the new `REWRITE_MAX_TOKENS` (512, unchanged). The `413` body's `error` tells the editor to select a shorter passage.
+  - **The editor toolbar shows why a rewrite failed.** The sparkle menu stays open with a message: the route's own words for a `413`, and "Couldn't rewrite that. Your text is unchanged." for anything else. Before this, every failure closed the menu silently.
+
+  **What to do:** nothing is required. If you call `runAi` yourself for text generation, consider `runAiText` and check `truncated` before you store the text. If your own client calls the rewrite route, handle a `413` and show its `error`, and keep selections within `REWRITE_MAX_CHARS`. `runAi`'s return is unchanged.
+
+- a427795: The Health panel now marks the last check as out of date when the scheduled scan hasn't run for more than 36 hours. Before, a scan that stopped running a week ago looked the same as one that ran an hour ago, because the panel showed "Last checked" with no threshold.
+
+  - **`isStale(timestamp, maxAgeMs, now?)`** (`louise-toolkit/health`) is a new pure check for any scheduled job's last success. It takes an ISO string, epoch milliseconds, or a `Date`. A missing or unparseable timestamp counts as stale, a future one (clock skew) counts as fresh, and an age of exactly `maxAgeMs` counts as fresh. `HEALTH_STALE_AFTER_MS` is the 36-hour default.
+  - **The Health panel** shows a stale check in amber, with the words "Out of date" and a note to ask the developer, so the warning doesn't rest on color alone. `HealthPanel` takes `staleAfterMs`, and `Settings` and `Studio` take `dashboard.healthStaleAfterMs`.
+
+  **What to do:** nothing, if your health scan runs daily. If it runs less often, set `dashboard.healthStaleAfterMs` to a bit more than the interval, for example `8 * 24 * 60 * 60 * 1000` for a weekly scan, or the panel marks every check as out of date. A summary whose `checkedAt` can't be parsed now shows as out of date instead of "Last checked recently."
+
+- c13ad5e: `createLocalApi` and `createVersionedLocalApi` now throw `LouiseContentError` when the collection's table has no `id` column, and the message says what to add. The Local API finds, updates, and deletes rows by `id`, but a table from `collectionToTable` or `generateSchemaSource` has that column only when the collection declares `id: { type: "number", autoIncrement: true }`. Before, nothing checked: `create`, `find`, and `count` worked, and the first `findByID`, `update`, `deleteByID`, search, or publish failed with a SQL error such as `where  = ?`, or with a bare "Write failed."
+
+  - **The message names the fix.** It asks for the `id` field, or for an `id: integer("id").primaryKey({ autoIncrement: true })` column when you wrote the table by hand. When the collection has an `autoIncrement` field under another key, such as `noteId`, the message asks you to rename it to `id`.
+  - **`reindexDoc` and `depth: 1` reads check too.** `reindexDoc` throws the same error before it queries, and a `find` or `findByID` with `depth: 1` throws it for a related collection whose table in the `ContentRegistry` has no `id` column.
+  - **Generated schemas don't change.** `collectionToTable` and `generateSchemaSource` still add an `id` column only when you declare one, so the upgrade itself generates no migration.
+
+  **What to do:** nothing, if your Local API tables already have an `id` column, as the ready-made `pages` table does. The one setup this breaks is a table without `id` that you used only for `create`, `find`, and `count`, which worked before and now throws where you build the API. Add the `id` field to the collection, or the column to your hand-written table, and generate a migration. SQLite can't add a primary key column to an existing table, so expect that migration to rebuild the table.
+
+- 2ec284a: `louise-toolkit/mcp` now serves its tools: `mcpRoute()` is an MCP endpoint over the Local API, with the read tools for each collection.
+
+  - **`mcpRoute({ collections, resolveEditor, server })`** returns a `WorkerRoute` that answers MCP's Streamable HTTP transport at `/api/louise/mcp`. It offers `list_<slug>`, `get_<slug>`, `count_<slug>` and `search_<slug>`, and runs each through the Local API with the editor's session, so a collection's `read` access function and read hooks apply to an agent as they do to a person. `tools/list` leaves out a collection the editor can't read.
+  - **Both protocol eras on one endpoint.** A request that carries its version in `_meta` is served as the stateless 2026-07-28 revision, with `server/discover` and the header checks it requires. An `initialize` gets the 2025-11-25, 2025-06-18 or 2025-03-26 handshake that most clients still send. No session is ever minted.
+  - **Tool descriptions say when to use each tool**, name the better tool where two overlap, and say where a write lands: as a draft, or live at once on a collection with no drafts. `publish_<slug>` says to call it only when the person asked. Each tool also carries MCP's `annotations`, with the reads marked read-only.
+  - **`list_<slug>` and `search_<slug>` bound `limit`** to 1 through 100, and `offset` to 0 or more, in the schema and when called.
+
+  `server.name` has no default: it's the site's identity, so pick one such as `site-example`.
+
+  **What to do:** nothing, unless you want the endpoint. The route accepts only a signed-in editor on the site's own origin for now, so an agent with no browser can't reach it until the bearer-token path lands (#235). The write tools aren't served yet (#236). If you read `McpTool` objects from `collectionTools`, they now have an `annotations` field, and the descriptions have changed.
+
+- 8d1b802: You can now hold HTML a model wrote to a stricter allowlist than HTML a person typed. A prompt injection in the content a model reads can steer what it writes, so its output shouldn't get the same trust as an editor's.
+
+  - **`sanitizeModelHtml(html)`** (`louise-toolkit/security`) keeps text structure only: paragraphs, line breaks, `h1` through `h4`, lists, block quotes, bold, italic, code, and links. It drops `img`, `iframe` and other embeds, every `style` and `class`, and every attribute except `href` on `<a>`. A link must be absolute `http(s)` or `mailto` and always gets `rel="noopener noreferrer nofollow"`. A link with any other `href` is unwrapped to its text. Wrappers that `sanitizeRichHtml` allows, such as `div` and `span`, are unwrapped rather than dropped, so a model's paragraph isn't lost to the `<div>` around it.
+  - **`MODEL_ALLOWED_TAGS`**, **`MODEL_ATTR_ALLOW`**, and **`MODEL_LINK_REL`** are exported beside `ALLOWED_TAGS` and `ATTR_ALLOW`. The model sets are a subset of the human ones, and a test fails the build if they ever widen past them.
+
+  **What to do:** nothing is required, and no toolkit path changes behavior. None of the toolkit's paths stores model-written HTML today: `rewriteText`, `suggestSeo`, and `generateAltText` return plain text, the editor inserts a rewrite as text, and the MCP write tools aren't built yet. If your own code stores HTML from a model through `sanitizeRichHtml`, switch that call to `sanitizeModelHtml`. That's a behavior change for new writes: images, styled spans, classes, relative links, and `#` links no longer survive. Content you already stored isn't rewritten, so re-run old model output through the new preset if you want it held to the same bar.
+
+- c5179ee: Publishing a version now checks that it belongs to the page you're publishing, and page IDs and version IDs have their own types, so the compiler catches one passed where the other belongs.
+
+  - **`POST /api/louise/pages/:id/publish` answers `404`** when the body's `versionId` isn't a version of page `:id`. Before, the route published it anyway: `publish` finds the page through the version row, so a mismatched pair published a different page than the URL named, after flushing the URL page's draft buffer to D1. The route checks before the flush now, so a rejected publish leaves that buffer alone. A page `:id` like `0` or `07` gets a `400` on any version route.
+  - **Only an absent `versionId` publishes the latest draft.** A publish body whose `versionId` is present but isn't a positive JSON integer (`"7"`, `0`, `1.5`, `null`), or a body that isn't a JSON object, now gets a `400`. Before, the route read any `versionId` it couldn't validate as absent and published the newest draft instead, so `{ "versionId": "7" }` published something the caller never named. The body takes a JSON number, the same as `discard`, which already answered `400`; an empty body or `{}` still means the latest draft.
+  - **`PageId` and `VersionId`** (`louise-toolkit/content`) are branded `number` types. At runtime they're plain numbers. Make them with `toPageId(n)` and `toVersionId(n)`, which throw `LouiseContentError` unless `n` is a positive integer, or parse untrusted input (a route parameter, a request body, a tool argument) with `parsePageId(value)` and `parseVersionId(value)`, which accept a positive integer or its decimal string and return `undefined` for anything else.
+  - **The versioned Local API takes them:** `saveDraft`, `scheduleDraft`, `unpublish`, and `findVersions` take a `PageId`; `publish`, `discardVersion`, and `diffVersions` take a `VersionId`. So does `applySaveDraft` (`louise-toolkit/editor`), and `EditSessionTarget.id` (`louise-toolkit/realtime`) is a `PageId`. The plain `LocalApi` methods (`findByID`, `update`, `deleteByID`) still take a `number`, and a `PageId` works there as is.
+  - **The MCP tool schemas** describe a document ID as a positive integer or its decimal string, which is what `parsePageId` accepts.
+  - **`@louise-toolkit/astro`:** the `saveDraft` Action's input rejects an `id` that isn't positive, and brands it before it calls `applySaveDraft`.
+
+  **What to do:** this is a breaking type change for code that calls the versioned Local API or `applySaveDraft` directly. Wherever TypeScript now reports that a `number` isn't assignable to `PageId` or `VersionId`, wrap the value:
+
+  ```ts
+  import { toPageId, toVersionId } from "louise-toolkit/content";
+
+  await api.saveDraft(context, toPageId(page.id), data);
+  await api.publish(context, toVersionId(version.id)); // a row from findVersions
+  await applySaveDraft(env, deps, editor, toPageId(id), snapshot);
+  ```
+
+  For an ID from a URL or a request body, use `parsePageId` and answer `400` when it returns `undefined`, rather than `Number(...)`. Nothing changes at runtime for a valid ID, and there's nothing to migrate. If a client of your own publishes with an explicit `versionId`, make sure it sends a version of the page in the URL as a JSON number: a mismatched pair used to publish the other page and now gets a `404`, and a string such as `"7"` used to publish the latest draft and now gets a `400`.
+
+- 299c75c: A fallback can now say it fired. `reportDegraded(name, cause, details?)` (`louise-toolkit/errors`) logs one line at error level in a fixed shape, `[louise] degraded <name>: <cause> <details as JSON>`, and never throws, whatever the `cause`. Degrading instead of crashing is the house rule, but a page that falls back to seed or stale content still answers 200, and until now nothing noticed until a person looked. `onDegraded(listener)` hears every report in the isolate, so you can forward them to an error tracker today. Louise's own incident capture is meant to hook in the same way, so your calls don't change when it does.
+
+  The kit's own fallbacks report themselves now. Each one logs a `[louise] degraded` line where it used to be silent:
+
+  - **Fail-open and fail-closed checks:** the KV, native, and Durable Object rate limiters (`security.rateLimit`), an unreadable secret binding (`security.readSecret`), and a Turnstile check that can't reach siteverify (`forms.turnstile`).
+  - **Best-effort side effects:** form webhook and email notifications (`forms.notify.webhook`, `forms.notify.email`), the pages route's `afterWrite` hook (`editor.pages.afterWrite`), Vectorize upserts, deletes, and queries (`ai.vectors.*`), Core Web Vitals writes (`analytics.vitals`), and `kvCached` and `kvBust` (`worker.kvCache.*`).
+  - **Fallbacks that serve something lesser:** a `withHealing` rule's `fallback` (`worker.healing`), the image proxy's redirect to the original (`media.imageProxy`), a realtime session whose `persist` keeps failing (`realtime.persist`), and Fourthwall's `getProduct` and Square's `retrievePaymentLink` when they return `null` for a reason other than a 404.
+  - **Corrupt stored state:** a health summary, a draft buffer, or a form submission that no longer parses (`health.summary`, `editor.draftBuffer`, `editor.submissions`).
+
+  **What to do:** nothing is required. Four existing log lines changed shape, so update any log search or alert that matches them: `runAi`'s `[louise-toolkit/ai] model run failed (<model>)` is now `[louise] degraded ai.run: … {"model":"<model>"}`, and the gate's `resolveEditor failed`, the overview's `overview slice failed`, and the search route's `search failed` lines are now `worker.resolveEditor`, `editor.overview` (with the slice name), and `editor.search`. Expect more error-level lines than before, since each one is a fallback that used to be silent. In development the image proxy logs one per image, because a zone without Image Resizing always takes the fallback. To report your own site's fallbacks, call `reportDegraded` in each `catch` that serves seed or stale content or swallows a best-effort call.
+
+- a893b8c: Search results stay whole while the full-text index updates. Before, a reader could catch the index between steps: a rebuild emptied the table before refilling it, so a search during `reindexSearch` returned partial results, and a rebuild that failed partway left them partial until the next one. A single row's sync ran its delete and its insert separately, so a failure between the two dropped that page from search.
+
+  - **One row's sync is one batch.** A publish, a Local API write, and `reindexDoc` send the row's delete and insert together, and D1 commits a batch as one transaction. A reader sees the old entry or the new one, never neither. On a driver without `batch`, the two still run in order, as before.
+  - **`reindexSearch` no longer empties the index.** It replaces each row's entry in place, 50 rows to a batch, then deletes only the entries whose row no longer exists. The return value is unchanged: the number of rows indexed.
+  - **`pagesRoute`'s `afterWrite` gets the written row.** A second argument, `{ operation, id }`, names the create, update, or delete that just happened, so the hook can update that one row instead of rebuilding the whole index after every save:
+
+    ```ts
+    pagesRoute({
+      table: pages,
+      resolveEditor,
+      afterWrite: (_editor, { id }) => reindexDoc(db(env.DB), pages, pagesCollection, id),
+    });
+    ```
+
+    `reindexDoc` re-reads the row, so the same call removes the entry after a delete. The new type is `PagesWrite`, from `louise-toolkit/editor`.
+
+  **What to do:** nothing is required, and an existing one-argument `afterWrite` keeps working. If your `afterWrite` calls `reindexSearch`, switch it to `reindexDoc` as shown: every save in the Pages panel then touches one index entry instead of every one.
+
+- 5824b23: You can now give an outside probe a URL that says whether your site works. Until now nothing could check a site from outside Cloudflare: the Health panel's route needs an editor session, and no route checked D1, KV, or a provider.
+
+  - **`statusRoute({ checks })`** (`louise-toolkit/editor`) answers `GET` and `HEAD` at `/api/louise/status` with 200 when every check passes and 503 when any fails, throws, or times out. It's public under ADR 0012, so the API gate lets an anonymous probe through. The body is `{ ok, checks: { [name]: { ok, ageMs? } } }`: booleans and ages, never an error's text. A check that throws is logged on the server instead. Every response has `Cache-Control: no-store`.
+  - **You supply the checks,** because only your site knows what "working" means. A check is `(env, signal) => boolean | { ok, ageMs? }`. Two builders cover the generic cases: `d1Check((env) => env.DB)` passes when D1 answers `SELECT 1`, and `ageCheck(read, maxAgeMs)` passes when a timestamp, such as your last health scan's `checkedAt`, is no older than the limit, and reports its age. It uses the same rule as `isStale` (`louise-toolkit/health`), so the status route and the Health panel agree about what counts as out of date.
+  - **Each check has a timeout,** `timeoutMs` (default 2 seconds), so a hung dependency makes a 503 instead of a hung probe. `reuseMs` reuses a finished result within an isolate, so a burst of anonymous requests can't multiply your database queries.
+  - `runStatusChecks(env, checks)` is the same run without the route, and `LOUISE_STATUS_PATH` (`louise-toolkit/worker`) is its default path.
+
+  **What changed without it:** `isLouisePublicPath` now includes `/api/louise/status`, so `createLouiseMiddleware({ apiGate })` lets anonymous requests to that path through to whatever answers there. If your site has its own editor-only route at `/api/louise/status`, move it or check the editor session in the route itself before you upgrade.
+
+  **What to do:** nothing is required. To use it, mount `statusRoute` with cheap checks, since anyone can make them run, and point your uptime probe at `/api/louise/status`.
+
+- add6569: Studio document titles now use a pipe between the screen and the site, and each `mountStudio` panel titles the document. The house style keeps dashes for sentences and uses a pipe in page titles.
+
+  - **`screenTitle` defaults `separator` to `" | "`**, not a spaced em dash, so a routed studio's titles change from `Orders — Acme Studio` to `Orders | Acme Studio`. `StudioShell` uses `screenTitle`, so its titles change too.
+  - **`mountStudio` titles the document after the open panel or tab,** such as `Media | Acme Studio`, with `title` as the suffix (`Media | Studio` without one). The disposer puts the page's own title back.
+  - **The drawer's dialog is named `Settings`**, after the button that opens it, rather than `Louise explorer`. A test that finds the drawer by its accessible name needs the new one.
+  - **Status and error messages lose their spaced dashes.** For example, `Couldn’t save — this change hasn’t taken effect` is now `Couldn’t save. This change hasn’t taken effect.`, and the contact form's default success message is `Thanks—we'll be in touch.` A test that asserts the old wording needs the new one.
+
+  **What to do:** nothing, unless you want the old titles back. To keep `Orders — Acme Studio`, pass the separator yourself: `screenTitle(nav, pathname, { suffix, separator: " — " })`, or `title={{ suffix, separator: " — " }}` on `StudioShell`.
+
+- 238820a: Text on the `louise` theme's brand colors now clears 4.5:1, the WCAG AA line for body text. White on the brand blue `#1481ef` was 3.88:1, and on the brand orange `#db6327` 3.60:1.
+
+  If your site uses the `louise` or `louise-dark` theme, you see a change:
+
+  - **`louise`:** primary and info are a darker blue, `#0f6ecd` (5.08:1 under white), and error is a darker orange, `#b8501f` (4.99:1). A `btn-primary`, a `badge-error`, or a `text-primary` link looks one stop darker.
+  - **`louise-dark`:** the fills stay `#1481ef` and `#db6327`, and the text on them (`primary-content`, `info-content`, `error-content`) turns from white to dark ink, `#0e141b` (4.77:1 and 5.14:1). The light theme's darker values would have fallen to 3.45:1 as text on the dark base, so no single blue works both ways.
+
+  The editor chrome follows the same rule. `#1481ef` stays for rings, borders, and focus outlines, where 3:1 is enough. Every rule that puts text on the blue, or colors text with it, now uses `--louise-blue-strong` (`#0f6ecd`): the presence avatar, the active chip, the active layout choice, the cover tag, the form submit button, the enter-edit button, and the active drawer tab. `.louise-btn-primary` drops its own `#0072e0` for the same token, and its hover moves to `#0b5cad`.
+
+  Nothing to change on upgrade, unless you override these tokens: if you set `--color-primary` or `--color-error` yourself, your values still win. If you override `--louise-blue` to restyle the chrome, set `--louise-blue-strong` too, because text in the chrome now reads the stronger token.
+
+### Patch Changes
+
+- 1df0e13: `runAiText` reports a truncated answer through `reportDegraded` as `ai.truncated`, instead of logging its own warning. A cut-off answer is a degrade: the helpers return `null` and the caller keeps its fallback, the same as a failed call, which already reports as `ai.run`. Now one search finds both.
+
+  The log line changed shape and level. It was a warning, `[louise-toolkit/ai] answer truncated at the output cap (<model>)`, followed by an object. It's now one line at error level, `[louise] degraded ai.truncated: answer hit the output token cap {"model":"<model>","finishReason":…,"completionTokens":…,"maxTokens":…}`. The error level is deliberate, because a degrade should be visible. An `onDegraded` listener now hears truncations too, so an error tracker you forward degrades to starts receiving them.
+
+  **What to do:** if a log search or alert matches the old text, match `[louise] degraded ai.truncated` instead. If an `onDegraded` listener pages someone, decide whether a truncation should. The old line never shipped in a release, so this only affects a site that runs the kit from `main`.
+
+- bfed21e: Two editor badges and the Done action now clear 4.5:1, the WCAG AA line for text, following the rule from the theme contrast fix: a ring color never carries text.
+
+  - **The soft-lock badge**, which names the editor who holds a field, fills with `--louise-orange-strong` (`#b45309`) instead of `--louise-orange` (`#ea7317`). White on it goes from 3.02:1 to 5.02:1. The locked field also stops fading the badge with it: the 60% opacity now applies to the field's content, not the field, because the faded badge rendered at 2.49:1 even on the darker orange. The field looks as dimmed as before, unless it holds bare text outside any element, which no longer dims.
+  - **The "Could be faster" performance badge** keeps its yellow `--louise-yellow` (`#ca8a04`) fill and takes dark ink, `#231903`, instead of white. That's 5.90:1, up from 2.94:1.
+  - **The Done action** on the edit bar uses `--louise-orange-strong` for its text, 5.02:1 on the bar's white, up from 3.02:1. Its hover tint is lighter, so the text keeps 4.62:1 on hover.
+  - **The Settings action's hover tint** is lighter too, 8% blue instead of 10%, so its text is 4.61:1 on hover, up from 4.49:1.
+
+  **What to do:** nothing. If you override `--louise-orange` to restyle the chrome, set `--louise-orange-strong` too, because the soft-lock badge and Done now read the stronger token.
+
+- a1f3167: An `inline` rich-text field (`richText: { inline: true }`) no longer runs words together when someone pastes more than one line into it. Inline mode already blocked the Enter keys, but a paste still split the field into paragraphs, and saving joined those with nothing between them: pasting `one` and `two` on separate lines stored `onetwo`.
+
+  - **A paste or a drop flattens to one line.** Each line break, whether a newline in pasted text or a `<br>` in pasted HTML, becomes a space, and pasted blocks such as paragraphs and headings join with a space. Inline formatting, such as bold, italic, and links, survives. A pasted image block is dropped, as it already was when the field saved.
+  - **Saving joins blocks with a space.** A field whose document already holds several blocks, for example one seeded with them, serializes with one space between each pair. No space is added where a block already ends or starts with whitespace, and empty blocks add nothing.
+
+  Fields that aren't `inline` are unchanged: a paste into a prose body still keeps its paragraphs.
+
+  **What to do:** nothing for new edits. This doesn't repair values that are already stored run-together, since the lost word boundaries can't be recovered from the stored HTML. Find those by eye, for example a heading or tagline that someone filled by pasting, and fix them in the editor. For a field that needs real line breaks, use a `textarea` field and render it with `white-space: pre-line`.
+
+- 2ec284a: The soft-lock badge on a field another editor holds now shows a Phosphor lock icon instead of an emoji. The badge reads "Alex is editing", and the icon comes from CSS. If you style `[data-louise-locked-by]` yourself, the attribute no longer starts with an emoji.
+- a75e8b5: `processBatch` now logs each handler failure before it retries the message. Until now, a handler's error was caught and turned into a `retry()` with no log line, so a message that failed every attempt reached the dead-letter queue, or was dropped, and left no trace in Workers Logs. Now each failure writes one `console.error` line that names the queue, the message id, and the delivery attempt, with the error itself as the second argument.
+
+  Nothing to change on upgrade. Expect one new error line in Workers Logs per failed delivery. A handler that already logs its own error before throwing now logs it twice; drop the handler's own line if you don't want both.
+
+- 2e57bb9: Three active controls that put blue on a blue tint now clear 4.5:1, the WCAG AA line for text. Each colored its foreground with `--louise-blue-strong` (`#0f6ecd`), and the tint behind it cost that blue its margin. They now read a new palette token, `--louise-blue-deep` (`#0b5cad`), one stop darker. The tints don't change, so each active state keeps its blue fill, apart from the gray hover and the unfilled rest.
+
+  - **The active rich-text toolbar button**, on its 12% tint: 4.39:1 to 5.76:1. The icon buttons only need 3:1, but a text label added to the toolbar later passes too.
+  - **The active drawer tab**, a text label on a 10% tint: 4.49:1 to 5.89:1.
+  - **The drawer's Settings cog while Settings is open**, on the same 10% tint: 4.49:1 to 5.89:1.
+
+  `.louise-btn-primary:hover` reads the same token instead of its own `#0b5cad`, so its color doesn't change.
+
+  **What to do:** nothing. If you override `--louise-blue` and `--louise-blue-strong` to restyle the chrome, set `--louise-blue-deep` too, because these three active states and the primary button's hover now read it.
+
 ## 0.33.0
 
 ### Minor Changes
