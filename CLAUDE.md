@@ -77,6 +77,7 @@ node scripts/ci/checks/ai-model-catalog.mjs       # needs CLOUDFLARE_API_TOKEN +
 # AI helper output, by hand, before and after a default model or prompt change.
 # Spends Workers AI budget, so never in CI; paste both tables into the PR.
 node scripts/ai-eval/run.mjs                      # after a build; token needs Workers AI Read + Edit
+gh workflow run ai-eval.yml --ref <branch>        # the same, with the repo's token; table in the job summary
 
 # Type-check & unit tests
 corepack pnpm -C packages/louise run typecheck

@@ -1,0 +1,46 @@
+name: AI helper eval
+
+# Measures the AI helpers' output against real Workers AI (#554). By hand
+# only: it spends Workers AI budget, so it never runs on a push or a pull
+# request. Run it before and after a default-model or prompt change, and
+# paste both job summaries into the pull request:
+#
+#   gh workflow run ai-eval.yml --ref <branch> -f model=<candidate>
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Text model to measure (blank for the toolkit's default)
+        required: false
+      only:
+        description: Limit to one helper
+        type: choice
+        options: [all, rewrite, seo]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Measure the AI helpers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: corepack pnpm -C packages/louise run build
+      # The token needs Workers AI Read and Edit.
+      - name: Run the eval
+        # Explicit bash, for pipefail: a failed run must fail the step, not tee.
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_CATALOG_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MODEL: ${{ inputs.model }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          set --
+          if [ -n "$MODEL" ]; then set -- "$@" --model "$MODEL"; fi
+          if [ "$ONLY" != "all" ]; then set -- "$@" --only "$ONLY"; fi
+          node scripts/ai-eval/run.mjs "$@" | tee -a "$GITHUB_STEP_SUMMARY"
