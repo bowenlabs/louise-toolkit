@@ -38,7 +38,11 @@ No single blue clears 4.5:1 both under white text and as text on a dark base,
 so the dark theme keeps the brand fills and puts dark ink on them. The editor
 chrome follows the same rule: `#1481ef` draws rings, borders, and focus
 outlines, where 3:1 is enough, and any text on or in the blue uses the
-one-stop-darker `--louise-blue-strong` (`#0f6ecd`).
+one-stop-darker `--louise-blue-strong` (`#0f6ecd`). The orange works the same
+way: `--louise-orange` (`#ea7317`) draws rings, and text on or in it uses
+`--louise-orange-strong` (`#b45309`, 5.02:1). The yellow `--louise-yellow`
+(`#ca8a04`) is too light for white text, so the one badge that fills with it
+uses dark ink (`#231903`, 5.90:1).
 
 ## Usage
 
