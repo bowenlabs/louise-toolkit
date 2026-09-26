@@ -350,14 +350,27 @@ export default composeWorker<WorkerEnv>({
   // Side-effect consumer (#77): drain the deferred reindex jobs enqueued on the
   // publish path. processBatch acks each message on success and retries on a
   // thrown error; Cloudflare Queues owns the backoff/DLQ (wrangler.jsonc).
+  // A job this consumer doesn't handle throws rather than falling through, so
+  // it retries, lands in the dead-letter queue, and shows up in Workers Logs
+  // instead of being acked as done (#558).
   async queue(batch, env) {
     await processBatch(batch as MessageBatch<SideEffectJob>, async (job) => {
-      if (job.kind === "reindex" && job.collection === "pages") {
-        await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
-        // Embed-on-publish (#86): mirror the FTS sync into Vectorize on the same
-        // deferred job. Best-effort—a missing binding / embed error is
-        // swallowed, so it never fails (or retries) the FTS reindex above.
-        await syncPageVector(env, job.id);
+      switch (job.kind) {
+        case "reindex": {
+          if (job.collection !== "pages") {
+            throw new Error(`No reindex handler for the "${job.collection}" collection`);
+          }
+          await reindexDoc(db(env.DB), pages, pagesCollection, job.id);
+          // Embed-on-publish (#86): mirror the FTS sync into Vectorize on the same
+          // deferred job. Best-effort—a missing binding / embed error is
+          // swallowed, so it never fails (or retries) the FTS reindex above.
+          await syncPageVector(env, job.id);
+          return;
+        }
+        default: {
+          const unhandled: never = job.kind;
+          throw new Error(`Unknown side-effect job kind: ${String(unhandled)}`);
+        }
       }
     });
   },
