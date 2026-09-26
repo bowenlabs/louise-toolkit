@@ -9,12 +9,20 @@ import {
   defineDocChangeHandler,
   defineKeymap,
   defineNodeAttr,
+  definePlugin,
   htmlFromNode,
   union,
   type Editor,
   type NodeJSON,
 } from "prosekit/core";
-import { DOMSerializer } from "@prosekit/pm/model";
+import {
+  DOMSerializer,
+  Fragment,
+  type Node as PMNode,
+  type Schema,
+  Slice,
+} from "@prosekit/pm/model";
+import { Plugin } from "@prosekit/pm/state";
 import { defineBlockquote } from "prosekit/extensions/blockquote";
 import { defineImageUploadHandler, uploadImage } from "prosekit/extensions/image";
 import { defineLink } from "prosekit/extensions/link";
@@ -165,17 +173,82 @@ function ResizableImage(props: SolidNodeViewProps) {
   );
 }
 
-/** Serialize a doc as **inline** HTML—the inline content of its block(s),
- *  concatenated, with no block wrapper. `inline` rich-text fields (a heading, a
- *  tagline) store inline HTML that the site drops into its own element via
- *  `set:html` (`<h1 set:html={value}>`); serializing the whole doc would emit a
- *  `<p>`/`<h2>` wrapper that then nests inside that element and loses its style. */
+/** Serialize a doc as **inline** HTML—the inline content of its block(s), with
+ *  no block wrapper. `inline` rich-text fields (a heading, a tagline) store inline
+ *  HTML that the site drops into its own element via `set:html`
+ *  (`<h1 set:html={value}>`); serializing the whole doc would emit a `<p>`/`<h2>`
+ *  wrapper that then nests inside that element and loses its style.
+ *
+ *  Blocks are joined with one space (#449). The inline paste rule keeps the doc
+ *  to one block, but a doc seeded with several can still reach this point, and
+ *  joining them with nothing runs the last word of one into the first word of
+ *  the next. No space is added where a block already ends or starts with
+ *  whitespace, and empty blocks contribute nothing. */
 function inlineHTMLFromDoc(editor: Editor): string {
   const { doc } = editor.view.state;
   const serializer = DOMSerializer.fromSchema(doc.type.schema);
   const host = document.createElement("div");
-  doc.forEach((block) => host.appendChild(serializer.serializeFragment(block.content)));
+  let previous: string | null = null;
+  doc.forEach((block) => {
+    if (block.content.size === 0) return;
+    const text = block.textContent;
+    if (previous !== null && !/\s$/.test(previous) && !/^\s/.test(text)) host.append(" ");
+    host.appendChild(serializer.serializeFragment(block.content));
+    previous = text;
+  });
   return host.innerHTML;
+}
+
+/** A line break inside pasted text, with any whitespace around it. */
+const LINE_BREAK = /\s*(?:\r\n?|\n)\s*/g;
+
+/** Flatten pasted content into one run of inline content (#449), for `inline`
+ *  mode. The Enter keys are already suppressed there, but a paste of several
+ *  lines or blocks would still split the field into paragraphs. This keeps the
+ *  inline content of every textblock, joins the textblocks with one space
+ *  (skipped where one side already has whitespace), and turns each line
+ *  break—a newline in text or a hard break—into a space. Block leaves, such as an
+ *  image, are dropped: an inline field never stores them anyway. */
+function flattenToInline(slice: Slice, schema: Schema): Slice {
+  const runs: PMNode[][] = [];
+  let run: PMNode[] = [];
+  const endRun = () => {
+    if (run.length > 0) runs.push(run);
+    run = [];
+  };
+  const inline = (node: PMNode): PMNode => {
+    if (node.isText) return schema.text((node.text ?? "").replace(LINE_BREAK, " "), node.marks);
+    if (node.type.name === "hardBreak") return schema.text(" ", node.marks);
+    return node;
+  };
+  const visit = (node: PMNode) => {
+    if (node.isInline) {
+      run.push(inline(node));
+    } else if (node.isTextblock) {
+      endRun();
+      node.forEach((child) => run.push(inline(child)));
+      endRun();
+    } else {
+      node.forEach(visit);
+    }
+  };
+  slice.content.forEach(visit);
+  endRun();
+
+  const nodes: PMNode[] = [];
+  for (const next of runs) {
+    const last = nodes.at(-1);
+    const first = next[0];
+    const lastText = last?.isText ? (last.text ?? "") : "";
+    const firstText = first?.isText ? (first.text ?? "") : "";
+    if (last && !/\s$/.test(lastText) && !/^\s/.test(firstText)) nodes.push(schema.text(" "));
+    nodes.push(...next);
+  }
+  if (nodes.length === 0) return Slice.empty;
+  // An open paragraph: its inline content merges into whatever block the
+  // selection is in, so the paste never adds a block.
+  const paragraph = schema.nodes.paragraph.create(null, Fragment.fromArray(nodes));
+  return new Slice(Fragment.from(paragraph), 1, 1);
 }
 
 function louiseExtension(blocks = false, grammar = false, inline = false) {
@@ -183,9 +256,19 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
     defineBasicExtension(),
     // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
     // the block-splitting keys so the value stays one inline run—paired with
-    // inlineHTMLFromDoc, the field never gains a block wrapper.
+    // inlineHTMLFromDoc, the field never gains a block wrapper. A paste or a drop
+    // goes through `transformPasted`, which flattens it to one run too (#449).
     ...(inline
-      ? [defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true })]
+      ? [
+          defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true }),
+          definePlugin(
+            new Plugin({
+              props: {
+                transformPasted: (slice, view) => flattenToInline(slice, view.state.schema),
+              },
+            }),
+          ),
+        ]
       : []),
     defineBlockquote(),
     defineTextColor(),
@@ -245,8 +328,9 @@ export interface RichTextProps {
   /** Inline mode (#182): a single-line rich-text field—a heading or tagline the
    *  site renders inside its own element (`<h1 set:html={value}>`). Like `minimal`
    *  for chrome (inline formatting only), but ALSO constrains the value to inline
-   *  HTML: block-splitting keys are suppressed and the value serializes with no
-   *  block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
+   *  HTML: block-splitting keys are suppressed, a multi-line paste is flattened
+   *  to one line with a space where each line break was, and the value
+   *  serializes with no block wrapper, so editing a heading can't turn it into a `<p>`/`<h2>` that
    *  nests in the element and loses its brand style. The level stays whatever the
    *  site's element is—the editor never changes it. */
   inline?: boolean;
