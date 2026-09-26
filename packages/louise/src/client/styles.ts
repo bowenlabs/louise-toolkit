@@ -17,11 +17,14 @@ const CSS = `
   --louise-orange: #ea7317;
   --louise-yellow: #ca8a04;
   --louise-violet: #7c3aed;
-  /* Toolbar backgrounds, one stop darker than their ring — white glyphs need
-     4.5:1 (WCAG 1.4.3) where the ring only needs 3:1. node-chrome.ts reads
-     these with matching literal fallbacks; they are declared here so the whole
-     palette is one overridable block rather than half tokens, half literals
-     buried in TONE_CSS. */
+  /* Text stops, one stop darker than their ring—text needs 4.5:1 (WCAG 1.4.3)
+     where a ring, border, or focus outline only needs 3:1. Any rule that puts
+     text on the blue, or colors text with it, uses --louise-blue-strong (5.08:1
+     against white); --louise-blue stays for rings, borders, and outlines
+     (3.88:1). test/client/contrast.test.ts holds the line. node-chrome.ts
+     reads these with matching literal fallbacks; they're declared here so the
+     whole palette is one overridable block rather than half tokens, half
+     literals buried in TONE_CSS. */
   --louise-orange-strong: #b45309;
   --louise-blue-strong: #0f6ecd;
   --louise-violet-strong: #6d28d9;
@@ -64,7 +67,7 @@ const CSS = `
   justify-content: center;
   font-size: 12px;
   color: #fff;
-  background: var(--louise-blue);
+  background: var(--louise-blue-strong);
   border-radius: 999px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   pointer-events: none;
@@ -176,7 +179,7 @@ const CSS = `
   text-decoration: none;
   transition: background 120ms ease;
 }
-.louise-settings { color: var(--louise-blue); }
+.louise-settings { color: var(--louise-blue-strong); }
 .louise-settings:hover { background: rgba(20, 129, 239, 0.1); }
 .louise-exit { color: var(--louise-orange); }
 .louise-exit:hover { background: rgba(234, 115, 23, 0.12); }
@@ -196,7 +199,7 @@ const CSS = `
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: var(--louise-blue);
+  background: var(--louise-blue-strong);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -269,7 +272,7 @@ const CSS = `
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  background: ${LOUISE_BLUE};
+  background: var(--louise-blue-strong);
   text-decoration: none;
   box-shadow: 0 8px 30px rgba(20, 129, 239, 0.35);
 }
@@ -346,7 +349,7 @@ const CSS = `
 }
 /* Cog while the Settings view is open. */
 .louise-drawer-close.is-active {
-  color: var(--louise-blue);
+  color: var(--louise-blue-strong);
   background: rgba(20, 129, 239, 0.1);
 }
 .louise-drawer-tabs {
@@ -367,7 +370,7 @@ const CSS = `
 }
 .louise-tab.is-active {
   background: rgba(20, 129, 239, 0.1);
-  color: var(--louise-blue);
+  color: var(--louise-blue-strong);
 }
 .louise-drawer-body {
   flex: 1;
@@ -510,11 +513,11 @@ html[data-louise-studio] body {
   color: #0f172a;
 }
 .louise-btn:hover { background: rgba(15, 23, 42, 0.04); }
-/* One step down the brand ramp from --louise-blue: white 14px labels need 4.5:1
-   (WCAG 1.4.3) and the base blue only reaches 3.88:1. #0072e0 (4.7:1) was already
-   this button's hover, so the ramp just shifts one stop darker. */
-.louise-btn-primary { background: #0072e0; color: #fff; border-color: transparent; }
-.louise-btn-primary:hover { background: #0f6ecd; }
+/* White 14px labels need 4.5:1 (WCAG 1.4.3), so the fill is the text stop,
+   --louise-blue-strong (5.08:1), the same blue as every other filled control,
+   and the hover goes one stop darker again (6.67:1). */
+.louise-btn-primary { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
+.louise-btn-primary:hover { background: #0b5cad; }
 .louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 .louise-btn-block { width: 100%; justify-content: center; }
 /* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
@@ -801,7 +804,7 @@ html[data-louise-studio] body {
   cursor: pointer;
 }
 .louise-chip:hover { background: rgba(20, 129, 239, 0.08); }
-.louise-chip.is-active { background: var(--louise-blue); border-color: transparent; color: #fff; }
+.louise-chip.is-active { background: var(--louise-blue-strong); border-color: transparent; color: #fff; }
 .louise-col-adj { display: inline-flex; align-items: center; gap: 2px; }
 .louise-col-w {
   min-width: 12px;
@@ -855,7 +858,7 @@ html[data-louise-studio] body {
 .louise-inspector-close:hover { background: rgba(15, 23, 42, 0.06); }
 .louise-inspector-group { display: flex; flex-direction: column; gap: 8px; }
 .louise-inspector-layouts { display: flex; flex-wrap: wrap; gap: 6px; }
-.louise-inspector-active { background: var(--louise-blue); color: #fff; border-color: transparent; }
+.louise-inspector-active { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
 .louise-inspector-empty { margin: 0; color: #64748b; font-size: 12px; }
 /* Source-settings group (Phase B): the caption carries the write-path warning —
    these values save immediately, unlike everything else in the popover. */
@@ -1024,7 +1027,7 @@ html[data-louise-studio] body {
   display: inline-block;
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--louise-blue);
+  background: var(--louise-blue-strong);
   color: #fff;
   text-decoration: none;
   font-weight: 600;
@@ -1128,7 +1131,7 @@ html[data-louise-studio] body {
   transition: background 0.12s ease, color 0.12s ease;
 }
 .louise-tb-btn:hover { background: rgba(15, 23, 42, 0.06); }
-.louise-tb-btn.is-active { background: rgba(20, 129, 239, 0.12); color: var(--louise-blue); }
+.louise-tb-btn.is-active { background: rgba(20, 129, 239, 0.12); color: var(--louise-blue-strong); }
 .louise-tb-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: rgba(15, 23, 42, 0.12); }
 .louise-tb-color { position: relative; display: inline-flex; }
 /* Shown/hidden by <Show> (click-toggled state), so it defaults to flex — no
@@ -1343,7 +1346,7 @@ html[data-louise-studio] body {
   font-size: 9px;
   font-weight: 700;
   color: #fff;
-  background: var(--louise-blue);
+  background: var(--louise-blue-strong);
   padding: 1px 5px;
   border-radius: 999px;
 }
@@ -1359,7 +1362,7 @@ html[data-louise-studio] body {
   font-size: 24px;
   color: #64748b;
 }
-.louise-image-add:hover { border-color: var(--louise-blue); color: var(--louise-blue); }
+.louise-image-add:hover { border-color: var(--louise-blue); color: var(--louise-blue-strong); }
 /* Round-crop adjuster: live circular preview + position/zoom sliders. Preview
    uses the same object-position/scale technique as the public render. */
 .louise-crop { display: flex; gap: 16px; align-items: flex-start; }
@@ -1459,6 +1462,17 @@ html[data-louise-studio] body {
 .louise-cwv-badge[data-rating="good"] { background: var(--louise-green); }
 .louise-cwv-badge[data-rating="needs-improvement"] { background: var(--louise-yellow); }
 .louise-cwv-badge[data-rating="poor"] { background: #dc2626; }
+/* A last check older than the threshold (#559). The text says "Out of date" too,
+   so the amber isn't the only signal. Dark amber text keeps AA contrast. */
+.louise-health-stale {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #854d0e;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
 .louise-card {
   display: flex;
@@ -1612,7 +1626,7 @@ html[data-louise-studio] body {
   border-radius: 8px;
   font-weight: 600;
   color: #fff;
-  background: var(--louise-blue);
+  background: var(--louise-blue-strong);
 }
 .louise-form-submit:disabled { opacity: 0.5; cursor: default; }
 .louise-form-status { font-size: 14px; }
