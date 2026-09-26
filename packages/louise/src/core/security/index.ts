@@ -1,11 +1,20 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // `louise-toolkit/security`—the security-critical primitives shared by every
-// Louise site: an editor-HTML sanitizer, a KV rate limiter, a Secrets-Store
+// Louise site: HTML sanitizers for editor and model output, a KV rate limiter, a Secrets-Store
 // session-secret helper, and baseline security headers. A fix here protects
 // every site at once (the reason these live in the package, not copy-pasted).
 
-export { ALLOWED_TAGS, ATTR_ALLOW, sanitizeRichHtml, type SanitizeOptions } from "./sanitize";
+export {
+  ALLOWED_TAGS,
+  ATTR_ALLOW,
+  MODEL_ALLOWED_TAGS,
+  MODEL_ATTR_ALLOW,
+  MODEL_LINK_REL,
+  sanitizeModelHtml,
+  sanitizeRichHtml,
+  type SanitizeOptions,
+} from "./sanitize";
 // Rich text → text: meta descriptions, "is this field empty?", empty headings.
 export {
   hasRichText,
