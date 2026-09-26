@@ -72,6 +72,17 @@ overrides:
   # resolved 0.35.4, so like the esbuild pin this UNIFIES two copies onto one.
   sharp: "^0.35.4"
 
+  # extract-zip—GHSA advisories for symlink path traversal and arbitrary file
+  # writes through symlink archive entries, in every release up to 2.0.1, the
+  # last one; it has no fix. Dev-only: it arrives through the
+  # @cloudflare/puppeteer devDependency, which pins @puppeteer/browsers 2.2.4,
+  # and @puppeteer/browsers 3 drops extract-zip altogether. Scoped to that one
+  # parent, and safe because @cloudflare/puppeteer uses @puppeteer/browsers only
+  # in its Node launchers: nothing reachable from its Workers entry
+  # (`puppeteer-cloudflare.js`) imports it, so the Browser Rendering path this
+  # package calls never loads the version this changes.
+  "@cloudflare/puppeteer>@puppeteer/browsers": "^3.2.3"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
