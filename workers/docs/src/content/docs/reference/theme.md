@@ -62,6 +62,19 @@ the text renders at normal width.
 
 ## Palette
 
-Primary/info blue `#1481ef`, accent/warning yellow `#f3ae29`, success green
-`#8ebe59`, error orange `#db6327`. The `louise` theme uses dark green `#4f6933`
-as secondary; `louise-dark` uses light green `#8ebe59`. The palette has no red.
+Primary/info blue, accent/warning yellow `#f3ae29`, success green `#8ebe59`,
+error orange. The `louise` theme uses dark green `#4f6933` as secondary;
+`louise-dark` uses light green `#8ebe59`. The palette has no red.
+
+Every fill and its `-content` color clear 4.5:1 (WCAG AA), and so do primary
+and error as text on `base-100`:
+
+| Token             | `louise`              | `louise-dark`         |
+| ----------------- | --------------------- | --------------------- |
+| `primary`, `info` | `#0f6ecd`             | `#1481ef`             |
+| `primary-content`, `info-content` | `#ffffff` | `#0e141b`         |
+| `error`           | `#b8501f`             | `#db6327`             |
+| `error-content`   | `#ffffff`             | `#0e141b`             |
+
+The brand blue `#1481ef` stays for rings, borders, and focus outlines. See
+[Contrast](/guide/theme/#contrast) for the ratios and why the two themes differ.

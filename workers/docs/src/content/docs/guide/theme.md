@@ -7,7 +7,7 @@ sidebar:
 
 Louise's editor chrome—Louise Settings, inline-edit affordances, panels—is styled
 by the **louise** [daisyUI](https://daisyui.com) theme, built from the BowenLabs
-brand system with blue `#1481ef` as primary. It styles _editor surfaces only_;
+brand system with its blue as primary. It styles _editor surfaces only_;
 your public site keeps its own theme.
 
 ## Two themes
@@ -19,8 +19,26 @@ Two daisyUI 5 themes (Tailwind v4 `@plugin` syntax):
 | `louise`      | light (default)      | Dark green `#4f6933` as secondary |
 | `louise-dark` | dark (`prefersdark`) | Light green `#8ebe59` secondary   |
 
-Shared semantics: primary/info blue `#1481ef`, accent/warning yellow `#f3ae29`,
-success light-green `#8ebe59`, error orange `#db6327` (the palette has no red).
+Shared semantics: primary/info blue, accent/warning yellow `#f3ae29`, success
+light-green `#8ebe59`, and error orange (the palette has no red).
+
+## Contrast
+
+Text on every fill clears 4.5:1, the WCAG AA line for body text, and so do
+primary and error used as text on the page. White on the brand blue `#1481ef`
+is only 3.88:1, and on the brand orange `#db6327` 3.60:1, so each theme gets
+there its own way:
+
+| Theme         | Primary/info                     | Error                            |
+| ------------- | -------------------------------- | -------------------------------- |
+| `louise`      | `#0f6ecd` under white (5.08:1)   | `#b8501f` under white (4.99:1)   |
+| `louise-dark` | `#1481ef` under `#0e141b` (4.77:1) | `#db6327` under `#0e141b` (5.14:1) |
+
+No single blue clears 4.5:1 both under white text and as text on a dark base,
+so the dark theme keeps the brand fills and puts dark ink on them. The editor
+chrome follows the same rule: `#1481ef` draws rings, borders, and focus
+outlines, where 3:1 is enough, and any text on or in the blue uses the
+one-stop-darker `--louise-blue-strong` (`#0f6ecd`).
 
 ## Usage
 
