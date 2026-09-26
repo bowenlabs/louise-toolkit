@@ -1459,6 +1459,17 @@ html[data-louise-studio] body {
 .louise-cwv-badge[data-rating="good"] { background: var(--louise-green); }
 .louise-cwv-badge[data-rating="needs-improvement"] { background: var(--louise-yellow); }
 .louise-cwv-badge[data-rating="poor"] { background: #dc2626; }
+/* A last check older than the threshold (#559). The text says "Out of date" too,
+   so the amber isn't the only signal. Dark amber text keeps AA contrast. */
+.louise-health-stale {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #854d0e;
+  font-size: 13px;
+  line-height: 1.45;
+}
 .louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
 .louise-card {
   display: flex;

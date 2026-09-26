@@ -16,6 +16,11 @@ AI. The binding is passed in and the model id is a plain string, so the module i
 catalog-agnostic. Binding: `AI` (+ `VECTORIZE` for search). No required peers.
 See the [AI assists guide](/guide/ai-assists/).
 
+Every generation helper here returns plain text, never HTML, so none of their
+output needs an HTML sanitizer. If your own code asks a model for HTML, run it
+through [`sanitizeModelHtml`](/reference/security/#sanitizemodelhtmlhtml) before
+you store it.
+
 ## `aiRunner(env)`—turning generation off
 
 ```ts
