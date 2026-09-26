@@ -4,7 +4,7 @@
 //
 // Pure data in / data out, like `content/structure.ts`: this derives the MCP
 // tool *definitions* a collection exposes, and nothing else. No transport, no
-// Local API, no session—those arrive in slices 2–4. Everything here is
+// Local API, no session—those live in `route.ts`. Everything here is
 // synchronous and trivially testable, which is the point of splitting it out.
 //
 // The pitch the whole feature rests on: humans edit in place, agents edit over
@@ -33,18 +33,37 @@ export type McpToolOperation =
   | "add_section"
   | "publish";
 
+/** The operations that only read, which `mcpRoute` executes. */
+export const MCP_READ_OPERATIONS: readonly McpToolOperation[] = ["list", "get", "count", "search"];
+
+/** MCP's behavior hints for a tool. Clients treat them as hints, never as a
+ *  guarantee, so they describe the tool rather than enforce anything. */
+export interface McpToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 /** One generated tool, in the shape `tools/list` reports it. */
 export interface McpTool {
   /** Wire name, for example, `get_pages`. Unique across a config. */
   name: string;
+  /** What the tool does and when to use it, which is what an agent reads to
+   *  choose between tools that overlap. */
   description: string;
   /** JSON Schema for the tool's arguments. */
   inputSchema: JsonSchema;
+  annotations: McpToolAnnotations;
   /** The collection this acts on—not part of the MCP wire shape, but what
-   *  slice 2's dispatcher routes on. */
+   *  the route's dispatcher routes on. */
   collection: string;
   operation: McpToolOperation;
 }
+
+/** Most documents a list or search call returns, and the default. */
+export const MCP_LIMIT_MAX = 100;
+export const MCP_LIMIT_DEFAULT = 20;
 
 export interface CollectionToolsOptions {
   /**
@@ -148,6 +167,23 @@ const ID_ARG: JsonSchema = {
   additionalProperties: false,
 };
 
+/** A page size, bounded so a call can't ask for the whole table at once. */
+const LIMIT_ARG: JsonSchema = {
+  type: "integer",
+  minimum: 1,
+  maximum: MCP_LIMIT_MAX,
+  description: `Maximum documents to return. Default ${MCP_LIMIT_DEFAULT}.`,
+};
+
+// Reads touch nothing; the writes below only ever add a draft or publish one,
+// never delete, and a site's content is a closed world either way.
+const READ: McpToolAnnotations = { readOnlyHint: true, openWorldHint: false };
+const WRITE: McpToolAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  openWorldHint: false,
+};
+
 const label = (c: CollectionConfig) => c.admin?.label ?? c.slug;
 
 /**
@@ -165,6 +201,10 @@ const label = (c: CollectionConfig) => c.admin?.label ?? c.slug;
  * through the draft path—a collection with no version history has nowhere safe
  * to land one. `publish_<slug>` is generated separately from the write tools so a
  * token can be scoped to draft-only.
+ *
+ * Every description says when to use the tool as well as what it does, and
+ * names the better tool where two overlap: an agent picks from descriptions
+ * alone, so that sentence is the whole of its guidance.
  */
 export function collectionTools(
   collection: CollectionConfig,
@@ -176,17 +216,25 @@ export function collectionTools(
   const name = label(collection);
   const tools: McpTool[] = [];
   const base = { collection: slug } as const;
+  const drafts = collection.versions?.drafts === true;
+  // Reads return the main row. A pending draft edit lives in the version
+  // history, so an agent needs telling that it won't see one.
+  const noDrafts = drafts ? " Unpublished draft edits aren't included." : "";
+  const findHint = collection.search
+    ? ` To find documents about a topic, use \`search_${slug}\` instead.`
+    : "";
 
   tools.push({
     ...base,
     operation: "list",
     name: `list_${slug}`,
-    description: `List ${name} documents, newest first.`,
+    description: `List ${name} documents, newest first.${noDrafts} Use it to browse or page through the collection.${findHint}`,
+    annotations: READ,
     inputSchema: {
       type: "object",
       properties: {
-        limit: { type: "number", description: "Maximum documents to return." },
-        offset: { type: "number", description: "Documents to skip." },
+        limit: LIMIT_ARG,
+        offset: { type: "integer", minimum: 0, description: "Documents to skip. Default 0." },
       },
       additionalProperties: false,
     },
@@ -196,7 +244,8 @@ export function collectionTools(
     ...base,
     operation: "get",
     name: `get_${slug}`,
-    description: `Fetch one ${name} document by id.`,
+    description: `Fetch one ${name} document by id.${noDrafts} Use it when you already have the id, for example from \`list_${slug}\`${collection.search ? ` or \`search_${slug}\`` : ""}.`,
+    annotations: READ,
     inputSchema: ID_ARG,
   });
 
@@ -204,7 +253,8 @@ export function collectionTools(
     ...base,
     operation: "count",
     name: `count_${slug}`,
-    description: `Count ${name} documents.`,
+    description: `Count ${name} documents. Use it to size the collection before paging through it with \`list_${slug}\`.`,
+    annotations: READ,
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   });
 
@@ -215,12 +265,13 @@ export function collectionTools(
       ...base,
       operation: "search",
       name: `search_${slug}`,
-      description: `Full-text search ${name} across: ${collection.search.fields.join(", ")}.`,
+      description: `Full-text search ${name} across: ${collection.search.fields.join(", ")}. Use it to find documents about a topic or containing given words; prefer it to \`list_${slug}\` whenever you're looking for something rather than browsing. Every word must match, and a word matches as a prefix.`,
+      annotations: READ,
       inputSchema: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Search terms." },
-          limit: { type: "number", description: "Maximum matches to return." },
+          query: { type: "string", minLength: 1, description: "Search terms." },
+          limit: LIMIT_ARG,
         },
         required: ["query"],
         additionalProperties: false,
@@ -235,20 +286,24 @@ export function collectionTools(
     ...base,
     operation: "create",
     name: `create_${slug}`,
-    description: `Create a ${name} document.`,
+    description: drafts
+      ? `Create a ${name} document, saved as a draft. Nothing goes live until someone publishes it. Use it to add a new document; to change one that exists, use \`update_${slug}_field\`.`
+      : `Create a ${name} document. This collection keeps no drafts, so the document is live as soon as it's created. Use it only to add a new document.`,
+    annotations: WRITE,
     inputSchema: fieldsSchema,
   });
 
   // Everything below edits an existing document, and every agent edit lands as a
   // draft—so these exist only where there is a version history to land in.
-  if (!collection.versions?.drafts) return tools;
+  if (!drafts) return tools;
 
   const editable = Object.keys(flattenFields(collection.fields));
   tools.push({
     ...base,
     operation: "update_field",
     name: `update_${slug}_field`,
-    description: `Set one field on a ${name} document, saved as a draft version.`,
+    description: `Set one field on a ${name} document, saved as a new draft version. The published document doesn't change until someone publishes the draft. Use it for a targeted edit to a document that exists.`,
+    annotations: WRITE,
     inputSchema: {
       type: "object",
       properties: {
@@ -269,7 +324,8 @@ export function collectionTools(
       ...base,
       operation: "add_section",
       name: `add_${slug}_section`,
-      description: `Append a section to a ${name} document, saved as a draft version.`,
+      description: `Append a section to a ${name} document, saved as a new draft version. The published document doesn't change until someone publishes the draft. Use it to add page content from the site's section catalog.`,
+      annotations: WRITE,
       inputSchema: {
         type: "object",
         properties: {
@@ -296,7 +352,8 @@ export function collectionTools(
     ...base,
     operation: "publish",
     name: `publish_${slug}`,
-    description: `Publish the current draft of a ${name} document, making it live.`,
+    description: `Publish the current draft of a ${name} document, making it live on the site. Call it only when the person has asked you to publish; otherwise leave your edits as drafts for them to review.`,
+    annotations: { ...WRITE, idempotentHint: true },
     inputSchema: ID_ARG,
   });
 

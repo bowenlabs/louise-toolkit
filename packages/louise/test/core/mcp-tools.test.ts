@@ -168,3 +168,48 @@ describe("contentTools", () => {
     expect(names(contentTools(config)).some((n) => n.endsWith("_logs"))).toBe(false);
   });
 });
+
+// An agent picks a tool from its description alone, so the descriptions are
+// behavior: each says when to use the tool, names the better tool where two
+// overlap, and says where a write lands (#234).
+describe("tool descriptions", () => {
+  const sections: SectionCatalog = { hero: { label: "Hero", fields: {} } };
+  const describe_ = (config: CollectionConfig) =>
+    Object.fromEntries(collectionTools(config, { sections }).map((t) => [t.name, t.description]));
+
+  it("says when to use each tool on a versioned, searchable collection", () => {
+    expect(describe_({ ...pages, admin: { label: "Pages" } })).toMatchInlineSnapshot(`
+      {
+        "add_pages_section": "Append a section to a Pages document, saved as a new draft version. The published document doesn't change until someone publishes the draft. Use it to add page content from the site's section catalog.",
+        "count_pages": "Count Pages documents. Use it to size the collection before paging through it with \`list_pages\`.",
+        "create_pages": "Create a Pages document, saved as a draft. Nothing goes live until someone publishes it. Use it to add a new document; to change one that exists, use \`update_pages_field\`.",
+        "get_pages": "Fetch one Pages document by id. Unpublished draft edits aren't included. Use it when you already have the id, for example from \`list_pages\` or \`search_pages\`.",
+        "list_pages": "List Pages documents, newest first. Unpublished draft edits aren't included. Use it to browse or page through the collection. To find documents about a topic, use \`search_pages\` instead.",
+        "publish_pages": "Publish the current draft of a Pages document, making it live on the site. Call it only when the person has asked you to publish; otherwise leave your edits as drafts for them to review.",
+        "search_pages": "Full-text search Pages across: title, body. Use it to find documents about a topic or containing given words; prefer it to \`list_pages\` whenever you're looking for something rather than browsing. Every word must match, and a word matches as a prefix.",
+        "update_pages_field": "Set one field on a Pages document, saved as a new draft version. The published document doesn't change until someone publishes the draft. Use it for a targeted edit to a document that exists.",
+      }
+    `);
+  });
+
+  it("says a create goes live at once where there are no drafts, and points nowhere it can't", () => {
+    const { search: _search, versions: _versions, ...plain } = pages;
+    expect(describe_(plain)).toMatchInlineSnapshot(`
+      {
+        "count_pages": "Count pages documents. Use it to size the collection before paging through it with \`list_pages\`.",
+        "create_pages": "Create a pages document. This collection keeps no drafts, so the document is live as soon as it's created. Use it only to add a new document.",
+        "get_pages": "Fetch one pages document by id. Use it when you already have the id, for example from \`list_pages\`.",
+        "list_pages": "List pages documents, newest first. Use it to browse or page through the collection.",
+      }
+    `);
+  });
+
+  it("marks reads read-only and writes non-destructive", () => {
+    const tools = collectionTools(pages, { sections });
+    for (const tool of tools) {
+      const read = ["list", "get", "count", "search"].includes(tool.operation);
+      expect(tool.annotations.readOnlyHint).toBe(read);
+      if (!read) expect(tool.annotations.destructiveHint).toBe(false);
+    }
+  });
+});

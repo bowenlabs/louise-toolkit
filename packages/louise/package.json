@@ -231,6 +231,7 @@
     "@better-auth/passkey": "^1.7.2",
     "@cloudflare/puppeteer": "^1.4.0",
     "@cloudflare/workers-types": "^5.20260829.1",
+    "@modelcontextprotocol/client": "^2.1.0",
     "@phosphor-icons/core": "^2.1.1",
     "@prosekit/pm": "^0.1.19",
     "@resvg/resvg-wasm": "^2.6.2",

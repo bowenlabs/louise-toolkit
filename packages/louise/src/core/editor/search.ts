@@ -68,9 +68,9 @@ export interface SearchRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> 
  * Turn free user input into a safe FTS5 MATCH expression: split on whitespace,
  * quote each term (escaping embedded quotes) and prefix-match it, joined by
  * space (implicit AND). Quoting neutralizes FTS5 operator characters, so odd
- * input can't become a query-syntax error.
+ * input can't become a query-syntax error. The MCP search tool uses it too.
  */
-function toFtsQuery(input: string): string {
+export function toFtsQuery(input: string): string {
   return input
     .split(/\s+/)
     .filter(Boolean)
