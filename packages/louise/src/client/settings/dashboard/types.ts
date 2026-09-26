@@ -41,5 +41,11 @@ export interface DashboardCard {
 export interface OverviewData {
   content?: { drafts: number; unpublished: number; lastEditedAt?: string };
   inbox?: { unread: number };
-  health?: { brokenLinks: number; missingAlt: number; seoGaps: number; checkedAt?: string };
+  health?: {
+    brokenLinks: number;
+    missingAlt: number;
+    seoGaps: number;
+    checkedAt?: string;
+    pendingMigrations?: string[];
+  };
 }

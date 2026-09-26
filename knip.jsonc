@@ -7,6 +7,11 @@
   // not dead code. Only flag exports that are used *nowhere*.
   "ignoreExportsUsedInFile": true,
 
+  // `louise migrations-check` shells out to the site's own `wrangler`, the one
+  // that deploys it. The library doesn't depend on wrangler and shouldn't, so
+  // the binary is never listed in its package.json.
+  "ignoreBinaries": ["wrangler"],
+
   "workspaces": {
     ".": {
       // The CI shell scripts (scripts/ci/*.sh) are invoked from

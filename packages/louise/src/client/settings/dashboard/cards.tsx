@@ -99,7 +99,7 @@ function HealthCard(props: { api: DashboardApi }) {
     if (q.isLoading) return { level: "loading" };
     const h = slice();
     if (!h) return { level: "absent" };
-    const n = h.brokenLinks + h.missingAlt + h.seoGaps;
+    const n = h.brokenLinks + h.missingAlt + h.seoGaps + (h.pendingMigrations?.length ?? 0);
     return n > 0
       ? { level: "attention", count: n, label: `${plural(n, "issue")} to fix` }
       : { level: "ok" };
@@ -108,6 +108,8 @@ function HealthCard(props: { api: DashboardApi }) {
 
   const message = (h: NonNullable<OverviewData["health"]>) => {
     const parts: string[] = [];
+    const updates = h.pendingMigrations?.length ?? 0;
+    if (updates) parts.push(`${updates} database ${plural(updates, "update")} not applied`);
     if (h.brokenLinks) parts.push(`${h.brokenLinks} broken ${plural(h.brokenLinks, "link")}`);
     if (h.missingAlt)
       parts.push(`${h.missingAlt} ${plural(h.missingAlt, "image")} missing a description`);

@@ -17,6 +17,7 @@ import {
   summarizeHealth,
   writeHealthSummary,
 } from "louise-toolkit/health";
+import { pendingMigrations, withLiveMigrations } from "./migrations.js";
 import { count } from "./overview.js";
 
 const SITE_ORIGIN = "https://louisetoolkit.com";
@@ -66,19 +67,22 @@ const SEO_GAPS_SQL = `SELECT COUNT(*) AS n FROM pages
  * Returns the summary (handy for logging).
  */
 export async function runHealthScan(env: CloudflareEnv): Promise<HealthSummary> {
-  const [brokenLinks, missingAlt, seoGaps, cwv] = await Promise.all([
+  const [brokenLinks, missingAlt, seoGaps, cwv, pending] = await Promise.all([
     checkLinks({ base: SITE_ORIGIN, paths: ["/"] }),
     count(env.DB, MISSING_ALT_SQL),
     count(env.DB, SEO_GAPS_SQL),
     queryCwv(),
+    pendingMigrations(env),
   ]);
-  const summary = summarizeHealth({ brokenLinks, missingAlt, seoGaps });
+  const summary = summarizeHealth({ brokenLinks, missingAlt, seoGaps, pendingMigrations: pending });
   if (cwv) summary.cwv = cwv;
   await writeHealthSummary(env.RL, summary);
   return summary;
 }
 
-/** Read the persisted summary for the Health detail panel (#106 Phase 2). */
-export function readSiteHealth(env: CloudflareEnv): Promise<HealthSummary | null> {
-  return readHealthSummary(env.RL);
+/** Read the persisted summary for the Health detail panel (#106 Phase 2), with
+ *  pending migrations checked live. */
+export async function readSiteHealth(env: CloudflareEnv): Promise<HealthSummary | null> {
+  const summary = await readHealthSummary(env.RL);
+  return summary && withLiveMigrations(summary, env);
 }

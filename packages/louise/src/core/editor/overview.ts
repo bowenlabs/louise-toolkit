@@ -37,6 +37,8 @@ export interface OverviewHealth {
   seoGaps: number;
   /** ISO timestamp of the last health check, if available. */
   checkedAt?: string;
+  /** Schema migrations the database hasn't applied yet, if the site checks. */
+  pendingMigrations?: string[];
 }
 
 /** The overview payload—every slice optional so a card degrades to "absent"

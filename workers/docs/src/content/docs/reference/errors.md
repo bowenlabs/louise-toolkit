@@ -60,6 +60,12 @@ Two content subclasses carry extra structure so a routing layer can map them by
   `violations: ValidationViolation[]` (each `{ path, message, severity }`). Only
   `"error"`-severity violations are ever thrown; warnings are returned.
 
+One db subclass names what's wrong:
+
+- **`LouisePendingMigrationsError`** (extends `LouiseDbError`)—the database
+  hasn't applied migrations the running code needs. `files` lists them, in apply
+  order. Thrown by `assertMigrationsApplied` ([`/db`](/reference/db/)).
+
 And for HTTP clients:
 
 - **`LouiseApiError`**—carries `status: number` and the parsed `body`, so
