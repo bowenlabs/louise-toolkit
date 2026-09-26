@@ -66,10 +66,12 @@ const listeners = new Set<DegradedListener>();
  * reporter that threw would turn a graceful degrade into the crash it was
  * written to avoid.
  *
+ * Import it from the `errors` subpath. (The example leaves the import out:
+ * this comment ships inside the lightweight Turnstile entry, whose emitted
+ * code the export-map check scans for package imports.)
+ *
  * @example
  * ```ts
- * import { reportDegraded } from "louise-toolkit/errors";
- *
  * let products;
  * try {
  *   products = await listProducts(env);
