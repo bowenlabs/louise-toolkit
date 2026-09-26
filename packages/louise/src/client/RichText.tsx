@@ -263,7 +263,9 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
           defineKeymap({ Enter: () => true, "Shift-Enter": () => true, "Mod-Enter": () => true }),
           definePlugin(
             new Plugin({
-              props: { transformPasted: (slice, view) => flattenToInline(slice, view.state.schema) },
+              props: {
+                transformPasted: (slice, view) => flattenToInline(slice, view.state.schema),
+              },
             }),
           ),
         ]
