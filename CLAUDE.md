@@ -49,8 +49,9 @@ the bug that only bites someone installing the package. Three such symbols were
 found this way while extracting the Astro adapter.
 
 The full set, mirroring `.github/workflows/ci.yml` job by job, plus the secret
-scan from `secrets.yml`. When a workflow gains a step, this list gains it too; a
-step missing here is one nobody runs before pushing.
+scan from `secrets.yml` and the model check from `ai-models.yml`. When a
+workflow gains a step, this list gains it too; a step missing here is one nobody
+runs before pushing.
 
 ```sh
 # Lint & dead code
@@ -69,6 +70,9 @@ corepack pnpm audit --prod
 
 # Secrets (its own workflow, secrets.yml)
 gitleaks git --redact .                           # every commit; `brew install gitleaks`
+
+# AI model catalog (its own workflow, ai-models.yml), when you touch core/ai
+node scripts/ci/checks/ai-model-catalog.mjs       # needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
 
 # Type-check & unit tests
 corepack pnpm -C packages/louise run typecheck

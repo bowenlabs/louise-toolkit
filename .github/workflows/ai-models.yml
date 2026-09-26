@@ -1,0 +1,41 @@
+name: AI model catalog
+
+# Fails when a default Workers AI model the toolkit names is gone from the
+# catalog or has a retirement date (#552). Weekly, because a retirement is
+# announced weeks ahead, and on a pull request that touches `core/ai`, so a new
+# default is checked before it merges.
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - packages/louise/src/core/ai/**
+      - scripts/ci/checks/ai-model-catalog.mjs
+      - .github/workflows/ai-models.yml
+
+concurrency:
+  group: ai-models-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  catalog:
+    name: Default models are in the catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Only Node's built-ins, so no install: setup-node alone, on the
+      # repository's Node version.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The token needs only Workers AI Read. A pull request from a fork gets
+      # no secrets, and the script skips with a warning there.
+      - run: node scripts/ci/checks/ai-model-catalog.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AI_CATALOG_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
