@@ -3,7 +3,7 @@
 // louise-toolkit/editor—the AI assists route (#75). Exposes the server-side
 // Workers AI helpers (louise-toolkit/ai) over HTTP so the editor client can call
 // them—the AI binding is server-only, so rewrite/SEO must round-trip:
-//   POST /api/louise/ai/rewrite   { text, mode? }  → { text }
+//   POST /api/louise/ai/rewrite   { text, mode? }  → { text }, or 413 past REWRITE_MAX_CHARS
 //   POST /api/louise/ai/seo       { content }       → { title, description }
 //
 // Opt-in + degrade-gracefully: the `ai` accessor returns the runner (`env.AI`),
@@ -15,6 +15,7 @@ import {
   type AiGatewayOptions,
   type AiRunner,
   aiUnavailableReason,
+  REWRITE_MAX_CHARS,
   type RewriteMode,
   rewriteText,
   suggestSeo,
@@ -23,10 +24,23 @@ import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
 
+// The cap on `text` is sized from the rewrite's output cap (see REWRITE_MAX_CHARS):
+// a longer selection spends tokens on an answer that comes back cut off.
 const REWRITE_BODY = s.object({
-  text: s.string({ min: 1 }),
+  text: s.string({ min: 1, max: REWRITE_MAX_CHARS }),
   mode: s.optional(s.enumOf("tighten", "rephrase", "simplify", "fix")),
 });
+
+/** The `413` message for a selection past the cap. The toolbar shows it as is. */
+const REWRITE_TOO_LONG = `Select a shorter passage. Rewrite works on up to ${REWRITE_MAX_CHARS.toLocaleString("en-US")} characters at a time.`;
+
+/** Whether the body's `text` is past the cap, so a failed validation gets a `413`
+ *  the editor can act on rather than a bare `400`. */
+function rewriteTooLong(body: unknown): boolean {
+  const text = (body as { text?: unknown } | null)?.text;
+  return typeof text === "string" && text.length > REWRITE_MAX_CHARS;
+}
+
 const SEO_BODY = s.object({ content: s.string({ min: 1 }) });
 
 export interface AiRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
@@ -78,13 +92,17 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 
     if (action === "rewrite") {
       const parsed = await standardValidate(REWRITE_BODY, body);
-      if (!parsed.ok) return json({ error: "Invalid body" }, 400);
+      if (!parsed.ok) {
+        if (rewriteTooLong(body)) return json({ error: REWRITE_TOO_LONG }, 413);
+        return json({ error: "Invalid body" }, 400);
+      }
       const text = await rewriteText(runner, parsed.value.text, {
         mode: parsed.value.mode as RewriteMode | undefined,
         gateway,
       });
-      // Best-effort helper returns null when the model errored / gave nothing;
-      // 502 so the client can leave the original text untouched.
+      // Best-effort helper returns null when the model errored, gave nothing, or
+      // was cut off at the output cap; 502 so the client can leave the original
+      // text untouched.
       if (text === null) return json({ error: "Rewrite unavailable" }, 502);
       return json({ text });
     }

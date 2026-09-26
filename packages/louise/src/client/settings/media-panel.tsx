@@ -96,7 +96,7 @@ export function MediaPanel() {
           .join(", ");
         const ok = confirm(
           `This file is still used by ${used.length} item${used.length === 1 ? "" : "s"}` +
-            (list ? ` — ${list}` : "") +
+            (list ? ` (${list})` : "") +
             ". Deleting it will show a broken image there. Delete anyway?",
         );
         if (!ok) return { canceled: true };

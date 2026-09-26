@@ -113,3 +113,9 @@ The strings check (decision 5) now ships in the house package, as `vale/package/
 - Error messages count from `new Astroid…Error(…)` as well as `new Louise…Error(…)`.
 
 This repository's ratchet calls the runner's `lintStrings` with the same sources as before, so its baseline is unchanged. It shipped in house package `vale-v1.3.0`.
+
+## Amendment (2026-09-26, strings the check missed)
+
+The strings check (decision 5) missed most of the status and error lines an editor panel shows, because a panel rarely puts them where the extractor looked. It sets them through a signal, `setError("…")` or `setMessage("…")`, asks with `confirm("…")`, writes `.textContent = "…"` from a script, or picks one of two strings inside a JSX expression. At least 15 of them had a spaced dash.
+
+The extractor now reads those forms too: the first argument to `setError(…)`, `setMessage(…)`, and `confirm(…)`, the value of a `.textContent = …` assignment, and a string inside a JSX expression. Wherever it reads a value, each string branch of a conditional and the string side of `&&`, `||`, or `??` counts. `scripts/ci/checks/copy-extract.test.mjs` covers each form, and `lint:docs` runs it first. The change ships in the next house package release.

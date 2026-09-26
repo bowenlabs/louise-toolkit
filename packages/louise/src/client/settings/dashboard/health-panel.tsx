@@ -11,7 +11,7 @@
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";
 import type { CwvSummary } from "../../../core/analytics/index.js";
-import type { HealthSummary } from "../../../core/health/index.js";
+import { HEALTH_STALE_AFTER_MS, type HealthSummary, isStale } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
 import { apiGet, louiseQueryKeys } from "../query.js";
 import type { DashboardApi } from "./types.js";
@@ -88,6 +88,10 @@ export function HealthPanel(props: {
   fixAltEndpoint?: string;
   /** Endpoint for the one-click SEO backfill. Default `/api/louise/pages/generate-seo`. */
   fixSeoEndpoint?: string;
+  /** How old the last check can get, in milliseconds, before the panel marks it
+   *  out of date. Default {@link HEALTH_STALE_AFTER_MS} (36 hours), which suits a
+   *  daily scan; raise it for a scan that runs less often. */
+  staleAfterMs?: number;
 }) {
   const qc = useQueryClient();
   const query = useQuery(() => ({
@@ -123,9 +127,10 @@ export function HealthPanel(props: {
         >
           {(s) => (
             <>
-              <p class="louise-muted louise-settings-hint">
-                Last checked {timeAgo(s().checkedAt) || "recently"}.
-              </p>
+              <LastChecked
+                checkedAt={s().checkedAt}
+                staleAfterMs={props.staleAfterMs ?? HEALTH_STALE_AFTER_MS}
+              />
 
               {/* Pending schema migrations: the one problem an owner can't fix,
                   so it says who can, and names the files for them. Only shown
@@ -186,7 +191,7 @@ export function HealthPanel(props: {
                 fixer={altFix}
                 reviewLabel="Review in Media"
                 onReview={() => props.navigate({ panel: "media" })}
-                unavailableNote="AI descriptions aren’t set up for this site — add them by hand in Media."
+                unavailableNote="AI descriptions aren’t set up for this site. Add them by hand in Media."
               />
 
               <AiFixSection
@@ -197,7 +202,7 @@ export function HealthPanel(props: {
                 fixer={seoFix}
                 reviewLabel="Review in Pages"
                 onReview={() => props.navigate({ panel: "pages" })}
-                unavailableNote="AI SEO isn’t set up for this site — add titles/descriptions by hand in Pages."
+                unavailableNote="AI SEO isn’t set up for this site. Add titles/descriptions by hand in Pages."
               />
 
               <PerformanceSection cwv={s().cwv} />
@@ -206,6 +211,26 @@ export function HealthPanel(props: {
         </Show>
       </Show>
     </div>
+  );
+}
+
+/** When the last scan ran. Past the threshold it turns amber and says in words
+ *  that it's out of date, so the warning doesn't rest on color alone (WCAG 1.4.1). */
+function LastChecked(props: { checkedAt: string; staleAfterMs: number }) {
+  const ago = () => timeAgo(props.checkedAt);
+  return (
+    <Show
+      when={isStale(props.checkedAt, props.staleAfterMs)}
+      fallback={
+        <p class="louise-muted louise-settings-hint">Last checked {ago() || "recently"}.</p>
+      }
+    >
+      <p class="louise-settings-hint louise-health-stale" data-state="stale">
+        <strong>Out of date:</strong>{" "}
+        {ago() ? `last checked ${ago()}.` : "there’s no record of when the last check ran."} The
+        scheduled check might have stopped running. Ask your developer to look into it.
+      </p>
+    </Show>
   );
 }
 

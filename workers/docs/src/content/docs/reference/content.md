@@ -21,25 +21,44 @@ validated **Local API**. Peer dependency: `drizzle-orm`.
 
 ## Defining collections
 
+<!-- Region "define-collection" of packages/louise/test/core/content-reference-examples.test.ts, which type-checks and runs it. Edit it there, then paste it here. -->
+
 ```ts
+import type { EditorSession } from "louise-toolkit/auth";
 import { defineCollection, defineContentConfig } from "louise-toolkit/content";
 
-const artworks = defineCollection({
+export interface Context {
+  session: EditorSession | null;
+}
+
+export const artworks = defineCollection({
   slug: "artworks",
   fields: {
-    title: { type: "text", validation: (r) => r.required().min(2) },
-    slug: { type: "text", validation: (r) => r.slug().unique() },
+    title: { type: "text", required: true, validation: (r) => r.required().min(2) },
+    slug: { type: "text", required: true, validation: (r) => r.slug().unique() },
     year: { type: "number", validation: (r) => r.integer().positive() },
-    body: { type: "richtext" },
+    body: { type: "richText" },
   },
+  // The Local API passes its `context` argument to these. No function means allowed.
+  access: {
+    create: ({ session }: Context) => session !== null,
+    update: ({ session }: Context) => session !== null,
+    publish: ({ session }: Context) => session?.role === "owner",
+  },
+  // Adds draft history, for createVersionedLocalApi.
+  versions: { drafts: true },
 });
 
-export const content = defineContentConfig({ collections: { artworks } });
+export const content = defineContentConfig({ collections: [artworks] });
 ```
 
 `defineCollection` / `defineContentConfig` are identity helpers (Sanity's
 `defineType` analogue)—they return the config unchanged but give you
 autocomplete and a single greppable call site.
+
+`Context` is your own type. Louise never reads it: it passes whatever each
+[Local API](#the-local-api) call receives straight to the collection's `access`
+functions.
 
 ## Codegen—schema from config
 
@@ -58,22 +77,67 @@ Related builders: `collectionToTable`, `collectionVersionsTable`,
 
 ## The Local API
 
-```ts
-import { createLocalApi, createVersionedLocalApi } from "louise-toolkit/content";
+<!-- Region "local-api" of packages/louise/test/core/content-reference-examples.test.ts, which type-checks and runs it. Edit it there, then paste it here. -->
 
-const api = createLocalApi(collectionConfig, table, { registry });
-await api.create(doc, context); // runs access + validation, then inserts
-await api.find(query, context);
-await api.update(id, patch, context);
+```ts
+import { gte } from "drizzle-orm";
+import { createLocalApi, createVersionedLocalApi } from "louise-toolkit/content";
+import { db } from "louise-toolkit/db";
+import { artworks, type Context } from "./content.config";
+import * as schema from "./schema"; // your Drizzle tables: artworks, artworksVersions
+
+const orm = db(env.DB);
+const context: Context = { session };
+
+// Every method takes the context first, then its own arguments.
+const api = createLocalApi<typeof schema.artworks, Context>(orm, schema.artworks, artworks);
+const artwork = await api.create(context, { title: "Untitled", slug: "untitled", year: 2026 });
+const recent = await api.find(context, { where: gte(schema.artworks.year, 2020), limit: 10 });
+await api.update(context, artwork.id, { title: "Still life" });
+
+// The same methods, plus drafts, for a collection with `versions: { drafts: true }`.
+// A draft holds the whole document, and publishing validates all of it.
+const versioned = createVersionedLocalApi<
+  typeof schema.artworks,
+  typeof schema.artworksVersions,
+  Context
+>(orm, schema.artworks, schema.artworksVersions, artworks);
+const snapshot = { title: "Still life, revised", slug: "still-life", year: 2026 };
+const draft = await versioned.saveDraft(context, artwork.id, snapshot);
+const live = await versioned.publish(context, draft.id);
 ```
 
-Every method takes a `context` and runs the matching **access** function
-(`read` for `find`/`findByID`, `create` for `create`, …) before touching the
-database, and validates writes with the collection's
+Here `env.DB` is your D1 binding and `session` is the signed-in editor's
+session, or `null`. The signatures:
+
+```ts
+createLocalApi(db, table, config, registry?, options?);
+createVersionedLocalApi(db, table, versionsTable, config, registry?, options?);
+```
+
+- `table` is the collection's Drizzle table, and `versionsTable` is its
+  companion from `collectionVersionsTable(config)`.
+- `registry` is a `ContentRegistry`. `find` and `findByID` need one to resolve
+  relationship fields with `depth: 1`.
+- `options.deferReindex` moves full-text index updates off the write path.
+- The type parameters are the table types and your context type. Without them,
+  `context` is `unknown` and accepts anything.
+
+Every method takes the `context` first and runs the matching **access** function
+(`read` for `find`/`findByID`/`count`/`search`, `create` for `create`, …)
+before touching the database, and validates writes with the collection's
 [rules](#validation)—throwing `LouiseAccessDeniedError` (→ 403) or
 `LouiseValidationError` (→ 422) so a routing layer can branch by `instanceof`.
+
 `createVersionedLocalApi` adds draft/version history for collections that opt in
-with `versions`. `can(...)` evaluates access without performing the operation.
+with `versions`: `saveDraft`, `scheduleDraft`, `prepareDraft`, `publish`,
+`publishScheduled`, `unpublish`, `findVersions`, `diffVersions`, and
+`discardVersion`. A draft stores its input as the whole snapshot rather than
+merging it into the live row, so pass every required field. The draft methods
+check the `update` access function. `publish`, `publishScheduled`, and
+`unpublish` check `publish`, and `findVersions` and `diffVersions` check `read`.
+`can(config, operation, context)` evaluates access without performing the
+operation.
 
 ### Page and version IDs
 

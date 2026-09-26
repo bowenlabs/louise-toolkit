@@ -68,12 +68,23 @@ const required = {
     "applyFieldSave",
     "applySaveDraft",
     "applySettingsPatch",
+    // The public status route and its check builders (#557), which Astroid's
+    // generated worker mounts.
+    "statusRoute",
+    "d1Check",
+    "ageCheck",
   ],
   "./auth": ["EditorSession"],
   "./forms": ["FormConfig", "FormField"],
   "./forms/turnstile": ["renderTurnstile", "turnstileCsp", "verifyTurnstileToken"],
   "./db": ["D1_BOOKMARK_COOKIE"],
-  "./worker": ["LOUISE_EDIT_COOKIE", "louiseApiGate", "isLouisePublicPath", "LOUISE_API_PREFIX"],
+  "./worker": [
+    "LOUISE_EDIT_COOKIE",
+    "louiseApiGate",
+    "isLouisePublicPath",
+    "LOUISE_API_PREFIX",
+    "LOUISE_STATUS_PATH",
+  ],
   "./security": ["sanitizeRichHtml"],
   // Louise's knowledge search fuses its own FTS5 and Vectorize results with
   // these. They used to live in editor/search.ts, where no consumer could reach

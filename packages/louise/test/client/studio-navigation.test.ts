@@ -65,12 +65,12 @@ describe("activeNavItem / screenTitle", () => {
   });
 
   it("words a title with the suffix, and falls back when nothing matches", () => {
-    expect(screenTitle(NAV, "/products", { suffix: "Acme Studio" })).toBe("Shop — Acme Studio");
+    expect(screenTitle(NAV, "/products", { suffix: "Acme Studio" })).toBe("Shop | Acme Studio");
     expect(screenTitle(NAV, "/products")).toBe("Shop");
     expect(screenTitle(NAV, "/nope", { suffix: "Acme Studio" })).toBe("Acme Studio");
     expect(screenTitle(NAV, "/nope")).toBe("Studio");
     expect(screenTitle(NAV, "/nope", { fallback: "Admin" })).toBe("Admin");
-    expect(screenTitle(NAV, "/", { suffix: "S", separator: " | " })).toBe("Overview | S");
+    expect(screenTitle(NAV, "/", { suffix: "S", separator: " · " })).toBe("Overview · S");
   });
 });
 

@@ -58,7 +58,7 @@ export function UsersPanel(props: UsersPanelProps) {
       invalidate();
     },
     // apiSend throws on non-2xx; surface a friendly message.
-    onError: () => setError("Couldn't add that editor — check the email isn't already listed."),
+    onError: () => setError("Couldn't add that editor. Check that the email isn't already listed."),
   }));
 
   const remove = useMutation(() => ({

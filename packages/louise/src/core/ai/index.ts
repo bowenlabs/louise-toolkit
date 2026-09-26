@@ -125,6 +125,120 @@ export async function runAi(
   }
 }
 
+/** Token counts a model reported for one call. A count the model didn't report
+ *  is `null`. */
+export interface AiUsage {
+  /** Tokens in the prompt. */
+  promptTokens: number | null;
+  /** Tokens the model generated. */
+  completionTokens: number | null;
+  /** Prompt and completion together. */
+  totalTokens: number | null;
+}
+
+/** A text generation's answer, and how it ended. */
+export interface AiTextResult {
+  /** The model's raw output, for a caller that reads more than the text, such as
+   *  a JSON-mode object. */
+  output: unknown;
+  /** The generated text, or `null` when the output carries none. */
+  text: string | null;
+  /**
+   * Whether the output token cap cut the answer off. `true` when the model
+   * reports a finish reason of `length` or `max_tokens`, or when it generated at
+   * least the `max_tokens` requested. Workers AI doesn't always report a finish
+   * reason, so the token count is the check that always runs.
+   */
+  truncated: boolean;
+  /** The finish reason as the model reported it, or `null` when it reported none. */
+  finishReason: string | null;
+  /** Token counts, or `null` when the model reported none. */
+  usage: AiUsage | null;
+}
+
+/** Finish reasons that mean the output cap ended the answer, matched
+ *  case-insensitively: `length` in the OpenAI shape, `max_tokens` in others. */
+const TRUNCATED_FINISH_REASONS = new Set(["length", "max_tokens"]);
+
+/**
+ * Run a text-generating model best-effort, and report whether the output cap
+ * cut its answer off.
+ *
+ * The same contract as {@link runAi}: `null` when `runner` is absent or the call
+ * throws, and it never throws. Otherwise it returns the text along with
+ * `truncated`, read from `inputs.max_tokens` and what the model reported. A
+ * truncated answer is logged with the model ID, so it shows in `wrangler tail`.
+ *
+ * Check `truncated` before you store or show the text. A cut-off answer reads as
+ * complete until someone notices that it stops mid-sentence.
+ */
+export async function runAiText(
+  runner: AiRunner | undefined,
+  model: string,
+  inputs: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<AiTextResult | null> {
+  const output = await runAi(runner, model, inputs, options);
+  if (output === null) return null;
+  const finishReason = readFinishReason(output);
+  const usage = readUsage(output);
+  const maxTokens = typeof inputs.max_tokens === "number" ? inputs.max_tokens : null;
+  const hitCap =
+    maxTokens !== null && usage?.completionTokens != null && usage.completionTokens >= maxTokens;
+  const truncated =
+    (finishReason !== null && TRUNCATED_FINISH_REASONS.has(finishReason.toLowerCase())) || hitCap;
+  if (truncated) {
+    console.warn(`[louise-toolkit/ai] answer truncated at the output cap (${model})`, {
+      finishReason,
+      completionTokens: usage?.completionTokens ?? null,
+      maxTokens,
+    });
+  }
+  return { output, text: extractText(output), truncated, finishReason, usage };
+}
+
+/** The first `choices` entry of an OpenAI-shaped output, if there is one. */
+function firstChoice(out: unknown): Record<string, unknown> | null {
+  if (!out || typeof out !== "object") return null;
+  const choices = (out as Record<string, unknown>).choices;
+  if (!Array.isArray(choices)) return null;
+  const first: unknown = choices[0];
+  return first && typeof first === "object" ? (first as Record<string, unknown>) : null;
+}
+
+/** Read a finish reason from the shapes models report one in: `finish_reason`
+ *  or `stop_reason` at the top level, or on the first of `choices`. */
+function readFinishReason(out: unknown): string | null {
+  if (!out || typeof out !== "object") return null;
+  for (const source of [out as Record<string, unknown>, firstChoice(out)]) {
+    if (!source) continue;
+    const reason = source.finish_reason ?? source.stop_reason ?? source.finishReason;
+    if (typeof reason === "string" && reason.length > 0) return reason;
+  }
+  return null;
+}
+
+/** Read token counts from `usage`, in the `prompt_tokens`/`completion_tokens`
+ *  shape Workers AI uses or the `input_tokens`/`output_tokens` shape. */
+function readUsage(out: unknown): AiUsage | null {
+  if (!out || typeof out !== "object") return null;
+  const usage = (out as Record<string, unknown>).usage;
+  if (!usage || typeof usage !== "object") return null;
+  const u = usage as Record<string, unknown>;
+  const count = (...values: unknown[]): number | null => {
+    for (const v of values) if (typeof v === "number" && Number.isFinite(v)) return v;
+    return null;
+  };
+  const result: AiUsage = {
+    promptTokens: count(u.prompt_tokens, u.input_tokens),
+    completionTokens: count(u.completion_tokens, u.output_tokens),
+    totalTokens: count(u.total_tokens),
+  };
+  const reported =
+    result.promptTokens !== null || result.completionTokens !== null || result.totalTokens !== null;
+  return reported ? result : null;
+}
+
 /**
  * Route a Workers AI call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
  * (#87). Passed to `run` as `options.gateway`, so a gateway `id` puts response
@@ -179,17 +293,19 @@ export interface AltTextOptions {
 
 /**
  * Generate concise alt text for an image via Workers AI. Best-effort: returns
- * `null` when the runner is absent, the model errors, or it yields no text—the
- * caller keeps its empty-alt fallback, which an editor can fill in by hand. The
- * result is tidied: whitespace-collapsed, common "an image of…" lead-ins
- * stripped, sentence-cased, and length-capped ({@link MAX_ALT_TEXT_LENGTH}).
+ * `null` when the runner is absent, the model errors, it yields no text, or the
+ * output cap cut its answer off—the caller keeps its empty-alt fallback, which an
+ * editor can fill in by hand. A cut-off caption is refused rather than stored,
+ * because tidying makes half a sentence look finished. The result is tidied:
+ * whitespace-collapsed, common "an image of…" lead-ins stripped, sentence-cased,
+ * and length-capped ({@link MAX_ALT_TEXT_LENGTH}).
  */
 export async function generateAltText(
   runner: AiRunner | undefined,
   image: ArrayBuffer | Uint8Array | number[],
   opts: AltTextOptions = {},
 ): Promise<string | null> {
-  const out = await runAi(
+  const out = await runAiText(
     runner,
     opts.model ?? DEFAULT_ALT_TEXT_MODEL,
     {
@@ -200,8 +316,8 @@ export async function generateAltText(
     },
     gatewayRun(opts.gateway),
   );
-  const text = extractText(out);
-  return text ? tidyAltText(text) : null;
+  if (!out?.text || out.truncated) return null;
+  return tidyAltText(out.text);
 }
 
 /** Normalize image input to a byte view without copying when already a `Uint8Array`. */
@@ -212,14 +328,19 @@ function toBytes(image: ArrayBuffer | Uint8Array | number[]): Uint8Array {
 }
 
 /** Pull the generated text out of a Workers AI response. Vision models return
- *  `{ description }`, text-generation models `{ response }`; tolerate a couple of
- *  shapes (and a bare string) so a model swap doesn't need code changes. */
+ *  `{ description }`, text-generation models `{ response }`, and OpenAI-shaped
+ *  models `{ choices: [{ message: { content } }] }`; tolerate a few shapes (and a
+ *  bare string) so a model swap doesn't need code changes. */
 function extractText(out: unknown): string | null {
   if (typeof out === "string") return out;
   if (!out || typeof out !== "object") return null;
   const o = out as Record<string, unknown>;
   const candidate = o.description ?? o.response ?? o.text ?? o.result;
-  return typeof candidate === "string" ? candidate : null;
+  if (typeof candidate === "string") return candidate;
+  const choice = firstChoice(out);
+  const message = choice?.message as Record<string, unknown> | undefined;
+  const content = message?.content ?? choice?.text;
+  return typeof content === "string" ? content : null;
 }
 
 /** Tidy a raw model caption into usable alt text. */
@@ -259,12 +380,29 @@ const REWRITE_INSTRUCTIONS: Record<RewriteMode, string> = {
   fix: "Correct spelling, grammar, and punctuation in the user's text without otherwise changing its meaning, tone, or wording.",
 };
 
+/** The default output token cap for {@link rewriteText}. */
+export const REWRITE_MAX_TOKENS = 512;
+
+/**
+ * The longest passage, in characters, that {@link REWRITE_MAX_TOKENS} leaves
+ * room to rewrite: 1,536, a few paragraphs. The editor's rewrite route refuses a
+ * longer selection with a `413`.
+ *
+ * Sized from the output cap, because a rewrite runs about as long as its input.
+ * English averages about four characters per token, so budgeting three per token
+ * keeps a typical passage near three-quarters of the cap, and leaves headroom for
+ * a rewrite that comes back longer than it went in. A passage past the cap spends
+ * tokens on an answer that comes back cut off, and {@link rewriteText} refuses a
+ * cut-off answer.
+ */
+export const REWRITE_MAX_CHARS = REWRITE_MAX_TOKENS * 3;
+
 export interface RewriteOptions {
   /** How to transform the text. Default `"tighten"`. */
   mode?: RewriteMode;
   /** Instruct model id. Default {@link DEFAULT_TEXT_MODEL}. */
   model?: string;
-  /** Output token cap. Default 512. */
+  /** Output token cap. Default {@link REWRITE_MAX_TOKENS}. */
   maxTokens?: number;
   /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
@@ -272,10 +410,14 @@ export interface RewriteOptions {
 
 /**
  * Rewrite a passage of text (tighten / rephrase / simplify / fix) via Workers AI.
- * Best-effort: returns `null` when the runner is absent, the input is blank, or
- * the model errors / returns nothing—the caller keeps the original text. The
- * result is stripped of any wrapping quotes or "Here is the rewrite:" preamble
- * the model may add.
+ * Best-effort: returns `null` when the runner is absent, the input is blank, the
+ * model errors or returns nothing, or the output cap cut its answer off—the
+ * caller keeps the original text. A cut-off rewrite is refused, because swapping
+ * it in would replace the whole passage with a fragment. The result is stripped
+ * of any wrapping quotes or "Here is the rewrite:" preamble the model may add.
+ *
+ * Keep `text` within {@link REWRITE_MAX_CHARS} for the default cap; a longer
+ * passage is likely to come back cut off, and so as `null`.
  */
 export async function rewriteText(
   runner: AiRunner | undefined,
@@ -285,7 +427,7 @@ export async function rewriteText(
   const input = text.trim();
   if (!input) return null;
   const instruction = REWRITE_INSTRUCTIONS[opts.mode ?? "tighten"];
-  const out = await runAi(
+  const out = await runAiText(
     runner,
     opts.model ?? DEFAULT_TEXT_MODEL,
     {
@@ -296,12 +438,12 @@ export async function rewriteText(
         },
         { role: "user", content: input },
       ],
-      max_tokens: opts.maxTokens ?? 512,
+      max_tokens: opts.maxTokens ?? REWRITE_MAX_TOKENS,
     },
     gatewayRun(opts.gateway),
   );
-  const result = extractText(out);
-  return result ? unwrapModelText(result) || null : null;
+  if (!out?.text || out.truncated) return null;
+  return unwrapModelText(out.text) || null;
 }
 
 /** A suggested SEO title + meta description. Either field may be `null` when the
@@ -326,9 +468,10 @@ export const SEO_DESCRIPTION_MAX = 155;
 
 /**
  * Suggest an SEO title + meta description from page content via Workers AI.
- * Best-effort: `null` when the runner is absent, the content is blank, or the
- * reply can't be parsed as the expected JSON. Fields are length-capped, and a
- * missing/empty field becomes `null` (a result with neither is `null` overall).
+ * Best-effort: `null` when the runner is absent, the content is blank, the output
+ * cap cut the reply off, or the reply can't be parsed as the expected JSON.
+ * Fields are length-capped, and a missing/empty field becomes `null` (a result
+ * with neither is `null` overall).
  */
 export async function suggestSeo(
   runner: AiRunner | undefined,
@@ -337,7 +480,7 @@ export async function suggestSeo(
 ): Promise<SeoSuggestion | null> {
   const input = content.trim();
   if (!input) return null;
-  const out = await runAi(
+  const out = await runAiText(
     runner,
     opts.model ?? DEFAULT_TEXT_MODEL,
     {
@@ -371,7 +514,9 @@ export async function suggestSeo(
     },
     gatewayRun(opts.gateway),
   );
-  const parsed = extractJsonObject(out);
+  // A cut-off reply can still parse, with a description that stops mid-sentence.
+  if (!out || out.truncated) return null;
+  const parsed = extractJsonObject(out.output);
   if (!parsed) return null;
   const title = nonEmptyString(parsed.title) ? capLength(parsed.title.trim(), SEO_TITLE_MAX) : null;
   const description = nonEmptyString(parsed.description)

@@ -119,7 +119,7 @@ export function Form(props: FormProps): JSX.Element {
       if (res.ok) {
         setValues({});
         setStatus("success");
-        setMessage(props.successMessage ?? "Thanks — we'll be in touch.");
+        setMessage(props.successMessage ?? "Thanks—we'll be in touch.");
         props.onSuccess?.();
         return;
       }
@@ -133,11 +133,11 @@ export function Form(props: FormProps): JSX.Element {
       }
       setStatus("error");
       setMessage(
-        res.status === 429 ? "Too many messages — try again soon." : "Something went wrong.",
+        res.status === 429 ? "Too many messages. Try again soon." : "Something went wrong.",
       );
     } catch {
       setStatus("error");
-      setMessage("Network error — please try again.");
+      setMessage("Network error. Try again.");
     }
   }
 
