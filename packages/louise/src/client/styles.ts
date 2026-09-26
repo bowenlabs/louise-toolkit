@@ -1204,6 +1204,16 @@ html[data-louise-studio] body {
   font-size: 13px;
   white-space: nowrap;
 }
+/* A failed rewrite's reason, such as a selection past the length cap. Fixed
+   width so a long message wraps instead of widening the menu off-screen. */
+.louise-tb-ai-error {
+  width: 220px;
+  margin: 0 0 4px;
+  padding: 6px 10px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.4;
+}
 /* Hidden file input backing the toolbar image button. */
 .louise-hidden-file {
   position: absolute;

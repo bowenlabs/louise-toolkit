@@ -95,6 +95,22 @@ const REWRITE_ACTIONS = [
   { mode: "fix", label: "Fix grammar" },
 ] as const;
 
+/** Shown in the sparkle menu when a rewrite fails for any reason other than
+ *  length. The selection is never touched on failure, so it says so. */
+const REWRITE_FAILED = "Couldn’t rewrite that. Your text is unchanged.";
+
+/**
+ * The message for a failed rewrite. A `413` means the selection is past the
+ * server's cap, and its `error` says what to do about it, so it's shown as is.
+ * Anything else gets {@link REWRITE_FAILED}: a `400` or `502` body is written for
+ * logs, not for the person editing.
+ */
+async function rewriteFailure(res: Response): Promise<string> {
+  if (res.status !== 413) return REWRITE_FAILED;
+  const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof data?.error === "string" && data.error ? data.error : REWRITE_FAILED;
+}
+
 /**
  * Resizable image node view: wraps the image node's DOM in ProseKit's
  * resizable custom element so editors can drag the corner to set explicit
@@ -388,11 +404,17 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
   // AI rewrite (#75/#166): opt-in, degrade-gracefully. The sparkle menu POSTs the
   // selected text to /api/louise/ai/rewrite and swaps in the result. `aiAvailable`
   // starts true and flips off on the first 503 (the AI binding isn't provisioned),
-  // retiring the control for the session; a 502/model hiccup leaves the original
-  // text untouched.
+  // retiring the control for the session. Any other failure leaves the original
+  // text untouched and keeps the menu open with a message (`aiError`), so a
+  // too-long selection (413) says what to do instead of silently doing nothing.
   const [aiOpen, setAiOpen] = createSignal(false);
   const [aiBusy, setAiBusy] = createSignal(false);
   const [aiAvailable, setAiAvailable] = createSignal(true);
+  const [aiError, setAiError] = createSignal<string | null>(null);
+  const closeAi = () => {
+    setAiOpen(false);
+    setAiError(null);
+  };
 
   const runRewrite = async (mode: string) => {
     const view = editor().view;
@@ -400,7 +422,9 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
     if (empty) return;
     const text = view.state.doc.textBetween(from, to, " ").trim();
     if (!text) return;
+    setAiError(null);
     setAiBusy(true);
+    let failure: string | null = null;
     try {
       const res = await fetch("/api/louise/ai/rewrite", {
         method: "POST",
@@ -408,15 +432,21 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
         body: JSON.stringify({ text, mode }),
       });
       // 503 → the AI binding is absent; hide the control for the rest of the
-      // session. 502/4xx → a model hiccup or bad response; keep the original text.
+      // session. Anything else not OK → keep the original text and say why.
       if (res.status === 503) {
         setAiAvailable(false);
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        failure = await rewriteFailure(res);
+        return;
+      }
       const data = (await res.json().catch(() => null)) as { text?: string } | null;
       const next = data?.text?.trim();
-      if (!next) return;
+      if (!next) {
+        failure = REWRITE_FAILED;
+        return;
+      }
       // Re-read state at apply time—the doc may have changed during the request.
       // Bail if the captured range no longer fits (avoids an out-of-range insert).
       const size = editor().view.state.doc.content.size;
@@ -424,10 +454,12 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
       const tr = editor().view.state.tr.insertText(next, from, to);
       editor().view.dispatch(tr);
     } catch {
-      // Network error → quiet no-op, keeping the original text.
+      // Network error → keep the original text.
+      failure = REWRITE_FAILED;
     } finally {
       setAiBusy(false);
-      setAiOpen(false);
+      if (failure) setAiError(failure);
+      else closeAi();
     }
   };
 
@@ -647,7 +679,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
             aria-controls="louise-tb-ai-menu"
             disabled={!active().hasSelection || aiBusy()}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setAiOpen((v) => !v)}
+            onClick={() => (aiOpen() ? closeAi() : setAiOpen(true))}
           >
             <Icon name="sparkle" />
           </button>
@@ -660,12 +692,19 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
               role="group"
               aria-label="Rewrite with AI"
               ref={(el) =>
-                onCleanup(
-                  wirePopoverDismiss(el, { onClose: () => setAiOpen(false), trigger: aiTrigger }),
-                )
+                onCleanup(wirePopoverDismiss(el, { onClose: closeAi, trigger: aiTrigger }))
               }
             >
               <Show when={!aiBusy()} fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}>
+                {/* Above the modes, so it reads first; the editor can reselect
+                    and pick a mode again without reopening the menu. */}
+                <Show when={aiError()}>
+                  {(message) => (
+                    <p class="louise-tb-ai-error" role="alert">
+                      {message()}
+                    </p>
+                  )}
+                </Show>
                 <For each={REWRITE_ACTIONS}>
                   {(a) => (
                     <button
