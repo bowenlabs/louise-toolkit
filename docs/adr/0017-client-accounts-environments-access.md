@@ -1,6 +1,6 @@
 # ADR 0017: Client accounts, environments, access, and one runtime
 
-- **Status:** Proposed (2026-09-26)
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-26** (see _Amendment_ below): staging runs on Worker Previews instead of a second Worker, releases are trunk-based with a tag as the release, and Workers Builds deploys production from a branch only the release tag moves.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (zero-dependency core), ADR 0014 (coverage floor), ADR 0016 (privacy-first), #521 (branch pushes deploy production), the per-site staging issues, the platform plan in louise-ops
 
@@ -50,6 +50,111 @@ The languages considered, and where each would earn its keep:
 - **Python** Workers run on Pyodide, still in beta, with slow cold starts and limited packages. No service here needs the Python ecosystem; Workers AI handles the model calls.
 - **Revisit** when a CPU-heavy job appears that Workers AI, Images, and Browser Rendering can't cover. Then use Cloudflare Containers in the same account, in whichever language fits, behind a Worker that keeps the public interface in TypeScript.
 - **Swift** is required for the iOS app: passkeys through Associated Domains, push notifications, and App Store distribution all need a native shell. The app stays a thin client over the site's owner routes.
+
+## Amendment (2026-09-26): Worker Previews, trunk-based releases, and the deploy pointer
+
+Decision 2 was written before Cloudflare's Worker Previews, which changes how
+staging is built, and before the release model was settled. What decision 2
+promised stays: branches never deploy production, staging has its own data,
+and production deploys only on a deliberate step. How it's done changes.
+
+### Staging is Worker Previews, not an `env.staging` Worker
+
+A Preview is an isolated environment for a branch under the same Worker, with
+the variables, secrets, and bindings in the `previews` block of
+`wrangler.jsonc`. Cloudflare now recommends Previews over both earlier options
+for branch testing: a Version URL runs against production's resources, and a
+Wrangler environment is a second Worker with its own Workers Builds project and
+a binding list mirrored by hand.
+
+- **One `previews` block per site** binds a staging D1, KV, and R2, each
+  provisioned once, and staging secrets set once in the Previews Base
+  configuration (sandbox payment keys, a test Turnstile key). Every branch
+  Preview shares that staging data. Durable Objects get a namespace per Preview
+  on their own.
+- **Left out on purpose:** queue producers, because a queue consumer can't
+  target a Preview and the toolkit falls back to inline work when the binding
+  is absent; Workflows, because a Preview would call production's; and Cron
+  Triggers, which target production only.
+- **Hosts:** a preview-only custom domain, `staging.<domain>`
+  (`previews_enabled: true`, `enabled: false`). The `main` branch's Preview,
+  `main.staging.<domain>`, is staging; every other branch gets
+  `<branch>.staging.<domain>`. One Cloudflare Access application covers
+  `*.staging.<domain>` and the workers.dev Preview URLs.
+- **Anything that differs by environment is runtime configuration.** Workers
+  Builds runs one build command for production and Previews, so the build can't
+  know which it is. Astroid's generated Worker reads the media base from
+  `env.MEDIA_URL` per request, and a Preview serves media from a path on its own
+  host.
+- **`astroid doctor` checks the block:** a binding production has and the block
+  leaves out, a binding pointed at a production resource, a var that isn't
+  restated, and crons, routes, or queue consumers inside it.
+
+### Releases are trunk-based, and the tag is the release
+
+The model is Google's trunk-based development (_Software Engineering at
+Google_, chapters 16 and 24, and the release engineering chapter of _Site
+Reliability Engineering_), with Release Flow's branch names:
+
+- **`main` is the trunk,** changed only through pull requests. Work happens on
+  short-lived `feature/<issue>-<name>` and `bugfix/<issue>-<name>` branches.
+  Unfinished work merges behind a flag rather than living on a long branch.
+- **A release is a tag, `v<version>`, on a commit of `main`** that's been
+  checked on staging. There's no release branch per release.
+- **A release branch, `release/<version>`, is cut only when a released version
+  needs a fix and `main` already holds work that isn't ready.** The fix lands
+  on `main` first and is cherry-picked into the release branch, which is tagged
+  with the next patch version. A release branch never merges back.
+- **No branch exists for an environment,** with the one machine-owned exception
+  below.
+
+### Workers Builds deploys production from a pointer that only the tag moves
+
+Workers Builds deploys only on a branch push; it can't watch tags. So each
+site's Workers Builds project uses `deploy/production` as its production
+branch, and a release workflow that runs on a `v*` tag moves that branch to the
+tagged commit and creates a GitHub release. A repository ruleset lets only that
+workflow update the branch, and nobody commits to it: it's a tag carried as a
+branch. Every other branch, `main` included, is a Preview build.
+
+That keeps decision 3's rule that deploys go through git and Workers Builds,
+and GitHub holds no Cloudflare credential. Production and staging build the
+same way, in one place.
+
+### Open: who Workers Builds deploys as after handoff
+
+Workers Builds deploys with a user API token; account-owned tokens aren't
+supported there yet. On a client site that token is Baylee's, and it can do no
+more than her membership allows. The operate phase in decision 3 reduces her to
+read-only roles by default, which would stop both staging and production
+deploys on that site. Until Cloudflare supports account-owned tokens in Workers
+Builds, one of these has to hold, and the choice isn't made yet:
+
+- Baylee keeps a Workers write role, such as `Workers Platform Admin`, on every
+  tier.
+- The client reconnects Workers Builds under their own identity at handoff.
+
+Revisit when account-owned tokens reach Workers Builds; then the token moves to
+the account and neither is needed.
+
+### Sites before launch run staging only
+
+A site that hasn't launched has no production host: its top-level `routes`
+hold only the preview-only staging domain, so a production deploy serves
+nothing public. Its first `v*` tag, once it has a production host, is its
+launch.
+
+### Alternatives considered in this amendment
+
+- **An `env.staging` Worker.** Rejected: a second Worker and Workers Builds
+  project per site, a binding list mirrored by hand, and one shared Preview
+  for every pull request instead of one each.
+- **A tag deploys through GitHub Actions with a Cloudflare API token.**
+  Followed Release Flow to the letter, and rejected: a token per client account
+  that expires and that only the client can rotate after handoff, so a lapsed
+  one silently blocks releases, and two build systems per site.
+- **A release branch per release.** Rejected: small, frequent releases with one
+  maintainer make it ceremony. A branch appears only when a patch needs one.
 
 ## Consequences
 
