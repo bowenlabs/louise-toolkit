@@ -8,7 +8,7 @@
 // SEO suggestions that fit without truncation. It prints a Markdown table to
 // paste into the pull request, so a change's effect shows as numbers.
 //
-// It spends Workers AI budget (roughly 100 text calls a run), so it isn't part
+// It spends Workers AI budget (roughly 95 model calls a run), so it isn't part
 // of CI. Run it by hand, before and after the change:
 //
 //   corepack pnpm -C packages/louise run build
@@ -17,11 +17,14 @@
 //   node scripts/ai-eval/run.mjs --only seo
 //
 // The token needs Workers AI Read and Edit. `--model` overrides the text model
-// for every helper, which is how to compare a candidate with the default.
-// Alt text isn't covered: it needs real images, and a fixture set of them
-// doesn't exist yet.
+// for the text helpers, and `--vision-model` the alt-text model, which is how
+// to compare a candidate with the default. `--only` is `rewrite`, `seo`, or
+// `alt`. The alt-text images are flat drawings (png.mjs), so the checks can ask
+// for their colors and shapes; they measure whether a model describes what's
+// there, not how well it handles a photograph.
 
-import { FIX_FIXTURES, REWRITE_FIXTURES, SEO_FIXTURES } from "./fixtures.mjs";
+import { ALT_FIXTURES, FIX_FIXTURES, REWRITE_FIXTURES, SEO_FIXTURES } from "./fixtures.mjs";
+import { drawPng } from "./png.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -127,10 +130,22 @@ function seoChecks(output, topic) {
   };
 }
 
+function altChecks(output, mentions) {
+  if (output === null) return { returned: "null" };
+  const text = output.toLowerCase();
+  const missing = mentions.filter((alts) => !alts.split("|").some((w) => text.includes(w)));
+  return {
+    returned: null,
+    "under the length cap": output.endsWith("…") ? "truncated to fit" : null,
+    "no lead-in": /^(an?|the) (image|picture|photo)/i.test(output) ? output.slice(0, 40) : null,
+    "names the colors and shapes": missing.length ? `no ${missing.join(", ")}` : null,
+  };
+}
+
 // ── Running ──────────────────────────────────────────────────────────────────
 
 /** Run every case, tallying passes per check. Sequential, to stay well under rate limits. */
-export async function evaluate(runner, { model, only } = {}) {
+export async function evaluate(runner, { model, visionModel, only } = {}) {
   const results = [];
   const record = (helper, label, checks) => results.push({ helper, label, checks });
 
@@ -152,13 +167,19 @@ export async function evaluate(runner, { model, only } = {}) {
       record("suggestSeo", `#${i + 1}`, seoChecks(out, f.topic));
     }
   }
+  if (!only || only === "alt") {
+    for (const [i, f] of ALT_FIXTURES.entries()) {
+      const out = await ai.generateAltText(runner, drawPng(f), { model: visionModel });
+      record("generateAltText", `#${i + 1}`, altChecks(out, f.mentions));
+    }
+  }
   return results;
 }
 
 /** The Markdown report: pass counts per helper and check, then each failure. */
-export function report(results, model) {
+export function report(results, model, visionModel) {
   const lines = [
-    `**AI helper eval** · model \`${model}\` · ${new Date().toISOString().slice(0, 10)}`,
+    `**AI helper eval** · text \`${model}\` · vision \`${visionModel}\` · ${new Date().toISOString().slice(0, 10)}`,
     "",
   ];
   lines.push("| Helper | Check | Passed |", "| --- | --- | ---: |");
@@ -195,6 +216,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const model = flag("model") ?? ai.DEFAULT_TEXT_MODEL;
+  const visionModel = flag("vision-model") ?? ai.DEFAULT_ALT_TEXT_MODEL;
   const only = flag("only");
   const runner = restRunner(account, token);
   // The helpers swallow errors by design, so a bad token or a retired model
@@ -208,6 +230,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error(`ai-eval: ${model} didn't answer: ${err.message}`);
     process.exit(1);
   }
-  const results = await evaluate(runner, { model, only });
-  console.log(report(results, model));
+  const results = await evaluate(runner, { model, visionModel, only });
+  console.log(report(results, model, visionModel));
 }

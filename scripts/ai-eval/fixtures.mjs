@@ -227,3 +227,53 @@ export const SEO_FIXTURES = [
     topic: "contact",
   },
 ];
+
+/**
+ * Drawings for `generateAltText`, rendered by png.mjs. `mentions` lists words
+ * the alt text must contain (each entry's alternatives separated by `|`): a
+ * description that misses the color or the shape of a flat drawing isn't
+ * describing it.
+ */
+export const ALT_FIXTURES = [
+  {
+    shapes: [{ kind: "circle", cx: 128, cy: 128, r: 80, color: "red" }],
+    mentions: ["red", "circle|dot|ball"],
+  },
+  {
+    shapes: [{ kind: "rect", x: 48, y: 48, w: 160, h: 160, color: "blue" }],
+    mentions: ["blue", "square|rectangle|box"],
+  },
+  {
+    shapes: [{ kind: "triangle", x: 48, y: 48, w: 160, h: 150, color: "green" }],
+    mentions: ["green", "triangle"],
+  },
+  {
+    background: "black",
+    shapes: [{ kind: "circle", cx: 128, cy: 128, r: 70, color: "yellow" }],
+    mentions: ["yellow", "circle|sun|dot|ball"],
+  },
+  {
+    shapes: [
+      { kind: "circle", cx: 80, cy: 128, r: 50, color: "red" },
+      { kind: "circle", cx: 176, cy: 128, r: 50, color: "blue" },
+    ],
+    mentions: ["red", "blue", "circle|dot|ball"],
+  },
+  {
+    shapes: [
+      { kind: "rect", x: 0, y: 0, w: 86, h: 256, color: "red" },
+      { kind: "rect", x: 86, y: 0, w: 85, h: 256, color: "blue" },
+      { kind: "rect", x: 171, y: 0, w: 85, h: 256, color: "yellow" },
+    ],
+    mentions: ["red", "blue", "yellow", "stripe|band|bar|rectangle|column|section"],
+  },
+  {
+    background: "blue",
+    shapes: [{ kind: "rect", x: 64, y: 64, w: 128, h: 128, color: "orange" }],
+    mentions: ["orange", "blue", "square|rectangle|box"],
+  },
+  {
+    shapes: [{ kind: "triangle", x: 28, y: 40, w: 200, h: 180, color: "purple" }],
+    mentions: ["purple|violet", "triangle"],
+  },
+];
