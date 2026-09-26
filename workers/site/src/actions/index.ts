@@ -6,7 +6,7 @@
 // truth), so the handler receives a fully-typed, already-validated `input`—no
 // hand-written interface, no `String(x ?? "")` coercion, and the same shape is
 // inferred on the client. This is the pattern the sites' existing actions
-// (for example, themidwestartist's `inquiry`) should migrate toward.
+// (for example, a contact form's `inquiry`) should migrate toward.
 import { ActionError, defineAction } from "astro:actions";
 import { louiseSaveAction, louiseSaveDraftAction } from "@louise-toolkit/astro";
 import { env } from "cloudflare:workers";

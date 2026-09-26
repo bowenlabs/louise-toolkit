@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { vanishedRows } from "../../src/core/commerce/index.js";
 
-// Ported from themidwestartist.com (vanishedFourthwallRows, its #192), with the
+// Ported from a client site (vanishedFourthwallRows), with the
 // column names turned into accessors so any provider's mirror can use it.
 
 interface Row {

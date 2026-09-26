@@ -70,7 +70,7 @@ export {
   type SectionsEditorProps,
 } from "./sections.jsx";
 // One destination offered by a `link` field's page picker—sites pass their
-// code-defined routes as `SectionsEditorProps.builtInRoutes` (#38).
+// code-defined routes as `SectionsEditorProps.builtInRoutes`.
 export type { PageChoice } from "./link-field.jsx";
 // Headless <Form> render helper (#46, Tier 2)—renders a `defineForm` catalog
 // with the SAME validation the server runs, and posts to its `formRoute`.
@@ -99,10 +99,9 @@ function exitHref(): string {
   return `${url.pathname}${url.search}`;
 }
 
-/** End the editor session AND drop edit mode—the bar's Sign out
- *  (coracle.coffee#36). The sign-out call is best-effort: if it fails we still
- *  leave edit mode, so the user is never stranded in an editor they asked to
- *  leave. */
+/** End the editor session AND drop edit mode—the bar's Sign out. The sign-out
+ *  call is best-effort: if it fails we still leave edit mode, so the user is
+ *  never stranded in an editor they asked to leave. */
 async function signOut(): Promise<void> {
   try {
     await fetch("/api/auth/sign-out", {
@@ -203,7 +202,7 @@ function createChrome(opts: ChromeOptions): Chrome {
   settings.textContent = "Settings";
   settings.addEventListener("click", opts.onOpenSettings);
 
-  // Sign out, not "Done" (coracle.coffee#36). The old anchor only cleared the
+  // Sign out, not "Done". The old anchor only cleared the
   // edit-mode cookie, so "Done" left the session wide open on a shared machine—and
   // the only real sign-out was buried in the Settings drawer. A button, not a
   // link: it ends a session rather than navigating.

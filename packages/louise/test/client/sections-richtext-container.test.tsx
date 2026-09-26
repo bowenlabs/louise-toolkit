@@ -8,7 +8,7 @@
 // every paragraph break the editor creates is hoisted straight back out.
 //
 // Nothing about that fails loudly. The page renders; the field is simply inert.
-// Two sites (themidwestartist.com, coracle.coffee) shipped it independently
+// Two client sites shipped it independently
 // before anyone noticed, which is why the framework warns rather than leaving it
 // to each site's conventions.
 //

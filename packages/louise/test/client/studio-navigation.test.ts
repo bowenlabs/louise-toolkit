@@ -8,7 +8,7 @@ import {
   studioHref,
 } from "../../src/client/studio/navigation.js";
 
-// Pulled up from themidwestartist.com's routed studio (#488), which is served
+// Pulled up from a client site's routed studio (#488), which is served
 // under /studio on the apex and at the root of a studio. subdomain.
 
 const NAV = [

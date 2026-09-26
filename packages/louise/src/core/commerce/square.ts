@@ -2540,7 +2540,7 @@ export async function retrieveLoyaltyProgram(
   return res?.program ? mapLoyaltyProgram(res.program) : null;
 }
 
-// ── Subscriptions (Coracle Club) ───────────────────────────────────────────────
+// ── Subscriptions ──────────────────────────────────────────────────────────────
 
 export interface SquareSubscription {
   id: string;

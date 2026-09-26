@@ -7,9 +7,9 @@ import {
 } from "../../src/core/commerce/index.js";
 import { retrieveLiveCatalogObjectIds } from "../../src/core/commerce/square.js";
 
-// The scenarios are coracle.coffee's (islands/order-cart-store.ts, priceCheckout
-// in lib/square.ts), where each was a live checkout loop: a bag holding an old
-// price failed every retry, and a deleted add-on made Square reject the order.
+// The scenarios are a client site's (its cart store and checkout pricing), where
+// each was a live checkout loop: a bag holding an old price failed every retry,
+// and a deleted add-on made Square reject the order.
 
 interface Mod {
   id: string;

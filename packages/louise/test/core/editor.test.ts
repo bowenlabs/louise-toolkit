@@ -199,11 +199,19 @@ describe("partitionSettingsPatch", () => {
 
   it("routes base keys to columns, site keys to custom, and ignores the rest", () => {
     const part = partitionSettingsPatch(
-      { siteName: "Coracle", heroHeadline: "Hi", navLinks: [{ href: "/" }], bogus: "x" },
+      {
+        siteName: "Example Organization",
+        heroHeadline: "Hi",
+        navLinks: [{ href: "/" }],
+        bogus: "x",
+      },
       columns,
       customKeys,
     );
-    expect(part.columnUpdates).toEqual({ siteName: "Coracle", navLinks: [{ href: "/" }] });
+    expect(part.columnUpdates).toEqual({
+      siteName: "Example Organization",
+      navLinks: [{ href: "/" }],
+    });
     expect(part.customUpdates).toEqual({ heroHeadline: "Hi" });
     expect(part.ignored).toEqual(["bogus"]);
   });

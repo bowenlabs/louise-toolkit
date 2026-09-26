@@ -82,7 +82,7 @@ describe("zonedTimeToUtc", () => {
   });
 
   it("puts 9am Chicago on standard time at 15:00Z", () => {
-    // The hour coracle once got wrong: its pickups were 9 AM Eastern.
+    // The hour a site once got wrong: its pickups were 9 AM Eastern.
     expect(zonedTimeToUtc("2026-12-01", "09:00", CHICAGO).toISOString()).toBe(
       "2026-12-01T15:00:00.000Z",
     );

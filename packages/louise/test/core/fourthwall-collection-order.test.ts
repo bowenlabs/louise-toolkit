@@ -3,7 +3,7 @@ import { catchAllFirst, isCatchAllCollection } from "../../src/core/commerce/fou
 
 // A sync that upserts a product once per collection it belongs to keeps the
 // category of the LAST collection to touch it. Fourthwall returns its catch-all
-// last, so on themidwestartist.com every product also filed under Prints or
+// last, so on one client site every product also filed under Prints or
 // Totes ended up categorised "All Products".
 //
 // Nothing about a single write is wrong, which is why this is a test about

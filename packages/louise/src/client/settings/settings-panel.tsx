@@ -215,7 +215,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         )}
       </For>
 
-      {/* The "Session" group's Sign out moved to the edit bar (coracle.coffee#36):
+      {/* The "Session" group's Sign out moved to the edit bar:
           ending a session is an account action, not a site setting, and having it
           in two places meant the obvious control ("Done") was the one that didn't
           actually sign you out. */}

@@ -2,7 +2,7 @@
 // The argument to `actions.louise.savePage` is inferred straight from
 // `pageEditInput` (via `astro:actions` codegen), so the client and server agree
 // on the shape with zero hand-maintained types. This is the same
-// island → action pattern the sites already use (for example, themidwestartist's
+// island → action pattern the sites already use (for example, a
 // ContactForm → `actions.inquiry`), now end-to-end typed.
 import { actions } from "astro:actions";
 import { createSignal } from "solid-js";

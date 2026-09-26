@@ -69,7 +69,7 @@ async function sign(notificationUrl: string, body: string, key: string): Promise
   return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
-const URL_ = "https://coracle.coffee/api/webhooks/square";
+const URL_ = "https://example.com/api/webhooks/square";
 const BODY = JSON.stringify({ type: "payment.updated", data: { object: {} } });
 const KEY = "wh-signing-key";
 
@@ -1267,7 +1267,7 @@ describe("createLocation / updateLocation", () => {
     const calls = stubFetch({ location: { id: "L9", name: "Studio", currency: "USD" } });
     const loc = await createLocation(CONFIG, {
       name: "Studio",
-      businessName: "Midwest Artist",
+      businessName: "Example Organization",
       timezone: "America/Chicago",
       address: {
         line1: "9 Elm",
@@ -1283,7 +1283,7 @@ describe("createLocation / updateLocation", () => {
     expect(calls[0]?.body).toEqual({
       location: {
         name: "Studio",
-        business_name: "Midwest Artist",
+        business_name: "Example Organization",
         timezone: "America/Chicago",
         address: {
           address_line_1: "9 Elm",

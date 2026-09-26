@@ -267,7 +267,7 @@ describe("safeNextPath", () => {
   });
 
   it("refuses a tab or newline that a browser would strip into //", () => {
-    // coracle's regex `^\/(?![/\\])` accepted these: the second character
+    // A site's own regex `^\/(?![/\\])` accepted these: the second character
     // is a tab, not a slash—until the browser removes it.
     for (const raw of ["/\t/evil.example", "/\n/evil.example", "/\r\n/evil.example"]) {
       expect(safeNextPath(raw, "/home"), JSON.stringify(raw)).toBe("/home");

@@ -7,9 +7,9 @@ than none.
 ## The one rule everything else serves
 
 **Framework-first, non-negotiable.** Every reusable change lands in the
-framework, not in a site. If you find yourself solving something in
-`coracle.coffee`, `ghostfire.coffee` or `themidwestartist.com` that another site
-would also want, it belongs here or in `astroidjs` instead.
+framework, not in a site. If you find yourself solving something in a client
+site's repository that another site would also want, it belongs here or in
+`astroidjs` instead.
 
 Dependencies flow **one way**: `astroidjs` → `louise-toolkit`, never the reverse.
 `louise-toolkit` stays unopinionated; the opinions live in Astroid.
@@ -61,6 +61,7 @@ corepack pnpm run lint:astro
 corepack pnpm run lint:solid
 corepack pnpm run lint:arch                       # ast-grep invariants
 corepack pnpm run lint:core                       # no Astro in the core
+corepack pnpm run lint:names                      # no client site names
 corepack pnpm run lint:docs                       # Vale ratchet (after `vale sync`)
 corepack pnpm run knip                            # dead code
 corepack pnpm run lint:release
@@ -124,6 +125,12 @@ source is the dependency direction backwards: the floor naming the ceiling.
 Astro-specific code belongs in `@louise-toolkit/astro`; opinions belong in
 `astroidjs`.
 
+`corepack pnpm run lint:names` runs the same kind of scan over the whole
+repository for client site names. The repository is public, so it names no
+client site in code, tests, or docs: keep the reason and drop the name ("a site
+whose sign-out lived in Settings"). CHANGELOGs and the two pages that feature
+the sites, with their consent, are the exceptions.
+
 Every rule carries a `note` explaining the invariant, because a rule nobody
 understands gets deleted the first time it's inconvenient. Keep the set small:
 anything expressible as an ordinary lint rule belongs in oxlint instead.
@@ -141,7 +148,7 @@ Write new prose to the guide from the start. The details that trip people up:
 - **Dashes:** `word—word`, with no space on either side of the dash, in
   comments too.
 - **Separators:** a dash is only for sentences. Page titles use a pipe
-  (`Overview | Ghostfire admin`); items side by side use a middle dot
+  (`Overview | Example Organization admin`); items side by side use a middle dot
   (`Jane Doe · Founder`, an image's alt text, a button label with a price).
 - **Contractions:** use them ("isn't," "doesn't").
 - **Voice:** second person and present tense, with no "we," "will," or "simply."

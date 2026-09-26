@@ -1,4 +1,4 @@
-// The shared destination editor (coracle.coffee#38).
+// The shared destination editor.
 //
 // A link has no visible text node to click, so its target is always edited in a
 // panel rather than on the canvas—the rich-text builder's link node and the
@@ -40,8 +40,8 @@ export function setBuiltInRoutes(routes: PageChoice[] | undefined): void {
 }
 
 // How a `pages` row's slug becomes a path. `/${slug}` is the truth for every
-// conventional row, but a site can render one row somewhere else entirely—coracle's
-// `home` row IS the homepage, served at `/`, and mapping it to
+// conventional row, but a site can render one row somewhere else entirely. On one
+// site the `home` row IS the homepage, served at `/`, and mapping it to
 // `/home` offered editors a duplicate-content alias as if it were a page.
 let pagePathForSlug: (slug: string) => string = (slug) => `/${slug}`;
 

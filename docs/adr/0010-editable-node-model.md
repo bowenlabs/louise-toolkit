@@ -18,8 +18,8 @@
   per-layer chrome). The rest of 0005 (the fragment-render contract, instant
   structural ops, the inspector) stands and is generalized here.
 - **Related:** ADR 0003 (astroid `<Section>` / `<Editable>`), ADR 0001
-  (opinionated where it's expensive), coracle.coffee#37 (Phase 3 reference
-  rings), coracle.coffee/docs/phase-3-reference-rings.md
+  (opinionated where it's expensive), Phase 3 (reference rings) and its spec,
+  both tracked in a client site's private repository
 - **Scope:** `packages/louise/src/client` (chrome + sections editor + settings
   fields), `packages/louise/src/core/content` (field schema + validator),
   `packages/astroid/src/components` (the render-side dispatcher), and the
@@ -49,12 +49,12 @@ three-attribute design leaking into an otherwise uniform recursive model.
 
 ### Measured cost of the current shape
 
-|                                        | Today          | If #37 ships as spec'd |
-| -------------------------------------- | -------------- | ---------------------- |
-| Marker attributes / grammars / parsers | 3 / 4 / 2      | 5 / 6 / 4              |
-| `clear*` calls for layer suppression   | **24**         | ~50: it's O(n²)        |
-| Edit sites to add one field type       | **5**          | unchanged              |
-| Field-type systems                     | **2 parallel** | 2                      |
+|                                        | Today          | If Phase 3 ships as spec'd |
+| -------------------------------------- | -------------- | -------------------------- |
+| Marker attributes / grammars / parsers | 3 / 4 / 2      | 5 / 6 / 4                  |
+| `clear*` calls for layer suppression   | **24**         | ~50: it's O(n²)            |
+| Edit sites to add one field type       | **5**          | unchanged                  |
+| Field-type systems                     | **2 parallel** | 2                          |
 
 The five edit sites for a field type: the `SectionFieldType` union, a 7-arm server
 validation ladder, a hardcoded `isInline()` type list, a 7-arm `ScalarField`
@@ -64,7 +64,7 @@ drawer has a `render` escape hatch.
 
 ### The bugs are symptoms, not coincidences
 
-Live QA on 2026-07-28 (coracle, real browser, first time) found three defects, and
+Live QA on 2026-07-28 (a client site, real browser, first time) found three defects, and
 each traces to a modeling gap rather than a coding slip:
 
 1. **A freshly added block-capable section is a dead end**: 0 blocks, and the
@@ -77,7 +77,7 @@ each traces to a modeling gap rather than a coding slip:
 3. **Duplicate destination options**: two lists merged ad hoc, with no notion of
    a resolved source.
 
-And #37 is already blocked by the model: its Square pickers need dynamic options,
+And Phase 3 is already blocked by the model: its Square pickers need dynamic options,
 which `SectionField` can't express and the drawer's `render` hatch can, but the
 section inspector has no equivalent.
 
@@ -121,7 +121,7 @@ Everything the chrome does becomes derived rather than built:
 inline, options? })`, consumed by both the section inspector and the settings
 drawer. A new type is one registration instead of five edits, the two parallel
 systems merge, and a type may declare an async options source. That's exactly
-what #37's Square pickers need.
+what Phase 3's Square pickers need.
 
 > **Amended while building A2 (see below).** The single call doesn't survive the
 > server/client boundary. The schema facts (`validate`, `inline`) live in
@@ -257,7 +257,7 @@ ranges don't admit `0.21.0`, so nothing upgraded by accident. They now move from
 
 ### Amended after migrating the first site: what the rename actually is
 
-Coracle went first, as the proving ground this ADR names. Three things it needed
+The proving-ground site went first, as this ADR planned. Three things it needed
 aren't "rename the stamps", and nobody would guess any of them from the earlier
 text.
 
@@ -266,7 +266,7 @@ on an exact `louise-toolkit` version, not a range. Bump only the toolkit, and pn
 installs BOTH side by side: the site's direct dependency and astroid's pinned
 one. The two copies export structurally identical but nominally distinct types,
 so a catalog built against one isn't assignable to a function expecting the
-other. Coracle got five errors of the form:
+other. The site got five errors of the form:
 
 > Type `…louise-toolkit@0.22.0…` is not assignable to type `…louise-toolkit@0.20.0…`
 
@@ -280,11 +280,11 @@ A2 folded the section field's type hint into the catalog, but the page-field
 contract (`data-louise-field` + `data-louise-type="richtext"`) is untouched, and
 `<Editable>` still emits it. A blanket delete silently downgrades a versioned
 page's rich-text body to a plain contenteditable: nothing errors, and the editor
-loses its formatting. Coracle had exactly one, in `[...slug].astro`, against
+loses its formatting. The site had exactly one, in `[...slug].astro`, against
 fourteen section-field ones.
 
 **The render and the catalog may already disagree, and this is what forces it
-into the open.** Coracle's components stamped `data-louise-type="richtext"` on
+into the open.** The site's components stamped `data-louise-type="richtext"` on
 NINE fields the catalog typed as `text` or `textarea`. While the render decided,
 the render won and nobody noticed: editors got the rich editor, the schema said
 plain, and `sanitizeSectionsRichText`, which keys off the CATALOG, skipped those
@@ -292,7 +292,7 @@ values on write. (Harmless there in practice, because every component rendered
 through `sanitizeRichHtml`; a site without that habit would have had a real hole.)
 
 A2 makes the catalog authoritative, so the contradiction stops being invisible and
-starts being a behavior change. One of coracle's was destructive: five stored
+starts being a behavior change. One of the nine was destructive: five stored
 `heading` values contain `<em>`, and a plain contenteditable reads `textContent`
 of rendered HTML, which has no tags. The first keystroke in that field would have
 saved the stripped string.
@@ -300,7 +300,7 @@ saved the stripped string.
 **Audit before migrating, not after.** For every field the render stamps as
 richtext, check what the catalog says. Where they disagree, the catalog is what
 now decides, and any field holding markup must become `richText` or lose it. The
-query that settles it is "which stored values contain tags". Coracle's answer was
+query that settles it is "which stored values contain tags". The site's answer was
 `heading`, which was exactly the field this ADR's author would have guessed was
 plain.
 
@@ -308,11 +308,11 @@ So the migration is four renames, one conditional deletion, and a paired version
 bump. The renames are still the one-liner given earlier: `data-louise-sfield` /
 `data-louise-section` / `data-louise-block` / `data-louise-link` →
 `data-louise-node`. Run **that** command rather than a hand-typed approximation:
-it carries **two** negative lookaheads, and coracle only exercised one. `(?!s)`
+it carries **two** negative lookaheads, and the site only exercised one. `(?!s)`
 protected eight `data-louise-sections` host attributes there against a single real
 stamp; `block(?!s)` protects `data-louise-blocks`, the rich-text builder flag,
-which coracle happens not to use and a site copying the toolkit's own page
-template does. Test files need the same pass: coracle's own assertions named the
+which the site happens not to use and a site copying the toolkit's own page
+template does. Test files need the same pass: the site's own assertions named the
 old attributes, and 12 tests failed until they were renamed too.
 
 ## Staging
@@ -330,17 +330,17 @@ model: one attribute over every editable node, `data-louise-sfield` folded in, a
 `nodeAt` walking outward on an unresolved node.
 
 **Phase B: the source abstraction.** `page` / `shared` / `external`, and with it
-#37. Deferred because it's the one piece with **no** implementation evidence
+Phase 3. Deferred because it's the one piece with **no** implementation evidence
 yet: Phase 3 has never been built, and its own spec has five unresolved
 questions. Designing it blind is how the editor got into its current shape.
 
-Corollary: **#37 isn't built on the current chrome.** It's the forcing function
+Corollary: **Phase 3 isn't built on the current chrome.** It's the forcing function
 that exposed this ADR, and building it as spec'd would roughly double the layer
 plumbing and add two grammars immediately before deleting all of it.
 
 > **Amendment (2026-07-31): shipped, and the deferral paid.** The gate was
 > answered first (the Phase 3 spec was re-grounded against this model and its
-> five §9 questions decided, coracle.coffee#47), and only then sliced: tone
+> five §9 questions decided), and only then sliced: tone
 > palette (#372), source model (#373), document-wide node lookups (#374),
 > external end-to-end (#375), shared end-to-end (#376). Released in `0.24.0` and
 > `0.25.0`.
@@ -350,7 +350,7 @@ plumbing and add two grammars immediately before deleting all of it.
 > `data-louise-shared` / `data-louise-source` attributes, and A1's single grammar
 > made them unnecessary (a settings path is a path like any other). It also named
 > dynamic option lists as "the one piece of framework work Phase 3 cannot avoid",
-> but A2 had already shipped it as `FieldOptionsResolver`. Building #37 on the old
+> but A2 had already shipped it as `FieldOptionsResolver`. Building Phase 3 on the old
 > chrome would have added both.
 
 ## Migration: a clean cut, renamed in one line
@@ -366,7 +366,7 @@ rather than carrying aliases.
 - A **one-line rename** rewrites the stamps. The command and its two guards are
   in the codemod amendment. The codemod this originally called for isn't worth
   writing.
-- Sites land in lockstep with the release. Coracle is the proving ground; it's
+- Sites land in lockstep with the release. One client site is the proving ground; it's
   the only site currently exercising blocks and links. (Amended: `0.21.0` shipped
   A1 ahead of every site, so lockstep now happens at the A2 release. See the
   codemod amendment.)
@@ -380,7 +380,7 @@ rather than carrying aliases.
 **Good.** New ring kinds, field types, and container kinds become registrations
 rather than edits across five files. The empty-container class of bug can't recur.
 The render and editing layers finally describe containment the same way, so
-`Section.astro` stops sniffing paths. #37 becomes expressible.
+`Section.astro` stops sniffing paths. Phase 3 becomes expressible.
 
 **Costs.** A breaking release with a coordinated four-site migration. A rewrite of
 `client/chrome.ts` and the inspector's field rendering, both well covered by
@@ -394,7 +394,7 @@ surfaces. Nested containers are _enabled_ but should stay unused until something
 asks for them; enabling isn't the same as adopting.
 
 **Unresolved (deliberately).** The five open questions in
-`coracle.coffee/docs/phase-3-reference-rings.md` §9 gate Phase B and aren't
+the Phase 3 spec's §9 gate Phase B and aren't
 pre-empted here.
 
 > **Amendment (2026-07-31).** The §9 questions are answered and recorded as

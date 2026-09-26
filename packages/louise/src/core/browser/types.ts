@@ -13,9 +13,13 @@ export interface LouiseBrowserEnv {
 }
 
 /**
- * A byte store for rendered OG images—satisfied by an R2 bucket or a KV
- * namespace (declared structurally so either fits without a hard dependency).
- * Keys are content-hashed, so a hit means the exact page+content was rendered.
+ * A byte store for rendered OG images. It's declared structurally, so the module
+ * depends on no storage binding, but no binding fits it as is: an R2 bucket's
+ * `get` returns an object body and a KV namespace's returns a string or an
+ * `ArrayBuffer`, and both take an options object where `put` takes a content
+ * type. Wrap the one you use in a few lines that convert to and from
+ * `Uint8Array`. Keys are content-hashed, so a hit means the exact page and
+ * content were rendered.
  */
 export interface OgImageCache {
   get(key: string): Promise<Uint8Array | null>;

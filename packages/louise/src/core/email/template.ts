@@ -40,9 +40,9 @@ export interface MailTheme {
   band: string[];
   fonts: MailFonts;
   brand: {
-    /** Wordmark drawn over the band, for example, `"Coracle Coffee"`. */
+    /** Wordmark drawn over the band, for example, `"Example Organization"`. */
     name: string;
-    /** First footer line—tagline/location, for example, `"Coracle Coffee · on the water"`. */
+    /** First footer line—tagline/location, for example, `"Example Organization · Open daily"`. */
     footerLead: string;
   };
   /** Card corner radius in px. Default 6. */

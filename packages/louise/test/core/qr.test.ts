@@ -195,14 +195,14 @@ function decodeQr(m: QrMatrix): string {
 
 describe("qr encode", () => {
   it("round-trips a merchant URL through the full pipeline", () => {
-    const url = "https://store.themidwestartist.com";
+    const url = "https://store.example.com";
     const m = encodeQr(url, { ecc: "Q" });
     expect(decodeQr(m)).toBe(url);
   });
 
   it("round-trips across every ECC level", () => {
     for (const ecc of ["L", "M", "Q", "H"] as const) {
-      const url = "https://store.themidwestartist.com/t/abc123";
+      const url = "https://store.example.com/t/abc123";
       expect(decodeQr(encodeQr(url, { ecc })), `ecc ${ecc}`).toBe(url);
     }
   });
@@ -273,7 +273,7 @@ describe("qr encode", () => {
 
 describe("qr svg", () => {
   it("emits one merged path rather than a rect per module", () => {
-    const svg = qrSvg("https://store.themidwestartist.com");
+    const svg = qrSvg("https://store.example.com");
     expect(svg.match(/<path/g)).toHaveLength(1);
     // A rect-per-module rendering would be hundreds; only the background is one.
     expect(svg.match(/<rect/g) ?? []).toHaveLength(1);

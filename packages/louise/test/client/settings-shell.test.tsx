@@ -212,7 +212,9 @@ describe("SettingsPanel — base groups + declarative extension", () => {
   it("renders the framework base groups plus a site extension group, and saves both", async () => {
     const fetchMock = stubFetch((url, method) => {
       if (url.includes("/api/louise/settings") && method === "GET") {
-        return jsonResponse({ settings: { siteName: "Coracle", roastNote: "medium" } });
+        return jsonResponse({
+          settings: { siteName: "Example Organization", roastNote: "medium" },
+        });
       }
       return jsonResponse({ ok: true });
     });
@@ -247,7 +249,7 @@ describe("SettingsPanel — base groups + declarative extension", () => {
       const body = JSON.parse(String(post![1]!.body));
       // Base column key (untouched, from load) and the site-declared custom key
       // (edited) both go in the patch.
-      expect(body.siteName).toBe("Coracle");
+      expect(body.siteName).toBe("Example Organization");
       expect(body.roastNote).toBe("dark");
     });
   });

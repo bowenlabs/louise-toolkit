@@ -684,7 +684,7 @@ describe("sanitizeSectionsRichText — nested array item fields", () => {
   });
 });
 
-// `link` and `toggle` (coracle.coffee#38). The scheme check is the reason `link`
+// `link` and `toggle`. The scheme check is the reason `link`
 // exists as a type at all: a link value is rendered straight into `href={…}` by
 // the site's own component and never passes through the HTML sanitizer, so a
 // `text`-typed href could hold `javascript:` and validate, persist, and render as

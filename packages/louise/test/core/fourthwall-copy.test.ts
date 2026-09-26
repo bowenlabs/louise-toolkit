@@ -1,5 +1,5 @@
 // Which Fourthwall field a product's copy comes from—ported from
-// themidwestartist.com, whose sync mirrored `description`, empty across nearly
+// a client site whose sync mirrored `description`, empty across nearly
 // its whole catalog, while the copy a buyer wants sat in the More details panel.
 //
 // Worth pinning because the failure is invisible from the outside: reading the

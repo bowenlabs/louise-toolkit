@@ -149,10 +149,9 @@ The highest-value thing available today, and it's mostly a release chore.
    who finds it adopts a version that exists only as a stepping stone.
 
 **Cross-repo (not this session's scope; see §9):** the one-liner across
-coracle.coffee (39 stamps / 16 files), themidwestartist.com (11/5),
-ghostfire.coffee (6/3), louise-web (6/3, may need the `louisecms` rename first).
-Coracle first, because it's the only site with all 13 link value-nodes, so it's the
-only place the field-scoped CTA inspector can be verified in a browser at all.
+the three client sites (39 stamps / 16 files, 11/5, and 6/3) and louise-web (6/3,
+may need the `louisecms` rename first). The largest client site first, because
+it's the only site with all 13 link value-nodes, so it's the only place the field-scoped CTA inspector can be verified in a browser at all.
 Live-QA by reading resolved chrome state off the page, per #348.
 
 Then close #348, #349, and the A-phases of #341. #341 stays open for Phase B.
@@ -317,8 +316,8 @@ enumerates them accurately.
 
 ## 9. What this plan cannot do from this repo
 
-- **#348's site migrations** modify `coracle.coffee`, `themidwestartist.com`,
-  `ghostfire.coffee`, and `louise-web`, four repos this session has no access to.
+- **#348's site migrations** modify the three client sites and `louise-web`,
+  four repos this session has no access to.
   They need either separate sessions or explicit repo attachment.
 - **#349's publish + `npm deprecate`** need registry credentials.
 - **#296's open verification** (does a `#temp` variation accept
@@ -330,9 +329,9 @@ enumerates them accurately.
 ## 10. Parked, on purpose
 
 - **#347 / #341 Phase B**: blocked on five unresolved questions in
-  `coracle.coffee/docs/phase-3-reference-rings.md` §9. A1 already reserved
-  `NodeTone`'s `shared` and `external`, and `describeNode` picks tone by depth
-  provisionally, so swapping depth for source is a change to one function when
+  the Phase 3 reference-rings spec's §9, in a client site's repo. A1 already
+  reserved `NodeTone`'s `shared` and `external`, and `describeNode` picks tone
+  by depth provisionally, so swapping depth for source is a change to one function when
   the answers arrive. Designing it blind is the exact mistake ADR 0010 exists to
   correct.
 - **#315**: closed in Wave 0 once its substance lands in docs.

@@ -6,7 +6,7 @@ import {
   uploadMediaFiles,
 } from "../../src/client/studio/index.js";
 
-// Ported from themidwestartist.com's studio (louise/upload.ts, studio/unsaved.ts,
+// Ported from a client site's studio (louise/upload.ts, studio/unsaved.ts,
 // studio/settled-select.ts), each written after a real loss: uploads that
 // vanished without a word, edits dropped by Back, and a status that logged
 // every option it was arrowed through.

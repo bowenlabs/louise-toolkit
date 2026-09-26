@@ -43,29 +43,27 @@ vp install
 Common commands (from the repo root unless noted):
 
 ```sh
-pnpm build          # pack the library + build the site
-pnpm test           # the library's Vitest suite
-pnpm typecheck      # tsgo over the library
-pnpm dev            # run louisetoolkit.com locally (marketing + docs)
+corepack pnpm build          # pack the library and the adapter, then build the site
+corepack pnpm test           # the Vitest suites of the library and the Astro adapter
+corepack pnpm typecheck      # tsgo over the library
+corepack pnpm dev            # run louisetoolkit.com locally (marketing + docs)
 ```
+
+Always write `corepack pnpm`, never bare `pnpm`: the CI runner has only
+corepack, so a bare `pnpm` passes on your machine and fails in CI.
 
 ## Checks to run before opening a PR
 
-CI runs exactly these; run them locally first so review stays about the change:
+Run the full set in [`CLAUDE.md`'s "Verifying a change"](CLAUDE.md#verifying-a-change)
+before you open a PR. It mirrors `.github/workflows/ci.yml` job by job, plus the
+secret scan from `secrets.yml`, and it's the one list: when a workflow gains a
+step, that list gains it too, so this file doesn't keep a copy that can drift.
 
-```sh
-# from packages/louise
-vp check                                   # Oxlint + Oxfmt + type-aware lint & type-check (TS7)
-vp test                                    # Vitest (happy-dom for the client)
-tsgo --noEmit                              # type-check (authoritative gate, whole src+test scope)
+A green `corepack pnpm test` isn't enough on its own. The type-check, the
+export-map check after a build, and the site build each catch breakage that the
+test suite reports as a pass.
 
-# from the repo root
-biome lint .                               # .astro component scripts (Biome)
-pnpm lint:solid                            # SolidJS client (oxlint + eslint-plugin-solid)
-pnpm knip                                  # dead code: unused files & exports (Knip)
-```
-
-`vp check` also runs Vite+'s **type-aware lint + full type-check** (tsgolint on
+The library's `check` script, `vp check`, runs Vite+'s **type-aware lint + full type-check** (tsgolint on
 the TypeScript-Go toolchain, the same TS7 engine as `tsgo`); the standalone
 `tsgo --noEmit` stays as the authoritative whole-program gate. See
 [ADR 0008](docs/adr/0008-type-aware-lint-typecheck.md) for the enabled rule set
@@ -84,7 +82,7 @@ Any change to `louise-toolkit` (or `@louise-toolkit/astro`) that users would not
 changeset, because it drives the version bump and changelog:
 
 ```sh
-pnpm changeset
+corepack pnpm changeset
 ```
 
 Louise is **pre-1.0**, so the many granular subpath exports aren't frozen yet.
@@ -99,9 +97,8 @@ features are `minor`; fixes and small enhancements are `patch`. Changes scoped t
   `feat/<slug>-<issue>`); reference the issue it closes.
 - Keep new code in the surrounding style: match the file's comment density,
   naming, and idiom; the codebase leans on thorough "why" comments.
-- Include tests for behavior changes. The client tests run in happy-dom;
-  the astro-preview E2E covers the versioned-page publish happy path.
-- Green CI (the preceding checks) is required to merge.
+- Include tests for behavior changes. The client tests run in happy-dom.
+- Green CI is required to merge.
 
 ## License
 

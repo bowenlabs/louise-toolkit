@@ -76,8 +76,15 @@ jobs:
       # AST rule, because what leaks back in is prose: "e.g. `astro dev`" in a
       # comment is a constant temptation, since Astro genuinely IS the clearest
       # example to reach for. Astro belongs in @louise-toolkit/astro or astroidjs.
-      - name: No framework references in the core (louise-toolkit)
-        run: node scripts/ci/checks/no-astro-in-core.mjs
+      #
+      # The same kind of scan, repo-wide, keeps client site names out (#576): the
+      # repository is public, and a site that consented to being featured didn't
+      # consent to being cited in code, tests, or docs. CHANGELOGs and the two
+      # pages that feature the sites are exempt; the script says why.
+      - name: No framework references in the core, no client site names
+        run: |
+          corepack pnpm run lint:core
+          corepack pnpm run lint:names
 
       # Prose style for every doc and all prose in code, against the Google
       # developer documentation style guide plus the house style (ADR 0013).
