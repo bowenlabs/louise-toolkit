@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see the second amendment): the rewrite route caps its input, so one of the items out of scope here is done.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -122,6 +122,17 @@ Two smaller points the slices settled:
 - **Order in the middleware.** The gate runs right after the editor is resolved and before `extend`, `guard`, and `rewrite`: it needs only the editor, and a refused request shouldn't pay for the site's extra work. If `resolveEditor` throws, pages still degrade to public rendering as before, but the API fails closed.
 - **Behind both layers.** On a `composeWorker` site whose middleware also sets `apiGate`, the middleware check is a second pass over requests the worker already let through. It costs nothing, because the middleware resolves the editor on every request anyway.
 
+## Amendment (2026-09-26, #557)
+
+The toolkit now has a third public route: `statusRoute`, which answers `GET` and `HEAD` at `/api/louise/status` with 200 or 503 for a probe outside Cloudflare. It follows both rules above. It returns a route wrapped in `publicRoute`, and its default path, `LOUISE_STATUS_PATH`, joins the forms and vitals paths in `isLouisePublicPath`, so the middleware exemption and the route build from the same constant.
+
+A public route that reports on the site's dependencies needs two limits the other public routes don't, and they belong to this boundary:
+
+- **No error text.** The body carries each check's `ok` and, when the check knows it, an age in milliseconds. A check that throws is logged on the server and reported as `{ ok: false }`. This is §3's rule, that upstream error text never reaches a response, applied to a response anyone can read.
+- **Bounded cost.** An anonymous caller can make the checks run, so each check has a timeout, the checks run at once, and `reuseMs` reuses a finished result within an isolate. Only the finished result is shared, never a run in flight, because a Worker ties a promise to the request that started it. The checks themselves are the site's to keep cheap, for example a `SELECT 1` that reads no rows.
+
+It sets `Cache-Control: no-store` itself, because the gate adds that header only to gated responses.
+
 ## Amendment (2026-09-26, the rewrite route caps its input)
 
 _Out of scope, tracked separately_ listed input-size caps on AI request bodies. The rewrite route has one now (#550):
@@ -137,4 +148,4 @@ Per-editor quotas on AI routes remain out of scope. A length cap bounds the cost
 - Per-editor quotas on AI routes.
 - Replay protection for Square and Fourthwall webhooks (no timestamp and no event-id dedupe in the verifier), and removing the signing secret from content-webhook queue messages.
 - Realtime: re-checking the session on an open socket, and validating `slug`. ADR 0002 §Auth says `slug` is validated, and it isn't, so 0002 needs an amendment.
-- ~~Input-size caps on AI request bodies.~~ Done for the rewrite route (#550); see the second amendment.
+- ~~Input-size caps on AI request bodies.~~ Done for the rewrite route (#550); see _Amendment (2026-09-26, the rewrite route caps its input)_.

@@ -132,6 +132,7 @@ export {
   isLouisePublicPath,
   LOUISE_API_PREFIX,
   LOUISE_FORMS_PATH,
+  LOUISE_STATUS_PATH,
   LOUISE_VITALS_PATH,
   louiseApiGate,
   publicRoute,
