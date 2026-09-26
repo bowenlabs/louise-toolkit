@@ -11,6 +11,8 @@ import {
   writeHealthSummary,
   readHealthSummary,
   healthIssueCount,
+  isStale,
+  HEALTH_STALE_AFTER_MS,
 } from "louise-toolkit/health";
 ```
 
@@ -91,6 +93,64 @@ editing one page.
 is ignored there), so the overview route can return a stored summary directly
 rather than re-mapping it.
 
+## Noticing a scan that stopped running
+
+```ts
+function isStale(
+  timestamp: string | number | Date | null | undefined,
+  maxAgeMs: number,
+  now?: Date | number,
+): boolean;
+```
+
+A scheduled job that stops succeeding doesn't report it, and the stored summary
+quietly ages. `isStale` compares a last-success timestamp with a threshold,
+so a scan that last ran a week ago doesn't look the same as one that ran an hour
+ago. It's pure: pass `now` for a deterministic result in tests.
+
+```ts
+const summary = await readHealthSummary(env.HEALTH_KV);
+if (summary && isStale(summary.checkedAt, HEALTH_STALE_AFTER_MS)) {
+  // The Cron Trigger hasn't written a summary in over 36 hours.
+}
+```
+
+It works for any job's last success, not only the health scan: a snapshot's
+`fetchedAt`, say, or a sync's `lastRunAt`.
+
+- A **missing or unparseable timestamp counts as stale.** A job with no readable
+  record of success hasn't shown that it ran, and a monitor that stays quiet
+  about that is the failure the check exists to catch.
+- A **timestamp in the future counts as fresh**, so clock skew between the job
+  and the reader doesn't raise a false alarm.
+- The age has to **exceed** `maxAgeMs`, so an age of exactly `maxAgeMs` is
+  fresh. Pass `Infinity` to turn the check off.
+
+`HEALTH_STALE_AFTER_MS` is 36 hours: a daily scan can run late or miss one run
+and still read as fresh, but two missed runs in a row read as stale.
+
+### In the Health panel
+
+Past the threshold, the Health panel's "Last checked" line turns amber and
+starts with **Out of date**, then tells the owner the scheduled check might
+have stopped and to ask their developer. The words carry the warning, not the
+color alone, which WCAG 1.4.1 requires.
+
+The threshold is a parameter. If your scan runs less often than daily, set it to
+a bit more than the interval, or the panel marks every check as out of date:
+
+```ts
+import { mountSettings } from "louise-toolkit/client/settings";
+
+mountSettings({
+  userName,
+  dashboard: { healthStaleAfterMs: 8 * 24 * 60 * 60 * 1000 }, // a weekly scan
+});
+```
+
+`Studio` takes the same `dashboard.healthStaleAfterMs`, and `HealthPanel` takes it
+as `staleAfterMs` when you mount the panel yourself.
+
 ## Pending migrations
 
 Pass `pendingMigrations` to `summarizeHealth` (the `pending` list from
@@ -102,7 +162,8 @@ so check live when you read the summary, too, and replace the stored list.
 ## Types
 
 `HealthSummary`, `HealthInput`, `HealthKV`. Constants: `HEALTH_KV_KEY`
-(`"louise:health:summary"`), `MAX_BROKEN_LINK_DETAILS`.
+(`"louise:health:summary"`), `MAX_BROKEN_LINK_DETAILS`, `HEALTH_STALE_AFTER_MS`
+(36 hours).
 
 `HealthKV` is structural—`get`/`put`—so a real `KVNamespace` satisfies it
 without this module importing Workers types.
