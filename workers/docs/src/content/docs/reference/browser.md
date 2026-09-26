@@ -73,9 +73,30 @@ is never called—no browser session, no WASM init.
 Editing a page mints a new key and the old card falls out naturally; an unchanged
 page always resolves to the same one. There is no invalidation step to forget.
 
-`OgImageCache` is declared structurally—`get`/`put`—so an R2 bucket or a KV
-namespace both satisfy it without the module depending on either. Omit `cache`
-and every call renders.
+`OgImageCache` is declared structurally—`get` and `put` over `Uint8Array`—so
+the module depends on no storage binding. No binding fits it as is, though: an
+R2 bucket's `get` returns an object body, a KV namespace's returns a string or an
+`ArrayBuffer`, and both take an options object where `put` takes a content type.
+Wrap the store you use in a few lines. For R2:
+
+```ts
+import type { OgImageCache } from "louise-toolkit/browser";
+
+function r2OgCache(bucket: R2Bucket): OgImageCache {
+  return {
+    async get(key) {
+      const object = await bucket.get(key);
+      return object ? new Uint8Array(await object.arrayBuffer()) : null;
+    },
+    async put(key, bytes, contentType) {
+      await bucket.put(key, bytes, { httpMetadata: { contentType: contentType ?? "image/png" } });
+    },
+  };
+}
+```
+
+The reference site wraps the Workers Cache API the same way, which needs no
+binding at all. Omit `cache` and every call renders.
 
 ```ts
 const key = await ogCacheKey(slug, `${title}\n${body}`);
@@ -83,7 +104,7 @@ const { bytes, cached } = await ogImage({
   cacheKey: key,
   markup: ogCardSvg(title, { brand: "louise", footer: "louisetoolkit.com" }),
   render,
-  cache: ogCacheStore(env),
+  cache: r2OgCache(env.OG_IMAGES),
 });
 ```
 

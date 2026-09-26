@@ -2,7 +2,8 @@
 //
 // Per-page OG image generation on Cloudflare Browser Run (issue #5). The value
 // is in the cache discipline: an OG card is deterministic for a given page +
-// content, so it's keyed by slug + a content hash and stored in R2/KV. The
+// content, so it's keyed by slug + a content hash and kept in an injected byte
+// store (R2, KV, or the Cache API, each behind a small adapter). The
 // second request for unchanged content is served from the store with NO browser
 // session—Browser Run only spins up on a cache miss (a real cost lever, since
 // browser sessions are the expensive part).
