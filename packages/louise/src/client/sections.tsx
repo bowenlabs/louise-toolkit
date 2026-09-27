@@ -799,10 +799,16 @@ function wireInline(
    *  An unknown mode name still falls back rather than throwing—a render
    *  stamped for a mode the mount doesn't declare should degrade to the site
    *  default, not lose its editor. */
-  const richTextFor = (path: string, node: HTMLElement): SectionRichTextOptions =>
-    fieldAtPath(path, catalog, items, blocks)?.richText ??
-    richTextModes?.[node.dataset.louiseRt ?? ""] ??
-    richText ?? { minimal: true };
+  const richTextFor = (path: string, node: HTMLElement): SectionRichTextOptions => {
+    const own = fieldAtPath(path, catalog, items, blocks)?.richText ??
+      richTextModes?.[node.dataset.louiseRt ?? ""] ??
+      richText ?? { minimal: true };
+    // The swatches are a brand fact, so a field that doesn't name its own
+    // inherits the site-wide list rather than falling back to the default.
+    return own.colors === undefined && richText?.colors !== undefined
+      ? { ...own, colors: richText.colors }
+      : own;
+  };
 
   // ONE marker, and the catalog decides what happens to it (ADR 0010 A2). This
   // scanned `[data-louise-sfield]` and read `data-louise-type="richtext"` and
