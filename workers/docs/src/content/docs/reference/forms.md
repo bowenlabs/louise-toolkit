@@ -46,8 +46,9 @@ to the browser's autofill token (`"name"`, `"email"`, `"postal-code"`), and use
 `inputmode: "numeric"` on a `text` field for digits that aren't a quantity. `type` is `text | email | tel | url | textarea | number | select
 | checkbox | date | file`. `required` drives a `NOT NULL` column **and** a
 required check. `validation` is the shared `(r) => Rule` builder. `email`/`url`/
-`select`/`number` carry a built-in format/coercion check; `file` uploads through
-the [media](/reference/media/) route and stores the URL.
+`select`/`number` carry a built-in format/coercion check; `file` stores the URL
+that `<Form>`'s `mediaAction`, a public upload route of the site's own, answers
+with.
 
 **Column mapping.** text-like → `text`, `checkbox` → boolean `integer`, `number`
 → `real`, plus an autoincrement `id` and a `created_at` timestamp. `deriveFormColumns`

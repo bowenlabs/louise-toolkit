@@ -24,9 +24,14 @@
 // Unstyled by default: every element carries a `louise-form*` class hook so a
 // site keeps its own look. Import `injectStyles` if you want the Louise chrome.
 
-import { createSignal, For, type JSX, Show } from "solid-js";
+import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { render } from "solid-js/web";
+import {
+  type RenderTurnstileOptions,
+  renderTurnstile,
+  type TurnstileWidget,
+} from "../core/forms/turnstile-client.js";
 import type { FormConfig, FormField } from "../core/forms/types.js";
 import { validateSubmission } from "../core/forms/validate.js";
 
@@ -35,8 +40,22 @@ export interface FormProps {
   form: FormConfig;
   /** POST target. Default `/api/louise/forms/<name>` (matches `formRoute`). */
   action?: string;
-  /** Media upload endpoint for `file` fields. Default `/api/louise/media`. */
+  /**
+   * Where a `file` field uploads, which answers `{ url }`. No default: the
+   * toolkit's media route is for editors, so a visitor's upload needs a route
+   * of the site's own, wrapped in `publicRoute` with its own size, type, and
+   * rate limits. Without it, a form with a `file` field logs an error at mount
+   * and refuses the upload.
+   */
   mediaAction?: string;
+  /**
+   * Render a Turnstile widget above the submit button and send its token as
+   * `cf-turnstile-response`. Set it when the form declares `spam.turnstile`
+   * and the site passes `formRoute` a `turnstileSecret`, or every submit is
+   * refused. Take `siteKey` from `activeCaptcha`, so the widget and the server
+   * check stay on or off together.
+   */
+  turnstile?: Pick<RenderTurnstileOptions, "siteKey" | "appearance" | "action" | "theme">;
   /** Message shown after a successful submit. Default "Thanks—we'll be in touch." */
   successMessage?: string;
   /** Called after a 201. */
@@ -59,6 +78,10 @@ function fieldId(formName: string, key: string): string {
 }
 
 const FALLBACK_ERROR = "Couldn't send your message. Try again in a minute.";
+const SPAM_CHECK_ERROR = "Couldn't confirm this came from a person. Try again.";
+const SPAM_CHECK_UNAVAILABLE =
+  "The spam check didn't load, so this form can't send. Reload the page and try again.";
+const UPLOAD_UNAVAILABLE = "Uploads aren't set up for this form.";
 
 export function Form(props: FormProps): JSX.Element {
   const entries = () => Object.entries(props.form.fields);
@@ -74,6 +97,31 @@ export function Form(props: FormProps): JSX.Element {
   const [honeypotValue, setHoneypotValue] = createSignal("");
 
   const action = () => props.action ?? `/api/louise/forms/${props.form.name}`;
+
+  // Turnstile: rendered after mount, reset after any failed submit (a token is
+  // single-use, even when the submit fails for another reason).
+  let turnstileHost: HTMLDivElement | undefined;
+  let widget: TurnstileWidget | undefined;
+  onMount(() => {
+    const hasFile = Object.values(props.form.fields).some((f) => f.type === "file");
+    if (hasFile && !props.mediaAction) {
+      console.error(
+        `[louise] <Form name="${props.form.name}">: a file field needs mediaAction, a public upload route of the site's own. The editor media route refuses visitors.`,
+      );
+    }
+    const turnstile = props.turnstile;
+    if (!turnstile || !turnstileHost) return;
+    renderTurnstile(turnstileHost, turnstile).then(
+      (w) => {
+        widget = w;
+      },
+      () => {
+        setStatus("error");
+        setMessage(SPAM_CHECK_UNAVAILABLE);
+      },
+    );
+  });
+  onCleanup(() => widget?.remove());
 
   const setError = (key: string, msg: string | undefined) =>
     setErrors(key, msg === undefined ? (undefined as unknown as string) : msg);
@@ -115,12 +163,16 @@ export function Form(props: FormProps): JSX.Element {
   }
 
   async function uploadFile(key: string, file: File): Promise<void> {
-    setUploading(key);
     setError(key, undefined);
+    if (!props.mediaAction) {
+      setError(key, UPLOAD_UNAVAILABLE);
+      return;
+    }
+    setUploading(key);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(props.mediaAction ?? "/api/louise/media", {
+      const res = await fetch(props.mediaAction, {
         method: "POST",
         body: fd,
       });
@@ -143,9 +195,15 @@ export function Form(props: FormProps): JSX.Element {
     setMessage("");
     setStatus("submitting");
     if (!(await validate())) return;
+    if (props.turnstile && !widget) {
+      setStatus("error");
+      setMessage(SPAM_CHECK_UNAVAILABLE);
+      return;
+    }
     try {
       const payload: Record<string, unknown> = { ...values, louise_ts: mountedAt };
       if (honeypot()) payload[honeypot() as string] = honeypotValue();
+      if (widget) payload["cf-turnstile-response"] = widget.token();
       const res = await fetch(action(), {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -166,19 +224,33 @@ export function Form(props: FormProps): JSX.Element {
           setStatus("error");
           setMessage(FALLBACK_ERROR);
         }
+        widget?.reset();
         return;
       }
       setStatus("error");
-      setMessage(res.status === 429 ? "Too many messages. Try again soon." : FALLBACK_ERROR);
+      setMessage(
+        res.status === 429
+          ? "Too many messages. Try again soon."
+          : res.status === 403
+            ? SPAM_CHECK_ERROR
+            : FALLBACK_ERROR,
+      );
+      widget?.reset();
     } catch {
       setStatus("error");
       setMessage("Network error. Try again.");
+      widget?.reset();
     }
   }
 
   return (
+    // `method` and `action` are the no-script path: a copy submitted before
+    // the script runs, or after it fails, posts to `formRoute` rather than
+    // sending every answer to the current page in a GET's query string.
     <form
       class={`louise-form${props.class ? ` ${props.class}` : ""}`}
+      method="post"
+      action={action()}
       novalidate
       onSubmit={onSubmit}
     >
@@ -196,6 +268,7 @@ export function Form(props: FormProps): JSX.Element {
               if (errors[key]) setError(key, undefined);
             }}
             onFile={(f) => void uploadFile(key, f)}
+            onRemoveFile={() => setValues(key, undefined)}
           />
         )}
       </For>
@@ -211,6 +284,9 @@ export function Form(props: FormProps): JSX.Element {
             onInput={(e) => setHoneypotValue(e.currentTarget.value)}
           />
         </div>
+      </Show>
+      <Show when={props.turnstile}>
+        <div class="louise-form-turnstile" ref={turnstileHost} />
       </Show>
       <button class="louise-form-submit" type="submit" disabled={status() === "submitting"}>
         {status() === "submitting" ? "Sending…" : (props.form.submitLabel ?? "Send")}
@@ -234,7 +310,9 @@ function FormRow(props: {
   uploading: boolean;
   onValue: (v: unknown) => void;
   onFile: (f: File) => void;
+  onRemoveFile: () => void;
 }): JSX.Element {
+  let fileInput: HTMLInputElement | undefined;
   const id = () => props.id;
   const errId = () => `${id()}-err`;
   const helpId = () => `${id()}-help`;
@@ -306,6 +384,7 @@ function FormRow(props: {
         <input
           type="file"
           class="louise-form-input"
+          ref={fileInput}
           {...common()}
           onChange={(e) => {
             const f = e.currentTarget.files?.[0];
@@ -316,7 +395,19 @@ function FormRow(props: {
           <span class="louise-form-hint">Uploading…</span>
         </Show>
         <Show when={props.value}>
-          <span class="louise-form-hint">Uploaded ✓</span>
+          <span class="louise-form-hint">Uploaded.</span>{" "}
+          <button
+            type="button"
+            class="louise-form-remove"
+            aria-label={`Remove the uploaded file from ${props.field.label}`}
+            onClick={() => {
+              if (fileInput) fileInput.value = "";
+              props.onRemoveFile();
+              fileInput?.focus();
+            }}
+          >
+            Remove
+          </button>
         </Show>
       </Show>
 
