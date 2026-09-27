@@ -1,5 +1,141 @@
 # louise-toolkit
 
+## 0.36.0
+
+### Minor Changes
+
+- 0d7666c: The editor's font is recorded once, as Roboto Flex, and the stale Hepta Slab token is gone (#601).
+
+  - **One home for the font tokens:** `louise-toolkit/theme/fonts.css` now defines `--louise-font-head` and `--louise-font-body` on `:root`, and `.louise-type` reads them. The chrome's injected CSS and `louise.css` no longer carry their own copies, so an override on `:root` reaches the chrome and `.louise-type` alike.
+  - **`--louise-font` is removed from `louise.css`.** It named Hepta Slab, a face nothing loads, so anything that read it rendered in Iowan Old Style or Georgia.
+  - **`packages/louise/preview/` is deleted.** It loaded Hepta Slab from Google Fonts and hand-copied both palettes, and the package never shipped it.
+
+  **Upgrading:** replace any `var(--louise-font)` with `var(--louise-font-head)`, and import `louise-toolkit/theme/fonts.css` wherever you read the font tokens outside the editor, since `louise.css` no longer defines `--louise-font-body`.
+
+- 76c5baa: Form fields accept a web address without a scheme and, under the form's locale, a number with grouping separators (#594).
+
+  - **`url`:** `example.com` or `www.example.com/menu` gains `https://` before the check, and the normalized value is what's stored.
+  - **`number`:** `FormConfig.locale` (new, no default) makes a number read that locale's grouping and decimal separators, so `1,200` is 1200 in `en-US` and `1.200,5` is 1200.5 in `de-DE`. Without a locale, nothing changes: a comma is a decimal point in some locales, so it isn't guessed.
+  - **Messages say what works:** "Enter a web address, like example.com." and "Enter a number, like 1200." replace "`<key>` must be a valid URL" and "`<label>` must be a number".
+  - **`<Form>` renders a number as a text input** with `inputmode="decimal"`, since `type="number"` drops `1,200`, adds spinners, and changes on a scroll.
+  - **`coerceFormValue(field, raw, { locale })`** and `tanstackFieldValidator(key, field, { locale })` take the locale; `tanstackFormValidators` passes the form's.
+  - **`formToAstroSchema`** (`@louise-toolkit/astro`) runs the same coercion first, so an Astro Action accepts what `formRoute` accepts, with the same two messages.
+
+  **Upgrading:** set `locale` on a form whose `number` fields should accept separators. A test that matched the old messages needs the new ones, and a stylesheet that targeted `input[type="number"]` in a `<Form>` needs `input[inputmode="decimal"]`.
+
+- b8252ca: `<Form>` is easier to use with assistive technology, and `FormField` takes `autocomplete` and `inputmode` (#548).
+
+  - **Hints are announced:** `aria-describedby` points at a field's `help` text as well as its error.
+  - **Required fields say so:** they get `required` and `aria-required`. The form stays `novalidate`, so no browser bubble appears.
+  - **A failed check moves focus** to the first invalid field, and the status region says how many need attention. A server violation that matches no field now shows in the status region instead of nowhere.
+  - **The fallback names a next step:** "Couldn't send your message. Try again in a minute." replaces "Something went wrong."
+  - **IDs include the form name:** `louise-f-<form>-<field>`, so two forms with an `email` field don't collide.
+  - **Autofill and keyboards:** `FormField.autocomplete` and `FormField.inputmode` pass straight through to the control.
+
+  **Upgrading:** a stylesheet or script that selected `#louise-f-<field>` needs `#louise-f-<form>-<field>`, or the `louise-form*` classes. The status paragraph is now always in the DOM, empty until there's a message, so hide `.louise-form-status:empty` if your styles give it space.
+
+- 4a234fe: `<Form>` posts without its script, sends a Turnstile token, and no longer uploads to the editor-only media route (#591).
+
+  - **No-script fallback:** the `<form>` renders `method="post"` and the `formRoute` action. Before, a copy submitted before the script ran, or after it failed, sent every answer to the current page in a GET's query string.
+  - **Turnstile:** pass `turnstile: { siteKey, appearance?, action?, theme? }` and `<Form>` renders the widget above the submit button, sends its token as `cf-turnstile-response`, and resets it after any failed submit. A `403` now says the spam check failed rather than "Couldn't send your message." Take `siteKey` from `activeCaptcha`.
+  - **Uploads:** `mediaAction` has no default. The toolkit's media route needs an editor session, so a visitor's upload was always refused. A form with a `file` field and no `mediaAction` logs an error at mount and refuses the upload, with a message on the field. An uploaded file has a **Remove** button.
+
+  **Upgrading:** a form that declares `spam.turnstile` and is served with a `turnstileSecret` needs `turnstile={{ siteKey }}`, or every submit is refused, as it already was. A form with a `file` field needs `mediaAction` pointing at a public upload route of your own, wrapped in `publicRoute` with its own size, type, and rate limits. What `formRoute` answers to a no-script post is #589.
+
+- 1e95091: `formRoute` answers a no-script form post with a redirect instead of raw JSON (#589).
+
+  - **Post, redirect, get:** a form-encoded post from a browser that wants HTML, which is what a plain `<form method="post">` sends when its script is slow, blocked, or broken, now gets a `303` back to the page it came from, with `?form=<name>&status=sent|invalid|limited|refused`. For `invalid`, `&invalid=` lists the failing field keys, never the messages. Before, the visitor saw `{"ok":true}` or a JSON list of violations with no way back. A missing or cross-origin `Referer` redirects to the site root.
+  - **`respond(outcome, request)`** on `FormRouteConfig` answers with your own page instead; `FormOutcome` carries `form`, `status`, `invalid`, and `violations`.
+  - **A file in a multipart post is refused** with a violation on that field, instead of storing the file's name as its value.
+  - **JSON requests are unchanged:** a `fetch` with a JSON body gets exactly the responses it got before.
+
+  **Upgrading:** a page with a plain form can read `form`, `status`, and `invalid` from its query string and show the result. A site whose script posted `FormData` with an `Accept: text/html` header now gets a redirect; send `Accept: application/json`, or post JSON.
+
+- 20a09e9: The health scan can crawl the whole site and report redirects, indexing directives, shared titles, and the slowest pages (#588).
+
+  - **`crawlSite(options)`** (`louise-toolkit/browser`) reads pages and reports broken links, internal links that redirect (against the page that holds the link, with the hop count and final status), pages that say `noindex` or name a canonical on another origin or page, and titles more than one page shares.
+    - **Caps:** `crawl: { maxPages, maxDepth }` follows same-origin links from the start paths, and `maxRequests` keeps the scan under the Worker's subrequest limit, with `truncated` when it stops early.
+  - **`checkLinks` now follows redirects itself,** with `redirect: "manual"`, and returns `crawlSite`'s broken links. A link that reaches a live page through a redirect still isn't broken. A redirect loop, more than five hops, now reports as `"error"`.
+  - **`pageSignals(html, headers, url)`** reads a page's robots directives, canonical link, title, and description.
+  - **`summarizeHealth`** takes optional `redirects`, `indexing`, and `duplicateTitles`, and stores a count and a capped sample of each; `healthIssueCount` counts them. The Health panel lists each, and hides them when a scan didn't crawl.
+  - **Vitals by page:** `cwvSqlQuery(dataset, hours, { byPath: true, minSamples })` groups by the beacon's path too, `parseCwvPathRows` keeps the slowest pages, and `summarizeCwv({ …, slowestPaths })` stores them for the panel's "Slowest pages" list.
+
+  **Upgrading:** nothing is required, and a stored summary from before still reads. To use the crawl, swap `checkLinks` for `crawlSite` in the scheduled scan and pass its findings to `summarizeHealth`. Count `seoGaps` over pages that aren't `noindex`.
+
+- 865521e: A honeypot hit no longer drops a real visitor's message without a trace (#590).
+
+  - **`spamVerdict(config, body)`** returns `"honeypot"`, `"too-fast"`, or `null`. `looksLikeSpam` is now a wrapper over it and behaves as before.
+  - **`formRoute` records each held submission.** By default it logs one line with the form's name and the verdict, never the field values. Pass `onSpam(verdict, env, { form, body })` to count, alert on, or store them.
+  - **`defineForm` warns about an autofill-prone honeypot name.** Browsers and password managers fill fields by name and don't always honor `autocomplete="off"`, so a decoy called `website`, `company`, or `email` catches real visitors. `autofillProneName(name)` is the check. The forms guide's example decoy is now `louise_trap`.
+
+  **Upgrading:** if `defineForm` warns about your form, rename its honeypot to a name no autofill matches, such as `louise_trap`. The decoy's name is yours, so nothing renames it for you. A plain HTML form that hard-codes the decoy's `name` needs the same rename.
+
+- 8875199: JSON-LD structured data from the facts in site settings and commerce (#584).
+
+  - **Builders** in `louise-toolkit/seo`: `organizationJsonLd`, `localBusinessJsonLd`, `productJsonLd`, and `breadcrumbJsonLd`. Each takes its facts from the settings row or an argument and supplies none: the business type, the address parts, the hours, and the currency are all yours. A missing fact is left out rather than guessed.
+  - **Prices** are written in major units at the currency's own precision (`"12.50"` USD, `"1250"` JPY).
+  - **`jsonLdScript(node)`** serializes a node into a `<script type="application/ld+json">` with `<`, `>`, and `&` escaped, so owner text can't close the element.
+  - **`pageHead({ …, jsonLd })`** takes the nodes, and `renderHeadTags` prints them after the other head tags. `seoHead` in `@louise-toolkit/astro` passes `jsonLd` through, since it takes `pageHead`'s input.
+
+  **Upgrading:** nothing is required. A structured address, opening hours, and a business type have no settings column yet; keep them in the settings row's `custom` JSON until a second local site needs them.
+
+- 4892c0a: `pagesRoute` falls through on any path under its prefix that isn't an all-digit `/:id`, so `versionsRoute`, `searchRoute`, and `seoFixRoute` no longer have to mount before it (#538).
+
+  Before, `pagesRoute` answered `400 Bad id` for `/api/louise/pages/search`, `/api/louise/pages/42/versions`, and every other non-integer path, which is why each sibling route carried a "mount before `pagesRoute`" rule. It now returns `undefined` for those paths, before the editor guard runs, and keeps the `400` only for an all-digit ID too large to hold exactly.
+
+  **Upgrading:** nothing to change; the old order still works. A request to a path no route owns, such as `/api/louise/pages/abc`, now reaches the next route or your fallback instead of getting a `400`.
+
+- a588c28: A publish no longer reports failure after it has committed, and a Workflow started from it can be keyed per publish (#531).
+
+  - **`deferReindex` learns the version.** On a publish, `DeferReindex` gets a second argument, `{ versionId }`, naming the version that went live. Key per-publish work by it: the row ID repeats on every publish of the same page.
+  - **A follow-up failure is a degrade.** When the reindex, or the `deferReindex` hook, throws after the publish batch commits, `publish` returns the live page and logs `content.publish.reindex` through `reportDegraded`. Before, the route answered 422 for a page that was already live.
+  - **`startWorkflow` checks the instance ID.** An ID outside Cloudflare's pattern (at most 100 letters, digits, hyphens, and underscores, not starting with a hyphen) now throws `LouiseWorkflowError` before `create`. The new `isWorkflowInstanceId` runs the same check.
+
+  **Upgrading:** the documented example ID, `publish:pages:<id>`, has colons, which Cloudflare rejects, and repeats on every publish of a page. If you copied it, switch to `publish-pages-<id>-v<versionId>`, read from the new second argument. A site that relied on a `deferReindex` throw to fail the publish request now gets a success and a degrade log line instead.
+
+- b901cbe: Serve `sitemap.xml` and `robots.txt` from the published pages, per request (#583).
+
+  - **`sitemapRoute`** (`louise-toolkit/editor`) reads the pages table on every request. It lists published rows without `noindex` or an `exclude` slug, the home slug as `/`, then the `extra` paths. It lists nothing while **Hide from search engines** is on. Both files are public and cacheable for 60 seconds, and a sitemap that can't read the table answers 503.
+  - **`sitemapXml(entries)`** and **`robotsTxt({ sitemapUrl?, disallow? })`** (`louise-toolkit/seo`) are the pure builders it uses.
+  - **A publish now moves the page's `updatedAt`** when the table has a date-typed `updatedAt` column, as the framework `pages` table does, so a page's `<lastmod>` is when it last went live.
+
+  The origin, the home slug, the excluded slugs, and the extra paths are parameters, with no defaults. The only default is the 60-second cache (`maxAgeSeconds`).
+
+  **Upgrading:** nothing is required. To serve the files, mount `sitemapRoute` in `composeWorker`, and remove any hand-written `sitemap.xml` route.
+
+- 0f773fd: A `SquareCatalogItem` lists every image on the item, not just the primary. `imageUrl` held only the first of the item's `image_ids`, and the primary image is also the item's tile on the register, so a site had no way to show a different picture online.
+
+  - `images` is a new field on `SquareCatalogItem`: `SquareItemImage[]`, each an `id` and a `url`, in Square's order with the primary first. `mapCatalogItem`, `listCatalogItems`, `retrieveCatalogItem`, and the catalog search fill it.
+  - `url` is `null` when the response didn't carry the IMAGE object. A batch upsert's result has ids with no URLs, and so does an image that was deleted but is still listed on the item.
+  - `imageUrl` is unchanged: it's the first entry's `url`.
+
+  What to know when you upgrade: nothing changes for code that reads `imageUrl`. A site that caches catalog items should read `images` as optional until the cache refreshes, since entries written before the upgrade don't have it.
+
+- f4c99d5: `createPaymentIntent` and `createAndSendInvoice` take the currency, and a new check, `lint:facts`, records every currency, locale, and time zone literal left in the library (#578).
+
+  - **`createPaymentIntent(secretKey, items, { currency })`** and **`createAndSendInvoice(secretKey, { …, currency })`** charge in the ISO 4217 code you pass, in either case, as `createLineItemInvoice` already did. Before, both always charged in USD.
+  - **Defaults that remain:** each still defaults to `"usd"`, so existing calls are unchanged. The Square client still tags a response that leaves its currency out as `"USD"`, and still fills it in on a write whose input names none; every Square write input takes a `currency`. Fourthwall money without a currency is tagged `"USD"` too.
+  - **`lint:facts`** fails on an ISO 4217 code, a BCP 47 locale with a region, or an IANA time zone written as a string literal in `packages/louise/src`, unless its allowlist entry in `scripts/ci/checks/site-fact-literals.mjs` gives the reason.
+
+  **Upgrading:** a site that sells in anything but US dollars passes `currency` to these helpers, and to the Square writes it calls.
+
+- d893984: Webhooks carry a delivery ID, and `deliverWebhook` gives any webhook the checked delivery path (#579).
+
+  - **Delivery IDs:** `createWebhookHook` fixes a `deliveryId` on each message when it's enqueued, and `deliverWebhookMessage` sends it as `X-Louise-Delivery` and as `deliveryId` in the signed body. A retry carries the same ID, so a receiver can drop the repeat.
+  - **`deliverWebhook(url, payload, { secret?, deliveryId?, policy? })`** is the checked path on its own: `fetchPublicUrl` with its timeout, the optional signature, and a throw on a non-2xx status. Use it from a publish Workflow's notify step instead of a bare `fetch`, so a receiver that answers 500 fails the step and it retries.
+  - **Workflow steps get `instanceId`:** `defineWorkflow` passes the run's instance ID to each step. It's the same on every retry, so it's the delivery ID for a step's webhook.
+
+  **Upgrading:** nothing is required. A message enqueued before you deploy has no `deliveryId`, so it's delivered without the header, as before. The workflows reference's publish example now uses `deliverWebhook`; if you copied its bare `fetch`, switch to it.
+
+### Patch Changes
+
+- f1706b3: Two accessibility fixes the new client lint and name checks found (#600):
+
+  - **An unset link is named:** the editor's canvas chrome names a link field that has no URL yet. An `<a>` without `href` has no role of its own, so it was a tab stop a screen reader announced as nothing; it now gets the same `group` role and name as any other generic node.
+  - **No invalid ARIA on the picker:** the settings image picker's button no longer carries `aria-invalid`, which a button doesn't support. The error stays linked through `aria-describedby`.
+
+- 645efd5: The Square client is split into one file per area under `core/commerce/square/` (#539). `louise-toolkit/commerce/square` re-exports the same 108 names as before, so no import changes.
+
 ## 0.35.0
 
 ### Minor Changes
