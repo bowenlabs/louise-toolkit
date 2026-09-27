@@ -134,7 +134,10 @@ Set `onIncident` and every failure the Worker's handlers see becomes an
   isolate finishes. A degrade past that limit is dropped and counted in a log
   line.
 
-Sinks run through `ctx.waitUntil`, after the response. A sink that throws or
+Each sink gets the report and `{ env, cause }`: the Worker's bindings and the
+value that was thrown. [`d1Incidents`](/reference/incidents/#d1incidentsdatabase-table)
+is the sink that keeps the site's record. Sinks run through `ctx.waitUntil`,
+after the response. A sink that throws or
 rejects is logged and ignored; it never degrades, because that degrade would
 feed the next flush and fail the same way.
 
@@ -143,7 +146,7 @@ export default composeWorker<Env>({
   routes: [louiseApiRoute],
   fetch: ssrHandler,
   onIncident: {
-    sinks: [logIncident],
+    sinks: [d1Incidents((env) => env.DB)],
     critical: ["commerce.checkout", "/cart"],
     release: (env) => env.VERSION?.id,
   },

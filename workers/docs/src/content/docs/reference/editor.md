@@ -7,6 +7,7 @@ sidebar:
 
 ```ts
 import {
+  incidentsRoute,
   saveRoute,
   settingsRoute,
   blobSettingsRoute,
@@ -133,6 +134,7 @@ export const ALL: APIRoute = (ctx) =>
 | `formRoute`         | `/api/louise/forms/<name>`           | **public** POST capture (same-origin + spam guard)                      |
 | `inquiriesRoute`    | `/api/louise/inquiries`              | GET list · DELETE one                                                   |
 | `submissionsRoute`  | `/api/louise/submissions/<form>`     | GET list · DELETE one—a form's rows in the shared table                 |
+| `incidentsRoute`    | `/api/louise/incidents` (+ `/:fp`)   | GET list · GET one · POST `resolve`—the site's incidents                |
 | `seedRoute`         | `/api/louise/seed`                   | seeds the `site_settings` singleton (idempotent)                        |
 | `statusRoute`       | `/api/louise/status`                 | **public** GET · HEAD: 200 or 503 from the site's checks                |
 | `sitemapRoute`      | `/sitemap.xml`, `/robots.txt`        | **public** GET · HEAD: the published pages, read per request            |
@@ -220,6 +222,12 @@ resolveEditor, validate? }`. The
   `formRoute` (`genericTable`): GET lists one `form`'s rows from the shared
   `submissions` table newest-first (parsing `data` back onto each row), DELETE
   removes one by `?id=`. Gives each catalog form its own review tab over one table.
+- **`incidentsRoute`**—the site's [`incidents`](/reference/incidents/#the-incidents-table)
+  table, for its editors: GET lists them (`?status=open`, the default, or
+  `resolved` or `all`), GET `/<fingerprint>` reads one, and POST
+  `/<fingerprint>/resolve` resolves one, with the same-origin check. Editors
+  only: an agent token never reaches it, and Watchtower reads the table through
+  Cloudflare's D1 API with its own read-only token.
 - **`settingsRoute`**—GET/PATCH the `site_settings` singleton. **Extensible,
   not a closed set:** it patches an allowlisted structured base (`columns`, the
   framework [`siteSettingsColumns`](/reference/db/)) and merges site-declared

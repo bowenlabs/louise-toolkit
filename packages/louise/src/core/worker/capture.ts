@@ -21,12 +21,12 @@ import {
   type IncidentInput,
   type IncidentReport,
   type IncidentSink,
-} from "../incidents/index.js";
+} from "../incidents/report.js";
 
 /** How `onIncident` is configured, in full. */
 export interface IncidentCaptureOptions<Env = unknown> {
   /** One sink or several. Each gets every report. */
-  readonly sinks: IncidentSink | readonly IncidentSink[];
+  readonly sinks: IncidentSink<Env> | readonly IncidentSink<Env>[];
   /**
    * The failures that should alert: dotted names (`commerce.checkout`) and
    * path prefixes (`/cart`). See `isCriticalIncident`. Everything else is
@@ -42,9 +42,15 @@ export interface IncidentCaptureOptions<Env = unknown> {
 
 /** What `onIncident` takes: one sink, a list, or the full options. */
 export type IncidentCapture<Env = unknown> =
-  | IncidentSink
-  | readonly IncidentSink[]
+  | IncidentSink<Env>
+  | readonly IncidentSink<Env>[]
   | IncidentCaptureOptions<Env>;
+
+/** A report and the value behind it, which only in-memory sinks see. */
+interface Captured {
+  report: IncidentReport;
+  cause: unknown;
+}
 
 /** Degrades a buffer holds before it drops the rest until the next flush. */
 const MAX_PENDING_DEGRADES = 100;
@@ -78,15 +84,15 @@ export function withIncidentCapture<Env, QMessage>(
     }
   };
 
-  const dispatch = (reports: IncidentReport[], ctx: ExecutionContext): void => {
-    if (reports.length === 0) return;
-    const work = reports.flatMap((report) => {
+  const dispatch = (captured: Captured[], env: Env, ctx: ExecutionContext): void => {
+    if (captured.length === 0) return;
+    const work = captured.flatMap(({ report, cause }) => {
       const marked = critical.length
         ? { ...report, critical: isCriticalIncident(report, critical) }
         : report;
       return sinks.map((sink) =>
         Promise.resolve()
-          .then(() => sink(marked))
+          .then(() => sink(marked, { env, cause }))
           .catch((err: unknown) => {
             console.error(
               `[louise] incident sink failed for ${marked.name} (${marked.fingerprint})`,
@@ -106,16 +112,24 @@ export function withIncidentCapture<Env, QMessage>(
   const flush = (env: Env, ctx: ExecutionContext, thrown?: IncidentInput): void => {
     try {
       const releaseValue = releaseOf(env);
-      const reports: IncidentReport[] = [];
-      if (thrown) reports.push(buildIncidentReport({ ...thrown, release: releaseValue }));
+      const captured: Captured[] = [];
+      if (thrown) {
+        captured.push({
+          report: buildIncidentReport({ ...thrown, release: releaseValue }),
+          cause: thrown.cause,
+        });
+      }
       for (const { event, at } of pending.splice(0)) {
-        reports.push(incidentFromDegraded(event, { release: releaseValue, now: at }));
+        captured.push({
+          report: incidentFromDegraded(event, { release: releaseValue, now: at }),
+          cause: event.cause,
+        });
       }
       if (dropped > 0) {
         console.error(`[louise] incident capture dropped ${dropped} degrades; its buffer was full`);
         dropped = 0;
       }
-      dispatch(reports, ctx);
+      dispatch(captured, env, ctx);
     } catch (err) {
       console.error("[louise] incident capture failed", err);
     }
@@ -166,7 +180,7 @@ export function withIncidentCapture<Env, QMessage>(
 }
 
 function normalize<Env>(capture: IncidentCapture<Env>): {
-  sinks: readonly IncidentSink[];
+  sinks: readonly IncidentSink<Env>[];
   critical: readonly string[];
   release: ((env: Env) => string | undefined) | undefined;
 } {
