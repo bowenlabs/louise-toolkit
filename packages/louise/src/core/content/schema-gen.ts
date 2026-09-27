@@ -19,8 +19,8 @@ function quote(value: string): string {
 // Mirrors codegen.ts's fieldToColumn switch, emitting drizzle-orm
 // source text instead of building a runtime column. Kept as its own
 // switch (not shared code) since the two have different outputs
-// (Column vs. string)—codegen.test.ts's schema-parity assertions are
-// what keep this in sync with codegen.ts's actual runtime behavior.
+// (Column vs. string)—a parity test that evaluates the generated source and
+// compares it with the runtime schema is what keeps the two in sync.
 function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<string>): string {
   const columnName = field.name ?? toSnakeCase(key);
 
@@ -95,6 +95,14 @@ function fieldToColumnSource(key: string, field: FieldConfig, usedBuilders: Set<
       if (field.onUpdate === "now") {
         source += ".$onUpdateFn(() => new Date())";
       }
+      return source;
+    }
+    case "checkbox": {
+      // The integer-as-boolean column codegen.ts builds (#699).
+      usedBuilders.add("integer");
+      let source = `integer(${quote(columnName)}, { mode: "boolean" })`;
+      if (field.required) source += ".notNull()";
+      if (field.defaultValue !== undefined) source += `.default(${field.defaultValue})`;
       return source;
     }
     default:

@@ -48,8 +48,10 @@ export interface MigrationResult {
   migration: string;
   dryRun: boolean;
   scanned: number;
+  /** Documents written, or in a dry run, documents that would be. */
   changed: number;
-  /** Per-document patches (always populated—the dry-run report). */
+  /** Their patches: the dry-run report. A document whose write failed is in
+   *  `errors`, not here. */
   changes: MigrationChange[];
   errors: string[];
 }
@@ -80,8 +82,8 @@ function patchToUpdate(patch: Patch): Record<string, JsonValue | null> {
  * writes the resulting patch through `api.update`. Returns a report of what
  * changed—run it `dryRun` first, then apply.
  */
-export async function runMigration<TContext>(
-  migration: Migration,
+export async function runMigration<TContext, TDoc extends Doc = Doc>(
+  migration: Migration<TDoc>,
   options: RunMigrationOptions<TContext>,
 ): Promise<MigrationResult> {
   const { api, context, dryRun = false } = options;
@@ -93,14 +95,14 @@ export async function runMigration<TContext>(
 
   for (const before of rows) {
     try {
-      const after = (await migration.document(before)) ?? before;
+      const after = (await migration.document(before as unknown as TDoc)) ?? before;
       const patch = computePatch(before, after);
       if (patch.length === 0) continue;
+      // Counted only once the write lands, so a document whose update fails
+      // shows up in `errors` and nowhere else (#699).
+      if (!dryRun) await api.update(context, before.id, patchToUpdate(patch));
       changes.push({ id: before.id, patch });
       changed++;
-      if (!dryRun) {
-        await api.update(context, before.id, patchToUpdate(patch));
-      }
     } catch (err) {
       errors.push(`document ${before.id}: ${String(err)}`);
     }
