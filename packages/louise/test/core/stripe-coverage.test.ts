@@ -204,9 +204,9 @@ describe("verifyStripeSignature", () => {
 describe("ensureStripeCustomer", () => {
   it("reuses a known customer without calling Stripe", async () => {
     const calls = stubStripe(() => json({}));
-    expect(await ensureStripeCustomer(KEY, { email: "alex@example.com", customerId: "cus_1" })).toEqual(
-      { id: "cus_1", created: false },
-    );
+    expect(
+      await ensureStripeCustomer(KEY, { email: "alex@example.com", customerId: "cus_1" }),
+    ).toEqual({ id: "cus_1", created: false });
     expect(calls).toHaveLength(0);
   });
 
@@ -355,7 +355,7 @@ describe("createLineItemInvoice", () => {
   });
 
   it("computes the total locally when Stripe omits amount_due", async () => {
-    const calls = stubStripe((path) => (path === "/invoices" ? json({ id: "in_6" }) : json({ id: "in_6" })));
+    const calls = stubStripe(() => json({ id: "in_6" }));
     const out = await createLineItemInvoice(KEY, {
       customerId: "cus_9",
       lineItems: [
