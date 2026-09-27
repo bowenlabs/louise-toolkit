@@ -25,6 +25,7 @@ import {
   resolveRealtime,
 } from "./realtime.js";
 import { NODE_MARKER_ATTR } from "./node.js";
+import { markPublished, PUBLISHED_MESSAGE, takePublished } from "./published-flag.js";
 import { mountRichText } from "./RichText.jsx";
 import { injectStyles } from "./styles.js";
 import { onLouiseNavigate } from "./lifecycle.js";
@@ -116,7 +117,15 @@ async function signOut(): Promise<void> {
   location.assign(exitHref());
 }
 
-type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error" | "conflict" | "locked";
+type ChromeStatus =
+  | "idle"
+  | "saving"
+  | "saved"
+  | "publishing"
+  | "published"
+  | "error"
+  | "conflict"
+  | "locked";
 
 /** What the bar offers when a draft save finds someone else's edit (#572). */
 interface ChromeConflict {
@@ -157,11 +166,12 @@ interface ChromeOptions {
 }
 
 /**
- * The unified edit bar: Settings (opens Louise Settings) and Done (leaves edit mode),
- * plus its save controls. A versioned page shows **Save draft** (green) +
- * **Publish** (yellow); a plain collection page shows a single live **Save**; a
- * page with no inline fields shows neither (its surface—for example, the sections dock—owns
- * saving). A transient save-status message trails the actions.
+ * The unified edit bar: Settings (opens Louise Settings) and Sign out, plus its
+ * save controls. A versioned page shows **Save draft** (a green text button) and
+ * **Publish** (the one filled button, since it's the one action that changes the
+ * live site); a plain collection page shows a single live **Save**; a page with
+ * no inline fields shows neither (its surface—for example, the sections
+ * dock—owns saving). A transient save-status message trails the actions.
  */
 function createChrome(opts: ChromeOptions): Chrome {
   const bar = document.createElement("div");
@@ -172,14 +182,22 @@ function createChrome(opts: ChromeOptions): Chrome {
   // claim it. Listener is on the bar itself, so it goes when the bar does.
   wireToolbarRoving(bar);
 
+  // An unavailable action is aria-disabled, not disabled, so Tab and the
+  // toolbar's arrow keys still reach it and it can say why (#597). Its click
+  // does nothing while it's set.
   const btn = (className: string, label: string, onClick: () => void): HTMLButtonElement => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = className;
     b.textContent = label;
-    b.disabled = true;
-    b.addEventListener("click", onClick);
+    b.setAttribute("aria-disabled", "true");
+    b.addEventListener("click", () => {
+      if (b.getAttribute("aria-disabled") !== "true") onClick();
+    });
     return b;
+  };
+  const setAvailable = (b: HTMLButtonElement | null, available: boolean): void => {
+    if (b) b.setAttribute("aria-disabled", available ? "false" : "true");
   };
 
   // Save controls only when this page owns inline fields for the bar to save. A
@@ -199,6 +217,14 @@ function createChrome(opts: ChromeOptions): Chrome {
     !opts.versioned && opts.hasFields && !opts.autoSave
       ? btn("louise-save", "Save", opts.onSave)
       : null;
+  // Why Publish is unavailable, beside it, and tied to it for a screen reader.
+  const publishReason = publish ? document.createElement("span") : null;
+  if (publish && publishReason) {
+    publishReason.id = "louise-publish-reason";
+    publishReason.className = "louise-publish-reason";
+    publishReason.textContent = "Nothing to publish yet";
+    publish.setAttribute("aria-describedby", publishReason.id);
+  }
   const status = opts.hasFields ? document.createElement("span") : null;
 
   // Presence avatars (realtime): a compact strip of the other editors in the
@@ -241,7 +267,17 @@ function createChrome(opts: ChromeOptions): Chrome {
   // appendChild (single node), not the variadic append(): the latter's DOM
   // signature collides with @cloudflare/workers-types' HTMLRewriter `append`
   // when both type libs are in scope.
-  for (const el of [presence, saveDraft, publish, save, settings, exit, status, conflictActions])
+  for (const el of [
+    presence,
+    saveDraft,
+    publish,
+    publishReason,
+    save,
+    settings,
+    exit,
+    status,
+    conflictActions,
+  ])
     if (el) bar.appendChild(el);
   bar.lang = CHROME_LANG;
   document.body.appendChild(bar);
@@ -251,14 +287,16 @@ function createChrome(opts: ChromeOptions): Chrome {
   let hasDraft = false;
   // Publish is available whenever there are pending edits or an unpublished draft.
   const refreshPublish = () => {
-    if (publish) publish.disabled = !(isDirty || hasDraft);
+    const available = isDirty || hasDraft;
+    setAvailable(publish, available);
+    if (publishReason) publishReason.hidden = available;
   };
 
   return {
     setDirty: (dirty) => {
       isDirty = dirty;
-      if (save) save.disabled = !dirty;
-      if (saveDraft) saveDraft.disabled = !dirty;
+      setAvailable(save, dirty);
+      setAvailable(saveDraft, dirty);
       refreshPublish();
     },
     setHasDraft: (draft) => {
@@ -275,13 +313,15 @@ function createChrome(opts: ChromeOptions): Chrome {
             ? savedText
             : s === "publishing"
               ? "Publishing…"
-              : s === "error"
-                ? "Couldn’t save"
-                : s === "conflict"
-                  ? "Someone else changed this since you opened it."
-                  : s === "locked"
-                    ? "Someone else is editing this right now."
-                    : "";
+              : s === "published"
+                ? PUBLISHED_MESSAGE
+                : s === "error"
+                  ? "Couldn’t save"
+                  : s === "conflict"
+                    ? "Someone else changed this since you opened it."
+                    : s === "locked"
+                      ? "Someone else is editing this right now."
+                      : "";
     },
     setConflict: (conflict) => {
       if (!conflictActions) return;
@@ -314,18 +354,35 @@ function createChrome(opts: ChromeOptions): Chrome {
   };
 }
 
+let lockNoteSeq = 0;
+
 /** Toggle a field's soft-lock UI: read-only + a "locked by X" badge when held by a
- *  peer, cleared when free/mine. Advisory only—the server enforces the lock. */
+ *  peer, cleared when free/mine. Advisory only—the server enforces the lock.
+ *
+ *  The badge is a real text element, and the surface that takes focus (the
+ *  rich-text `textbox`) points `aria-describedby` at it and is `aria-readonly`,
+ *  so a screen reader user who tabs in hears that it's locked and who has it
+ *  (#597). The badge's lock icon is its CSS background, not part of the text. */
 function setFieldLock(el: HTMLElement, byName: string | null): void {
+  const surface = el.querySelector<HTMLElement>('[contenteditable="true"], [role="textbox"]') ?? el;
+  let note = el.querySelector<HTMLElement>(":scope > .louise-lock-note");
   if (byName) {
     el.classList.add("louise-locked");
-    el.setAttribute("aria-disabled", "true");
-    // The badge's lock icon is CSS (`.louise-locked::before`), not part of the text.
-    el.dataset.louiseLockedBy = `${byName} is editing`;
+    if (!note) {
+      note = document.createElement("span");
+      note.className = "louise-lock-note";
+      note.id = `louise-lock-note-${++lockNoteSeq}`;
+      note.contentEditable = "false";
+      el.appendChild(note);
+    }
+    note.textContent = `${byName} is editing this field`;
+    surface.setAttribute("aria-readonly", "true");
+    surface.setAttribute("aria-describedby", note.id);
   } else {
     el.classList.remove("louise-locked");
-    el.removeAttribute("aria-disabled");
-    delete el.dataset.louiseLockedBy;
+    note?.remove();
+    surface.removeAttribute("aria-readonly");
+    surface.removeAttribute("aria-describedby");
   }
 }
 
@@ -799,6 +856,8 @@ export function mountLouise(opts: MountLouiseOptions): void {
         body: "{}",
       });
       if (!res.ok) throw new Error(`publish failed: ${res.status}`);
+      // Say it went live once the reload lands (#597).
+      if (pageId !== undefined) markPublished(pageId);
       location.reload();
     } catch (err) {
       console.error("[louise] publish failed", err);
@@ -824,6 +883,13 @@ export function mountLouise(opts: MountLouiseOptions): void {
     versioned,
     autoSave: autoSaveOn,
   });
+
+  // A publish just reloaded this page: say it went live (#597). A tick later,
+  // so the status region is in the page before its text changes, which is
+  // what makes a screen reader announce it.
+  if (versioned && pageId !== undefined && fieldEls.length > 0 && takePublished(pageId)) {
+    setTimeout(() => chrome.setStatus("published"), 0);
+  }
 
   // Reflect whether an unpublished draft already exists, so Publish is available
   // even before this session makes an edit.

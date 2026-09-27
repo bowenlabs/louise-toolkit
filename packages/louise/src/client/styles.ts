@@ -165,7 +165,8 @@ const CSS = `
 .louise-conflict[hidden] {
   display: none;
 }
-.louise-status[data-status="saved"] {
+.louise-status[data-status="saved"],
+.louise-status[data-status="published"] {
   color: #15803d;
 }
 /* Three text actions: Save (green, filled primary), Settings (blue), Done
@@ -182,7 +183,7 @@ const CSS = `
   background: var(--louise-green);
   transition: opacity 120ms ease, transform 80ms ease, background 120ms ease;
 }
-.louise-save:hover:not(:disabled) {
+.louise-save:hover:not(:disabled):not([aria-disabled="true"]) {
   transform: translateY(-1px);
   background: #15803d;
 }
@@ -237,17 +238,17 @@ const CSS = `
 
 /* A rich field a peer holds (soft-lock): dimmed + non-interactive + a badge naming
    the holder. Advisory only — the server also drops a non-holder's change. The
-   badge fills with the orange text stop: white on it is 5.02:1, and on
-   --louise-orange 3.02:1. Only the field's content dims: opacity on the field
-   itself would fade its ::before badge too, and white on the faded orange is
-   2.49:1. */
+   badge is a real text element (#597), so the editable's aria-describedby can
+   point at it; generated content never reached a screen reader. It fills with
+   the orange text stop: white on it is 5.02:1, and on --louise-orange 3.02:1.
+   Only the field's content dims: opacity on the field itself would fade the
+   badge too, and white on the faded orange is 2.49:1. */
 .louise-editable.louise-locked {
   position: relative;
   pointer-events: none;
 }
-.louise-editable.louise-locked > * { opacity: 0.6; }
-.louise-editable.louise-locked::before {
-  content: attr(data-louise-locked-by);
+.louise-editable.louise-locked > :not(.louise-lock-note) { opacity: 0.6; }
+.louise-lock-note {
   position: absolute;
   top: -10px;
   left: 8px;
@@ -267,9 +268,11 @@ const CSS = `
    directly in the bar's flex row, sharing its gap + alignment with Settings/Done
    (one uniform row, not a nested group). */
 .louise-bar-actions { display: contents; }
-/* Save draft (green) / Publish (yellow) — the SAME text-button treatment as the
-   bar's Settings/Done (transparent, pill hover), just brand-coloured, so all the
-   bar actions read as one consistent row. */
+/* Save draft is a text button, like Settings and Sign out. Publish is the one
+   action that changes the live site, so it's the one filled button (#597):
+   white on the blue text stop, 5.08:1, set apart by fill and weight as well as
+   hue. An unavailable action is aria-disabled rather than disabled, so it stays
+   in the tab order; it dims but keeps its text readable. */
 .louise-savedraft,
 .louise-publish {
   appearance: none;
@@ -283,11 +286,25 @@ const CSS = `
   transition: background 120ms ease;
 }
 .louise-savedraft { color: var(--louise-green); }
-.louise-savedraft:hover:not(:disabled) { background: rgba(22, 163, 74, 0.1); }
-.louise-publish { color: var(--louise-green); }
-.louise-publish:hover:not(:disabled) { background: rgba(22, 163, 74, 0.12); }
+.louise-savedraft:hover:not(:disabled):not([aria-disabled="true"]) { background: rgba(22, 163, 74, 0.1); }
+.louise-publish {
+  padding: 8px 18px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--louise-blue-strong);
+}
+.louise-publish:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--louise-blue-deep); }
 .louise-savedraft:disabled,
-.louise-publish:disabled { opacity: 0.45; cursor: default; }
+.louise-publish:disabled,
+.louise-savedraft[aria-disabled="true"],
+.louise-publish[aria-disabled="true"],
+.louise-save[aria-disabled="true"] { opacity: 0.55; cursor: default; }
+/* Why Publish is unavailable, beside it and tied to it with aria-describedby. */
+.louise-publish-reason {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.louise-publish-reason[hidden] { display: none; }
 
 /* Enter-edit floating button shown to authed editors (rendered server-side). */
 .louise-enter {
