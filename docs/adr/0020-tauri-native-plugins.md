@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (2026-09-26)
 - **Deciders:** Baylee (solo maintainer)
-- **Related:** ADR 0017 (decision 4, one runtime), ADR 0016 (privacy-first), ADR 0013 (Google style), ADR 0006 (zero-dependency core), [bowenlabs/louise-toolkit-native](https://github.com/bowenlabs/louise-toolkit-native), the astroidjs mobile-target issue
+- **Related:** ADR 0017 (decision 4, one runtime), ADR 0016 (privacy-first), ADR 0013 (Google style), ADR 0006 (zero-dependency core), [bowenlabs/louise-toolkit-native](https://github.com/bowenlabs/louise-toolkit-native), [bowenlabs/astroidjs#79](https://github.com/bowenlabs/astroidjs/issues/79) (the mobile target)
 
 ## Context
 
