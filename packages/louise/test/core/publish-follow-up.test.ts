@@ -87,7 +87,8 @@ function fresh(deferReindex: DeferReindex) {
     undefined,
     { deferReindex },
   );
-  const row = () => sqlite.prepare("SELECT * FROM docs WHERE id = 1").get() as Record<string, unknown>;
+  const row = () =>
+    sqlite.prepare("SELECT * FROM docs WHERE id = 1").get() as Record<string, unknown>;
   return { api, row };
 }
 
