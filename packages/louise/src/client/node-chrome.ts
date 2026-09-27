@@ -23,6 +23,7 @@ import {
   NODE_MARKER_ATTR,
   parseNodePath,
   type NodeDescriptor,
+  nodeKind,
   nodeName,
   type NodePath,
   readNodeMarkers,
@@ -156,6 +157,12 @@ ${TONE_CSS}
   padding: 0;
 }
 .louise-chrome-btn svg { width: 15px; height: 15px; }
+.louise-chrome-tag {
+  padding: 0 6px 0 4px;
+  font: 600 0.75rem/1 var(--louise-font-body, ui-sans-serif, system-ui, sans-serif);
+  color: #fff;
+  white-space: nowrap;
+}
 .louise-chrome-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
 .louise-chrome-btn:disabled { opacity: 0.4; cursor: default; }
 [${NODE_MARKER_ATTR}][data-louise-kbd]:focus-visible {
@@ -285,6 +292,13 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-orientation", "horizontal");
   toolbar.setAttribute("aria-label", "Editor actions");
+  // What the toolbar acts on, in words at its leading edge, since the ring's
+  // color alone told a sighted owner the kind (#542). Hidden from the
+  // accessibility tree, because the toolbar's own name says the same.
+  const tag = doc.createElement("span");
+  tag.className = "louise-chrome-tag";
+  tag.setAttribute("aria-hidden", "true");
+  toolbar.appendChild(tag);
 
   // Built once and shown per capability, rather than one toolbar per layer.
   const up = button(arrowUp, "Move up");
@@ -325,15 +339,26 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     }
     up.disabled = !ordered || ordered.index <= 0;
     down.disabled = !ordered || ordered.index >= ordered.count - 1;
+    // The toolbar's name and its visible tag are the node's name, the same text
+    // the focused node carries (#542, #596).
+    const label = nodeName(desc);
+    tag.textContent = label;
+    toolbar.setAttribute("aria-label", label);
     // Name the buttons after what they act on, so a screen reader says "Delete
-    // Hero" rather than "Delete" six times down the page.
+    // Hero" rather than "Delete" six times down the page. The tooltip adds the
+    // keyboard shortcut, which `aria-keyshortcuts` on the node gave only to
+    // screen readers (#542).
     const what = desc.label ?? "item";
-    const name = (b: HTMLButtonElement, text: string): void => {
-      b.title = text;
+    const name = (b: HTMLButtonElement, text: string, shortcut?: string): void => {
+      b.title = shortcut ? `${text} (${shortcut})` : text;
       b.setAttribute("aria-label", text);
     };
-    name(del, `Delete ${what}`);
-    name(addSibling, `Add ${what} after`);
+    name(up, "Move up", "Alt+Up");
+    name(down, "Move down", "Alt+Down");
+    name(del, `Delete ${what}`, "Delete");
+    // Below for every kind: a block always inserted below, and the trailing
+    // Add section covers the end of the page (#542, ADR 0010).
+    name(addSibling, `Add ${nodeKind(desc).toLowerCase()} below`);
     // "Layout & settings" describes a CONTAINER's panel. A value node has no
     // position and no children, so its wrench is the whole toolbar and opens a
     // single field—naming it "Layout & settings" describes neither what it

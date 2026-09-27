@@ -12,7 +12,8 @@
   version the sites migrated onto (A3, #348); Phase B in `0.24.0` + `0.25.0`
   (#347). Amended below where building it changed the answer, including three
   passages that described Phase B as future work and are now marked with what
-  actually happened.
+  actually happened. **Amended 2026-09-27:** the sibling add inserts below for
+  every kind, and the toolbar names its node (#542).
 - **Deciders:** Baylee (solo maintainer)
 - **Supersedes:** ADR 0005 §2 (the three-attribute marker contract) and §3 (the
   per-layer chrome). The rest of 0005 (the fragment-render contract, instant
@@ -409,3 +410,21 @@ pre-empted here.
 > in #372 with per-tone rules plus a neutral fallback, so an unhandled tone now
 > degrades to something visible. The general lesson: when a switch is exhaustive
 > in TypeScript but open in CSS, the CSS needs the default arm.
+
+> **Amendment (2026-09-27): the sibling add inserts below, for every kind (#542).**
+> The toolbar's sibling add read "Add Hero after" on every ordered node, but a
+> section's inserted _above_ it while a block's inserted below. One label, two
+> directions, and the kind was told apart only by ring color.
+>
+> Both now insert below: "Add section below" and "Add block below." Below won
+> because blocks already worked that way, a list reads as something you extend
+> downward, and the trailing **Add section** already covers the end of the page,
+> so above bought nothing below doesn't. The picker for a section's add anchors
+> under the section that opened it.
+>
+> The toolbar also names what it acts on. A tag at its leading edge and its
+> `aria-label` both read the node's name, such as "Section · Hero," from the same
+> `nodeName` helper that names the focused node (#596), so the node and its toolbar
+> can't disagree. The move and delete tooltips carry their keyboard shortcuts,
+> which `aria-keyshortcuts` had given only to screen readers. None of this changes
+> the model: the chrome still reads only the descriptor's tone and label.

@@ -129,8 +129,14 @@ const TONE_NOUN: Record<NodeTone, string> = {
  * on focus matches the toolbar that opens from it (#596, #542).
  */
 export function nodeName(desc: NodeDescriptor): string {
-  const noun = TONE_NOUN[desc.tone ?? "section"];
+  const noun = nodeKind(desc);
   return desc.label ? `${noun} · ${desc.label}` : noun;
+}
+
+/** What kind of node this is, such as "Section" or "Block" (#542). */
+export function nodeKind(desc: NodeDescriptor): string {
+  // A tone this build doesn't know still gets a word, as it gets a neutral ring.
+  return TONE_NOUN[desc.tone ?? "section"] ?? "Item";
 }
 
 /** Ring/toolbar palettes. `section`/`block`/`value` preserve the pre-0010 orange /

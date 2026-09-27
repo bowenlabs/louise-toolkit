@@ -894,9 +894,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Their revision while a conflict waits for the owner's choice.
   const [conflictRev, setConflictRev] = createSignal<string | undefined>(undefined);
   const [dirty, setDirty] = createSignal(false);
-  // The add-section type-picker: null when closed, else the insert index (the new
-  // section takes it, pushing the clicked one down → "insert above") + the anchor
-  // position. Opened from a section toolbar's `+` or the trailing add affordance.
+  // The add-section type-picker: null when closed, else the insert index (one past
+  // the clicked section, so the new one lands below it) + the anchor position.
+  // Opened from a section toolbar's `+` or the trailing add affordance.
   const [addPicker, setAddPicker] = createSignal<{
     index: number;
     top: number;
@@ -1385,9 +1385,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     if (!def) return;
     closeAddPicker();
     const item = { _type: type, ...blankRecord(def.fields) } as SectionItem;
-    // Insert at `atIndex`—a section's `+` passes its own index, so the new
-    // section takes it and pushes the clicked one down ("insert above"); the
-    // trailing add appends.
+    // Insert at `atIndex`—a section's `+` passes the index after its own, so the
+    // new section lands below it; the trailing add appends.
     const index = Math.max(0, Math.min(atIndex, state.items.length));
     set("items", (a: SectionItem[]) => {
       const next = a.slice();
@@ -1537,7 +1536,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // The block toolbar's `+`—insert AFTER the hovered block, since blocks read as
-  // a list you extend downward (unlike the section `+`, which inserts above).
+  // a list you extend downward, as sections do (#542).
   const addBlock = (section: number, block: number) =>
     openBlockPicker(section, block + 1, [section, "blocks", block]);
 
@@ -1570,8 +1569,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
   const addSibling = (path: NodePath) => {
     const i = asSection(path);
-    // A section's `+` inserts ABOVE it (the new section takes its index).
-    if (i !== null) return openAddPicker(i);
+    // A section's `+` inserts BELOW it, as a block's does (#542, ADR 0010).
+    if (i !== null) return openAddPicker(i + 1);
     const b = asBlock(path);
     if (b && props.blocks) addBlock(b[0], b[1]);
   };
@@ -1656,19 +1655,20 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
   const closeInspector = () => setInspecting(null);
 
-  // Open the add-section type-picker for inserting at `index`. Anchored to the
-  // section at that index (its `+`); for the trailing add (index === count) it
-  // anchors below the last section, and centres on an empty page.
+  // Open the add-section type-picker for inserting at `index`. Anchored below the
+  // section the new one follows (the one whose `+` opened it, or the last one
+  // for the trailing add), above the first at index 0, and centred on an empty
+  // page.
   const openAddPicker = (index: number) => {
     // The rendered sections are the depth-1 nodes—NOT every marked node, which
     // now includes blocks and fields.
     const sections = siblingsAt([], props.host);
     const count = sections.length;
-    const anchorEl = count === 0 ? null : sections[Math.min(index, count - 1)];
+    const below = index > 0;
+    const anchorEl = count === 0 ? null : sections[below ? Math.min(index - 1, count - 1) : 0];
     const box = anchorEl?.getBoundingClientRect();
-    const atEnd = index >= count;
     const top = box
-      ? Math.min(Math.max((atEnd ? box.bottom : box.top) + 8, 8), window.innerHeight - 320)
+      ? Math.min(Math.max((below ? box.bottom : box.top) + 8, 8), window.innerHeight - 320)
       : Math.max(80, Math.round(window.innerHeight / 2 - 160));
     const left = box
       ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
