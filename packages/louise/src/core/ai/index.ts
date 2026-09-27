@@ -437,9 +437,31 @@ export const REWRITE_MAX_TOKENS = 512;
  */
 export const REWRITE_MAX_CHARS = REWRITE_MAX_TOKENS * 3;
 
+/** A before-and-after pair that shows the model the site's voice. */
+export interface RewriteExample {
+  before: string;
+  after: string;
+}
+
+/** Site guidance appended to a fixed prompt: the site's voice, audience, and
+ *  locale (#553). A site fact, so a parameter; there's no default voice. */
+function withGuidance(prompt: string, instructions: string | undefined): string {
+  const guidance = instructions?.trim();
+  return guidance ? `${prompt}\n\nFollow this guidance for the site: ${guidance}` : prompt;
+}
+
 export interface RewriteOptions {
   /** How to transform the text. Default `"tighten"`. */
   mode?: RewriteMode;
+  /**
+   * The site's voice, audience, and locale, in plain words, appended to the
+   * fixed prompt: "Warm and plain. Readers are neighbors, not experts. British
+   * English." No default.
+   */
+  instructions?: string;
+  /** One or two before-and-after pairs in the site's voice, sent as example
+   *  turns ahead of the text. Past two, the rest are ignored. */
+  examples?: readonly RewriteExample[];
   /** Instruct model id. Default {@link DEFAULT_TEXT_MODEL}. */
   model?: string;
   /** Output token cap. Default {@link REWRITE_MAX_TOKENS}. */
@@ -474,8 +496,15 @@ export async function rewriteText(
       messages: [
         {
           role: "system",
-          content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+          content: withGuidance(
+            `${instruction}${input.includes("\n\n") ? KEEP_PARAGRAPHS : ""} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+            opts.instructions,
+          ),
         },
+        ...(opts.examples ?? []).slice(0, 2).flatMap((example) => [
+          { role: "user", content: example.before },
+          { role: "assistant", content: example.after },
+        ]),
         { role: "user", content: input },
       ],
       max_tokens: opts.maxTokens ?? REWRITE_MAX_TOKENS,
@@ -494,6 +523,9 @@ export interface SeoSuggestion {
 }
 
 export interface SeoOptions {
+  /** The site's voice, audience, and locale, appended to the fixed prompt, as
+   *  for {@link RewriteOptions.instructions}. No default. */
+  instructions?: string;
   model?: string;
   maxTokens?: number;
   /** Max chars of `content` sent to the model (keeps the prompt bounded). Default 4000. */
@@ -527,10 +559,12 @@ export async function suggestSeo(
       messages: [
         {
           role: "system",
-          content:
+          content: withGuidance(
             `You are an SEO assistant. From the page content, write a concise SEO title ` +
-            `(max ${SEO_TITLE_MAX} characters) and meta description (max ${SEO_DESCRIPTION_MAX} ` +
-            `characters). Reply with ONLY a JSON object: {"title": string, "description": string}.`,
+              `(max ${SEO_TITLE_MAX} characters) and meta description (max ${SEO_DESCRIPTION_MAX} ` +
+              `characters). Reply with ONLY a JSON object: {"title": string, "description": string}.`,
+            opts.instructions,
+          ),
         },
         { role: "user", content: input.slice(0, opts.maxContentChars ?? 4000) },
       ],

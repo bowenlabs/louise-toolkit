@@ -301,6 +301,32 @@ describe("rewriteText", () => {
     expect(sysB.toLowerCase()).toContain("grammar");
   });
 
+  it("asks to keep the paragraphs only when the text has several (#551)", async () => {
+    const one = runner({ response: "x" });
+    const several = runner({ response: "x" });
+    await rewriteText(one.runner, "one paragraph");
+    await rewriteText(several.runner, "first paragraph\n\nsecond paragraph");
+    const sys = (r: typeof one) => (r.calls[0].inputs.messages as { content: string }[])[0].content;
+    expect(sys(one)).not.toContain("same paragraphs");
+    expect(sys(several)).toContain("Keep the same paragraphs in the same order");
+    expect((several.calls[0].inputs.messages as { content: string }[])[1].content).toBe(
+      "first paragraph\n\nsecond paragraph",
+    );
+  });
+
+  it("uses at most two examples", async () => {
+    const r = runner({ response: "x" });
+    await rewriteText(r.runner, "text", {
+      examples: [
+        { before: "a", after: "A" },
+        { before: "b", after: "B" },
+        { before: "c", after: "C" },
+      ],
+    });
+    // System, two example pairs, then the text.
+    expect(r.calls[0].inputs.messages as unknown[]).toHaveLength(6);
+  });
+
   it("strips a preamble and wrapping quotes the model may add", async () => {
     const r = runner({ response: 'Sure! Here is the rewrite: "A crisp sentence."' }).runner;
     expect(await rewriteText(r, "original")).toBe("A crisp sentence.");

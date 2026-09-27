@@ -17,7 +17,9 @@ import {
   aiUnavailableReason,
   REWRITE_MAX_CHARS,
   type RewriteMode,
+  type RewriteOptions,
   rewriteText,
+  type SeoOptions,
   suggestSeo,
 } from "../ai/index.js";
 import { s, standardValidate } from "../schema/index.js";
@@ -56,6 +58,14 @@ export interface AiRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    *  caps, fallbacks, logging. Given the runtime `env`, return the gateway config
    *  (or `undefined` to call Workers AI directly). */
   gateway?: (env: Env) => AiGatewayOptions | undefined;
+  /**
+   * The site's voice for rewrites (#553): `instructions` (voice, audience, and
+   * locale, in plain words) and up to two before-and-after `examples`. A site
+   * fact, so a parameter; there's no default.
+   */
+  rewrite?: Pick<RewriteOptions, "instructions" | "examples">;
+  /** The site's voice for SEO suggestions: `instructions`, as for rewrites. */
+  seo?: Pick<SeoOptions, "instructions">;
   /** Mount base. Default `/api/louise/ai`. */
   path?: string;
 }
@@ -97,6 +107,7 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         return json({ error: "Invalid body" }, 400);
       }
       const text = await rewriteText(runner, parsed.value.text, {
+        ...cfg.rewrite,
         mode: parsed.value.mode as RewriteMode | undefined,
         gateway,
       });
@@ -110,7 +121,7 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // action === "seo"
     const parsed = await standardValidate(SEO_BODY, body);
     if (!parsed.ok) return json({ error: "Invalid body" }, 400);
-    const seo = await suggestSeo(runner, parsed.value.content, { gateway });
+    const seo = await suggestSeo(runner, parsed.value.content, { ...cfg.seo, gateway });
     if (!seo) return json({ error: "Suggestion unavailable" }, 502);
     return json(seo);
   };
