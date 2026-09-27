@@ -15,7 +15,7 @@
 // would feed the next flush, which would fail the same way, forever.
 
 import { onDegraded } from "../degraded.js";
-import { onIncidentEmitted } from "../incidents/channel.js";
+import { emitIncident, onIncidentEmitted, wasReported } from "../incidents/channel.js";
 import {
   buildIncidentReport,
   incidentFromDegraded,
@@ -156,7 +156,9 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         return await fetch(request, env, ctx);
       } catch (err) {
-        thrown = { kind: "fetch", cause: err, request: request as unknown as Request };
+        if (!wasReported(err)) {
+          thrown = { kind: "fetch", cause: err, request: request as unknown as Request };
+        }
         throw err;
       } finally {
         flush(env, ctx, thrown);
@@ -169,7 +171,7 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         await queue(batch, env, ctx);
       } catch (err) {
-        thrown = { kind: "queue", cause: err, path: batch.queue };
+        if (!wasReported(err)) thrown = { kind: "queue", cause: err, path: batch.queue };
         throw err;
       } finally {
         flush(env, ctx, thrown);
@@ -182,7 +184,7 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         await scheduled(controller, env, ctx);
       } catch (err) {
-        thrown = { kind: "scheduled", cause: err, path: controller.cron };
+        if (!wasReported(err)) thrown = { kind: "scheduled", cause: err, path: controller.cron };
         throw err;
       } finally {
         flush(env, ctx, thrown);
@@ -190,6 +192,30 @@ export function withIncidentCapture<Env, QMessage>(
     };
   }
   return wrapped;
+}
+
+/**
+ * Report a failure you caught, as an incident, from code that has no `env` or
+ * `ctx` of its own: framework middleware, a library callback. It joins the
+ * degrades waiting for the next handler in this isolate to finish, and
+ * reaches `composeWorker`'s `onIncident` sinks then. Without `onIncident`,
+ * nothing listens, and it does nothing. It never throws.
+ *
+ * A cause reported here isn't reported again if it's re-thrown and reaches
+ * `composeWorker`, so re-throwing after reporting is safe.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   return await next();
+ * } catch (err) {
+ *   reportIncident({ kind: "fetch", cause: err, request });
+ *   throw err;
+ * }
+ * ```
+ */
+export function reportIncident(input: IncidentInput): void {
+  emitIncident(input);
 }
 
 function normalize<Env>(capture: IncidentCapture<Env>): {

@@ -167,6 +167,30 @@ Compose once per Worker, at module scope: each composed Worker listens for
 degrades in its isolate. For a handler you compose by hand,
 `withIncidentCapture(handler, capture)` does the same wrapping.
 
+### `reportIncident(input)`
+
+```ts
+function reportIncident(input: IncidentInput): void;
+```
+
+Reports a failure you caught, from code that has no `env` or `ctx` of its own,
+such as framework middleware. It waits with the degrades until the handler
+finishes, then reaches `onIncident`'s sinks. Without `onIncident`, it does
+nothing. A cause reported here isn't reported again if you re-throw it and it
+reaches `composeWorker`, so reporting then re-throwing is safe. The
+`@louise-toolkit/astro` middleware does exactly that, because Astro catches a
+page's error outside every middleware and answers with its own 500, which
+`composeWorker` never sees as a throw.
+
+```ts
+try {
+  return await next();
+} catch (err) {
+  reportIncident({ kind: "fetch", cause: err, request });
+  throw err;
+}
+```
+
 ## `withEdgeCache(handler, config)`
 
 ```ts
