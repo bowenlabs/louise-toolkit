@@ -3,7 +3,7 @@
 // louise-toolkit/commerce/square: labor: timecards and time tracking.
 
 import type { SquareConfig } from "./client.js";
-import { sqGet, sqPost, sqPut } from "./request.js";
+import { orNotFound, sqGet, sqPost, sqPut } from "./request.js";
 
 export interface SquareTimecard {
   id: string;
@@ -138,11 +138,14 @@ export async function retrieveTimecard(
   config: SquareConfig,
   timecardId: string,
 ): Promise<SquareTimecard | null> {
-  const res = await sqGet<{ timecard?: RawTimecard }>(
-    config,
-    `/v2/labor/timecards/${encodeURIComponent(timecardId)}`,
+  // A 404 is an answer, not a failure (#700), like the other retrieves.
+  const res = await orNotFound(() =>
+    sqGet<{ timecard?: RawTimecard }>(
+      config,
+      `/v2/labor/timecards/${encodeURIComponent(timecardId)}`,
+    ),
   );
-  return res.timecard ? mapTimecard(res.timecard) : null;
+  return res?.timecard ? mapTimecard(res.timecard) : null;
 }
 
 /**
