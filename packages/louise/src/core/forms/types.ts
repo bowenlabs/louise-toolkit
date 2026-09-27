@@ -49,8 +49,22 @@ export interface FormField {
   options?: readonly string[];
   /** Placeholder text for the rendered input. */
   placeholder?: string;
-  /** Help/hint text rendered under the input. */
+  /** Help/hint text rendered under the input, and linked to it for screen readers. */
   help?: string;
+  /**
+   * The browser's autofill token, passed through as the control's
+   * `autocomplete`: `"name"`, `"email"`, `"tel"`, `"postal-code"`, and so on.
+   * Set it on any field that asks for something the visitor's browser already
+   * knows.
+   */
+  autocomplete?: string;
+  /**
+   * The on-screen keyboard to offer, passed through as `inputmode`. Use
+   * `"numeric"` on a `text` field for digits that aren't a quantity (a postal
+   * code, an order number) rather than `type: "number"`, which adds spinner
+   * buttons and changes on a scroll.
+   */
+  inputmode?: "none" | "text" | "decimal" | "numeric" | "tel" | "search" | "email" | "url";
   /**
    * Extra validation, reusing the shared `Rule` builder—for example,
    * `(r) => r.max(5000)`. Composed after the type's built-in check.

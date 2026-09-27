@@ -47,6 +47,19 @@ export interface FormProps {
 
 type Status = "idle" | "submitting" | "success" | "error";
 
+/** The status line after a check fails: how many fields need attention. */
+function attentionMessage(count: number): string {
+  return count === 1 ? "1 field needs attention." : `${count} fields need attention.`;
+}
+
+/** A field's element ID. Prefixed with the form's name, so two forms on one
+ *  page that both have an `email` field don't share an ID. */
+function fieldId(formName: string, key: string): string {
+  return `louise-f-${formName}-${key}`;
+}
+
+const FALLBACK_ERROR = "Couldn't send your message. Try again in a minute.";
+
 export function Form(props: FormProps): JSX.Element {
   const entries = () => Object.entries(props.form.fields);
   const [values, setValues] = createStore<Record<string, unknown>>({});
@@ -65,15 +78,40 @@ export function Form(props: FormProps): JSX.Element {
   const setError = (key: string, msg: string | undefined) =>
     setErrors(key, msg === undefined ? (undefined as unknown as string) : msg);
 
+  /**
+   * Paint field errors, then move focus to the first invalid field and say in
+   * the status region how many need attention, so a screen reader user hears
+   * that the submit didn't go through and lands where to fix it. Violations
+   * whose path matches no field go into the status region instead, since
+   * there's no field to show them next to. Returns whether anything was wrong.
+   */
+  function showViolations(violations: readonly { path: string; message: string }[]): boolean {
+    const keys = Object.keys(props.form.fields);
+    const next: Record<string, string> = {};
+    const unmatched: string[] = [];
+    for (const v of violations) {
+      if (!keys.includes(v.path)) unmatched.push(v.message);
+      else if (!next[v.path]) next[v.path] = v.message;
+    }
+    for (const key of keys) setError(key, next[key]);
+    const invalid = keys.filter((key) => next[key] !== undefined);
+    if (invalid.length === 0 && unmatched.length === 0) return false;
+    setStatus("error");
+    setMessage(
+      [invalid.length > 0 ? attentionMessage(invalid.length) : "", ...unmatched]
+        .filter(Boolean)
+        .join(" "),
+    );
+    if (invalid.length > 0) {
+      document.getElementById(fieldId(props.form.name, invalid[0] as string))?.focus();
+    }
+    return true;
+  }
+
   /** Run the shared validation and paint field errors. Returns validity. */
   async function validate(): Promise<boolean> {
     const { violations } = await validateSubmission(props.form, values);
-    const next: Record<string, string> = {};
-    for (const v of violations) {
-      if (v.severity === "error" && !next[v.path]) next[v.path] = v.message;
-    }
-    for (const key of Object.keys(props.form.fields)) setError(key, next[key]);
-    return Object.keys(next).length === 0;
+    return !showViolations(violations.filter((v) => v.severity === "error"));
   }
 
   async function uploadFile(key: string, file: File): Promise<void> {
@@ -104,10 +142,7 @@ export function Form(props: FormProps): JSX.Element {
     e.preventDefault();
     setMessage("");
     setStatus("submitting");
-    if (!(await validate())) {
-      setStatus("idle");
-      return;
-    }
+    if (!(await validate())) return;
     try {
       const payload: Record<string, unknown> = { ...values, louise_ts: mountedAt };
       if (honeypot()) payload[honeypot() as string] = honeypotValue();
@@ -127,14 +162,14 @@ export function Form(props: FormProps): JSX.Element {
         const body = (await res.json().catch(() => ({}))) as {
           violations?: { path: string; message: string }[];
         };
-        for (const v of body.violations ?? []) setError(v.path, v.message);
-        setStatus("idle");
+        if (!showViolations(body.violations ?? [])) {
+          setStatus("error");
+          setMessage(FALLBACK_ERROR);
+        }
         return;
       }
       setStatus("error");
-      setMessage(
-        res.status === 429 ? "Too many messages. Try again soon." : "Something went wrong.",
-      );
+      setMessage(res.status === 429 ? "Too many messages. Try again soon." : FALLBACK_ERROR);
     } catch {
       setStatus("error");
       setMessage("Network error. Try again.");
@@ -150,6 +185,7 @@ export function Form(props: FormProps): JSX.Element {
       <For each={entries()}>
         {([key, field]) => (
           <FormRow
+            id={fieldId(props.form.name, key)}
             name={key}
             field={field}
             value={values[key]}
@@ -179,17 +215,18 @@ export function Form(props: FormProps): JSX.Element {
       <button class="louise-form-submit" type="submit" disabled={status() === "submitting"}>
         {status() === "submitting" ? "Sending…" : (props.form.submitLabel ?? "Send")}
       </button>
-      <Show when={message()}>
-        <p class="louise-form-status" data-status={status()} role="status" aria-live="polite">
-          {message()}
-        </p>
-      </Show>
+      {/* Always in the DOM, so a screen reader is already listening when the
+          message changes; a live region added with its text isn't reliably read. */}
+      <p class="louise-form-status" data-status={status()} role="status" aria-live="polite">
+        {message()}
+      </p>
     </form>
   );
 }
 
 /** One field row: label + the type-appropriate control + inline error/help. */
 function FormRow(props: {
+  id: string;
   name: string;
   field: FormField;
   value: unknown;
@@ -198,13 +235,22 @@ function FormRow(props: {
   onValue: (v: unknown) => void;
   onFile: (f: File) => void;
 }): JSX.Element {
-  const id = () => `louise-f-${props.name}`;
+  const id = () => props.id;
   const errId = () => `${id()}-err`;
+  const helpId = () => `${id()}-help`;
+  const describedBy = () =>
+    [props.field.help ? helpId() : "", props.error ? errId() : ""].filter(Boolean).join(" ") ||
+    undefined;
+  // `required` as well as `aria-required`: the form is `novalidate`, so no
+  // browser bubble appears, and it gives a site a `:required` styling hook.
   const common = () => ({
     id: id(),
     name: props.name,
+    required: props.field.required === true,
+    "aria-required": props.field.required ? true : undefined,
     "aria-invalid": props.error ? true : undefined,
-    "aria-describedby": props.error ? errId() : undefined,
+    "aria-describedby": describedBy(),
+    autocomplete: props.field.autocomplete as JSX.HTMLAutocomplete | undefined,
   });
   const strValue = () => (props.value == null ? "" : String(props.value));
 
@@ -225,6 +271,7 @@ function FormRow(props: {
         <textarea
           class="louise-form-input"
           {...common()}
+          inputmode={props.field.inputmode}
           placeholder={props.field.placeholder}
           value={strValue()}
           onInput={(e) => props.onValue(e.currentTarget.value)}
@@ -278,6 +325,7 @@ function FormRow(props: {
           class="louise-form-input"
           type={inputType(props.field.type)}
           {...common()}
+          inputmode={props.field.inputmode}
           placeholder={props.field.placeholder}
           value={strValue()}
           onInput={(e) => props.onValue(e.currentTarget.value)}
@@ -285,7 +333,9 @@ function FormRow(props: {
       </Show>
 
       <Show when={props.field.help}>
-        <span class="louise-form-hint">{props.field.help}</span>
+        <span class="louise-form-hint" id={helpId()}>
+          {props.field.help}
+        </span>
       </Show>
       <Show when={props.error}>
         <span class="louise-form-error" id={errId()}>

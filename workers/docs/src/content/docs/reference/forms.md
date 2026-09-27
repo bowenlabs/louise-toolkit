@@ -40,7 +40,10 @@ must be a public https URL; a target the policy refuses is skipped, and the
 submission still succeeds.
 
 A `FormField` is `{ type, label, required?, options?, placeholder?, help?,
-validation? }`. `type` is `text | email | tel | url | textarea | number | select
+autocomplete?, inputmode?, validation?, schema? }`. `autocomplete` and
+`inputmode` pass straight through to the rendered control: set `autocomplete`
+to the browser's autofill token (`"name"`, `"email"`, `"postal-code"`), and use
+`inputmode: "numeric"` on a `text` field for digits that aren't a quantity. `type` is `text | email | tel | url | textarea | number | select
 | checkbox | date | file`. `required` drives a `NOT NULL` column **and** a
 required check. `validation` is the shared `(r) => Rule` builder. `email`/`url`/
 `select`/`number` carry a built-in format/coercion check; `file` uploads through
