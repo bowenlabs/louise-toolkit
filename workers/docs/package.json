@@ -8,12 +8,16 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "astro": "astro"
+    "astro": "astro",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.10",
     "astro": "^7.2.9",
     "louise-toolkit": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "^4.127.1"
   },
   "engines": {
     "node": ">=26.0.0"

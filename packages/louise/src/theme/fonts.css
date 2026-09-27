@@ -19,7 +19,7 @@
  * is fine behind the edit-mode-gated editor bundle, which is the only place the
  * client injector pulls it. For public pages, self-host an external `.woff2` and
  * `@font-face` it yourself so the font streams alongside the page instead of
- * blocking it — that's what the reference site (workers/site) does.
+ * blocking it — that's what the docs site (workers/docs) does.
  */
 @font-face {
   font-family: "Roboto Flex";

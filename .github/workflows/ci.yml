@@ -79,8 +79,8 @@ jobs:
       #
       # The same kind of scan, repo-wide, keeps client site names out (#576): the
       # repository is public, and a site that consented to being featured didn't
-      # consent to being cited in code, tests, or docs. CHANGELOGs and the two
-      # pages that feature the sites are exempt; the script says why.
+      # consent to being cited in code, tests, or docs. CHANGELOGs and the docs
+      # page that features the sites are exempt; the script says why.
       - name: No framework references in the core, no client site names
         run: |
           corepack pnpm run lint:core
@@ -204,35 +204,32 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Three consumers of the packed output, in parallel. The two scaffold jobs were
-  # sequential steps sharing one clean room; they now share a warm pnpm store via
-  # the setup action's cache instead, which is what made splitting them cheap.
+  # Consumers of the packed output.
   # ---------------------------------------------------------------------------
 
   site:
-    name: Build the site
+    name: Build the sandbox and docs
     runs-on: ubuntu-latest
     needs: pack
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
-      # The site resolves `louise-toolkit/*` AND `@louise-toolkit/astro` through
-      # workspace links, both of which point at a `dist/`. Restore both packed
-      # builds rather than rebuilding them — missing the adapter's is what made
-      # this job fail with "Failed to resolve entry for package".
+      # The sandbox resolves `louise-toolkit/*` through a workspace link that
+      # points at `dist/`, so it builds against what actually ships. Restore the
+      # packed build rather than rebuilding it.
       - uses: actions/download-artifact@v8
         with:
           name: louise-dist
           path: packages/louise/dist
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: louise-astro-dist
-          path: packages/louise-astro/dist
+      - name: Build the sandbox
+        run: corepack pnpm run build:sandbox
 
-      - name: Build the site
-        run: corepack pnpm run build:site
+      # The same build Workers Builds runs for docs.louisetoolkit.org, so a
+      # broken docs page fails here rather than on deploy.
+      - name: Build the docs
+        run: sh scripts/ci-build.sh
 
   # A single required check to protect the branch with, so adding a job later
   # doesn't mean editing branch protection.

@@ -17,7 +17,6 @@ coverage/
 *.tgz
 # Static docs bundle folded into the marketing Worker's assets at build time
 # (scripts/ci-build.sh copies workers/docs/dist here).
-workers/site/public/_docs/
 # (The CI scaffold smoke test now scaffolds into $RUNNER_TEMP, outside the repo,
 # so there's nothing in-tree left to ignore.)
 

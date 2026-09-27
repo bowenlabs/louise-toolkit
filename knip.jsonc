@@ -86,12 +86,6 @@
       // at build time; kept as a workspace link.
       "ignoreDependencies": ["louise-toolkit"],
     },
-
-    "workers/site": {
-      // Runnable example handlers sliced into /examples/* pages via `?raw`
-      // imports, which knip can't follow into the raw source.
-      "entry": ["src/lib/examples/*.ts"],
-    },
   },
 
   // Missing/unlisted deps are noisy under this toolchain (workerd `cloudflare:*`

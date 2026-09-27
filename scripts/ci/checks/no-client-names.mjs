@@ -17,7 +17,7 @@
 // matching. The exceptions are the places that name the sites on purpose:
 //
 //   - every CHANGELOG.md, which is release history that already shipped to npm
-//   - the two pages that feature the sites, with their consent, by name and link
+//   - the docs page that features the sites, with their consent, by name and link
 //
 // Changesets are scanned, since each becomes a CHANGELOG entry that can't be
 // edited once it's published. The short forms two of the sites go by aren't in
@@ -69,7 +69,6 @@ function namesAClient(line) {
 
 /** Files allowed to name the sites, with the reason each one is. */
 const ALLOWED = new Map([
-  ["workers/site/src/pages/examples/index.astro", "features the sites, with consent"],
   ["workers/docs/src/content/docs/guide/comparison.md", "features the sites, with consent"],
 ]);
 const isAllowed = (file) => ALLOWED.has(file) || path.basename(file) === "CHANGELOG.md";

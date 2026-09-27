@@ -95,14 +95,13 @@ function r2OgCache(bucket: R2Bucket): OgImageCache {
 }
 ```
 
-The reference site wraps the Workers Cache API the same way, which needs no
-binding at all. Omit `cache` and every call renders.
+The Workers Cache API works the same way, and needs no binding at all. Omit `cache` and every call renders.
 
 ```ts
 const key = await ogCacheKey(slug, `${title}\n${body}`);
 const { bytes, cached } = await ogImage({
   cacheKey: key,
-  markup: ogCardSvg(title, { brand: "louise", footer: "louisetoolkit.com" }),
+  markup: ogCardSvg(title, { brand: "louise", footer: "example.com" }),
   render,
   cache: r2OgCache(env.OG_IMAGES),
 });

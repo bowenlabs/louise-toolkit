@@ -1,6 +1,6 @@
 # ADR 0004: Edge caching published pages through a cookie-aware Worker Cache API layer
 
-- **Status:** Accepted (2026-07-17). The mechanism ships behind `LOUISE_EDGE_CACHE` (default **false**). It's been on for the reference site since 2026-07-18; see the amendment.
+- **Status:** Accepted (2026-07-17). The mechanism ships behind `LOUISE_EDGE_CACHE` (default **false**). It was on for the reference site from 2026-07-18 until that site left the repository on 2026-09-26; see the amendments.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #95 (in the Platform features push milestone, epic #102)
 - **Related:** #163 (root-cause issue, closed), #73 (edit-chrome Server Island), #88 (publish Workflow purge), #69 (D1 Sessions read-your-writes)
@@ -74,3 +74,10 @@ every other site still opts in through the same runbook.
 - **For other code:** `isEditRequest` and `LOUISE_EDIT_COOKIE` are exported from
   `louise-toolkit/worker`, so a site's bypass predicate and the middleware read one
   cookie name and can't drift apart.
+
+## Amendment (2026-09-26): the reference site left the repository
+
+`workers/site`, the one deploy that ran with `LOUISE_EDGE_CACHE` on, is gone from
+this repository, so no site here exercises the flag any longer. The mechanism,
+its default, and the runbook are unchanged. A site that turns it on, bowenlabs.io
+included, follows the runbook above and keeps its own rollback note.
