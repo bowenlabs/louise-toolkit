@@ -90,19 +90,17 @@ chrome:
 
 Apply `data-theme="louise"` (or `louise-dark`) to the root of any editor surface
 so the chrome never inherits the site theme. Chrome-specific variables
-(`--louise-accent`, `--louise-ring`, `--louise-font`) are defined per theme in
-`louise.css`.
+(`--louise-accent`, `--louise-accent-soft`, `--louise-ring`) are defined per
+theme in `louise.css`; the font tokens are in `fonts.css`.
 
 ## Typography
 
-**Hepta Slab** for headers (weight 900 headings, 500 subheadings) and **Roboto
-Flex** for body, per the brand system. The client loads them via a `<link>`
-injected in edit mode only—so the public site ships no editor fonts—and
-applies them through the `--louise-font-head` / `--louise-font-body` tokens.
-`fonts.css` mirrors the same split as a `.louise-type` contract for markup that
-opts in.
+The editor uses **Roboto Flex** throughout. Headings are the same family, just
+heavier: weight 800 for titles and 600 for subheadings. The face is inlined in
+`fonts.css`, so there's no font request: the client's style injector puts
+`fonts.css` ahead of the chrome's CSS, in edit mode only, so the public site
+ships no editor fonts.
 
-## Preview
-
-The package ships a standalone `preview/index.html`—a CDN mirror of both themes
-that needs no build. Open it directly to see the palette and type scale.
+`fonts.css` also defines the two font tokens, `--louise-font-head` and
+`--louise-font-body`, once. The chrome reads them, and so does the `.louise-type`
+class for markup that opts in, so an override on `:root` changes both.
