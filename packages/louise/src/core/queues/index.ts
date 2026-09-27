@@ -11,6 +11,7 @@
 // queue's `dead_letter_queue` automatically (set in wrangler.jsonc, not here).
 
 import { LouiseQueueError } from "../errors.js";
+import { emitIncident } from "../incidents/channel.js";
 
 /**
  * A deferred post-write side-effect drained by a Worker's `queue()` consumer
@@ -57,7 +58,18 @@ export interface ProcessBatchOptions {
    * with no delay.
    */
   retryDelay?: (attempts: number) => number;
+  /**
+   * The queue's `max_retries`, as set in `wrangler.jsonc`. Defaults to
+   * {@link DEFAULT_MAX_RETRIES}, Cloudflare's own default. A message that
+   * fails on delivery `maxRetries + 1`, its last, is reported as a `queue`
+   * incident (ADR 0022 § 7); an earlier failure is only logged, because a
+   * retry may still clear it.
+   */
+  maxRetries?: number;
 }
+
+/** Cloudflare Queues' default `max_retries`: 3 retries, so 4 deliveries. */
+export const DEFAULT_MAX_RETRIES = 3;
 
 /**
  * The default backoff for a failed message: 30 seconds on the first
@@ -81,6 +93,11 @@ export function defaultRetryDelay(attempts: number): number {
  * the message to the dead-letter queue, or drops it if there's none, and logs
  * nothing.
  *
+ * On a message's last delivery, the failure is also reported as a `queue`
+ * incident, named for the error and pathed with the queue's name. It reaches
+ * the sinks of `composeWorker`'s `onIncident` when the Worker's `queue`
+ * handler finishes; without `onIncident`, the log line is the only trace.
+ *
  * A retry waits before redelivery, by `options.retryDelay` or
  * {@link defaultRetryDelay}. A failure from an upstream rate limit or outage
  * rarely clears in the same second, so an immediate redelivery only spends a
@@ -95,15 +112,22 @@ export async function processBatch<T>(
   options: ProcessBatchOptions = {},
 ): Promise<void> {
   const retryDelay = options.retryDelay ?? defaultRetryDelay;
+  const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   for (const message of batch.messages) {
     try {
       await handler(message.body, { attempts: message.attempts });
       message.ack();
     } catch (err) {
+      const last = message.attempts > maxRetries;
       console.error(
-        `[louise] queue handler failed on ${batch.queue} (message ${message.id}, attempt ${message.attempts}); marking it for retry`,
+        `[louise] queue handler failed on ${batch.queue} (message ${message.id}, attempt ${message.attempts}); ${
+          last
+            ? "that was its last attempt, so it goes to the dead-letter queue, if the queue has one"
+            : "marking it for retry"
+        }`,
         err,
       );
+      if (last) emitIncident({ kind: "queue", cause: err, path: batch.queue });
       message.retry({ delaySeconds: retryDelay(message.attempts) });
     }
   }

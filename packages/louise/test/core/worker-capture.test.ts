@@ -266,7 +266,7 @@ describe("composeWorker({ onIncident })", () => {
     await worker.fetch!(req(), {}, ctx);
     await settled();
     expect(reports).toHaveLength(100);
-    expect(error.mock.calls.some(([line]) => String(line).includes("dropped 5 degrades"))).toBe(
+    expect(error.mock.calls.some(([line]) => String(line).includes("dropped 5 reports"))).toBe(
       true,
     );
   });

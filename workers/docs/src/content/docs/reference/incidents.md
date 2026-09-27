@@ -9,17 +9,22 @@ sidebar:
 import {
   buildIncidentReport,
   d1Incidents,
+  deadLetterConsumer,
+  deadLetters,
   fingerprintFailure,
   getIncident,
   incidentFromDegraded,
   incidents,
   incidentsColumns,
   isCriticalIncident,
+  listDeadLetters,
   listIncidents,
   MAX_INCIDENT_MESSAGE,
   redactMessage,
+  replayDeadLetter,
   resolveIncident,
   upsertIncident,
+  type DeadLetter,
   type Incident,
   type IncidentInput,
   type IncidentKind,
@@ -228,3 +233,63 @@ back after a fix shows.
 `getIncident` returns one row or `null`. `resolveIncident` marks an open
 incident resolved and returns it, or `null` when there's no open incident with
 that fingerprint; the next report for it reopens it.
+
+## Dead letters
+
+A message that spends its retries moves to its queue's dead-letter queue. With
+no consumer there, it sits unseen until Cloudflare drops it. The dead-letter
+consumer keeps each one in the site's D1, where its body stays in the client's
+account, and reports it.
+
+Add the table to the schema drizzle-kit reads, beside `incidents`:
+
+```ts
+// db/schema.ts
+export { deadLetters, incidents } from "louise-toolkit/incidents";
+```
+
+| Column        | What it holds                                          |
+| ------------- | ------------------------------------------------------ |
+| `id`          | The row's ID, for `replayDeadLetter`                   |
+| `queue`       | The dead-letter queue the message arrived on           |
+| `message_id`  | Cloudflare's ID for the message                        |
+| `body`        | The body, as JSON; a body JSON can't hold, as a string |
+| `attempts`    | Deliveries on the dead-letter queue when it was kept   |
+| `received_at` | When it was kept, in epoch milliseconds                |
+
+### `deadLetterConsumer(database, table?)`
+
+```ts
+function deadLetterConsumer<Env, Body>(
+  database: (env: Env) => D1Database | D1DatabaseSession,
+  table?: DeadLetterTable,
+): (batch: MessageBatch<Body>, env: Env, ctx: ExecutionContext) => Promise<void>;
+```
+
+A `queue` handler for a dead-letter queue. It writes each message to
+`dead_letters`, reports a `queue` incident named `DeadLetter`, and acks the
+message. One dead-letter queue that keeps filling is one incident with a rising
+count. A message it can't write is retried, so it isn't lost. Declare the
+dead-letter queue as a consumer of the Worker in `wrangler.jsonc`, then route
+its batches here:
+
+```ts
+const keepDeadLetters = deadLetterConsumer((env: Env) => env.DB);
+
+export default composeWorker<Env>({
+  fetch: ssrHandler,
+  queue: (batch, env, ctx) =>
+    batch.queue === "side-effects-dlq"
+      ? keepDeadLetters(batch, env, ctx)
+      : processBatch(batch, (job) => runJob(job, env)),
+  onIncident: [d1Incidents((env) => env.DB)],
+});
+```
+
+### `listDeadLetters(d1, options?, table?)` · `replayDeadLetter(d1, id, queue, table?)`
+
+`listDeadLetters` returns kept messages, newest first; pass `queue` to read one
+dead-letter queue, and `limit` (default 100). `replayDeadLetter` sends one kept
+message back onto a queue, usually the one it first failed on, then deletes the
+row. It returns `false` when there's no row with that ID, and keeps the row if
+the send fails. Fix the cause first, or the message dead-letters again.

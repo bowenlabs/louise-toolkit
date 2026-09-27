@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LouiseQueueError } from "../../src/core/errors.js";
-import { defaultRetryDelay, enqueue, processBatch } from "../../src/core/queues/index.js";
+import type { IncidentInput } from "../../src/core/incidents/index.js";
+import { onIncidentEmitted } from "../../src/core/incidents/channel.js";
+import {
+  DEFAULT_MAX_RETRIES,
+  defaultRetryDelay,
+  enqueue,
+  processBatch,
+} from "../../src/core/queues/index.js";
 
 function fakeMessage<T>(body: T, attempts = 1, id = "msg") {
   return {
@@ -143,5 +150,59 @@ describe("defaultRetryDelay", () => {
 
   it("treats an attempt below 1 as the first", () => {
     expect(defaultRetryDelay(0)).toBe(30);
+  });
+});
+
+describe("processBatch incidents", () => {
+  /** Collect what processBatch emits while `run` runs. */
+  async function emitted(run: () => Promise<void>): Promise<IncidentInput[]> {
+    const inputs: IncidentInput[] = [];
+    const stop = onIncidentEmitted((input) => inputs.push(input));
+    try {
+      await run();
+    } finally {
+      stop();
+    }
+    return inputs;
+  }
+
+  it("reports a failure on the message's last delivery, and only then", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const cause = new Error("upstream down");
+    const early = fakeMessage("early", DEFAULT_MAX_RETRIES, "msg-early");
+    const last = fakeMessage("last", DEFAULT_MAX_RETRIES + 1, "msg-last");
+    const inputs = await emitted(() =>
+      processBatch(fakeBatch([early, last], "side-effects"), async () => {
+        throw cause;
+      }),
+    );
+    expect(inputs).toEqual([{ kind: "queue", cause, path: "side-effects" }]);
+    // Both are still handed back to Cloudflare, which moves the last one on.
+    expect(early.retry).toHaveBeenCalledOnce();
+    expect(last.retry).toHaveBeenCalledOnce();
+    expect(error.mock.calls[0]![0]).toContain("marking it for retry");
+    expect(error.mock.calls[1]![0]).toContain("that was its last attempt");
+  });
+
+  it("reads the last delivery from maxRetries", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const second = fakeMessage("x", 2);
+    const inputs = await emitted(() =>
+      processBatch(
+        fakeBatch([second]),
+        async () => {
+          throw new Error("x");
+        },
+        { maxRetries: 1 },
+      ),
+    );
+    expect(inputs).toHaveLength(1);
+  });
+
+  it("reports nothing when the message succeeds on its last delivery", async () => {
+    const m = fakeMessage("x", DEFAULT_MAX_RETRIES + 1);
+    const inputs = await emitted(() => processBatch(fakeBatch([m]), async () => {}));
+    expect(inputs).toEqual([]);
+    expect(m.ack).toHaveBeenCalledOnce();
   });
 });

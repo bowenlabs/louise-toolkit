@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only.
+- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
@@ -116,6 +116,18 @@ Watchtower keeps, for the monthly report: the fingerprint, `kind`, `name`, count
 ### Alerts come from Sentry where there is Sentry
 
 § 6 stands: `critical` is a site parameter, stored on the row and sent as a Sentry tag. A Sentry alert rule on that tag posts a site's critical incidents to Discord. For a site without Sentry, Watchtower alerts when its poll finds a new or reopened critical row. A failed probe alerts from Watchtower, as it already does.
+
+## Amendment (2026-09-27, at § 7)
+
+§ 7 gave `processBatch` and `deadLetterConsumer` an `onIncident` of their own. Neither has the Worker's `env` or `ctx`: `processBatch` takes only a batch and a handler, and a sink like `d1Incidents` needs the bindings. Passing them in would repeat the site's `onIncident` configuration at every call.
+
+Instead, both hand their incident to an internal isolate channel, and capture buffers it the way it buffers a degrade (§ 3). When the Worker's `queue` handler finishes, the report goes to the same sinks, with the same `critical` list and release. So:
+
+- **`processBatch`** gains `maxRetries` only, defaulting to 3. On delivery `maxRetries + 1` it reports a `queue` incident, named for the error, with the queue's name as its path.
+- **`deadLetterConsumer(database, table?)`** takes the D1 binding the way `d1Incidents` does. It reports each kept message as a `queue` incident named `DeadLetter`, so one dead-letter queue is one incident with a count.
+- **Without `onIncident`,** nothing listens, and the log line each already writes is the only trace, as before.
+
+`listDeadLetters` and `replayDeadLetter` are the runbook's read and replay. The Health panel's dead-letter count waits for the Health panel's incident view.
 
 ## Consequences
 
