@@ -481,6 +481,12 @@ export interface RewriteOptions {
  * Keep `text` within {@link REWRITE_MAX_CHARS} for the default cap; a longer
  * passage is likely to come back cut off, and so as `null`.
  */
+/** Added to the rewrite prompt when the text holds several paragraphs, so the
+ *  editor can put each one back in its own block (#551). A single paragraph
+ *  gets the prompt unchanged. */
+const KEEP_PARAGRAPHS =
+  " Keep the same paragraphs in the same order, separated by one blank line, as in the text.";
+
 export async function rewriteText(
   runner: AiRunner | undefined,
   text: string,
