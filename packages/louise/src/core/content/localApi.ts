@@ -24,6 +24,7 @@ import {
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
+import { reportDegraded } from "../degraded.js";
 import { LouiseAccessDeniedError, LouiseContentError } from "../errors.js";
 import { collectionSearchTableName, extractSearchText } from "./codegen.js";
 import type { PageId, VersionId } from "./ids.js";
@@ -516,7 +517,15 @@ async function removeFromSearchIndex(
  * "enqueued", so a failure to enqueue surfaces on the write (the caller can
  * decide whether that fails the request).
  */
-export type DeferReindex = (id: number) => void | Promise<void>;
+export type DeferReindex = (id: number, info?: DeferReindexInfo) => void | Promise<void>;
+
+/** What a {@link DeferReindex} learns about the write beyond the row id. */
+export interface DeferReindexInfo {
+  /** Set when the write is a publish: the version that went live. Key
+   *  per-publish follow-up work by it (a Workflow instance ID, say), because
+   *  the row id repeats on every publish of the same page. */
+  versionId?: VersionId;
+}
 
 export interface LocalApiOptions {
   /** Move FTS sync off the write path: when set, create/update/publish/delete
@@ -533,11 +542,12 @@ async function reindexOrDefer(
   config: CollectionConfig,
   doc: AnyRecord,
   deferReindex?: DeferReindex,
+  info?: DeferReindexInfo,
 ): Promise<void> {
   if (!config.search?.fields.length) return;
   const id = doc.id;
   if (typeof id !== "number") return;
-  if (deferReindex) await deferReindex(id);
+  if (deferReindex) await deferReindex(id, info);
   else await syncSearchIndex(db, config, doc);
 }
 
@@ -1035,7 +1045,20 @@ export function createVersionedLocalApi<
     } catch (error) {
       wrapWriteError(config, error);
     }
-    await reindexOrDefer(db, config, doc as AnyRecord, deferReindex);
+    // The publish has committed, so from here a failure mustn't be reported as
+    // a failed publish: the page is live whatever the caller hears. A reindex
+    // (or a deferred follow-up, such as starting a Workflow) that throws is
+    // reported as a degrade instead, and the search entry catches up on the
+    // next write or `reindexDoc`.
+    try {
+      await reindexOrDefer(db, config, doc as AnyRecord, deferReindex, { versionId });
+    } catch (err) {
+      reportDegraded("content.publish.reindex", err, {
+        collection: config.slug,
+        id: parentId,
+        versionId,
+      });
+    }
     // publish() writes to an already-existing row, never a new one—counts
     // as "update" the same way createLocalApi.update() does.
     await runAfterChange(config, doc as Record<string, unknown>, "update");
