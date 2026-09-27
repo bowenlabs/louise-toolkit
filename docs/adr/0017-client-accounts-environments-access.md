@@ -1,6 +1,6 @@
 # ADR 0017: Client accounts, environments, access, and one runtime
 
-- **Status:** Proposed (2026-09-26). **Amended 2026-09-26** (see _Amendment_ below): staging runs on Worker Previews instead of a second Worker, releases are trunk-based with a tag as the release, and Workers Builds deploys production from a branch only the release tag moves.
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-26** (see _Amendment_ below): staging runs on Worker Previews instead of a second Worker, releases are trunk-based with a tag as the release, and Workers Builds deploys production from a branch only the release tag moves. **Amended again 2026-09-26** (see _Amendment: native clients_ below): native apps are Tauri 2 shells, per ADR 0020.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (zero-dependency core), ADR 0014 (coverage floor), ADR 0016 (privacy-first), #521 (branch pushes deploy production), the per-site staging issues, the platform plan in louise-ops
 
@@ -155,6 +155,17 @@ launch.
   one silently blocks releases, and two build systems per site.
 - **A release branch per release.** Rejected: small, frequent releases with one
   maintainer make it ceremony. A branch appears only when a patch needs one.
+
+## Amendment (2026-09-26): native clients
+
+Decision 4 still holds for services: every service is TypeScript on Workers.
+Its Swift exception for the iOS app's shell widens to native clients in
+general. Native apps are Tauri 2 shells around a Solid UI, so Rust, Swift, and
+Kotlin appear in native clients, and only there. Their capability plugins live
+in `bowenlabs/louise-toolkit-native`. [ADR 0020](0020-tauri-native-plugins.md)
+records the decision. Whether the iOS owner app moves to the Tauri shell is
+open there, pending a check that passkeys through Associated Domains work
+inside its WebView.
 
 ## Consequences
 
