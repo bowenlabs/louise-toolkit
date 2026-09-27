@@ -231,13 +231,15 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
 }
 
 /**
- * One-click AI alt backfill (#106 Phase 2b): fill `alt` for images that lack it,
- * capped at {@link MediaRouteConfig.altFixBatch} per call so a big library can't
- * exhaust the Worker's subrequest/AI budget in one go. An optional `{ key }` in
- * the body fixes a single asset (the rest is a bulk backfill, newest-first).
- * Editor-guarded mutation; 503 when no AI runner is wired (the client hides the
- * assist). Returns `{ fixed, results }`—the client refreshes its counts and,
- * for a bulk run, re-invokes until `fixed` is 0.
+ * AI alt suggestions (#106 Phase 2b, #549): suggest `alt` for images that lack
+ * it, capped at {@link MediaRouteConfig.altFixBatch} per call so a big library
+ * can't exhaust the Worker's subrequest/AI budget in one go. An optional
+ * `{ key }` in the body targets one asset (else newest-first). Editor-guarded;
+ * 503 when no AI runner is wired (the client hides the assist).
+ *
+ * It writes nothing. Returns `{ suggestions: [{ key, alt }] }` for the owner to
+ * edit, accept, or skip; an accepted one is saved with the media `PATCH`. Model
+ * output doesn't reach a page the owner hasn't seen.
  */
 async function generateAltFix<Env extends MediaRouteEnv>(
   request: Request,
@@ -262,7 +264,7 @@ async function generateAltFix<Env extends MediaRouteEnv>(
     .bind(onlyKey ?? batch)
     .all<{ key: string; content_type?: string | null }>();
 
-  const fixed: { key: string; alt: string }[] = [];
+  const suggestions: { key: string; alt: string }[] = [];
   for (const row of results) {
     // Skip non-images—a stored PDF/font has no visual alt to generate.
     if (row.content_type && !row.content_type.startsWith("image/")) continue;
@@ -270,10 +272,7 @@ async function generateAltFix<Env extends MediaRouteEnv>(
     if (!object) continue; // registry row without its R2 object—nothing to read
     const alt = await generateAltText(runner, await object.arrayBuffer(), config.altTextOptions);
     if (!alt) continue; // model returned nothing → leave it for a manual fix
-    await env.DB.prepare(`UPDATE ${ident(name)} SET "alt" = ?1 WHERE "key" = ?2`)
-      .bind(alt, row.key)
-      .run();
-    fixed.push({ key: row.key, alt });
+    suggestions.push({ key: row.key, alt });
   }
-  return json({ fixed: fixed.length, results: fixed });
+  return json({ suggestions });
 }

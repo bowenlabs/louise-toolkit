@@ -252,13 +252,26 @@ const healthSummary = (missingAlt: number) => ({
 });
 
 describe("HealthPanel — one-click AI alt fix", () => {
-  it("generates alt with AI, then refreshes the count on success", async () => {
-    let missing = 3;
+  it("suggests descriptions, saves only what the owner accepts, then refreshes (#549)", async () => {
+    let missing = 2;
+    const patches: Record<string, unknown>[] = [];
     const fetchMock = vi.fn((input: string | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/generate-alt") && (init?.method ?? "GET").toUpperCase() === "POST") {
-        missing = 0; // the backfill cleared them; the next health read reflects it
-        return Promise.resolve(jsonRes({ fixed: 3, results: [] }));
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("/generate-alt") && method === "POST") {
+        return Promise.resolve(
+          jsonRes({
+            suggestions: [
+              { key: "web/door.jpg", alt: "A wooden door" },
+              { key: "web/rule.png", alt: "A thin line" },
+            ],
+          }),
+        );
+      }
+      if (url.endsWith("/api/louise/media") && method === "PATCH") {
+        patches.push(JSON.parse(String(init?.body)));
+        missing -= 1;
+        return Promise.resolve(jsonRes({ ok: true }));
       }
       return Promise.resolve(jsonRes({ summary: healthSummary(missing) }));
     });
@@ -266,13 +279,28 @@ describe("HealthPanel — one-click AI alt fix", () => {
     mount(() => <HealthPanel navigate={() => {}} />);
 
     await vi.waitFor(() =>
-      expect(host.textContent).toContain("3 images are missing a description"),
+      expect(host.textContent).toContain("2 images are missing a description"),
     );
-    button("Fix with AI")!.click();
+    button("Suggest with AI")!.click();
+    await vi.waitFor(() => expect(host.textContent).toContain("door.jpg"));
+    // Asking wrote nothing.
+    expect(patches).toEqual([]);
 
-    // POST to the backfill fired, and the refreshed health read shows all-clear.
-    await vi.waitFor(() => expect(host.textContent).toContain("Every image has a description"));
-    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/generate-alt"))).toBe(true);
+    // The owner edits one suggestion, accepts it, and skips the other.
+    const field = host.querySelector<HTMLInputElement>('input[id*="door"]')!;
+    field.value = "The shop's front door";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label="Accept the suggestion for door.jpg"]')!
+      .click();
+    await vi.waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({ key: "web/door.jpg", alt: "The shop's front door" });
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label="Skip the suggestion for rule.png"]')!
+      .click();
+    await vi.waitFor(() => expect(host.textContent).toContain("Saved 1 description."));
+    expect(patches).toHaveLength(1);
+    await vi.waitFor(() => expect(host.textContent).toContain("1 image is missing a description"));
   });
 
   it("hides the AI button and explains when AI isn't set up (503)", async () => {
@@ -284,33 +312,54 @@ describe("HealthPanel — one-click AI alt fix", () => {
     vi.stubGlobal("fetch", fetchMock);
     mount(() => <HealthPanel navigate={() => {}} />);
 
-    await vi.waitFor(() => expect(button("Fix with AI")).toBeTruthy());
-    button("Fix with AI")!.click();
+    await vi.waitFor(() => expect(button("Suggest with AI")).toBeTruthy());
+    button("Suggest with AI")!.click();
     await vi.waitFor(() => expect(host.textContent).toContain("aren’t set up"));
     // The assist removes itself; the manual "Review in Media" path stays.
-    expect(button("Fix with AI")).toBeUndefined();
+    expect(button("Suggest with AI")).toBeUndefined();
     expect(button("Review in Media")).toBeTruthy();
   });
 
-  it("generates SEO with AI and refreshes on success", async () => {
-    let gaps = 3;
+  it("suggests SEO, and Accept all saves every one through apply (#549)", async () => {
+    const applied: Record<string, unknown>[] = [];
     const fetchMock = vi.fn((input: string | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/generate-seo") && (init?.method ?? "GET").toUpperCase() === "POST") {
-        gaps = 0;
-        return Promise.resolve(jsonRes({ fixed: 3, results: [] }));
+      if (url.endsWith("/generate-seo/apply")) {
+        applied.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(jsonRes({ ok: true, draft: true }));
       }
-      // missingAlt 0 → the only "Fix with AI" on screen is the SEO one.
-      return Promise.resolve(jsonRes({ summary: { ...healthSummary(0), seoGaps: gaps } }));
+      if (url.includes("/generate-seo")) {
+        return Promise.resolve(
+          jsonRes({
+            suggestions: [
+              {
+                id: 4,
+                title: "Bakery",
+                slug: "bakery",
+                seoTitle: "Fresh bread",
+                seoDescription: null,
+              },
+              { id: 5, title: "", slug: "cafe", seoTitle: null, seoDescription: "Coffee all day." },
+            ],
+          }),
+        );
+      }
+      // missingAlt 0 → the only "Suggest with AI" on screen is the SEO one.
+      return Promise.resolve(jsonRes({ summary: { ...healthSummary(0), seoGaps: 2 } }));
     });
     vi.stubGlobal("fetch", fetchMock);
     mount(() => <HealthPanel navigate={() => {}} />);
 
-    await vi.waitFor(() =>
-      expect(host.textContent).toContain("3 pages are missing an SEO title or description"),
-    );
-    button("Fix with AI")!.click();
-    await vi.waitFor(() => expect(host.textContent).toContain("Every page has search info"));
-    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/generate-seo"))).toBe(true);
+    await vi.waitFor(() => expect(button("Suggest with AI")).toBeTruthy());
+    button("Suggest with AI")!.click();
+    await vi.waitFor(() => expect(host.textContent).toContain("Bakery"));
+    expect(host.textContent).toContain("/cafe");
+    button("Accept all")!.click();
+    await vi.waitFor(() => expect(applied).toHaveLength(2));
+    expect(applied).toEqual([
+      { id: 4, seoTitle: "Fresh bread" },
+      { id: 5, seoDescription: "Coffee all day." },
+    ]);
+    await vi.waitFor(() => expect(host.textContent).toContain("publish those pages"));
   });
 });

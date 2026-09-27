@@ -57,6 +57,27 @@ paragraphs, Replace is off and the menu says why. Two limits:
 - **Bold, italics, and other inline formatting don't carry over.** The preview says
   so when the selection has any.
 
+## Backfills suggest, and the owner accepts
+
+The Health panel's **Suggest with AI** buttons fill in what's missing across the
+site: descriptions for images without one, and SEO titles and descriptions for
+published pages. Neither writes anything by itself. Each returns suggestions the
+owner reads, edits, and accepts or skips, so model output doesn't reach a page
+nobody has seen:
+
+```ts
+// POST /api/louise/media/generate-alt    → { suggestions: [{ key, alt }] }
+// POST /api/louise/pages/generate-seo    → { suggestions: [{ id, title, slug, seoTitle, seoDescription }] }
+// POST /api/louise/pages/generate-seo/apply  { id, seoTitle?, seoDescription? }
+seoFixRoute({ table: pages, resolveEditor, ai: aiRunner, drafts: pagesDraftDeps });
+```
+
+An accepted description is saved with the media route's `PATCH`. An accepted SEO
+suggestion goes to `generate-seo/apply`. Give `seoFixRoute` the same `drafts`
+dependencies `versionsRoute` takes, and it's saved as a draft through
+`applySaveDraft`, so version history holds it and nothing is live until the
+page is published. Without `drafts`, it's written to the live row.
+
 ## The site's voice
 
 Rewrites and SEO suggestions use a fixed prompt, so on their own they don't know
