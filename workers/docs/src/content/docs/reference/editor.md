@@ -211,7 +211,11 @@ resolveEditor, validate? }`. The
   inserts the row, and fires the form's
   `notify` (webhook + email via a `mailer`) off the response path. Pass
   `genericTable` to store into the shared `submissions` table (`{ form, data }`)
-  so an ad-hoc form needs no migration. Mounted at `/api/louise/forms/<name>`.
+  so an ad-hoc form needs no migration. A no-script post (form-encoded, from a
+  browser that wants HTML) gets a `303` back to its page with `?form=&status=`,
+  or whatever `respond(outcome, request)` returns; see
+  [the forms guide](/guide/forms/#capture-formroute). Mounted at
+  `/api/louise/forms/<name>`.
 - **`submissionsRoute`**—the editor-gated review companion for a generic
   `formRoute` (`genericTable`): GET lists one `form`'s rows from the shared
   `submissions` table newest-first (parsing `data` back onto each row), DELETE
