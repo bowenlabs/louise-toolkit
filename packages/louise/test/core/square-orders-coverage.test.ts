@@ -9,6 +9,7 @@ import {
   createPaymentLink,
   createSubscription,
   deletePaymentLink,
+  orderSubtotal,
   publishInvoice,
   retrieveInvoice,
   retrieveLoyaltyAccountByCustomer,
@@ -147,6 +148,21 @@ describe("retrieveOrder", () => {
       createdAt: null,
       lineItems: [],
     });
+  });
+});
+
+describe("orderSubtotal", () => {
+  it("is the total less tax and service charges, so discounts are already out", async () => {
+    answer({
+      order: {
+        total_money: { amount: 2330, currency: "USD" },
+        total_tax_money: { amount: 180, currency: "USD" },
+        total_discount_money: { amount: 250, currency: "USD" },
+        total_service_charge_money: { amount: 150, currency: "USD" },
+      },
+    });
+    const order = await calculateOrder(CONFIG, { locationId: "L1", lineItems: [LINE] });
+    expect(orderSubtotal(order)).toEqual({ amount: 2000, currency: "USD" });
   });
 });
 
