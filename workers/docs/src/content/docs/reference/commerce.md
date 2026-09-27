@@ -478,6 +478,7 @@ import {
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                        |
 | **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                        |
 | **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                                               |
+| **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                                             |
 | **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
 | **Payments**              | `createPayment`—charge a Web Payments card token against an order.                                                                                                                                                                                                  |
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                    |
@@ -541,6 +542,52 @@ the order's `location_id` is strongly implied by Square staff but never stated i
 the docs—if you sell the same item at two locations with different rates,
 confirm it against your own catalog before trusting it.
 :::
+
+### An order-ahead menu
+
+`buildMenuTabs` turns the catalog reads a site already caches into menu tabs. It
+makes no Square call, so the same snapshot always renders the same menu.
+
+```ts
+import {
+  buildMenuTabs,
+  listCatalogDetailed,
+  listCategories,
+  listModifierLists,
+  retrieveInventoryCounts,
+} from "louise-toolkit/commerce/square";
+
+const catalog = await listCatalogDetailed(config);
+const variationIds = catalog.items.flatMap((item) => item.variations.map((v) => v.id));
+const tabs = buildMenuTabs(
+  {
+    catalog,
+    categories: await listCategories(config),
+    modifierLists: await listModifierLists(config),
+    counts: await retrieveInventoryCounts(config, variationIds, [locationId]),
+  },
+  // The site's settings, usually chosen by an editor.
+  { categoryIds: settings.menuCategoryIds, hiddenItemIds: settings.hiddenItemIds, locationId },
+);
+```
+
+Each chosen top-level category gives one tab per subcategory, in Square's
+ordinal order, holding the items filed under it at any depth. Items filed
+directly under the top-level category collect in a trailing tab named after it.
+An item filed under two subcategories appears in both tabs, so a view that shows
+every tab at once dedupes by item id.
+
+- **Chosen categories:** an empty `categoryIds` is an empty menu. Picking a
+  category by its name is the site's decision, not the toolkit's.
+- **Prices:** a variation priced at 0 rings up at the register and can't be
+  ordered online, so it's dropped, along with an item that has none left. With
+  `locationId`, prices come from `priceAtLocation`.
+- **Sold out:** an item is sold out only when every variation is tracked and at
+  zero or below. A variation with no `IN_STOCK` count is untracked, so a drink
+  made to order is never sold out, and neither is anything when stock is
+  unavailable and you pass `counts: []`.
+- **Modifiers:** each list's `min` and `max` come from the item's ref, since two
+  items can bound one list differently. A list with no modifiers is left out.
 
 ### Team, labor, and invoices
 

@@ -24,6 +24,7 @@ export * from "./square/locations.js";
 export * from "./square/catalog.js";
 export * from "./square/catalog-details.js";
 export * from "./square/inventory.js";
+export * from "./square/menu.js";
 export * from "./square/orders.js";
 export * from "./square/payments.js";
 export * from "./square/customers.js";
