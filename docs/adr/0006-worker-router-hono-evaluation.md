@@ -1,6 +1,6 @@
 # ADR 0006: Evaluate Hono for the Worker router, keep `composeWorker`
 
-- **Status:** Accepted (2026-07-17). **Keep the hand-rolled `composeWorker`; don't adopt Hono as the router.** Revisit only under the triggers below.
+- **Status:** Accepted (2026-07-17). **Keep the hand-rolled `composeWorker`; don't adopt Hono as the router.** Revisit only under the triggers below. **Amended 2026-09-27** (see _Amendment_ below): the route-ordering rule is gone, because `pagesRoute` now falls through on paths it doesn't own.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #78 (in the Platform features push milestone, epic #102)
 - **Related:** #72 (Astro Actions / typed client), #71 (realtime WS route), ADR 0001 (opinionated Astro + Cloudflare)
@@ -67,3 +67,13 @@ Reopen the question if any of these change the calculus:
 - **#72 typed client becomes a priority**, and the project accepts Hono **confined to the editor mount** as an optional `louise-toolkit/worker/hono` adapter (opt-in dependency, public `WorkerRoute` untouched) purely to get RPC-mode types for the editor client.
 - The editor route count or path-overlap complexity grows enough that a real trie with **explicit static-over-dynamic specificity** (which Hono doesn't provide, but a purpose-built matcher could) earns its keep. At that point, build it natively and with zero dependencies rather than take Hono.
 - A second framework target (beyond Astro) needs the routes, and a shared router abstraction pays for itself.
+
+## Amendment (2026-09-27, #538)
+
+The first consequence no longer holds. The ordering discipline wasn't inherent
+to prefix-overlapping routes; it came from `pagesRoute` answering `400` for any
+segment under its prefix that wasn't an integer. `pagesRoute` now claims only
+`/:id` with an all-digit `:id` and returns `undefined` for every other path, so
+`versionsRoute`, `searchRoute`, `seoFixRoute`, and the overview route mount in
+any order, and their `MUST precede` comments are gone. The decision itself
+stands: none of the reasons for declining Hono depended on the ordering rule.
