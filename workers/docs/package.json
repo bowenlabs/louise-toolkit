@@ -17,6 +17,7 @@
     "louise-toolkit": "workspace:*"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "wrangler": "^4.127.1"
   },
   "engines": {

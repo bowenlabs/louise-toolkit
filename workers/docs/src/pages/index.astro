@@ -1,0 +1,96 @@
+---
+// The docs home: a splash page, where there used to be a redirect to Getting
+// started. It's an Astro page wrapped in <StarlightPage> rather than an .mdx
+// entry in the content collection, so it gets the same header, search, and theme
+// as every other page while the Vale lint reads it like any other template.
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { CardGrid, Code, LinkCard } from "@astrojs/starlight/components";
+import arrowRight from "@phosphor-icons/core/assets/bold/arrow-right-bold.svg?raw";
+import icon from "../assets/louise-icon.svg";
+import Features from "../components/Features.astro";
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Build editable sites on Cloudflare Workers",
+    description:
+      "Louise Toolkit is a V8-native toolkit for editable sites on Cloudflare Workers, with content, commerce, media, forms, auth, and AI as composable primitives.",
+    template: "splash",
+    hero: {
+      tagline:
+        "Content, commerce, media, forms, auth, and AI as composable primitives that run on workerd. Sign in, and the live site becomes editable in place, with no separate admin app and no editor JavaScript on published pages.",
+      image: { file: icon, alt: "The Louise Toolkit icon, a lightning bolt on a green tile" },
+      actions: [
+        { text: "Get started", link: "/guide/getting-started/", variant: "primary", icon: arrowRight },
+        { text: "Quickstart", link: "/guide/quickstart/", variant: "secondary" },
+        {
+          text: "View on GitHub",
+          link: "https://github.com/bowenlabs/louise-toolkit",
+          variant: "minimal",
+        },
+      ],
+    },
+  }}
+>
+  <Code code="pnpm add louise-toolkit" lang="sh" />
+
+  <h2>Why Louise</h2>
+  <Features
+    items={[
+      {
+        icon: "pencil",
+        title: "Edit in place",
+        body: "Editable regions carry a marker, and in edit mode the client makes each one editable where it lives. Rich text gets a real ProseKit editor, not a form field.",
+      },
+      {
+        icon: "stack",
+        title: "A whole toolkit",
+        body: "Commerce, forms, media, auth, AI, queues, email, realtime, and workflows are first-party primitives, not third-party add-ons.",
+      },
+      {
+        icon: "lightning",
+        title: "V8-native",
+        body: "Everything runs on workerd and deploys to the edge. There's no Node runtime and no React on the server.",
+      },
+      {
+        icon: "plugs",
+        title: "Your bindings, your schema",
+        body: "You pass in D1, R2, Queues, and Email. Louise has no opinion about your schema or your auth, and never dictates your markup.",
+      },
+      {
+        icon: "cube",
+        title: "Framework-agnostic core",
+        body: "The core primitives run in any Worker or a unit test. The editor client, the theme, and the Astro adapter are the batteries on top.",
+      },
+      {
+        icon: "tree",
+        title: "Tree-shakeable",
+        body: "One ESM package with granular subpath exports. Import only the primitive you need, and pull in peers only for what you use.",
+      },
+    ]}
+  />
+
+  <h2>Where to start</h2>
+  <CardGrid>
+    <LinkCard
+      title="Add editing to an app you have"
+      description="Make a field on your own site editable in place, then add the primitives you need."
+      href="/guide/quickstart/"
+    />
+    <LinkCard
+      title="Start a new site with Astroid"
+      description="The opinionated meta-framework on Louise scaffolds a whole editable site from one command."
+      href="https://docs.astroidjs.org/"
+    />
+    <LinkCard
+      title="Is Louise for you?"
+      description="How Louise differs from other content tools, and the non-goals that tell you when it isn't the right one."
+      href="/guide/comparison/"
+    />
+    <LinkCard
+      title="Learn the concepts"
+      description="The three ideas that shape every Louise API, and how edit mode works."
+      href="/guide/concepts/"
+    />
+  </CardGrid>
+</StarlightPage>
