@@ -89,6 +89,27 @@ export interface RichTextFieldOptions {
    *  so editing can't turn an `<h1>` into a `<p>` nested inside the site's own
    *  element and lose its styling. */
   inline?: boolean;
+  /**
+   * Typographic input rules, off by default (#606). With `typography: {}`,
+   * typing `--` gives an em dash and `...` an ellipsis. Add `quotes`, the four
+   * marks your language uses as opening double, closing double, opening single,
+   * and closing single, such as `"“”‘’"` or `"«»‹›"`, and straight quotes become
+   * those. Quote marks differ by language, so there's no default pair. Only
+   * typing is converted, never a paste, and undo right after reverts it.
+   */
+  typography?: RichTextTypography;
+  /**
+   * Show a Language button in the format bubble, which marks the selection as
+   * another language with `<span lang="…">`, so a screen reader pronounces it
+   * right (#606). Off by default.
+   */
+  language?: boolean;
+}
+
+/** The typographic input rules a rich-text field turns on. */
+export interface RichTextTypography {
+  /** Four quote marks: opening and closing double, then opening and closing single. */
+  quotes?: string;
 }
 
 export interface SectionField {
