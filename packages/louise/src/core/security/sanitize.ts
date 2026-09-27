@@ -75,7 +75,8 @@ export const ALLOWED_TAGS = [
 export const ATTR_ALLOW: Record<string, Set<string>> = {
   a: new Set(["href"]),
   img: new Set(["src", "alt", "width", "height"]),
-  span: new Set(["style", "data-text-color"]),
+  // `lang` marks a phrase in another language (#606), checked against BCP 47.
+  span: new Set(["style", "data-text-color", "lang"]),
   // Block containers: identity + variant data-attrs + a class further
   // filtered to `pb-` tokens below.
   section: new Set(["class", "data-block", "data-cols"]),
@@ -112,6 +113,10 @@ const SAFE_COLOR_STYLE =
   /^\s*color:\s*(?:#[0-9a-f]{3,8}|rgba?\([\d,.\s%]+\)|hsl\([\d,.\s%]+\)|var\(\s*--color-[a-z-]+\s*\)|[a-z]+)\s*;?\s*$/i;
 const SAFE_GRID_STYLE =
   /^\s*grid-template-columns:\s*(?:\d+(?:\.\d+)?(?:%|fr|px)|auto)(?:\s+(?:\d+(?:\.\d+)?(?:%|fr|px)|auto)){0,11}\s*;?\s*$/i;
+/** A BCP 47 language tag's shape: a 2–3 letter language, then subtags of 1–8
+ *  letters or digits (`fr`, `pt-BR`, `zh-Hant-TW`). */
+export const BCP47_TAG = /^[a-z]{2,3}(?:-[a-z0-9]{1,8})*$/i;
+
 function isSafeStyle(value: string): boolean {
   return SAFE_COLOR_STYLE.test(value) || SAFE_GRID_STYLE.test(value);
 }
@@ -173,6 +178,9 @@ function strictAttributes(mediaBase?: string) {
           delete el.attributes[name];
         }
         if (name === "style" && !isSafeStyle(value)) {
+          delete el.attributes[name];
+        }
+        if (name === "lang" && !BCP47_TAG.test(value.trim())) {
           delete el.attributes[name];
         }
         if (name === "class") {

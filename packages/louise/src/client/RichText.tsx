@@ -47,7 +47,8 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { CHROME_LANG, wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
 import { render } from "solid-js/web";
 import { Icon, type IconName } from "./icons.jsx";
-import type { RichTextColor } from "../core/content/sections.js";
+import type { RichTextColor, RichTextTypography } from "../core/content/sections.js";
+import { defineLanguageMark, defineTypography, LANGUAGE_TAG } from "./typography.js";
 import { thumb } from "./thumb.js";
 
 /**
@@ -351,9 +352,16 @@ function flattenToInline(slice: Slice, schema: Schema): Slice {
   return new Slice(Fragment.from(paragraph), 1, 1);
 }
 
-function louiseExtension(builder = false, grammar = false, inline = false) {
+function louiseExtension(
+  builder = false,
+  grammar = false,
+  inline = false,
+  typography?: RichTextTypography,
+) {
   return union(
     defineBasicExtension(),
+    defineLanguageMark(),
+    ...(typography ? [defineTypography(typography)] : []),
     // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
     // the block-splitting keys so the value stays one inline run—paired with
     // inlineHTMLFromDoc, the field never gains a block wrapper. A paste or a drop
@@ -450,6 +458,11 @@ export interface RichTextProps {
   /** The text colors to offer, as theme tokens (#605). Default: primary,
    *  secondary, accent, and neutral. An empty list hides the color button. */
   colors?: readonly RichTextColor[];
+  /** Typographic input rules (#606): dashes, an ellipsis, and, with `quotes`,
+   *  curly quotes. Off when absent. */
+  typography?: RichTextTypography;
+  /** Show the Language button, which marks a phrase with `<span lang>` (#606). */
+  language?: boolean;
   class?: string;
 }
 
@@ -468,7 +481,12 @@ export interface RichTextField {
  * the live page stays clean until the editor actually selects text. Reads
  * active mark/node state reactively and runs editor commands.
  */
-function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly RichTextColor[] }) {
+function Toolbar(props: {
+  minimal?: boolean;
+  image?: boolean;
+  colors?: readonly RichTextColor[];
+  language?: boolean;
+}) {
   const colors = () =>
     (props.colors ?? DEFAULT_TEXT_COLORS).filter((c) => COLOR_TOKEN.test(c.token));
   const editor = useEditor<LouiseEditorExtension>();
@@ -478,6 +496,7 @@ function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly 
     underline: e.marks.underline.isActive(),
     strike: e.marks.strike.isActive(),
     link: e.marks.link.isActive(),
+    language: e.marks.lang.isActive(),
     h2: e.nodes.heading.isActive({ level: 2 }),
     h3: e.nodes.heading.isActive({ level: 3 }),
     bullet: e.nodes.list.isActive({ kind: "bullet" }),
@@ -649,6 +668,31 @@ function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly 
     else editor().commands.removeLink();
   };
 
+  // Mark the selection as another language (#606). An empty answer removes the
+  // mark; a tag that isn't BCP 47-shaped is refused rather than stored, since
+  // the sanitizer would drop it on save anyway.
+  const editLanguage = () => {
+    const view = editor().view;
+    const { from, to, empty } = view.state.selection;
+    const type = view.state.schema.marks.lang;
+    if (empty || !type) return;
+    const existing = view.state.selection.$from.marks().find((m) => m.type === type);
+    const answer = window.prompt(
+      "Language of the selected text, as a tag such as fr or pt-BR. Leave it empty to remove it.",
+      (existing?.attrs.lang as string | undefined) ?? "",
+    );
+    if (answer === null) return;
+    const tag = answer.trim();
+    if (tag && !LANGUAGE_TAG.test(tag)) {
+      window.alert(`"${tag}" isn't a language tag. Use one like fr, de, or pt-BR.`);
+      return;
+    }
+    let tr = view.state.tr.removeMark(from, to, type);
+    if (tag) tr = tr.addMark(from, to, type.create({ lang: tag }));
+    view.dispatch(tr);
+    view.focus();
+  };
+
   const Btn = (p: { icon: IconName; on?: boolean; title: string; run: () => void }) => (
     <button
       type="button"
@@ -700,6 +744,9 @@ function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly 
         on={active().link}
         run={editLink}
       />
+      <Show when={props.language}>
+        <Btn icon="translate" title="Language" on={active().language} run={editLanguage} />
+      </Show>
       {/* Block-level controls (headings, lists, quote, image)—hidden in the
           `minimal` (light-inline) mode used by section rich-text fields, which
           get inline formatting only. */}
@@ -923,7 +970,12 @@ function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly 
 export function RichText(props: RichTextProps) {
   const builder = () => props.builder ?? props.blocks ?? false;
   const editor = createEditor({
-    extension: louiseExtension(builder(), props.grammar ?? false, props.inline ?? false),
+    extension: louiseExtension(
+      builder(),
+      props.grammar ?? false,
+      props.inline ?? false,
+      props.typography,
+    ),
     defaultContent: props.initialDoc || "<p></p>",
   });
 
@@ -958,6 +1010,7 @@ export function RichText(props: RichTextProps) {
               minimal={props.minimal || props.inline}
               image={props.image}
               colors={props.colors}
+              language={props.language}
             />
           </InlinePopoverRoot>
         </Show>
@@ -1002,6 +1055,8 @@ export function mountRichText(
     image?: boolean;
     inline?: boolean;
     colors?: readonly RichTextColor[];
+    typography?: RichTextTypography;
+    language?: boolean;
   },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
@@ -1017,6 +1072,8 @@ export function mountRichText(
         image={opts?.image}
         inline={opts?.inline}
         colors={opts?.colors}
+        typography={opts?.typography}
+        language={opts?.language}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;
