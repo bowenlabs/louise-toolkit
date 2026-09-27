@@ -90,7 +90,8 @@ const ALLOWED = {
     "en-US": "overridable `formatDate` default",
   },
   "packages/louise/src/core/dates/clock.ts": {
-    "en-US": "parse-only: `offsetAt` and `wallMinutes` read numeric wall-clock parts out of Intl; never shown",
+    "en-US":
+      "parse-only: `offsetAt` and `wallMinutes` read numeric wall-clock parts out of Intl; never shown",
   },
 };
 
