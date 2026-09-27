@@ -207,6 +207,9 @@ const WORKING_AFTER_MS = 400;
 /** How long "Draft saved" stays in the bar after a save. */
 const SAVED_FLASH_MS = 3000;
 
+/** How long a deleted draft can be brought back before the delete is sent (#540). */
+const UNDO_DISCARD_MS = 8000;
+
 /** An action whose failure the bar words for itself. */
 type FailedAction = "save" | "publish" | "discard";
 
@@ -1047,7 +1050,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const [inspecting, setInspecting] = createSignal<
     (InspectTarget & { top: number; left: number }) | null
   >(null);
-  const hasDraft = () => versions().some((v) => v.status === "draft");
+  const hasDraft = () => listedVersions().some((v) => v.status === "draft");
   // The bar's status line: in progress, then "Draft saved" for a moment, or the
   // confirmation after a publish reloaded the page.
   const statusText = () =>
@@ -1124,8 +1127,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // Shared by the fallback bar button and the Settings top-strip icon.
   const toggleHistory = (force?: boolean) => {
     const next = force ?? !showHistory();
-    setShowHistory(next);
-    if (next) void loadVersions();
+    if (!next) {
+      closeHistory();
+      return;
+    }
+    setShowHistory(true);
+    void loadVersions();
   };
 
   // Whether Louise Settings is mounted, and so owns the History trigger.
@@ -1364,6 +1371,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const publish = async (versionId?: number) => {
     // Supersede any queued auto-save so it can't stage a draft mid-publish.
     auto?.cancel();
+    // Send a delete still in its undo window first, so publishing "the latest
+    // draft" can't pick the draft the owner just deleted.
+    await flushDiscard();
     setErrorDetail("");
     setFailed(null);
     setStatus("publishing");
@@ -1414,10 +1424,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     setErrorDetail("");
     setFailed(null);
     try {
+      // `keepalive`, because the drawer can close into a publish or a
+      // navigation that would otherwise cancel the request.
       const res = await fetch(`/api/louise/pages/${props.pageId}/discard`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ versionId }),
+        keepalive: true,
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -1431,6 +1444,62 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       setFailed({ action: "discard", retry: () => void discardDraft(versionId) });
       setStatus("error");
     }
+  };
+
+  // Deleting a draft from history waits for an undo (#540): the row leaves the
+  // list at once, the drawer says "Draft deleted · Undo", and the delete is sent
+  // only when that window ends, the drawer closes, or a publish starts. One
+  // delete waits at a time, so a second delete sends the first.
+  const [pendingDiscard, setPendingDiscard] = createSignal<number | null>(null);
+  let discardTimer: ReturnType<typeof setTimeout> | undefined;
+  const flushDiscard = async (): Promise<void> => {
+    clearTimeout(discardTimer);
+    const id = pendingDiscard();
+    if (id === null) return;
+    setPendingDiscard(null);
+    await discardDraft(id);
+  };
+  const armDiscardTimer = () => {
+    clearTimeout(discardTimer);
+    discardTimer = setTimeout(() => void flushDiscard(), UNDO_DISCARD_MS);
+  };
+  const deleteDraft = (versionId: number) => {
+    void flushDiscard();
+    setPendingDiscard(versionId);
+    armDiscardTimer();
+    // The row's button just left the page, so move focus to Undo rather than
+    // dropping it on the document.
+    queueMicrotask(() => document.querySelector<HTMLElement>(".louise-undo-line button")?.focus());
+  };
+  const undoDiscard = () => {
+    clearTimeout(discardTimer);
+    const id = pendingDiscard();
+    setPendingDiscard(null);
+    queueMicrotask(() =>
+      document
+        .querySelector<HTMLElement>(`.louise-history-drawer [data-version-id="${id}"] button`)
+        ?.focus(),
+    );
+  };
+  const closeHistory = () => {
+    void flushDiscard();
+    setShowHistory(false);
+  };
+  onCleanup(() => void flushDiscard());
+  // The rows the drawer lists, and the drafts the bar counts: a draft waiting on
+  // its undo window is already gone as far as the owner is concerned.
+  const listedVersions = () => versions().filter((v) => v.id !== pendingDiscard());
+  // "3 sections · Hero, Feature grid": what a version holds, so an owner can
+  // tell rows apart before opening or deleting one.
+  const versionSummary = (v: VersionRow): string => {
+    const items = v.versionData?.sections;
+    if (!Array.isArray(items)) return "";
+    if (items.length === 0) return "No sections";
+    const count = `${items.length} ${items.length === 1 ? "section" : "sections"}`;
+    const names = items
+      .slice(0, 2)
+      .map((it) => props.catalog[it._type]?.label ?? humanize(it._type));
+    return `${count} · ${names.join(", ")}${items.length > 2 ? ", …" : ""}`;
   };
 
   // Structural change: mutate, save a draft, then reload so the server
@@ -2182,11 +2251,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           shell, so this is a dedicated history drawer rather than a tab within it. */}
       <Show when={showHistory()}>
         <Portal>
-          <div
-            class="louise-drawer-scrim"
-            onClick={() => setShowHistory(false)}
-            aria-hidden="true"
-          />
+          <div class="louise-drawer-scrim" onClick={closeHistory} aria-hidden="true" />
           <aside
             lang={CHROME_LANG}
             class="louise-drawer louise-history-drawer"
@@ -2194,7 +2259,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             role="dialog"
             aria-modal="true"
             aria-label="Version history"
-            ref={(el) => onCleanup(wireDialogA11y(el, { onClose: () => setShowHistory(false) }))}
+            ref={(el) => onCleanup(wireDialogA11y(el, { onClose: closeHistory }))}
           >
             <div class="louise-drawer-head">
               <span class="louise-drawer-brand">Version history</span>
@@ -2202,35 +2267,68 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                 type="button"
                 class="louise-drawer-close"
                 aria-label="Close"
-                onClick={() => setShowHistory(false)}
+                onClick={closeHistory}
               >
                 <Icon name="x" />
               </button>
             </div>
             <div class="louise-drawer-body">
+              <p class="louise-undo-line" role="status">
+                <Show when={pendingDiscard() !== null}>
+                  Draft deleted ·{" "}
+                  <button
+                    class="louise-btn louise-btn-xs"
+                    type="button"
+                    onClick={undoDiscard}
+                    onFocusIn={() => clearTimeout(discardTimer)}
+                    onFocusOut={armDiscardTimer}
+                  >
+                    Undo
+                  </button>
+                </Show>
+              </p>
               <div class="louise-sections-versions">
-                <For each={versions()} fallback={<p class="louise-muted">No versions yet.</p>}>
+                <For
+                  each={listedVersions()}
+                  fallback={<p class="louise-muted">No versions yet.</p>}
+                >
                   {(v) => {
                     const isLive = () => v.id === liveVersionId();
                     return (
-                      <div class="louise-arr-row" data-live={isLive() ? "1" : undefined}>
-                        <span>
-                          {isLive() ? "Live" : v.status === "published" ? "Published" : "Draft"}
-                          {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
+                      <div
+                        class="louise-arr-row"
+                        data-live={isLive() ? "1" : undefined}
+                        data-version-id={v.id}
+                      >
+                        <span class="louise-version-text">
+                          <span>
+                            {isLive() ? "Live" : v.status === "published" ? "Published" : "Draft"}
+                            {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
+                          </span>
+                          <Show when={versionSummary(v)}>
+                            <span class="louise-version-summary">{versionSummary(v)}</span>
+                          </Show>
                         </span>
                         <div class="louise-arr-ops">
-                          {/* Drafts resume for editing (never publish straight from
-                              history) + can be deleted; published versions restore live. */}
+                          {/* Nothing goes live from history. A draft resumes for
+                              editing or is deleted with an undo; an older published
+                              version opens onto the canvas as a new draft, and the
+                              owner publishes it the usual way (#540). */}
                           <Show
                             when={v.status === "draft"}
                             fallback={
                               <button
                                 class="louise-btn louise-btn-xs"
                                 type="button"
+                                title={
+                                  isLive()
+                                    ? undefined
+                                    : "Load this version onto the page as a draft"
+                                }
                                 disabled={status() === "publishing" || isLive()}
-                                onClick={() => void publish(v.id)}
+                                onClick={() => editDraft(v.id)}
                               >
-                                {isLive() ? "Current" : "Restore"}
+                                {isLive() ? "Current" : "Open as draft"}
                               </button>
                             }
                           >
@@ -2246,7 +2344,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                               class="louise-btn louise-btn-xs louise-btn-danger"
                               type="button"
                               title="Delete draft"
-                              onClick={() => void discardDraft(v.id)}
+                              aria-label="Delete draft"
+                              onClick={() => deleteDraft(v.id)}
                             >
                               <Icon name="trash" />
                             </button>
