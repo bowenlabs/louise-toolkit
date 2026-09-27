@@ -288,9 +288,41 @@ const DEFAULT_ALT_TEXT_PROMPT =
  *  readers. Trimmed to this many characters (with an ellipsis). */
 export const MAX_ALT_TEXT_LENGTH = 240;
 
+/** What's known about where an image appears, so alt text can say what it's
+ *  for, not only what it shows (#599). */
+export interface AltTextContext {
+  /** The page it appears on. */
+  pageTitle?: string;
+  /** The nearest heading above it. */
+  heading?: string;
+  /** Its caption. */
+  caption?: string;
+  /** Where it links, for a linked image: its alt text should say where the
+   *  link goes, since that's what a screen reader user needs. */
+  href?: string;
+}
+
+/** The prompt's context lines, or nothing when none is known. */
+function altContextPrompt(context: AltTextContext | undefined): string {
+  if (!context) return "";
+  const lines: string[] = [];
+  if (context.pageTitle) lines.push(`It appears on a page titled "${context.pageTitle}".`);
+  if (context.heading) lines.push(`It sits under the heading "${context.heading}".`);
+  if (context.caption) lines.push(`Its caption is "${context.caption}".`);
+  if (context.href) {
+    lines.push(
+      `It's a link to ${context.href}: describe where the link goes, not what the image looks like.`,
+    );
+  }
+  return lines.length ? ` ${lines.join(" ")}` : "";
+}
+
 export interface AltTextOptions {
   /** Vision model id. Default {@link DEFAULT_ALT_TEXT_MODEL}. */
   model?: string;
+  /** Where the image appears, folded into the prompt. Upload knows none of
+   *  this, so it's omitted there; the backfill passes the caption. */
+  context?: AltTextContext;
   /** Prompt sent with the image. Default asks for one concise sentence. */
   prompt?: string;
   /** Output token cap. Default 128 (alt text is short). */
@@ -319,7 +351,7 @@ export async function generateAltText(
     {
       // Vision models take the image as an array of byte values.
       image: Array.from(toBytes(image)),
-      prompt: opts.prompt ?? DEFAULT_ALT_TEXT_PROMPT,
+      prompt: `${opts.prompt ?? DEFAULT_ALT_TEXT_PROMPT}${altContextPrompt(opts.context)}`,
       max_tokens: opts.maxTokens ?? 128,
     },
     gatewayRun(opts.gateway),
@@ -427,12 +459,6 @@ export interface RewriteOptions {
  * Keep `text` within {@link REWRITE_MAX_CHARS} for the default cap; a longer
  * passage is likely to come back cut off, and so as `null`.
  */
-/** Added to the rewrite prompt when the text holds several paragraphs, so the
- *  editor can put each one back in its own block (#551). A single paragraph
- *  gets the prompt unchanged. */
-const KEEP_PARAGRAPHS =
-  " Keep the same paragraphs in the same order, separated by one blank line, as in the text.";
-
 export async function rewriteText(
   runner: AiRunner | undefined,
   text: string,
@@ -448,7 +474,7 @@ export async function rewriteText(
       messages: [
         {
           role: "system",
-          content: `${instruction}${input.includes("\n\n") ? KEEP_PARAGRAPHS : ""} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+          content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
         },
         { role: "user", content: input },
       ],

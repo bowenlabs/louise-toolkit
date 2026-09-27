@@ -27,6 +27,12 @@ Add the binding, then opt each feature in.
 mediaRoute({ table: media, resolveEditor, altText: (env) => env.AI });
 ```
 
+Alt has three states. `NULL` is not written yet, an empty string is a
+**decorative** image, which HTML tells a screen reader to skip, and anything else
+is the description. The Media panel and the rich-text image control both have a
+**Decorative image** checkbox, and only `NULL` counts as missing, so the health
+card and the AI backfill leave decorative images alone.
+
 **Rewrite + SEO**—mount `aiRoute` for the editor client to call:
 
 ```ts
@@ -44,18 +50,6 @@ about as long as its input, and a longer passage would come back cut off. A long
 selection gets a `413` before any model runs, and its `error` tells the editor to
 select a shorter passage. The editor toolbar shows that message in the rewrite
 menu.
-
-**The toolbar shows a rewrite before it applies it.** The answer appears under
-the original with **Replace** and **Discard**, and nothing changes until the
-owner picks Replace. Several paragraphs go to the model as paragraphs, separated
-by blank lines, and each answer paragraph goes back into its own block, so a
-heading stays a heading. If the answer comes back with a different number of
-paragraphs, Replace is off and the menu says why. Two limits:
-
-- **A selection holding a link can't be rewritten.** The model could change where
-  the link goes, so the menu says to select text without one.
-- **Bold, italics, and other inline formatting don't carry over.** The preview says
-  so when the selection has any.
 
 ## Cost
 

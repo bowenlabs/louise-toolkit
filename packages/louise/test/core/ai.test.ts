@@ -212,6 +212,20 @@ describe("generateAltText", () => {
     expect(alt).toBe("A red mug on a table");
   });
 
+  it("folds where the image appears into the prompt, and says a link's destination matters (#599)", async () => {
+    const plain = runner({ description: "x" });
+    const linked = runner({ description: "x" });
+    await generateAltText(plain.runner, new Uint8Array([1]));
+    await generateAltText(linked.runner, new Uint8Array([1]), {
+      context: { pageTitle: "Visit us", heading: "Find the shop", href: "https://example.com/map" },
+    });
+    const promptOf = (r: typeof plain) => String(r.calls[0].inputs.prompt);
+    expect(promptOf(plain)).not.toContain("appears on");
+    expect(promptOf(linked)).toContain(`It appears on a page titled "Visit us".`);
+    expect(promptOf(linked)).toContain(`It sits under the heading "Find the shop".`);
+    expect(promptOf(linked)).toContain("describe where the link goes");
+  });
+
   it("accepts an ArrayBuffer and number[] image", async () => {
     const { runner: r, calls } = runner({ description: "Sunset over hills" });
     await generateAltText(r, new Uint8Array([1, 2]).buffer);
@@ -285,19 +299,6 @@ describe("rewriteText", () => {
     const sysB = (b.calls[0].inputs.messages as { content: string }[])[0].content;
     expect(sysA).not.toBe(sysB);
     expect(sysB.toLowerCase()).toContain("grammar");
-  });
-
-  it("asks to keep the paragraphs only when the text has several (#551)", async () => {
-    const one = runner({ response: "x" });
-    const several = runner({ response: "x" });
-    await rewriteText(one.runner, "one paragraph");
-    await rewriteText(several.runner, "first paragraph\n\nsecond paragraph");
-    const sys = (r: typeof one) => (r.calls[0].inputs.messages as { content: string }[])[0].content;
-    expect(sys(one)).not.toContain("same paragraphs");
-    expect(sys(several)).toContain("Keep the same paragraphs in the same order");
-    expect((several.calls[0].inputs.messages as { content: string }[])[1].content).toBe(
-      "first paragraph\n\nsecond paragraph",
-    );
   });
 
   it("strips a preamble and wrapping quotes the model may add", async () => {

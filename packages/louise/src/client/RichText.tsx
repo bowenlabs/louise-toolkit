@@ -97,51 +97,7 @@ const REWRITE_ACTIONS = [
 
 /** Shown in the sparkle menu when a rewrite fails for any reason other than
  *  length. The selection is never touched on failure, so it says so. */
-const REWRITE_FAILED = "Couldn’t rewrite this right now. Your text hasn’t changed.";
-
-/** Shown once when the site has no AI binding, before the control retires. */
-const REWRITE_UNAVAILABLE = "AI rewrite isn’t set up for this site.";
-
-/** Why rewrite is off for a selection holding a link: the model could change
- *  where the link goes, and a plain-text answer would drop it (#551). */
-const REWRITE_NO_LINKS = "Rewrite can’t keep links yet. Select text without a link.";
-
-/** Why Replace is off when the answer's paragraphs don't line up with the
- *  selection's blocks, so they can't go back into the same headings and items. */
-const REWRITE_LOST_PARAGRAPHS =
-  "The rewrite didn’t keep your paragraphs. Try again, or select one paragraph.";
-
-/** The text blocks a selection covers, as the ranges inside each that it
- *  selects, in document order. Empty ranges are left out. */
-function selectedBlocks(
-  doc: PMNode,
-  from: number,
-  to: number,
-): Array<{ from: number; to: number; text: string }> {
-  const blocks: Array<{ from: number; to: number; text: string }> = [];
-  doc.nodesBetween(from, to, (node, pos) => {
-    if (!node.isTextblock) return true;
-    const start = Math.max(from, pos + 1);
-    const end = Math.min(to, pos + 1 + node.content.size);
-    const text = end > start ? doc.textBetween(start, end, " ").trim() : "";
-    if (text) blocks.push({ from: start, to: end, text });
-    return false;
-  });
-  return blocks;
-}
-
-/** A rewrite waiting for the owner's Replace or Discard (#544). */
-interface RewritePreview {
-  original: string;
-  result: string;
-  /** The ranges each answer paragraph replaces, one per selected block. */
-  blocks: Array<{ from: number; to: number }>;
-  parts: string[];
-  /** The doc the rewrite was asked about; Replace refuses a changed one. */
-  doc: PMNode;
-  /** The selection held bold, italics, or other marks, which won't carry over. */
-  lostFormatting: boolean;
-}
+const REWRITE_FAILED = "Couldn’t rewrite that. Your text is unchanged.";
 
 /**
  * The message for a failed rewrite. A `413` means the selection is past the
@@ -171,6 +127,9 @@ function ResizableImage(props: SolidNodeViewProps) {
     };
   const [editingAlt, setEditingAlt] = createSignal(false);
   const alt = () => attrs().alt ?? "";
+  // An empty string, as opposed to null, marks the image decorative (#599).
+  const decorative = () => attrs().alt === "";
+  const altLabel = () => (decorative() ? "Decorative" : alt() ? "Alt" : "Alt?");
   return (
     <ResizableRoot
       class="louise-rt-image"
@@ -200,25 +159,36 @@ function ResizableImage(props: SolidNodeViewProps) {
             <button
               type="button"
               class="louise-rt-alt-btn"
-              classList={{ "is-unset": !alt() }}
-              title={alt() ? `Alt text: ${alt()}` : "Add alt text to describe this image"}
-              aria-label={alt() ? `Edit alt text: ${alt()}` : "Add alt text for this image"}
+              classList={{ "is-unset": !alt() && !decorative() }}
+              title={
+                decorative()
+                  ? "Marked decorative: screen readers skip it"
+                  : alt()
+                    ? `Alt text: ${alt()}`
+                    : "Add alt text to describe this image"
+              }
+              aria-label={
+                decorative()
+                  ? "Edit alt text: marked decorative"
+                  : alt()
+                    ? `Edit alt text: ${alt()}`
+                    : "Add alt text for this image"
+              }
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setEditingAlt(true)}
             >
-              {alt() ? "Alt" : "Alt?"}
+              {altLabel()}
             </button>
           }
         >
-          <input
-            class="louise-rt-alt-input"
-            aria-label="Image alt text"
-            placeholder="Describe this image…"
-            value={alt()}
-            ref={(el) => queueMicrotask(() => el.focus())}
-            onMouseDown={(e) => e.stopPropagation()}
-            onInput={(e) => props.setAttrs({ alt: e.currentTarget.value })}
-            onBlur={() => setEditingAlt(false)}
+          {/* Closes when focus leaves the whole editor, not the text field, so
+              the decorative checkbox beside it can take focus. */}
+          <div
+            class="louise-rt-alt-edit"
+            onFocusOut={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (!next || !e.currentTarget.contains(next)) setEditingAlt(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === "Escape") {
                 e.preventDefault();
@@ -226,7 +196,27 @@ function ResizableImage(props: SolidNodeViewProps) {
                 setEditingAlt(false);
               }
             }}
-          />
+          >
+            <input
+              class="louise-rt-alt-input"
+              aria-label="Image alt text"
+              placeholder="Describe this image…"
+              value={alt()}
+              disabled={decorative()}
+              ref={(el) => queueMicrotask(() => el.focus())}
+              onMouseDown={(e) => e.stopPropagation()}
+              // Clearing the text means "not written yet", not decorative.
+              onInput={(e) => props.setAttrs({ alt: e.currentTarget.value || null })}
+            />
+            <label class="louise-rt-alt-decorative" onMouseDown={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={decorative()}
+                onChange={(e) => props.setAttrs({ alt: e.currentTarget.checked ? "" : null })}
+              />
+              Decorative image
+            </label>
+          </div>
         </Show>
       </div>
     </ResizableRoot>
@@ -348,8 +338,12 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
       type: "image",
       attr: "alt",
       default: null,
-      toDOM: (value) => (value ? ["alt", value] : null),
-      parseDOM: (element) => element.getAttribute("alt") || null,
+      // Three states (#599): null is "not written" and serializes no alt; ""
+      // is decorative and serializes `alt=""`, which tells a screen reader to
+      // skip the image; anything else is the description. Parsing keeps `""`,
+      // so a decorative image survives a round trip.
+      toDOM: (value) => (value === null || value === undefined ? null : ["alt", value]),
+      parseDOM: (element) => (element.hasAttribute("alt") ? element.getAttribute("alt") : null),
     }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
@@ -433,15 +427,6 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
     // `e.view` throws before mount (assertView); `e.mounted` never does, so gate
     // the selection read. Drives the AI-rewrite button's enabled state.
     hasSelection: e.mounted && !e.view.state.selection.empty,
-    // A selection holding a link can't be rewritten (#551).
-    selectionHasLink:
-      e.mounted &&
-      !e.view.state.selection.empty &&
-      e.view.state.doc.rangeHasMark(
-        e.view.state.selection.from,
-        e.view.state.selection.to,
-        e.view.state.schema.marks.link!,
-      ),
   }));
 
   // Swatch popover visibility is click-toggled state, not CSS :hover. The old
@@ -464,50 +449,30 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
   const [aiBusy, setAiBusy] = createSignal(false);
   const [aiAvailable, setAiAvailable] = createSignal(true);
   const [aiError, setAiError] = createSignal<string | null>(null);
-  const [aiPreview, setAiPreview] = createSignal<RewritePreview | null>(null);
-  // A 503 retires the control, but only once the owner has read why.
-  const [retiring, setRetiring] = createSignal(false);
   const closeAi = () => {
     setAiOpen(false);
     setAiError(null);
-    setAiPreview(null);
-    if (retiring()) setAiAvailable(false);
   };
 
-  // Ask for a rewrite and show it under the original; nothing changes until
-  // Replace (#544). Each selected block is its own paragraph, with a blank line
-  // between, so the answer goes back into the same headings and list items
-  // (#551). A selection holding a link isn't sent at all.
   const runRewrite = async (mode: string) => {
     const view = editor().view;
     const { from, to, empty } = view.state.selection;
     if (empty) return;
-    const { doc, schema } = view.state;
-    if (doc.rangeHasMark(from, to, schema.marks.link!)) {
-      setAiError(REWRITE_NO_LINKS);
-      return;
-    }
-    const blocks = selectedBlocks(doc, from, to);
-    if (blocks.length === 0) return;
-    const original = blocks.map((b) => b.text).join("\n\n");
-    const lostFormatting = Object.values(schema.marks).some(
-      (mark) => mark !== schema.marks.link && doc.rangeHasMark(from, to, mark),
-    );
+    const text = view.state.doc.textBetween(from, to, " ").trim();
+    if (!text) return;
     setAiError(null);
-    setAiPreview(null);
     setAiBusy(true);
     let failure: string | null = null;
     try {
       const res = await fetch("/api/louise/ai/rewrite", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: original, mode }),
+        body: JSON.stringify({ text, mode }),
       });
-      // 503 → the AI binding is absent: say so, then retire the control when
-      // the menu closes. Anything else not OK → keep the original and say why.
+      // 503 → the AI binding is absent; hide the control for the rest of the
+      // session. Anything else not OK → keep the original text and say why.
       if (res.status === 503) {
-        failure = REWRITE_UNAVAILABLE;
-        setRetiring(true);
+        setAiAvailable(false);
         return;
       }
       if (!res.ok) {
@@ -515,53 +480,25 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
         return;
       }
       const data = (await res.json().catch(() => null)) as { text?: string } | null;
-      const result = data?.text?.trim();
-      if (!result) {
+      const next = data?.text?.trim();
+      if (!next) {
         failure = REWRITE_FAILED;
         return;
       }
-      const parts = result
-        .split(/\n\s*\n/)
-        .map((p) => p.replace(/\s+/g, " ").trim())
-        .filter(Boolean);
-      setAiPreview({
-        original,
-        result: parts.join("\n\n"),
-        blocks: blocks.map(({ from: f, to: t }) => ({ from: f, to: t })),
-        parts,
-        doc,
-        lostFormatting,
-      });
+      // Re-read state at apply time—the doc may have changed during the request.
+      // Bail if the captured range no longer fits (avoids an out-of-range insert).
+      const size = editor().view.state.doc.content.size;
+      if (from > size || to > size) return;
+      const tr = editor().view.state.tr.insertText(next, from, to);
+      editor().view.dispatch(tr);
     } catch {
       // Network error → keep the original text.
       failure = REWRITE_FAILED;
     } finally {
       setAiBusy(false);
       if (failure) setAiError(failure);
+      else closeAi();
     }
-  };
-
-  /** Whether the answer's paragraphs line up with the selected blocks. */
-  const previewFits = (p: RewritePreview) => p.parts.length === p.blocks.length;
-
-  // Replace each selected block's text with its answer paragraph, last first so
-  // earlier positions stay valid. Refuses if the text changed while the owner
-  // read the preview, since the captured positions no longer point at it.
-  const replaceWithRewrite = () => {
-    const p = aiPreview();
-    if (!p || !previewFits(p)) return;
-    const { state } = editor().view;
-    if (state.doc !== p.doc) {
-      setAiPreview(null);
-      setAiError("Your text changed while the rewrite ran. Select it and try again.");
-      return;
-    }
-    let tr = state.tr;
-    for (let i = p.blocks.length - 1; i >= 0; i--) {
-      tr = tr.insertText(p.parts[i]!, p.blocks[i]!.from, p.blocks[i]!.to);
-    }
-    editor().view.dispatch(tr);
-    closeAi();
   };
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned by Solid's `ref` binding below
@@ -796,66 +733,28 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
                 onCleanup(wirePopoverDismiss(el, { onClose: closeAi, trigger: aiTrigger }))
               }
             >
-              {/* The menu's messages, in the page while it's open so a change is
-                  announced: an error, or why rewrite is off for this selection. */}
-              <p class="louise-tb-ai-error" role="alert">
-                {aiError() ?? (active().selectionHasLink ? REWRITE_NO_LINKS : "")}
-              </p>
               <Show when={!aiBusy()} fallback={<span class="louise-tb-ai-busy">Rewriting…</span>}>
-                <Show
-                  when={aiPreview()}
-                  fallback={
-                    <For each={REWRITE_ACTIONS}>
-                      {(a) => (
-                        <button
-                          type="button"
-                          class="louise-tb-ai-item"
-                          disabled={active().selectionHasLink || retiring()}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => runRewrite(a.mode)}
-                        >
-                          {a.label}
-                        </button>
-                      )}
-                    </For>
-                  }
-                >
-                  {(p) => (
-                    <div class="louise-tb-ai-preview" role="status">
-                      <p class="louise-tb-ai-label">Original</p>
-                      <p class="louise-tb-ai-text is-original">{p().original}</p>
-                      <p class="louise-tb-ai-label">Rewrite</p>
-                      <p class="louise-tb-ai-text">{p().result}</p>
-                      <Show when={p().lostFormatting}>
-                        <p class="louise-tb-ai-note">
-                          Bold, italics, and other formatting in the selection won’t carry over.
-                        </p>
-                      </Show>
-                      <Show when={!previewFits(p())}>
-                        <p class="louise-tb-ai-note">{REWRITE_LOST_PARAGRAPHS}</p>
-                      </Show>
-                      <div class="louise-tb-ai-actions">
-                        <button
-                          type="button"
-                          class="louise-btn louise-btn-primary louise-btn-xs"
-                          disabled={!previewFits(p())}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={replaceWithRewrite}
-                        >
-                          Replace
-                        </button>
-                        <button
-                          type="button"
-                          class="louise-btn louise-btn-xs"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => setAiPreview(null)}
-                        >
-                          Discard
-                        </button>
-                      </div>
-                    </div>
+                {/* Above the modes, so it reads first; the editor can reselect
+                    and pick a mode again without reopening the menu. */}
+                <Show when={aiError()}>
+                  {(message) => (
+                    <p class="louise-tb-ai-error" role="alert">
+                      {message()}
+                    </p>
                   )}
                 </Show>
+                <For each={REWRITE_ACTIONS}>
+                  {(a) => (
+                    <button
+                      type="button"
+                      class="louise-tb-ai-item"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => runRewrite(a.mode)}
+                    >
+                      {a.label}
+                    </button>
+                  )}
+                </For>
               </Show>
             </div>
           </Show>

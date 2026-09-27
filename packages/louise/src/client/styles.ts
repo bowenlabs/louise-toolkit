@@ -1358,41 +1358,6 @@ html[data-louise-studio] body {
   font-size: var(--louise-text-xs);
   line-height: 1.4;
 }
-/* In the page while the menu is open, so a message is announced; empty, it
-   takes no space. */
-.louise-tb-ai-error:empty { margin: 0; padding: 0; }
-.louise-tb-ai-item:disabled { opacity: 0.5; cursor: default; }
-.louise-tb-ai-item:disabled:hover { background: transparent; }
-/* A rewrite waiting for Replace or Discard (#544): the original above the
-   answer, so the owner compares before anything changes. */
-.louise-tb-ai-preview {
-  width: 280px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 6px 10px;
-  display: grid;
-  gap: 4px;
-}
-.louise-tb-ai-label {
-  margin: 4px 0 0;
-  font-size: var(--louise-text-2xs);
-  font-weight: 600;
-  color: var(--louise-text-secondary);
-}
-.louise-tb-ai-text {
-  margin: 0;
-  font-size: var(--louise-text-sm);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  color: var(--louise-text);
-}
-.louise-tb-ai-text.is-original { color: var(--louise-text-secondary); }
-.louise-tb-ai-note {
-  margin: 4px 0 0;
-  font-size: var(--louise-text-xs);
-  color: var(--louise-warning-deep);
-}
-.louise-tb-ai-actions { display: flex; gap: 6px; margin-top: 6px; }
 /* Hidden file input backing the toolbar image button. */
 .louise-hidden-file {
   position: absolute;
@@ -1444,6 +1409,18 @@ html[data-louise-studio] body {
 .louise-rt-alt-btn.is-unset { background: var(--louise-warning); }
 .louise-rt-alt-btn:hover { background: color-mix(in oklch, var(--louise-text) 90%, transparent); }
 .louise-rt-alt-btn.is-unset:hover { background: var(--louise-warning-deep); }
+/* The alt editor: the text field, and the decorative checkbox (#599). */
+.louise-rt-alt-edit { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.louise-rt-alt-decorative {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--louise-surface);
+  color: var(--louise-text);
+  font-size: var(--louise-text-xs);
+}
 .louise-rt-alt-btn:focus-visible { outline: 2px solid var(--louise-on-accent); outline-offset: 2px; }
 /* Icon-only controls rely on the UA's default ring, which is easy to lose against
    the toolbar/drawer fills. Give them a deliberate, high-contrast one (WCAG 2.4.7

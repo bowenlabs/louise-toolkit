@@ -111,6 +111,12 @@ export {
   shouldFlushBuffer,
   writeDraftBuffer,
 } from "./draft-buffer.js";
-export { type MediaRouteConfig, type MediaRouteEnv, mediaRoute } from "./media.js";
+export {
+  MEDIA_ALT_MISSING_SQL,
+  MEDIA_ALT_UNDECIDED_SQL,
+  type MediaRouteConfig,
+  type MediaRouteEnv,
+  mediaRoute,
+} from "./media.js";
 export { type ListMediaRouteConfig, listMediaRoute } from "./media-list.js";
 export { type SeedRouteConfig, seedRoute } from "./seed.js";

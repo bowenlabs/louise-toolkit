@@ -156,3 +156,52 @@ describe("mediaRoute — POST /generate-alt (AI alt backfill)", () => {
     expect(res).toBeUndefined();
   });
 });
+
+describe("mediaRoute — decorative images (#599)", () => {
+  it("counts only NULL alt as missing, so a decorative image isn't regenerated", async () => {
+    const { db, calls } = makeD1(() => []);
+    const { bucket } = makeBucket({});
+    await mediaRoute(cfg())(post(), env(db, bucket), ctx);
+    const select = calls.find((c) => c.sql.startsWith("SELECT"))!;
+    expect(select.sql).toContain('("alt" IS NULL)');
+    expect(select.sql).not.toContain(`"alt" = ''`);
+  });
+
+  it("passes the image's caption to the model as context", async () => {
+    const prompts: string[] = [];
+    const runner: AiRunner = {
+      run: async (_model, inputs) => {
+        prompts.push(String((inputs as { prompt?: unknown }).prompt));
+        return { description: "A wooden door" };
+      },
+    };
+    const { db } = makeD1((sql) =>
+      sql.startsWith("SELECT")
+        ? [{ key: "web/door.jpg", content_type: "image/jpeg", caption: "Our shop's front door" }]
+        : [],
+    );
+    const { bucket } = makeBucket({ "web/door.jpg": [1, 2, 3] });
+    await mediaRoute(cfg({ altText: () => runner }))(post(), env(db, bucket), ctx);
+    expect(prompts[0]).toContain(`Its caption is "Our shop's front door".`);
+  });
+
+  it("stores a null alt as NULL and an empty one as decorative", async () => {
+    const { db, calls } = makeD1(() => []);
+    const { bucket } = makeBucket({});
+    const patch = (alt: unknown) =>
+      mediaRoute(cfg())(
+        new Request("https://site.example/api/louise/media", {
+          method: "PATCH",
+          headers: { origin: "https://site.example", "content-type": "application/json" },
+          body: JSON.stringify({ key: "web/a.jpg", alt }),
+        }),
+        env(db, bucket),
+        ctx,
+      );
+    await patch(null);
+    await patch("");
+    await patch("A red door");
+    const altBinds = calls.filter((c) => c.sql.startsWith("UPDATE")).map((c) => c.binds[0]);
+    expect(altBinds).toEqual([null, "", "A red door"]);
+  });
+});

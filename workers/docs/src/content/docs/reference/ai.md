@@ -176,6 +176,12 @@ errors, it yields no text, or the output cap cut its answer off; the caller keep
 its empty-alt fallback. A cut-off caption is never returned, because tidying it
 would make half a sentence look finished.
 
+`opts.context` says where the image appears: `pageTitle`, `heading`, `caption`,
+and, for a linked image, `href`. Each one known is folded into the prompt, and a
+link asks the model to describe where the link goes rather than what the image
+looks like, which is what a screen reader user needs. Upload knows none of this,
+so it passes none; the media route's alt backfill passes the caption.
+
 ## `rewriteText(runner, text, opts?)`
 
 ```ts
