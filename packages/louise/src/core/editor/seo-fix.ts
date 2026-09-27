@@ -15,7 +15,6 @@
 // Config-driven and best-effort: 503 when no AI runner is wired; only missing
 // fields are suggested (an existing seoTitle is never replaced); a page whose
 // content is empty, or where the model returns nothing, is skipped, not failed.
-// Mount BEFORE pagesRoute: its `/:id` matcher would else claim `/generate-seo`.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { toPageId } from "../content/ids.js";

@@ -136,7 +136,10 @@ export const ALL: APIRoute = (ctx) =>
 | `seedRoute`         | `/api/louise/seed`                   | seeds the `site_settings` singleton (idempotent)                        |
 | `statusRoute`       | `/api/louise/status`                 | **public** GET · HEAD: 200 or 503 from the site's checks                |
 
-- **`pagesRoute`**—content pages CRUD. Create/update are allowlisted to
+- **`pagesRoute`**—content pages CRUD. It answers the collection path and
+  `/:id` when `:id` is all digits, and every other path under the prefix falls
+  through, so the routes that share it (`versionsRoute`, `searchRoute`,
+  `seoFixRoute`) mount in any order. Create/update are allowlisted to
   `fields` (defaults `DEFAULT_PAGE_FIELDS`) and rich fields (`body`) are run
   through `sanitizeRichHtml` before store. An optional `validate(data, ctx)` hook
   runs after allowlisting and before the write—throw `LouiseValidationError`
@@ -166,8 +169,7 @@ pagesCollection, id)` to keep that one row searchable, rather than rebuilding
   `1.5`, or `null`, gets a `400`, and so does a body that isn't a JSON object. A save merges the edit over the current row and
   stores a full snapshot in `${slug}_versions`; publish promotes it onto the live
   row, sets `published_version_id`, and sets `status = 'published'`. Takes `{ table, versionsTable, config,
-resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
-  `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher. The
+resolveEditor, validate? }`. The
   versions `GET` returns the current field revisions as `revs`, a save returns
   the revisions of the fields it stored, and a save whose `$base` is stale for a
   field someone else changed gets a `409` with `conflicts`; see
@@ -180,7 +182,7 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
   `search.fields` is indexed by flattening every string leaf, so structured
-  `sections` content is searchable. Also **mount before `pagesRoute`**. Pass
+  `sections` content is searchable. Pass
   `vector: { index, ai }` to add a semantic layer: the route embeds the query,
   queries Vectorize, and merges both result lists with
   [`fuseRankings`](/reference/ai/#rank-fusion). Without the bindings it stays

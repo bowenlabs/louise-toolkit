@@ -749,10 +749,22 @@ describe("pagesRoute (guard + dispatch)", () => {
     expect(res?.status).toBe(405);
   });
 
-  it("400s a non-numeric id on the item path", async () => {
+  it("falls through, before the guard, on a path under the prefix that isn't an id", async () => {
+    // Sibling routes own these, so pagesRoute can mount in any order (#538).
+    const { db, calls } = makeD1(() => []);
+    const route = pagesRoute({ table: pages, resolveEditor: () => null });
+    for (const path of ["search", "reindex", "42/versions", "42/publish", "abc", "1.5", "-1", ""]) {
+      expect(
+        await route(new Request(`${base}/${path}`, { method: "GET" }), { DB: db }, ctx),
+      ).toBeUndefined();
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("400s an all-digit id too large to hold exactly", async () => {
     const { db } = makeD1(() => []);
     const res = await pagesRoute(cfg())(
-      new Request(`${base}/abc`, { method: "GET" }),
+      new Request(`${base}/99999999999999999999`, { method: "GET" }),
       { DB: db },
       ctx,
     );
