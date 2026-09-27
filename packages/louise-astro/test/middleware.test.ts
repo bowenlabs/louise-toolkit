@@ -417,6 +417,52 @@ describe("createLouiseMiddleware — apiGate (ADR 0012)", () => {
     expect(other.calls.n).toBe(0);
   });
 
+  it("lets a bearer request through only to a path that takes one", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      apiGate: { takesBearer: (p) => p === "/api/louise/mcp" },
+    });
+    const bearer = { authorization: "Bearer louise_at_x" };
+    // The MCP route checks the token itself, so the gate steps aside for it.
+    const mcp = route();
+    await mw(
+      apiContext("/api/louise/mcp", { method: "POST", origin: null, headers: bearer }),
+      mcp.next,
+    );
+    expect(mcp.calls.n).toBe(1);
+    // Anywhere else, a bearer header is no credential at all.
+    const other = route();
+    const res = (await mw(
+      apiContext("/api/louise/pages", { method: "POST", origin: null, headers: bearer }),
+      other.next,
+    )) as Response;
+    expect(res.status).toBe(403);
+    expect(other.calls.n).toBe(0);
+    // And with no bearer header, the MCP path is gated like any other.
+    const cookie = route();
+    const gated = (await mw(
+      apiContext("/api/louise/mcp", { method: "POST" }),
+      cookie.next,
+    )) as Response;
+    expect(gated.status).toBe(401);
+    expect(cookie.calls.n).toBe(0);
+  });
+
+  it("takes no bearer request past the gate unless told to", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, apiGate: true });
+    const mcp = route();
+    const res = (await mw(
+      apiContext("/api/louise/mcp", {
+        method: "POST",
+        origin: null,
+        headers: { authorization: "Bearer louise_at_x" },
+      }),
+      mcp.next,
+    )) as Response;
+    expect(res.status).toBe(403);
+    expect(mcp.calls.n).toBe(0);
+  });
+
   it("never gates outside the prefix, and is off unless asked for", async () => {
     const gated = createLouiseMiddleware({ resolveEditor: () => null, apiGate: true });
     expect(((await gated(apiContext("/api/louise-shop/x"), route().next)) as Response).status).toBe(

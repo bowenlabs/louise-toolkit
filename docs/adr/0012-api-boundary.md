@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -142,6 +142,36 @@ _Out of scope, tracked separately_ listed input-size caps on AI request bodies. 
 - The SEO route already bounded its prompt: `suggestSeo` sends at most `maxContentChars` (4,000) characters of the content. It doesn't refuse a longer body, because the page's opening is enough to suggest from.
 
 Per-editor quotas on AI routes remain out of scope. A length cap bounds the cost of one call, not how many calls an editor makes.
+
+## Amendment (2026-09-27, bearer tokens reach only a bearer route)
+
+Decision 2 put the bearer path of ADR 0009 into `louiseApiGate` as a second
+kind of credential. Building it (#235) showed that this would undo deny by
+default. The gate's promise is that a route which forgot its own guard is
+denied, not open. A gate that accepted any valid token would open every such
+route to every token holder, including a read-only token scoped to one
+collection, because the gate can't see what the token's scope covers. The
+token's scope means something only to the route that reads it.
+
+So a bearer token isn't a credential to the gate. **The route declares that it
+takes one,** the same way a public route declares itself:
+
+- `bearerRoute(route)` marks a `WorkerRoute` that verifies a bearer token
+  itself. `mcpRoute` marks itself when it's given `resolveAgent`.
+- For a request that carries `Authorization: Bearer`, `composeWorker` tries the
+  marked routes after the public ones and before the gate. A marked route that
+  matches owns the answer, including the 401 for a bad token. If none matches,
+  the request goes through the gate with cookie rules, and a request with only
+  a token is refused.
+- Framework middleware can't see the mark, so it declares these by path:
+  `apiGate.takesBearer` in `@louise-toolkit/astro`. It's off unless set, unlike
+  the public paths: a public route is harmless by design, but a route that
+  relies on the gate alone would be open to any request with a bearer header.
+
+The cookie-versus-token rule in decision 2 stands, restated for where it now
+lives: a request with a bearer token is authenticated by the token alone, and
+its cookie is never consulted. The origin check is skipped for the token's
+identity only, so it can never apply to a cookie's.
 
 ## Out of scope, tracked separately
 

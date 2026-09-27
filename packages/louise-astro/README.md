@@ -46,6 +46,10 @@ writes and WebSocket upgrades origin-checked. This is the same gate as
 Middleware runs before Astro knows which route file answers, so a public route
 is declared by path: the toolkit's form, vitals, and status routes are exempt
 at their default paths, and `apiGate: { isPublic: (path) => … }` adds your own.
+An MCP endpoint that takes agent tokens is declared the same way:
+`apiGate: { takesBearer: (path) => path === LOUISE_MCP_PATH }` lets a request
+with `Authorization: Bearer` through to that path, and only that path, for the
+route to verify the token itself. It's off unless you set it.
 
 **Actions**: the editor write path as Astro Actions, so a save is a typed call
 rather than a hand-rolled endpoint. `louiseSaveAction`, `louiseSaveDraftAction`,

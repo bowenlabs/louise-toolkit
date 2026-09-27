@@ -31,4 +31,28 @@ export interface EditorSession {
   email: string;
   name: string;
   role: string;
+  /**
+   * Set when an agent holding one of this editor's tokens made the request,
+   * rather than the editor in a browser. The rest of the session is the
+   * editor's, so access functions see who the agent acts for, and can read this
+   * to treat an agent differently.
+   */
+  agent?: EditorAgent;
+}
+
+/** What a token grants on one collection. Each level includes the one before:
+ *  `draft` can read, and `publish` can do both. */
+export type AgentAccess = "read" | "draft" | "publish";
+
+/** A token's scope: collection slug to access. A collection that isn't listed
+ *  is out of reach. */
+export type AgentScope = Readonly<Record<string, AgentAccess>>;
+
+/** The agent behind a request, named for an audit trail a person reads. */
+export interface EditorAgent {
+  /** The token's public ID, such as `tok_4f9c2a1b7e3d5a60`. Never the secret. */
+  tokenId: string;
+  /** The name the editor gave the token, such as "Claude Code on Kai's laptop". */
+  name: string;
+  scope: AgentScope;
 }
