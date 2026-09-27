@@ -207,10 +207,14 @@ export async function createAndSendInvoice(
       days_until_due: "30",
     }),
   );
-  await stripePost(secretKey, `/invoices/${invoice.id}/finalize`, new URLSearchParams());
+  await stripePost(
+    secretKey,
+    `/invoices/${encodeURIComponent(invoice.id)}/finalize`,
+    new URLSearchParams(),
+  );
   const sent = await stripePost<{ id: string; hosted_invoice_url?: string }>(
     secretKey,
-    `/invoices/${invoice.id}/send`,
+    `/invoices/${encodeURIComponent(invoice.id)}/send`,
     new URLSearchParams(),
   );
   return { id: sent.id, hostedUrl: sent.hosted_invoice_url ?? null };
@@ -263,7 +267,7 @@ export async function createLineItemInvoice(
     currency?: string;
   },
 ): Promise<{ id: string; hostedUrl: string | null; number: string | null; amountCents: number }> {
-  const currency = input.currency ?? "usd";
+  const currency = (input.currency ?? "usd").toLowerCase();
   for (const li of input.lineItems) {
     await stripePost(
       secretKey,
@@ -285,19 +289,24 @@ export async function createLineItemInvoice(
   });
   if (input.automaticTax) invForm.set("automatic_tax[enabled]", "true");
   const invoice = await stripePost<{ id: string }>(secretKey, "/invoices", invForm);
-  await stripePost(secretKey, `/invoices/${invoice.id}/finalize`, new URLSearchParams());
+  await stripePost(
+    secretKey,
+    `/invoices/${encodeURIComponent(invoice.id)}/finalize`,
+    new URLSearchParams(),
+  );
   const sent = await stripePost<{
     id: string;
     hosted_invoice_url?: string;
     number?: string;
     amount_due?: number;
-  }>(secretKey, `/invoices/${invoice.id}/send`, new URLSearchParams());
+  }>(secretKey, `/invoices/${encodeURIComponent(invoice.id)}/send`, new URLSearchParams());
   return {
     id: sent.id,
     hostedUrl: sent.hosted_invoice_url ?? null,
     number: sent.number ?? null,
     amountCents:
       sent.amount_due ??
-      input.lineItems.reduce((n, li) => n + li.amountCents * (li.quantity || 1), 0),
+      // Round each line as it was sent, so the fallback matches what Stripe bills.
+      input.lineItems.reduce((n, li) => n + Math.round(li.amountCents) * (li.quantity || 1), 0),
   };
 }
