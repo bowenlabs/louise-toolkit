@@ -6,7 +6,13 @@ sidebar:
 ---
 
 ```ts
-import { enqueue, processBatch, type QueueMessageHandler } from "louise-toolkit/queues";
+import {
+  defaultRetryDelay,
+  enqueue,
+  processBatch,
+  type ProcessBatchOptions,
+  type QueueMessageHandler,
+} from "louise-toolkit/queues";
 ```
 
 A thin wrapper over Cloudflare Queues. No peers.
@@ -24,12 +30,20 @@ Sends one message onto a queue binding. A send failure is wrapped in
 await enqueue(env.COMMERCE_QUEUE, { type: "order.created", id });
 ```
 
-## `processBatch(batch, handler)`
+## `processBatch(batch, handler, options?)`
 
 ```ts
-function processBatch<T>(batch: MessageBatch<T>, handler: QueueMessageHandler<T>): Promise<void>;
+function processBatch<T>(
+  batch: MessageBatch<T>,
+  handler: QueueMessageHandler<T>,
+  options?: ProcessBatchOptions,
+): Promise<void>;
 
 type QueueMessageHandler<T> = (message: T, context: { attempts: number }) => void | Promise<void>;
+
+interface ProcessBatchOptions {
+  retryDelay?: (attempts: number) => number; // seconds; default defaultRetryDelay
+}
 ```
 
 Drains a batch, running `handler` once per message. Each message is **acked or
@@ -56,10 +70,30 @@ export default {
 };
 ```
 
+### Retry delay
+
+A failed message waits before Cloudflare redelivers it. The default,
+`defaultRetryDelay(attempts)`, is 30 seconds on the first delivery, then a
+minute, then two, doubling up to a 5-minute cap. A failure from a rate limit or
+an upstream outage rarely clears within the same second, so an immediate
+redelivery only spends a try. Pass `retryDelay` to change it, or return `0` to
+redeliver at once:
+
+```ts
+await processBatch(batch, handle, { retryDelay: (attempts) => attempts * 60 });
+```
+
+Retries inside a handler multiply with the queue's redeliveries. A handler that
+calls a provider with three retries of its own makes up to four calls per
+delivery; on a queue with `max_retries: 5`, that's six deliveries and up to 24
+calls for one message. Keep the handler's own retries few and let the queue's
+backoff do the waiting.
+
 :::note[Cloudflare owns redelivery]
-Backoff, `max_retries`, and dead-letter routing are configured in
-`wrangler.jsonc`, not here—once a message exceeds `max_retries`, Cloudflare
-routes it to that queue's `dead_letter_queue` automatically. `context.attempts`
-is the 1-indexed delivery count so your handler can behave differently on the
+`max_retries` and dead-letter routing are configured in `wrangler.jsonc`, not
+here—once a message exceeds `max_retries`, Cloudflare routes it to that queue's
+`dead_letter_queue` automatically. `processBatch` sets each retry's
+`delaySeconds`, which overrides the queue's `retry_delay`. `context.attempts` is
+the 1-indexed delivery count so your handler can behave differently on the
 final try.
 :::

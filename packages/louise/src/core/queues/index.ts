@@ -5,10 +5,10 @@
 // Thin wrapper over Cloudflare Queues' `Queue`/`MessageBatch` bindings.
 // Producer side is a single `enqueue()` call; consumer side is a batch
 // runner that acks each message on success and, on failure, logs the error
-// and calls `retry()`. Cloudflare Queues—not this module—owns the actual
-// redelivery/backoff schedule and DLQ routing: once a message exceeds the
-// queue's configured `max_retries`, CF routes it to that queue's
-// `dead_letter_queue` automatically (set in wrangler.jsonc, not here).
+// and calls `retry()` with a delay that grows with the delivery attempt.
+// Cloudflare Queues—not this module—owns redelivery and DLQ routing: once a
+// message exceeds the queue's configured `max_retries`, CF routes it to that
+// queue's `dead_letter_queue` automatically (set in wrangler.jsonc, not here).
 
 import { LouiseQueueError } from "../errors.js";
 
@@ -48,6 +48,25 @@ export type QueueMessageHandler<T> = (
   context: { attempts: number },
 ) => void | Promise<void>;
 
+/** Options for {@link processBatch}. */
+export interface ProcessBatchOptions {
+  /**
+   * Seconds to wait before Cloudflare redelivers a failed message, given its
+   * 1-indexed delivery attempt. Defaults to {@link defaultRetryDelay}: 30
+   * seconds, doubling each attempt, capped at 5 minutes. Return 0 to redeliver
+   * with no delay.
+   */
+  retryDelay?: (attempts: number) => number;
+}
+
+/**
+ * The default backoff for a failed message: 30 seconds on the first
+ * delivery, then a minute, then two, doubling up to a 5-minute cap.
+ */
+export function defaultRetryDelay(attempts: number): number {
+  return Math.min(300, 30 * 2 ** Math.max(0, attempts - 1));
+}
+
 /**
  * Drains a `MessageBatch`, running `handler` once per message. Each
  * message is acked or retried independently—one failing message
@@ -61,11 +80,21 @@ export type QueueMessageHandler<T> = (
  * in Workers Logs—once the queue's `max_retries` is spent, Cloudflare moves
  * the message to the dead-letter queue, or drops it if there's none, and logs
  * nothing.
+ *
+ * A retry waits before redelivery, by `options.retryDelay` or
+ * {@link defaultRetryDelay}. A failure from an upstream rate limit or outage
+ * rarely clears in the same second, so an immediate redelivery only spends a
+ * try. Retries inside a handler multiply with queue redeliveries: a handler
+ * that makes up to 4 calls per delivery, on a queue with `max_retries: 5`,
+ * makes up to 24 calls for one message. Keep the in-handler retries few and
+ * let the queue's backoff do the waiting.
  */
 export async function processBatch<T>(
   batch: MessageBatch<T>,
   handler: QueueMessageHandler<T>,
+  options: ProcessBatchOptions = {},
 ): Promise<void> {
+  const retryDelay = options.retryDelay ?? defaultRetryDelay;
   for (const message of batch.messages) {
     try {
       await handler(message.body, { attempts: message.attempts });
@@ -75,7 +104,7 @@ export async function processBatch<T>(
         `[louise] queue handler failed on ${batch.queue} (message ${message.id}, attempt ${message.attempts}); marking it for retry`,
         err,
       );
-      message.retry();
+      message.retry({ delaySeconds: retryDelay(message.attempts) });
     }
   }
 }
