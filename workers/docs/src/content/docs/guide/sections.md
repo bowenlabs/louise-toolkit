@@ -35,10 +35,13 @@ markup:
 
 ```ts
 import type { SectionCatalog } from "louise-toolkit/client";
+import heroIcon from "@phosphor-icons/core/assets/regular/star.svg?raw";
 
 export const SECTIONS: SectionCatalog = {
   hero: {
     label: "Hero",
+    icon: heroIcon,
+    description: "A large heading and a button, at the top of a page.",
     fields: {
       heading: { type: "text" },
       tagline: { type: "textarea" },
@@ -59,6 +62,12 @@ export const SECTIONS: SectionCatalog = {
   },
 };
 ```
+
+The add picker lists each type as its icon, its `label`, and its
+`description`, one short sentence that tells an owner what the section looks
+like before they add it. The picker draws `icon` only when it's inline SVG
+markup, sized to the text and drawn in `currentColor`; it leaves any other
+string out. A `BlockDef` takes the same `icon` and `description`.
 
 Field types are `text`, `textarea`, `array` (repeatable, with `itemFields`), and
 `image`. Plain text is edited in place; `array` and `image` are edited in the

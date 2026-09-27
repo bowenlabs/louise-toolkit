@@ -28,7 +28,16 @@
 // so a keystroke is a fine-grained path write (`set("items", i, key, value)`) that
 // updates only that leaf—no row teardown, no focus loss.
 
-import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import {
+  createSignal,
+  createUniqueId,
+  For,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+} from "solid-js";
 import { DRAFT_BASE_KEY } from "../core/editor/revs.js";
 import { describeNode, SHARED_PATH_HEAD } from "./describe-node.js";
 import { createFieldOptions } from "./field-options.js";
@@ -217,6 +226,10 @@ function failureText(action: FailedAction, detail: string): string {
  *  `aria-describedby`. */
 const PUBLISH_REASON_ID = "louise-sections-publish-reason";
 
+/** The add pickers' widest extent in pixels, matching `.louise-sections-palette`'s
+ *  `max-width`, so a picker opened near the right edge stays on screen. */
+const PALETTE_WIDTH = 288;
+
 /** The add-section picker's ID, for the trailing button's `aria-controls`. */
 const ADD_SECTION_PICKER_ID = "louise-add-section-picker";
 
@@ -224,6 +237,46 @@ const ADD_SECTION_PICKER_ID = "louise-add-section-picker";
  *  `<Portal>`'s node isn't attached when its `ref` runs (see `wireDialogA11y`). */
 function focusFirstItem(panel: HTMLElement): void {
   queueMicrotask(() => panel.querySelector<HTMLElement>("button:not([disabled])")?.focus());
+}
+
+/**
+ * One add-picker row: the type's icon, its label, and its one-line description.
+ * The label alone names the button, and the description is its accessible
+ * description, so a screen reader hears "Split image, button" and then the
+ * sentence. An icon is drawn only when it's inline SVG markup (see
+ * `SectionDef.icon`); any other string, such as a class name, is left out
+ * rather than risk it matching a site's own CSS on the page.
+ */
+function PaletteItem(props: {
+  label: string;
+  icon?: string | undefined;
+  description?: string | undefined;
+  onClick: () => void;
+}) {
+  const descId = createUniqueId();
+  const svg = () => (props.icon?.trimStart().startsWith("<svg") ? props.icon : undefined);
+  return (
+    <button
+      class="louise-slash-item louise-palette-item"
+      type="button"
+      aria-describedby={props.description ? descId : undefined}
+      onClick={() => props.onClick()}
+    >
+      <Show when={svg()}>
+        {(markup) => (
+          <span class="louise-icon louise-palette-icon" aria-hidden="true" innerHTML={markup()} />
+        )}
+      </Show>
+      <span class="louise-palette-text">
+        <span class="louise-palette-label">{props.label}</span>
+        <Show when={props.description}>
+          <span id={descId} class="louise-palette-desc">
+            {props.description}
+          </span>
+        </Show>
+      </span>
+    </button>
+  );
 }
 
 function humanize(key: string): string {
@@ -1647,8 +1700,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       ? Math.min(Math.max(box.bottom + 8, 8), window.innerHeight - 320)
       : Math.max(80, Math.round(window.innerHeight / 2 - 160));
     const left = box
-      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
-      : Math.round(window.innerWidth / 2 - 120);
+      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - PALETTE_WIDTH - 16)
+      : Math.round((window.innerWidth - PALETTE_WIDTH) / 2);
     setBlockPicker({ section, at, types, top, left, opener: focusedElement() });
   };
 
@@ -1788,8 +1841,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       ? Math.min(Math.max((below ? box.bottom : box.top) + 8, 8), window.innerHeight - 320)
       : Math.max(80, Math.round(window.innerHeight / 2 - 160));
     const left = box
-      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
-      : Math.round(window.innerWidth / 2 - 120);
+      ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - PALETTE_WIDTH - 16)
+      : Math.round((window.innerWidth - PALETTE_WIDTH) / 2);
     setAddPicker({ index, top, left, opener: focusedElement() });
   };
 
@@ -2051,13 +2104,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           >
             <For each={Object.entries(props.catalog)}>
               {([type, def]) => (
-                <button
-                  class="louise-slash-item"
-                  type="button"
+                <PaletteItem
+                  label={def.label}
+                  icon={def.icon}
+                  description={def.description}
                   onClick={() => addSection(type, addPicker()?.index)}
-                >
-                  {def.label}
-                </button>
+                />
               )}
             </For>
           </div>
@@ -2093,13 +2145,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             >
               <For each={picker().types}>
                 {(type) => (
-                  <button
-                    class="louise-slash-item"
-                    type="button"
+                  <PaletteItem
+                    label={props.blocks?.[type]?.label ?? type}
+                    icon={props.blocks?.[type]?.icon}
+                    description={props.blocks?.[type]?.description}
                     onClick={() => insertBlock(picker().section, picker().at, type)}
-                  >
-                    {props.blocks?.[type]?.label ?? type}
-                  </button>
+                  />
                 )}
               </For>
             </div>

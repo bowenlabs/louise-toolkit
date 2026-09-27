@@ -1156,12 +1156,33 @@ html[data-louise-studio] body {
   left: 0;
   z-index: 5;
   min-width: 180px;
+  max-width: min(288px, calc(100vw - 16px));
+  max-height: 312px;
+  overflow-y: auto;
   padding: 4px;
   border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
   background: var(--louise-surface);
   box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 14%, transparent);
 }
+/* An add-picker row (#546): icon, then the label over a one-line description.
+   The icon is the site's own SVG, sized to the label and drawn in currentColor. */
+.louise-slash-item.louise-palette-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+.louise-slash-item.louise-palette-item:hover,
+.louise-slash-item.louise-palette-item:focus-visible { background: color-mix(in oklch, var(--louise-ring) 8%, transparent); }
+.louise-palette-icon { flex: none; width: 1.25em; height: 1.25em; margin-top: 1px; color: var(--louise-text-muted); }
+.louise-palette-text { display: grid; gap: 2px; min-width: 0; }
+.louise-palette-label { font-weight: 500; }
+.louise-palette-desc { font-size: var(--louise-text-xs); color: var(--louise-text-muted); line-height: 1.35; }
 /* Button block — editor chrome (label/link popup). */
 .louise-button-block { position: relative; display: inline-block; margin: 8px 0; }
 .louise-button-block .pb-button-link {
