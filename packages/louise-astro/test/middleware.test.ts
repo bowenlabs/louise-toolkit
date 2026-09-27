@@ -437,3 +437,46 @@ describe("createLouiseMiddleware — apiGate (ADR 0012)", () => {
     expect(((await mw(apiContext("/api/louise/x"), route().next)) as Response).status).toBe(200);
   });
 });
+
+describe("createLouiseMiddleware — redirecting a page that moved (#574)", () => {
+  const notFound: MiddlewareNext = async () =>
+    new Response("not found", { status: 404, headers: { "content-type": "text/html" } });
+  const moved = (path: string) =>
+    path === "/about-us" ? { location: "/about", status: 301 } : null;
+
+  it("answers a 404 for an old path with a redirect, keeping the query string", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, redirectFor: moved });
+    const res = (await mw(makeContext("GET", "/about-us?ref=mail"), notFound)) as Response;
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("/about?ref=mail");
+  });
+
+  it("leaves a live page alone, even on a path with a redirect", async () => {
+    let asked = 0;
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      redirectFor: (path) => {
+        asked++;
+        return moved(path);
+      },
+    });
+    const res = await run(mw, makeContext("GET", "/about-us"));
+    expect(res.status).toBe(200);
+    expect(asked).toBe(0);
+  });
+
+  it("keeps the 404 for a write, a path that never moved, or a lookup that throws", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, redirectFor: moved });
+    expect(((await mw(makeContext("POST", "/about-us"), notFound)) as Response).status).toBe(404);
+    expect(((await mw(makeContext("GET", "/contact"), notFound)) as Response).status).toBe(404);
+    const broken = createLouiseMiddleware({
+      resolveEditor: () => null,
+      redirectFor: () => {
+        throw new Error("D1 unreachable");
+      },
+    });
+    expect(((await broken(makeContext("GET", "/about-us"), notFound)) as Response).status).toBe(
+      404,
+    );
+  });
+});

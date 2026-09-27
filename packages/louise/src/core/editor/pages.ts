@@ -12,7 +12,12 @@
 
 import { asc, eq, getTableColumns } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
-import { db } from "../db/index.js";
+import {
+  clearRedirectStatement,
+  db,
+  type pageRedirects,
+  slugChangeStatements,
+} from "../db/index.js";
 import { reportDegraded } from "../degraded.js";
 import { LouiseValidationError } from "../errors.js";
 import { s, standardValidate } from "../schema/index.js";
@@ -147,6 +152,15 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * A page with no pending work gets no draft. Pass the same `config` and
    * `bufferKv` as `versionsRoute`; it needs {@link versionsTable}.
    */
+  /**
+   * Remember a page's old URL when its slug changes (#574). Pass the
+   * `pageRedirects` table from `louise-toolkit/db`, added to your schema. An
+   * update that changes a slug records `/old → /new` in the same batch as the
+   * write, and a page created or renamed onto an old path clears the redirect
+   * away from it, so a redirect never shadows a page. Serve them with
+   * `resolvePageRedirect`.
+   */
+  redirects?: typeof pageRedirects;
   drafts?: {
     /** The collection config; its fields are the ones a draft snapshot holds. */
     config: CollectionConfig;
@@ -287,10 +301,20 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           if (rejected) return rejected;
         }
         try {
-          const [created] = await database
+          const insert = database
             .insert(table)
             .values(data as never)
             .returning();
+          const slug = typeof data.slug === "string" ? data.slug : undefined;
+          const [created] =
+            config.redirects && slug !== undefined
+              ? (
+                  await database.batch([
+                    insert,
+                    clearRedirectStatement(database, config.redirects, slug),
+                  ])
+                )[0]
+              : await insert;
           const createdId = Number((created as Record<string, unknown> | undefined)?.[pkKey]);
           await fireAfterWrite(g.editor, { operation: "create", id: createdId });
           return json({ page: created }, 201);
@@ -323,12 +347,27 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         if (rejected) return rejected;
       }
       if (hasUpdatedAt) data.updatedAt = new Date();
+      // The slug this update replaces, when it changes one and redirects are on.
+      let oldSlug: string | undefined;
+      if (config.redirects && typeof data.slug === "string") {
+        const [row] = await database.select().from(table).where(eq(pkCol, id)).limit(1);
+        const current = (row as Record<string, unknown> | undefined)?.slug;
+        if (typeof current === "string" && current !== data.slug) oldSlug = current;
+      }
       try {
-        const [updated] = await database
+        const update = database
           .update(table)
           .set(data as never)
           .where(eq(pkCol, id))
           .returning();
+        const redirectWrites =
+          config.redirects && oldSlug !== undefined
+            ? slugChangeStatements(database, config.redirects, oldSlug, String(data.slug))
+            : [];
+        const [updated] =
+          redirectWrites.length > 0
+            ? (await database.batch([update, ...redirectWrites]))[0]
+            : await update;
         if (!updated) return json({ error: "Not found" }, 404);
         await carryIntoDraft(env, g.editor, id, data);
         await fireAfterWrite(g.editor, { operation: "update", id });

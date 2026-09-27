@@ -32,6 +32,7 @@ export * from "./migrations.js";
 // core content tables don't drift between client sites), not a schema Louise imposes.
 export * from "./site-settings.js";
 export * from "./pages.js";
+export * from "./redirects.js";
 export * from "./inquiries.js";
 export * from "./media.js";
 export * from "./submissions.js";

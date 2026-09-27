@@ -22,7 +22,14 @@ import { type PageId, parsePageId, parseVersionId, toVersionId } from "../conten
 import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { LouiseValidationError } from "../errors.js";
-import { d1Bookmark, db, openD1Session, serializeD1BookmarkCookie } from "../db/index.js";
+import {
+  d1Bookmark,
+  db,
+  openD1Session,
+  type pageRedirects,
+  serializeD1BookmarkCookie,
+  slugChangeStatements,
+} from "../db/index.js";
 import { reportDegraded } from "../degraded.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -94,6 +101,14 @@ export interface VersionsRouteConfig<
    * {@link SaveDraftOptions.softLocks}.
    */
   softLocks?: DraftSoftLocks<Env>;
+  /**
+   * Remember a page's old URL when a publish changes its slug (#574): the
+   * `pageRedirects` table from `louise-toolkit/db`, as `pagesRoute` takes it.
+   * The publish runs its own write, so the redirect is written right after it;
+   * if that fails, the publish still stands and the failure is reported as
+   * `editor.redirects`.
+   */
+  redirects?: typeof pageRedirects;
 }
 
 /** The page a soft-lock read is for. */
@@ -489,6 +504,25 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     const kv = cfg.bufferKv?.(env);
     const bufferKey = draftBufferKey(cfg.config.slug, id);
 
+    /** The live row's slug, read before a publish that may change it (#574). */
+    const liveSlug = async (): Promise<string | undefined> => {
+      const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
+      const slug = (row as Record<string, unknown> | undefined)?.slug;
+      return typeof slug === "string" ? slug : undefined;
+    };
+    /** Record `/old → /new` when a publish changed the slug. Never fails the
+     *  publish, which has already gone live. */
+    const recordPublishedRename = async (before: string | undefined, after: unknown) => {
+      if (!cfg.redirects || before === undefined || typeof after !== "string") return;
+      const writes = slugChangeStatements(database, cfg.redirects, before, after);
+      if (writes.length === 0) return;
+      try {
+        await database.batch(writes as [(typeof writes)[number], ...typeof writes]);
+      } catch (err) {
+        reportDegraded("editor.redirects", err, { id });
+      }
+    };
+
     // GET /:id/versions—history, newest first, plus the live pointer so the
     // editor can flag which version is currently published. Publishing never
     // demotes a prior version's `status`, so several rows can read "published"
@@ -632,7 +666,9 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         versionId = toVersionId(latestDraft.id as number);
       }
       try {
+        const slugBefore = cfg.redirects ? await liveSlug() : undefined;
         const page = await api.publish(context, versionId);
+        await recordPublishedRename(slugBefore, (page as Record<string, unknown> | null)?.slug);
         // Publishing the current work clears the buffer (its content is now
         // live). An explicit historic republish leaves the buffer—the pending
         // work-in-progress it holds is still newer than what just went live.
