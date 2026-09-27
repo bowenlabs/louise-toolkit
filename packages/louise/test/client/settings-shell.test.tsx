@@ -542,6 +542,22 @@ describe("MediaPanel — delete (#541)", () => {
     expect(confirm).toHaveBeenCalledTimes(2);
     expect(vi.mocked(confirm).mock.calls[1][0]).toContain("(Pages: About)");
   });
+
+  it("says the file is in use, with no count, when the 409 names nothing (#704)", async () => {
+    const fetchMock = stubFetch((url, method) => {
+      if (method === "GET") return jsonResponse(media);
+      if (method === "DELETE" && !url.includes("force=1")) return jsonResponse({}, 409);
+      return jsonResponse({ ok: true });
+    });
+    mount(() => <MediaPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("a.jpg"));
+
+    host.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!.click();
+    await vi.waitFor(() => expect(deletes(fetchMock)).toHaveLength(2));
+    expect(vi.mocked(confirm).mock.calls[1][0]).toBe(
+      "This file is still in use. Deleting it shows a broken image there, and it can’t be undone. Delete anyway?",
+    );
+  });
 });
 
 describe("MediaPanel — list", () => {

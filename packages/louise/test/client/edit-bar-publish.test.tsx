@@ -97,6 +97,43 @@ describe("the edit bar's Publish", () => {
     expect(sessionStorage.getItem("louise:published")).toBeNull();
   });
 
+  it("says a failed publish didn't publish, with the server's reason (#704)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const publishReply = vi.fn<() => Promise<Response>>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL, init?: RequestInit) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        if (method === "GET") return Promise.resolve(jsonResponse({ versions: [] }));
+        if (String(input).endsWith("/publish")) return publishReply();
+        return Promise.resolve(jsonResponse({ buffered: true, revs: {} }));
+      }),
+    );
+    const el = addField("heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 }, versionedPageId: 5 });
+    await flush();
+    el.textContent = "new";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    const status = () => document.querySelector<HTMLElement>(".louise-bar .louise-status")!;
+
+    publishReply.mockResolvedValueOnce(jsonResponse({ error: "Title is required." }, 422));
+    publishButton().click();
+    await vi.waitFor(() =>
+      expect(status().textContent).toBe(
+        "Couldn’t publish. The live page hasn’t changed. Title is required.",
+      ),
+    );
+    expect(status().dataset.status).toBe("error");
+
+    publishReply.mockRejectedValueOnce(new TypeError("offline"));
+    publishButton().click();
+    await vi.waitFor(() =>
+      expect(status().textContent).toBe("Couldn’t publish. The live page hasn’t changed."),
+    );
+    expect(window.location.reload).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("louise:published")).toBeNull();
+  });
+
   it("ignores a flag left for another page", async () => {
     stubFetch();
     markPublished(9);
