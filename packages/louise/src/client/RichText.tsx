@@ -345,7 +345,7 @@ function flattenToInline(slice: Slice, schema: Schema): Slice {
   return new Slice(Fragment.from(paragraph), 1, 1);
 }
 
-function louiseExtension(blocks = false, grammar = false, inline = false) {
+function louiseExtension(builder = false, grammar = false, inline = false) {
   return union(
     defineBasicExtension(),
     // Inline mode (#182): a single-line rich-text field (heading/tagline). Suppress
@@ -392,8 +392,8 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),
     // Builder blocks (#16)—opt-in: the Settings Pages panel composes
-    // whole pages, while inline prose fields stay blocks-free.
-    ...(blocks ? [defineBlocksExtension()] : []),
+    // whole pages, while inline prose fields stay builder-free.
+    ...(builder ? [defineBlocksExtension()] : []),
     // Grammar/spelling check (#110)—opt-in: adding the extension lazy-loads
     // Harper's WASM checker; off by default so nothing extra ships otherwise.
     ...(grammar ? [defineGrammarExtension()] : []),
@@ -413,7 +413,11 @@ export interface RichTextProps {
   ref?: (field: RichTextField) => void;
   /** Show the formatting toolbar (default true). */
   toolbar?: boolean;
-  /** Enable builder blocks (#16)—the Pages panel opts in. */
+  /** Enable the page builder (#16): its builder blocks (hero, columns,
+   *  gallery …), the slash menu, and the "+ Block" button. For a full page body. */
+  builder?: boolean;
+  /** @deprecated Renamed {@link RichTextProps.builder} (#537); a section's
+   *  `blocks` are a different thing. Still read when `builder` is unset. */
   blocks?: boolean;
   /** Enable the Harper grammar/spelling checker (#110). Off by default; when on,
    *  the WASM checker is lazy-loaded and issues are underlined with suggestions. */
@@ -904,12 +908,9 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
 }
 
 export function RichText(props: RichTextProps) {
+  const builder = () => props.builder ?? props.blocks ?? false;
   const editor = createEditor({
-    extension: louiseExtension(
-      props.blocks ?? false,
-      props.grammar ?? false,
-      props.inline ?? false,
-    ),
+    extension: louiseExtension(builder(), props.grammar ?? false, props.inline ?? false),
     defaultContent: props.initialDoc || "<p></p>",
   });
 
@@ -947,9 +948,9 @@ export function RichText(props: RichTextProps) {
         {/* Block drag-handle + inserters—omitted in `minimal`/`inline`
             (light-inline) modes, where there's no block layer to reorder. */}
         <Show when={!(props.minimal || props.inline)}>
-          {/* Block inserters (#16)—only where blocks are enabled: a visible
+          {/* Builder-block inserters (#16)—only with the builder on: a visible
               "+ Block" button (deterministic) plus the slash menu (fast path). */}
-          <Show when={props.blocks}>
+          <Show when={builder()}>
             <BlockInserter />
             <BlockInserterButton />
           </Show>
@@ -976,6 +977,8 @@ export function mountRichText(
   onChange: () => void,
   initialDoc?: NodeJSON,
   opts?: {
+    builder?: boolean;
+    /** @deprecated Renamed `builder` (#537). */
     blocks?: boolean;
     grammar?: boolean;
     minimal?: boolean;
@@ -990,7 +993,7 @@ export function mountRichText(
     () => (
       <RichText
         initialDoc={defaultContent}
-        blocks={opts?.blocks}
+        builder={opts?.builder ?? opts?.blocks}
         grammar={opts?.grammar}
         minimal={opts?.minimal}
         image={opts?.image}

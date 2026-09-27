@@ -1,11 +1,11 @@
 ---
 title: Louise Sections
-description: Component-rendered pages under editor control—the preconfigured-blocks model.
+description: Component-rendered pages under editor control—the preconfigured-sections model.
 sidebar:
   order: 6
 ---
 
-**Louise Sections** are the preconfigured-blocks model: a page is an ordered
+**Louise Sections** are the preconfigured-sections model: a page is an ordered
 list of typed items that _your own components_ render, so a bespoke design stays
 pixel-perfect while editors still add, reorder, and edit it. Where the
 [Louise Builder](/guide/builder/) stores sanitized HTML and

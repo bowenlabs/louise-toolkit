@@ -46,6 +46,7 @@ export {
   defineBlocksExtension,
   type BlockDef,
   type BlockEntry,
+  type BuilderBlockDef,
 } from "./blocks.jsx";
 // Re-exported so the site-local Louise Settings (slice 2) can ensure the
 // shared Louise stylesheet is present even on pages with no inline fields.
@@ -937,10 +938,12 @@ export function mountLouise(opts: MountLouiseOptions): void {
       // field's text, its invisible payload must never round-trip into stored
       // HTML / ProseMirror JSON (it would compound on every save). No-op when
       // stega isn't in use.
-      // `data-louise-blocks` opts the field into the full builder block set
-      // (rows/columns, gallery, hero, …)—so a page body can be built in place
-      // on the live page, not just in Louise Settings.
-      const blocks = el.dataset.louiseBlocks === "1";
+      // `data-louise-builder` opts the field into the page builder and its
+      // builder blocks (rows/columns, gallery, hero, …)—so a page body can be
+      // built in place on the live page, not just in Louise Settings. It was
+      // `data-louise-blocks` until #537, which still works: that name said
+      // "blocks," which elsewhere means a section's blocks.
+      const builder = el.dataset.louiseBuilder === "1" || el.dataset.louiseBlocks === "1";
       // Isolate + surface editor-init failures: mountRichText clears el and
       // Solid-renders the editor, so a throw here (for example, a ProseKit error during
       // render) would otherwise leave the field blank AND abort the whole field
@@ -951,7 +954,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
           el,
           () => markDirty(fieldKey, () => stegaClean(field.getHTML())),
           undefined,
-          { blocks, grammar: opts.grammar },
+          { builder, grammar: opts.grammar },
         );
         fieldGetters.set(ref.field, () => stegaClean(field.getHTML()));
       } catch (err) {
