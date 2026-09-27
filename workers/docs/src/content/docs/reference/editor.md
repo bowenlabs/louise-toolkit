@@ -135,6 +135,7 @@ export const ALL: APIRoute = (ctx) =>
 | `submissionsRoute`  | `/api/louise/submissions/<form>`     | GET list · DELETE one—a form's rows in the shared table                 |
 | `seedRoute`         | `/api/louise/seed`                   | seeds the `site_settings` singleton (idempotent)                        |
 | `statusRoute`       | `/api/louise/status`                 | **public** GET · HEAD: 200 or 503 from the site's checks                |
+| `sitemapRoute`      | `/sitemap.xml`, `/robots.txt`        | **public** GET · HEAD: the published pages, read per request            |
 
 - **`pagesRoute`**—content pages CRUD. It answers the collection path and
   `/:id` when `:id` is all digits, and every other path under the prefix falls
@@ -235,6 +236,45 @@ resolveEditor, validate? }`. The
   by `?id=`.
 - **`statusRoute`**—the **public** route an outside probe reads. See
   [The status route](#the-status-route).
+- **`sitemapRoute`**—the **public** `sitemap.xml` and `robots.txt`. See
+  [The sitemap route](#the-sitemap-route).
+
+## The sitemap route
+
+A publish doesn't rebuild the site, so a sitemap built at build time lists
+yesterday's pages. `sitemapRoute` reads the pages table on every request, the
+way the pages render, and serves `sitemap.xml` and `robots.txt`:
+
+```ts
+import { sitemapRoute } from "louise-toolkit/editor";
+import { pages, siteSettings } from "louise-toolkit/db";
+
+sitemapRoute({
+  table: pages,
+  settingsTable: siteSettings,
+  origin: "https://example.com",
+  homeSlug: "home", // listed as https://example.com/
+  exclude: ["footer"], // rows that only back a section
+  extra: ["/examples"], // file routes, listed after the pages
+  disallow: ["/api/"],
+});
+```
+
+- **What it lists:** published rows only, without `noindex` rows or the
+  `exclude` slugs, home first, then `extra`. Each page's `<lastmod>` is its
+  `updatedAt`, which a publish moves. An old slug is a
+  [redirect](/reference/db/#pageredirects-a-renamed-page-keeps-its-old-url),
+  not a row, so it never appears.
+- **Hidden sites:** while **Hide from search engines** is on in `settingsTable`,
+  the sitemap lists nothing. `robots.txt` stays the same, because a crawler has
+  to fetch a page to see its `noindex`.
+- **Caching:** both answer with `Cache-Control: public, max-age=60`
+  (`maxAgeSeconds`), since a publish purges only its own page. A sitemap that
+  can't read the table answers 503, not an empty list.
+- **Parameters:** the origin, the home slug, the excluded slugs, and the extra
+  paths are the site's; nothing is read from the request's host, which a
+  preview deploy doesn't share. `origin` can be a function of the request and
+  `env`.
 
 ## The status route
 

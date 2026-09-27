@@ -36,6 +36,7 @@ export {
 } from "./json-ld.js";
 export { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "./limits.js";
 export { type ShareImageInput, type ShareImageSource, shareImageSource } from "./share.js";
+export { type RobotsTxtOptions, robotsTxt, type SitemapEntry, sitemapXml } from "./sitemap.js";
 
 /** The page fields the head reads. A `pages` row fits as it is. */
 export interface PageHeadPage {
