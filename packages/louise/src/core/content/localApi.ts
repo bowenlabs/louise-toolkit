@@ -937,7 +937,15 @@ interface BatchableDb {
   batch(statements: readonly unknown[]): Promise<unknown[]>;
 }
 function canBatch(db: unknown): db is BatchableDb {
-  return typeof (db as Partial<BatchableDb>).batch === "function";
+  if (typeof (db as Partial<BatchableDb>).batch !== "function") return false;
+  // Drizzle's sqlite-proxy driver always has a `batch` method, but it calls the
+  // batch callback passed to `drizzle()`, and throws when none was (#697). Its
+  // session keeps that callback under the (misspelled) `batchCLient` key.
+  const session = (db as { session?: Record<string, unknown> }).session;
+  if (session && "batchCLient" in session && typeof session.batchCLient !== "function") {
+    return false;
+  }
+  return true;
 }
 
 export function createVersionedLocalApi<
@@ -960,6 +968,26 @@ export function createVersionedLocalApi<
   const versionsParentIdColumn = versionsTable.parentId;
   const versionsStatusColumn = versionsTable.status;
   const versionsScheduledAtColumn = versionsTable.scheduledAt;
+  // Group fields (#697): a draft may arrive nested (`{ seo: { title } }`), as
+  // `create` accepts, or flat (`seo_title`), as a snapshot of the live row is.
+  // Store it flat, like the row, and return a published row nested, like
+  // `create` and `update` do.
+  const hasGroupFields = Object.values(config.fields).some((field) => field.type === "group");
+  const toFlatDraft = (doc: Record<string, unknown>): Record<string, unknown> => {
+    if (!hasGroupFields) return doc;
+    const flat: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(doc)) {
+      const field = config.fields[key];
+      if (field?.type === "group" && value !== null && typeof value === "object") {
+        Object.assign(flat, flattenDoc({ [key]: field }, { [key]: value }));
+      } else {
+        flat[key] = value;
+      }
+    }
+    return flat;
+  };
+  const toNestedDoc = (row: Record<string, unknown>) =>
+    hasGroupFields ? (nestDoc(config.fields, row) as AnyRecord) : row;
   // The visibility column (ADR 0021). A collection's table may not have one; then
   // publish only promotes, and unpublish has nothing to hide.
   const hasStatus = (table as unknown as Record<string, unknown>).status !== undefined;
@@ -1048,7 +1076,7 @@ export function createVersionedLocalApi<
         await markVersionPublished;
       }
       if (!row) notFound(config, parentId);
-      doc = row as InferSelectModel<TTable>;
+      doc = toNestedDoc(row as AnyRecord) as InferSelectModel<TTable>;
     } catch (error) {
       wrapWriteError(config, error);
     }
@@ -1087,7 +1115,7 @@ export function createVersionedLocalApi<
 
     async prepareDraft(context, input) {
       await checkAccess(config, "update", context);
-      const data = await runBeforeChange(config, input as Record<string, unknown>);
+      const data = toFlatDraft(await runBeforeChange(config, input as Record<string, unknown>));
       rejectUnknownFields(config, data);
       return data;
     },
@@ -1096,7 +1124,7 @@ export function createVersionedLocalApi<
       await checkAccess(config, "update", context);
       const [parent] = await db.select().from(table).where(eq(idColumn, id));
       if (!parent) notFound(config, id);
-      const data = await runBeforeChange(config, input as Record<string, unknown>);
+      const data = toFlatDraft(await runBeforeChange(config, input as Record<string, unknown>));
       rejectUnknownFields(config, data);
       const insertValues = {
         parentId: id,
@@ -1112,7 +1140,7 @@ export function createVersionedLocalApi<
       await checkAccess(config, "update", context);
       const [parent] = await db.select().from(table).where(eq(idColumn, id));
       if (!parent) notFound(config, id);
-      const data = await runBeforeChange(config, input as Record<string, unknown>);
+      const data = toFlatDraft(await runBeforeChange(config, input as Record<string, unknown>));
       rejectUnknownFields(config, data);
       const insertValues = {
         parentId: id,
@@ -1232,6 +1260,13 @@ export function createVersionedLocalApi<
       const after = byId.get(toVersionId);
       if (!before) notFoundVersion(config, fromVersionId);
       if (!after) notFoundVersion(config, toVersionId);
+      // Two versions of different pages aren't a history; refuse the diff (#697).
+      const parents = new Set(rows.map((r) => (r as Record<string, unknown>).parentId));
+      if (parents.size > 1) {
+        throw new LouiseContentError(
+          `Versions ${fromVersionId} and ${toVersionId} of collection "${config.slug}" belong to different pages`,
+        );
+      }
       // Ignore bookkeeping columns—only real content fields are of interest
       // in a version-history view.
       return diffDocuments(before, after, {
