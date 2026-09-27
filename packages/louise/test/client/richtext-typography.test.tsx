@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { defineBasicExtension } from "prosekit/basic";
 import { createEditor, union } from "prosekit/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountRichText } from "../../src/client/RichText.jsx";
 import { defineLanguageMark, defineTypography } from "../../src/client/typography.js";
 import { sanitizeRichHtml } from "../../src/core/security/index.js";
@@ -69,6 +69,55 @@ describe("the lang mark", () => {
     const html = rt.getHTML();
     expect(html).toContain('<span lang="fr">bonjour</span>');
     expect(html).not.toContain('lang="x!"');
+  });
+
+  it("marks the selection from the Language button, refuses a bad tag, and removes on empty", async () => {
+    const el = document.createElement("div");
+    el.innerHTML = "<p>bonjour</p>";
+    document.body.appendChild(el);
+    const rt = mountRichText(el, () => {}, undefined, { language: true });
+    cleanups.push(() => {
+      rt.destroy();
+      el.remove();
+      vi.unstubAllGlobals();
+    });
+    const tick = () => new Promise((r) => setTimeout(r, 30));
+    await tick();
+    const select = async () => {
+      const pm = el.querySelector(".ProseMirror") as HTMLElement;
+      pm.focus();
+      document.getSelection()?.selectAllChildren(pm);
+      document.dispatchEvent(new Event("selectionchange"));
+      await tick();
+    };
+    const press = () => el.querySelector<HTMLButtonElement>('button[title="Language"]')?.click();
+
+    await select();
+    vi.stubGlobal(
+      "prompt",
+      vi.fn(() => "fr"),
+    );
+    press();
+    expect(rt.getHTML()).toContain('<span lang="fr">bonjour</span>');
+
+    const alert = vi.fn();
+    vi.stubGlobal("alert", alert);
+    await select();
+    vi.stubGlobal(
+      "prompt",
+      vi.fn(() => "not a tag"),
+    );
+    press();
+    expect(alert).toHaveBeenCalled();
+    expect(rt.getHTML()).toContain('lang="fr"');
+
+    await select();
+    vi.stubGlobal(
+      "prompt",
+      vi.fn(() => ""),
+    );
+    press();
+    expect(rt.getHTML()).not.toContain("lang=");
   });
 
   it("is in the schema on a bare editor", () => {
