@@ -972,6 +972,30 @@ describe("mediaRoute", () => {
     expect(deletes).toHaveLength(0); // nothing removed while in use
   });
 
+  it("reads a key's references without deleting it (#541)", async () => {
+    const sources = [
+      { collection: "Page", table: "pages", columns: ["body"], labelColumn: "title" },
+    ];
+    const { db } = makeD1((sql) => (sql.includes("pages") ? [{ label: "Home" }] : []));
+    const { bucket, deletes } = makeBucket();
+    const res = await mediaRoute(cfg({ referenceSources: sources }))(
+      new Request(`${mediaBase}?references=web/1.png`),
+      { DB: db, MEDIA: bucket, MEDIA_URL },
+      ctx,
+    );
+    expect(res?.status).toBe(200);
+    expect(await res?.json()).toEqual({ references: [{ collection: "Page", label: "Home" }] });
+    expect(deletes).toHaveLength(0);
+
+    // No sources configured: nothing can reference the file.
+    const none = await mediaRoute(cfg({ referenceSources: [] }))(
+      new Request(`${mediaBase}?references=web/1.png`),
+      { DB: db, MEDIA: bucket, MEDIA_URL },
+      ctx,
+    );
+    expect(await none?.json()).toEqual({ references: [] });
+  });
+
   it("deletes an unreferenced key from R2 + the registry", async () => {
     const { db } = makeD1(() => []);
     const { bucket, deletes } = makeBucket();

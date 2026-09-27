@@ -210,6 +210,19 @@ const SAVED_FLASH_MS = 3000;
 /** How long a deleted draft can be brought back before the delete is sent (#540). */
 const UNDO_DISCARD_MS = 8000;
 
+/** How many structural edits the canvas can undo (#541). */
+const UNDO_LIMIT = 20;
+
+/** How long "Deleted Hero · Undo" stays in the bar after a delete (#541). */
+const UNDO_NOTICE_MS = 8000;
+
+/** One undoable structural edit: what the notice calls it, and how to reverse
+ *  it against the store and the page as they stand now. */
+interface UndoEntry {
+  label: string;
+  undo: () => void | Promise<void>;
+}
+
 /** An action whose failure the bar words for itself. */
 type FailedAction = "save" | "publish" | "discard";
 
@@ -1609,10 +1622,86 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
   // Apply an in-section structural mutation, then re-render that section in place.
   // Replaces the old `structural()` (save-and-reload) for array/variant/block ops.
-  const restructureSection = (i: number, mutate: () => void): Promise<void> => {
+  // Undo puts back this one section's snapshot and re-renders it, so an edit
+  // elsewhere on the page since then survives (#541).
+  const restructureSection = (
+    i: number,
+    mutate: () => void,
+    label = `Changed ${sectionLabel(state.items[i])}`,
+  ): Promise<void> => {
+    const before = snapshot(state.items[i]);
     mutate();
+    record(label, () => {
+      set("items", i, reconcile(before));
+      return rerenderSection(i);
+    });
     return rerenderSection(i);
   };
+
+  // ── Structural undo (#541) ────────────────────────────────────────────────
+  // Deleting, moving, and adding sections and blocks is instant and autosaves,
+  // so without this the only way back from a stray Backspace was version
+  // history. Each entry reverses its own edit against the store and page as
+  // they are now, rather than restoring a whole-page snapshot: text typed after
+  // the edit stays typed. Rich-text fields keep their own history; the Ctrl+Z
+  // or Cmd+Z binding below never fires inside one.
+  const undoStack: UndoEntry[] = [];
+  const [undoNotice, setUndoNotice] = createSignal<{ text: string; canUndo: boolean } | null>(null);
+  let undoNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(undoNoticeTimer));
+  let replaying = false;
+  const snapshot = <T,>(v: T): T => structuredClone(unwrap(v));
+  const sectionLabel = (item: SectionItem | undefined): string =>
+    item ? (props.catalog[item._type]?.label ?? humanize(item._type)) : "section";
+  const blockLabel = (block: unknown): string => {
+    const type = (block as { _type?: string } | undefined)?._type ?? "";
+    return props.blocks?.[type]?.label ?? (type ? humanize(type) : "block");
+  };
+  const armUndoNotice = () => {
+    clearTimeout(undoNoticeTimer);
+    undoNoticeTimer = setTimeout(() => setUndoNotice(null), UNDO_NOTICE_MS);
+  };
+  const record = (label: string, undo: UndoEntry["undo"], notice = false) => {
+    if (replaying) return;
+    undoStack.push({ label, undo });
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    // The bar's Undo always reverses the newest edit, so a notice about an
+    // older one goes the moment another edit lands on top of it.
+    if (notice) {
+      setUndoNotice({ text: label, canUndo: true });
+      armUndoNotice();
+    } else {
+      setUndoNotice(null);
+    }
+  };
+  const undoLast = async () => {
+    if (replaying) return;
+    const entry = undoStack.pop();
+    if (!entry) return;
+    replaying = true;
+    try {
+      await entry.undo();
+    } finally {
+      replaying = false;
+    }
+    setUndoNotice({ text: `Undid: ${entry.label}`, canUndo: false });
+    armUndoNotice();
+  };
+  // Ctrl+Z or Cmd+Z undoes a structural edit when focus is on a node, the
+  // toolbar, or the page itself. Inside a field, the browser or ProseKit owns
+  // the keystroke, and inside a dialog it belongs to that dialog.
+  const onUndoKey = (e: KeyboardEvent) => {
+    if (e.key.toLowerCase() !== "z" || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) {
+      return;
+    }
+    const t = e.target instanceof HTMLElement ? e.target : null;
+    if (t?.isContentEditable || t?.closest("input, textarea, select, [role='dialog']")) return;
+    if (undoStack.length === 0) return;
+    e.preventDefault();
+    void undoLast();
+  };
+  document.addEventListener("keydown", onUndoKey);
+  onCleanup(() => document.removeEventListener("keydown", onUndoKey));
 
   // Add is INSTANT (#182 Phase 3 / ADR 0005 §4): optimistically splice the item
   // into the store, fetch its server-rendered fragment, insert + re-stamp it in
@@ -1627,6 +1716,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // Insert at `atIndex`—a section's `+` passes the index after its own, so the
     // new section lands below it; the trailing add appends.
     const index = Math.max(0, Math.min(atIndex, state.items.length));
+    const el = await insertSection(item, index);
+    record(`Added ${def.label}`, () => removeSection(index));
+    // Focus lands on what the owner added, not on <body>.
+    el?.focus();
+  };
+  // Splice `item` into the store at `index` and render it onto the page through
+  // the fragment route. Shared by add and by undoing a delete whose element can't
+  // be reused. Returns the new element, or null after the save-and-reload fallback.
+  const insertSection = async (item: SectionItem, index: number): Promise<HTMLElement | null> => {
     set("items", (a: SectionItem[]) => {
       const next = a.slice();
       next.splice(index, 0, item);
@@ -1644,7 +1742,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       setStatus("saving");
       if ((await saveDraft()) !== null) location.reload();
       else failSave();
-      return;
+      return null;
     }
     insertNodeElement(el, [], index, props.host);
     prepareNode(el);
@@ -1660,8 +1758,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       props.blocks,
     );
     touched();
-    // Focus lands on what the owner added, not on <body>.
-    el.focus();
+    return el;
   };
   // Reorder + delete are INSTANT (#182 Phase 1 / ADR 0005 §4): reconcile the
   // store, mirror the change on the already-rendered DOM (move/remove the marked
@@ -1669,9 +1766,29 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // save-and-reload round-trip. (Add / array-item ops still reload—they need
   // markup that doesn't exist yet, that is, the Phase 3 fragment-render route.)
   const removeSection = (i: number) => {
+    const item = snapshot(state.items[i]);
+    const el = nodeEl([i]);
+    const parent = el?.parentElement ?? null;
     set("items", (a: SectionItem[]) => a.filter((_, idx) => idx !== i));
     deleteNodeElement([], i);
     touched();
+    if (!item) return;
+    // The removed element keeps its wiring (fields read their path at edit time),
+    // so undo puts the same element back and re-stamps its siblings' paths.
+    record(
+      `Deleted ${sectionLabel(item)}`,
+      async () => {
+        if (!el || !parent?.isConnected) {
+          (await insertSection(item, i))?.focus();
+          return;
+        }
+        set("items", (a: SectionItem[]) => [...a.slice(0, i), item, ...a.slice(i)]);
+        insertNodeElement(el, [], i, parent);
+        touched();
+        el.focus();
+      },
+      true,
+    );
   };
   const moveSection = (i: number, delta: number) => {
     const j = i + delta;
@@ -1683,17 +1800,45 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     });
     moveNodeElement([], i, j);
     touched();
+    record(`Moved ${sectionLabel(state.items[j])}`, () => {
+      moveSection(j, -delta);
+      nodeEl([i])?.focus();
+    });
   };
   // Block reorder/delete (#182 Phase 2 / ADR 0005 §4): the block analogue of the
   // section ops above, scoped within one section's `blocks` array. Reconcile the
   // store and mirror the change on the already-rendered DOM (move/remove the
   // marked block element + re-stamp block markers), then stage a draft.
   const removeBlock = (section: number, block: number) => {
+    const removed = snapshot((state.items[section]?.blocks as unknown[] | undefined)?.[block]);
+    const el = nodeEl([section, "blocks", block]);
+    const parent = el?.parentElement ?? null;
     set("items", section, "blocks", (b: unknown) =>
       (Array.isArray(b) ? b : []).filter((_, idx) => idx !== block),
     );
     deleteNodeElement([section, "blocks"], block);
     touched();
+    if (removed === undefined) return;
+    // Put the same element back while its section is still the one on the page;
+    // a re-render since then replaced that parent, so render the section afresh.
+    record(
+      `Deleted ${blockLabel(removed)}`,
+      async () => {
+        set("items", section, "blocks", (b: unknown) => {
+          const next = (Array.isArray(b) ? b : []).slice();
+          next.splice(block, 0, removed);
+          return next;
+        });
+        if (el && parent?.isConnected) {
+          insertNodeElement(el, [section, "blocks"], block, parent);
+          touched();
+        } else {
+          await rerenderSection(section);
+        }
+        nodeEl([section, "blocks", block])?.focus();
+      },
+      true,
+    );
   };
   const moveBlock = (section: number, block: number, delta: number) => {
     const blocks = state.items[section]?.blocks;
@@ -1706,6 +1851,10 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     });
     moveNodeElement([section, "blocks"], block, to);
     touched();
+    record(`Moved ${blockLabel(blocks[to])}`, () => {
+      moveBlock(section, to, -delta);
+      nodeEl([section, "blocks", block])?.focus();
+    });
   };
   // The block types a section accepts, in catalog order: bounded by the section's
   // `blocks.allow` when declared, otherwise the whole block catalog (ADR 0005 §4—`allow`
@@ -1726,12 +1875,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const def = props.blocks?.[type];
     if (!def) return; // unknown block type → no-op
     closeBlockPicker();
-    void restructureSection(section, () =>
-      set("items", section, "blocks", (b: unknown) => {
-        const next = (Array.isArray(b) ? b : []).slice();
-        next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
-        return next;
-      }),
+    void restructureSection(
+      section,
+      () =>
+        set("items", section, "blocks", (b: unknown) => {
+          const next = (Array.isArray(b) ? b : []).slice();
+          next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
+          return next;
+        }),
+      `Added ${def.label}`,
     ).then(() => nodeEl([section, "blocks", at])?.focus());
   };
 
@@ -2077,6 +2229,30 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           (#597). */}
       <span class="louise-status" data-status={statusState()} role="status">
         {statusText()}
+      </span>
+      {/* "Deleted Hero · Undo" after a structural delete (#541), and "Undid: …"
+          after an undo. Always in the page so it's announced; the window holds
+          while Undo has focus, so nobody is timed out mid-decision. */}
+      <span class="louise-bar-undo" role="status">
+        <Show when={undoNotice()}>
+          {(n) => (
+            <>
+              {n().text}
+              <Show when={n().canUndo}>
+                {" · "}
+                <button
+                  class="louise-btn louise-btn-xs"
+                  type="button"
+                  onClick={() => void undoLast()}
+                  onFocusIn={() => clearTimeout(undoNoticeTimer)}
+                  onFocusOut={armUndoNotice}
+                >
+                  Undo
+                </button>
+              </Show>
+            </>
+          )}
+        </Show>
       </span>
       {/* The failure, worded for the action that failed, in an alert that's
           always in the page so it's announced (#468). */}
