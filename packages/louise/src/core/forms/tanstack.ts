@@ -15,7 +15,7 @@
 // brings the peer. See the forms guide for a worked example.
 
 import type { FormConfig, FormField } from "./types.js";
-import { coerceFormValue, validateField } from "./validate.js";
+import { type CoerceOptions, coerceFormValue, validateField } from "./validate.js";
 
 /** A TanStack Form field-validator: returns an error string, or `undefined` when
  *  valid.
@@ -46,9 +46,13 @@ export type TanstackFieldValidator = (args: { value: unknown }) => Promise<strin
  * `onBlurAsync` and `onSubmitAsync` take the same function; pair with
  * `onChangeAsyncDebounceMs` if a rule hits the network.
  */
-export function tanstackFieldValidator(key: string, field: FormField): TanstackFieldValidator {
+export function tanstackFieldValidator(
+  key: string,
+  field: FormField,
+  options: CoerceOptions = {},
+): TanstackFieldValidator {
   return async ({ value }) => {
-    const violations = await validateField(key, field, coerceFormValue(field, value));
+    const violations = await validateField(key, field, coerceFormValue(field, value, options));
     return violations.find((v) => v.severity === "error")?.message;
   };
 }
@@ -66,6 +70,9 @@ export function tanstackFieldValidator(key: string, field: FormField): TanstackF
  */
 export function tanstackFormValidators(config: FormConfig): Record<string, TanstackFieldValidator> {
   return Object.fromEntries(
-    Object.entries(config.fields).map(([key, field]) => [key, tanstackFieldValidator(key, field)]),
+    Object.entries(config.fields).map(([key, field]) => [
+      key,
+      tanstackFieldValidator(key, field, { locale: config.locale }),
+    ]),
   );
 }

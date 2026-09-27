@@ -416,7 +416,9 @@ function FormRow(props: {
           class="louise-form-input"
           type={inputType(props.field.type)}
           {...common()}
-          inputmode={props.field.inputmode}
+          inputmode={
+            props.field.inputmode ?? (props.field.type === "number" ? "decimal" : undefined)
+          }
           placeholder={props.field.placeholder}
           value={strValue()}
           onInput={(e) => props.onValue(e.currentTarget.value)}
@@ -457,8 +459,11 @@ function inputType(type: FormField["type"]): string {
       return "tel";
     case "url":
       return "url";
+    // A number is typed as text, with a numeric keyboard: `type="number"`
+    // throws away `1,200`, adds spinners, and changes on a scroll. The shared
+    // validation reads the number, under the form's locale.
     case "number":
-      return "number";
+      return "text";
     case "date":
       return "date";
     default:

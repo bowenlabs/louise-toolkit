@@ -132,6 +132,54 @@ describe("coerceFormValue", () => {
     expect(coerceFormValue(f("checkbox"), "on")).toBe(true);
     expect(coerceFormValue(f("checkbox"), undefined)).toBe(false);
   });
+
+  it("adds https:// to a web address typed without a scheme, and only then", () => {
+    expect(coerceFormValue(f("url"), "example.com")).toBe("https://example.com");
+    expect(coerceFormValue(f("url"), "www.example.com/menu?x=1")).toBe(
+      "https://www.example.com/menu?x=1",
+    );
+    expect(coerceFormValue(f("url"), "//example.com")).toBe("https://example.com");
+    expect(coerceFormValue(f("url"), "http://example.com")).toBe("http://example.com");
+    expect(coerceFormValue(f("url"), "not a url")).toBe("not a url");
+    expect(coerceFormValue(f("url"), "localhost/x")).toBe("localhost/x");
+  });
+
+  it("reads grouping and decimal separators only under a locale", () => {
+    expect(coerceFormValue(f("number"), "1,000")).toBe("1,000");
+    expect(coerceFormValue(f("number"), "1,000", { locale: "en-US" })).toBe(1000);
+    expect(coerceFormValue(f("number"), "1,234.5", { locale: "en-US" })).toBe(1234.5);
+    expect(coerceFormValue(f("number"), "1.234,5", { locale: "de-DE" })).toBe(1234.5);
+    expect(coerceFormValue(f("number"), "1 234,5", { locale: "fr-FR" })).toBe(1234.5);
+    expect(coerceFormValue(f("number"), "12abc", { locale: "en-US" })).toBe("12abc");
+  });
+});
+
+describe("forgiving input, through validateSubmission", () => {
+  const form = defineForm({
+    name: "quotes",
+    locale: "en-US",
+    fields: {
+      site: { type: "url", label: "Website" },
+      budget: { type: "number", label: "Budget" },
+    },
+  });
+
+  it("stores the normalized values", async () => {
+    const { values, violations } = await validateSubmission(form, {
+      site: "example.com",
+      budget: "1,200",
+    });
+    expect(violations).toEqual([]);
+    expect(values).toEqual({ site: "https://example.com", budget: 1200 });
+  });
+
+  it("words each failure as the fix", async () => {
+    const { violations } = await validateSubmission(form, { site: "no dots", budget: "lots" });
+    expect(violations.map((v) => v.message)).toEqual([
+      "Enter a web address, like example.com.",
+      "Enter a number, like 1200.",
+    ]);
+  });
 });
 
 describe("validateSubmission", () => {

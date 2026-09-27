@@ -327,4 +327,17 @@ describe("<Form>", () => {
       expect(document.activeElement).toBe(host.querySelector('input[type="file"]'));
     });
   });
+
+  it("renders a number as text with a numeric keyboard, so 1,200 survives", () => {
+    const quotes = defineForm({
+      name: "quotes",
+      fields: { budget: { type: "number", label: "Budget" } },
+    });
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    dispose = render(() => <Form form={quotes} />, host);
+    const input = host.querySelector<HTMLInputElement>('input[name="budget"]')!;
+    expect(input.type).toBe("text");
+    expect(input.getAttribute("inputmode")).toBe("decimal");
+  });
 });

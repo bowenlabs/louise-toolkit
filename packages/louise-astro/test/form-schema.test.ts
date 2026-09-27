@@ -64,4 +64,26 @@ describe("formToAstroSchema", () => {
     expect(() => schema.parse({ email: "ada@example.com" })).toThrow(); // firstName missing
     expect(() => schema.parse({ firstName: "", email: "ada@example.com" })).toThrow(); // empty
   });
+
+  it("accepts what formRoute accepts: a bare web address, and a grouped number under the locale", () => {
+    const quotes = formToAstroSchema({
+      name: "quotes",
+      locale: "en-US",
+      fields: {
+        site: { type: "url", label: "Website" },
+        budget: { type: "number", label: "Budget", required: true },
+      },
+    });
+    expect(quotes.parse({ site: "example.com", budget: "1,200" })).toEqual({
+      site: "https://example.com",
+      budget: 1200,
+    });
+    expect(quotes.parse({ site: "", budget: "5" })).toEqual({ budget: 5 });
+    const failure = quotes.safeParse({ site: "no dots", budget: "lots" });
+    expect(failure.success).toBe(false);
+    expect(failure.error?.issues.map((i) => i.message)).toEqual([
+      "Enter a web address, like example.com.",
+      "Enter a number, like 1200.",
+    ]);
+  });
 });

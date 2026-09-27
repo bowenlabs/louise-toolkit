@@ -41,6 +41,7 @@ export type {
   FormSpamConfig,
 } from "./types.js";
 export {
+  type CoerceOptions,
   coerceFormValue,
   type SubmissionResult,
   validateField,
