@@ -214,9 +214,9 @@ function MediaCard(props: {
         <div class="louise-item-sub">
           {[fmtSize(props.item.size), dims()].filter(Boolean).join(" · ")}
         </div>
-        <Show when={!props.editing && props.item.alt}>
+        <Show when={!props.editing && (props.item.alt || props.item.alt === "")}>
           <div class="louise-item-sub louise-media-alt" title={props.item.alt ?? ""}>
-            {props.item.alt}
+            {props.item.alt === "" ? "Decorative" : props.item.alt}
           </div>
         </Show>
       </div>
@@ -271,6 +271,9 @@ function MediaEditor(props: {
 }) {
   const actions = usePanelActions();
   const [alt, setAlt] = createSignal(props.item.alt ?? "");
+  // An empty alt, as opposed to none, is an image the owner marked decorative
+  // (#599): HTML's "skip this image", not "not written yet".
+  const [decorative, setDecorative] = createSignal(props.item.alt === "");
   const [caption, setCaption] = createSignal(props.item.caption ?? "");
   const [dirty, setDirty] = createSignal(false);
 
@@ -284,7 +287,13 @@ function MediaEditor(props: {
       const res = await fetch("/api/louise/media", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key: props.item.key, alt: alt(), caption: caption() }),
+        body: JSON.stringify({
+          key: props.item.key,
+          // Decorative sends "", a description sends its text, and an empty
+          // field sends null: not written yet.
+          alt: decorative() ? "" : alt().trim() ? alt() : null,
+          caption: caption(),
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -312,13 +321,26 @@ function MediaEditor(props: {
       <input
         class="louise-input"
         type="text"
+        aria-label="Alt text"
         placeholder="Alt text (describe the image)"
         value={alt()}
+        disabled={decorative()}
         onInput={(e) => {
           setAlt(e.currentTarget.value);
           setDirty(true);
         }}
       />
+      <label class="louise-check">
+        <input
+          type="checkbox"
+          checked={decorative()}
+          onChange={(e) => {
+            setDecorative(e.currentTarget.checked);
+            setDirty(true);
+          }}
+        />
+        Decorative image (screen readers skip it)
+      </label>
       <input
         class="louise-input"
         type="text"

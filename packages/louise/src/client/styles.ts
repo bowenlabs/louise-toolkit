@@ -1444,6 +1444,18 @@ html[data-louise-studio] body {
 .louise-rt-alt-btn.is-unset { background: var(--louise-warning); }
 .louise-rt-alt-btn:hover { background: color-mix(in oklch, var(--louise-text) 90%, transparent); }
 .louise-rt-alt-btn.is-unset:hover { background: var(--louise-warning-deep); }
+/* The alt editor: the text field, and the decorative checkbox (#599). */
+.louise-rt-alt-edit { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.louise-rt-alt-decorative {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--louise-surface);
+  color: var(--louise-text);
+  font-size: var(--louise-text-xs);
+}
 .louise-rt-alt-btn:focus-visible { outline: 2px solid var(--louise-on-accent); outline-offset: 2px; }
 /* Icon-only controls rely on the UA's default ring, which is easy to lose against
    the toolbar/drawer fills. Give them a deliberate, high-contrast one (WCAG 2.4.7
