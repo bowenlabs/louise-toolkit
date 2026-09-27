@@ -70,15 +70,19 @@ export interface CartItem {
  * Create a PaymentIntent for an embedded Payment Element checkout. The cart
  * is carried in metadata so the webhook can build the order without trusting
  * the client.
+ *
+ * `options.currency` is the ISO 4217 code the site sells in, in either case.
+ * It defaults to `"usd"`; pass it for a site that sells in anything else.
  */
 export async function createPaymentIntent(
   secretKey: string,
   items: CartItem[],
+  options?: { currency?: string },
 ): Promise<{ id: string; clientSecret: string; amountCents: number }> {
   const amountCents = items.reduce((n, i) => n + i.unitAmountCents * i.qty, 0);
   const form = new URLSearchParams();
   form.set("amount", String(amountCents));
-  form.set("currency", "usd");
+  form.set("currency", (options?.currency ?? "usd").toLowerCase());
   form.set("automatic_payment_methods[enabled]", "true");
   form.set(
     "metadata[items]",
@@ -171,10 +175,13 @@ export interface StripeAddress {
   country?: string;
 }
 
-/** Create + finalize + send a Stripe invoice; returns the hosted pay URL. */
+/**
+ * Create + finalize + send a Stripe invoice; returns the hosted pay URL.
+ * `input.currency` is the ISO 4217 code to bill in, and defaults to `"usd"`.
+ */
 export async function createAndSendInvoice(
   secretKey: string,
-  input: { email: string; amountCents: number; description: string },
+  input: { email: string; amountCents: number; description: string; currency?: string },
 ): Promise<{ id: string; hostedUrl: string | null }> {
   const customer = await stripePost<{ id: string }>(
     secretKey,
@@ -187,7 +194,7 @@ export async function createAndSendInvoice(
     new URLSearchParams({
       customer: customer.id,
       amount: String(input.amountCents),
-      currency: "usd",
+      currency: (input.currency ?? "usd").toLowerCase(),
       description: input.description,
     }),
   );

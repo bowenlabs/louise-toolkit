@@ -107,6 +107,12 @@ import {
 The Stripe API version is pinned in the module so an account-default upgrade
 can't silently change response shapes—bump it deliberately.
 
+Every helper that charges or bills takes the currency: `createPaymentIntent`'s
+third argument is `{ currency? }`, and `createAndSendInvoice` and
+`createLineItemInvoice` take `currency` in their input. It's the ISO 4217 code
+the site sells in, in either case, and defaults to `"usd"`, so a site that sells
+in anything else passes it on every call.
+
 ## `louise-toolkit/commerce/fourthwall`
 
 ```ts

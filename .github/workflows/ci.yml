@@ -81,10 +81,15 @@ jobs:
       # repository is public, and a site that consented to being featured didn't
       # consent to being cited in code, tests, or docs. CHANGELOGs and the docs
       # page that features the sites are exempt; the script says why.
-      - name: No framework references in the core, no client site names
+      #
+      # And a currency, locale, or time zone written as a literal in the library
+      # is a site fact that should be a parameter (#578). The ones that stay are
+      # recorded in the script, each with its reason.
+      - name: No framework references in the core, no client site names, no site-fact literals
         run: |
           corepack pnpm run lint:core
           corepack pnpm run lint:names
+          corepack pnpm run lint:facts
 
       # Prose style for every doc and all prose in code, against the Google
       # developer documentation style guide plus the house style (ADR 0013).
