@@ -246,6 +246,7 @@
     "@vercel/stega": "^1.1.0",
     "@vitest/coverage-v8": "4.1.11",
     "better-auth": "^1.7.2",
+    "dom-accessibility-api": "^0.7.1",
     "drizzle-orm": "^0.45.2",
     "happy-dom": "^20.11.15",
     "harper.js": "^2.7.0",

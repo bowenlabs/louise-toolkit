@@ -75,7 +75,9 @@ The lint split is deliberate (see [ADR 0007](docs/adr/0007-lint-toolchain.md)):
 The SolidJS client is linted by a **direct** `oxlint` run that loads
 `eslint-plugin-solid` through oxlint's `jsPlugins`, a separate step because `vp`'s
 bundled oxlint drops `jsPlugins`. Biome 2 can't absorb these (it runs no ESLint
-plugins and has no Solid rules), so the split stays.
+plugins and has no Solid rules), so the split stays. The same run applies
+oxlint's `jsx-a11y` rules to the client's JSX, listed in `.oxlintrc.json`; two
+that assume React's prop names are off there, with the reason.
 
 ## Changesets
 

@@ -174,6 +174,13 @@ function injectChromeStyle(doc: Document): void {
 /** Elements with no role of their own, so a focused one announces nothing. */
 const GENERIC_TAGS = new Set(["DIV", "SPAN", "SECTION"]);
 
+/** Whether `el` has no role of its own. An `<a>` is a link only with an
+ *  `href`; without one, such as a link field whose URL isn't set yet, it's as
+ *  generic as a `<div>`, and would be a focusable node with no name. */
+function isGeneric(el: HTMLElement): boolean {
+  return GENERIC_TAGS.has(el.tagName) || (el.tagName === "A" && !el.hasAttribute("href"));
+}
+
 /** Make a marked node a keyboard tab-stop so its toolbar is reachable without a
  *  mouse, and give a generic element a role and a name, so a screen reader says
  *  what has focus (#596). Additive: never overwrites an author's own `tabindex`,
@@ -186,7 +193,7 @@ function makeChromeFocusable(el: HTMLElement, desc: NodeDescriptor | null): void
     el.setAttribute("aria-keyshortcuts", CHROME_KEYSHORTCUTS);
     el.dataset.louiseKbd = "1";
   }
-  if (!desc || !GENERIC_TAGS.has(el.tagName)) return;
+  if (!desc || !isGeneric(el)) return;
   if (!el.hasAttribute("role")) {
     el.setAttribute("role", "group");
     el.dataset.louiseKbdRole = "1";

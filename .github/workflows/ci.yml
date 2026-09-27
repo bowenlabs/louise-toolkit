@@ -60,7 +60,12 @@ jobs:
       #
       # The `lint:solid` script pins both packages, so this fetches the same two
       # versions every run rather than whatever is newest.
-      - name: Lint SolidJS client (oxlint + eslint-plugin-solid)
+      #
+      # The same run applies oxlint's built-in jsx-a11y rules to the client's
+      # JSX (#600): missing names, ARIA the element doesn't support, a click with
+      # no key handler. The rule list, and the two rules that assume React, are
+      # in .oxlintrc.json.
+      - name: Lint SolidJS client (oxlint + eslint-plugin-solid + jsx-a11y)
         run: corepack pnpm run lint:solid
 
       # Architectural invariants oxlint cannot express, because they are about
