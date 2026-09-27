@@ -1,5 +1,52 @@
 # @louise-toolkit/astro
 
+## 0.6.0
+
+### Minor Changes
+
+- a209a23: An Astro site's page errors are incidents too (ADR 0022):
+
+  - **`reportIncident(input)`** (`louise-toolkit/worker`) reports a failure caught in code that has no `env` or `ctx`, such as framework middleware. It reaches `composeWorker`'s `onIncident` sinks when the handler finishes, and does nothing without `onIncident`. A cause reported this way isn't counted again if it's re-thrown to `composeWorker`.
+  - **`createLouiseMiddleware`** (`@louise-toolkit/astro`) reports an error a page, an endpoint, or the middleware throws, then re-throws it, so Astro still renders its error page. Before, Astro caught those errors outside every middleware and `composeWorker` never saw them. Set `reportErrors: false` to turn it off. An error a streamed page throws after its first bytes are sent is still out of reach of any middleware.
+
+  Nothing changes for a site without `onIncident` on `composeWorker`.
+
+- bbe2a20: An agent with no browser can call the MCP endpoint with a scoped, expiring agent token (#235).
+
+  - **`mcpRoute` takes `resolveAgent`.** A request with `Authorization: Bearer` is authenticated by the token alone and skips the same-origin check; a request without one is unchanged. `resolveMcpSession({ resolveUser })` turns a token into the editor who issued it, with `session.agent` set to the token's ID, name, and scope.
+  - **Tokens are scoped, expire, and revoke immediately.** A scope maps each collection to `read`, `draft`, or `publish`, and there's no default. A token lasts 30 days unless its issuer says otherwise, and at most 90. Only its SHA-256 is stored, and it starts with `louise_at_`.
+  - **`agentTokensRoute`** at `/api/louise/mcp/tokens` lets a signed-in editor issue, list, and revoke their own tokens. A token can't manage tokens.
+  - **`editorForUser(env, userId)`** in `louise-toolkit/auth` re-derives an editor from their user row. A token stops working when its editor isn't an admin, is banned, or has left the sign-in allowlist.
+  - **`bearerRoute(route)`** in `louise-toolkit/worker` marks a route that checks a bearer token itself. `composeWorker`'s gate lets a bearer request through to marked routes only; everywhere else under the prefix it's refused as before.
+  - **`apiGate.takesBearer`** in `@louise-toolkit/astro` does the same for the middleware gate, by path. It's off unless you set it.
+
+  **Upgrading:** nothing changes until you pass `resolveAgent`. To turn tokens on, export `agentTokens` from `louise-toolkit/mcp` in your Drizzle schema, generate and apply the migration that creates `agent_tokens`, and mount `agentTokensRoute`. With the Astro middleware gate, also set `apiGate.takesBearer: (path) => path === LOUISE_MCP_PATH`. If your auth uses `tablePrefix` or `resolveAdmins`, pass the same to `editorForUser`. The reasoning is in the 2026-09-27 amendments to ADR 0009 and ADR 0012.
+
+### Patch Changes
+
+- Updated dependencies [18d8f80]
+- Updated dependencies [a209a23]
+- Updated dependencies [e0663dd]
+- Updated dependencies [a3423b6]
+- Updated dependencies [39d9f27]
+- Updated dependencies [0ba0640]
+- Updated dependencies [cf12fbd]
+- Updated dependencies [1fc869c]
+- Updated dependencies [b0d2e37]
+- Updated dependencies [0786a5b]
+- Updated dependencies [81a71d5]
+- Updated dependencies [bbe2a20]
+- Updated dependencies [4e0702d]
+- Updated dependencies [9fcda28]
+- Updated dependencies [265e50c]
+- Updated dependencies [348af4f]
+- Updated dependencies [6998d43]
+- Updated dependencies [a23b35a]
+- Updated dependencies [dffa94e]
+- Updated dependencies [df7b551]
+- Updated dependencies [0ae20ab]
+  - louise-toolkit@0.37.0
+
 ## 0.5.0
 
 ### Minor Changes

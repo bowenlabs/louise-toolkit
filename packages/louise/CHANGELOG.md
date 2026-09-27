@@ -1,5 +1,170 @@
 # louise-toolkit
 
+## 0.37.0
+
+### Minor Changes
+
+- 18d8f80: AI failures say why (ADR 0022 § 8, as amended):
+
+  - **`classifyAiError`** (`louise-toolkit/ai`) sorts a thrown Workers AI error into an `AiFailureReason`: `model-retired`, `rate-limited`, `unavailable`, or `error`, from Workers AI's documented codes and messages.
+  - **`runAi` names its degrade for the reason.** A thrown error is reported as `ai.run.<reason>`, such as `ai.run.model-retired`, instead of `ai.run`, so a retired model is its own incident. A search for `ai.run` still finds them all. An unusable reply is reported as the new `ai.invalid-output` degrade.
+  - **`generateAltText`, `rewriteText`, and `suggestSeo` take `onFailure`,** called with the reason when they return `null`, adding `invalid-output` and `truncated` to the list. They still return `null` and never throw.
+  - **`aiRoute`'s `502` bodies carry `reason`,** and the editor tells an editor to try again later when AI is busy, or to select less when a rewrite came back cut off.
+
+  If you filter logs or an `onDegraded` listener on the exact name `ai.run`, match the `ai.run.` prefix instead.
+
+- a209a23: An Astro site's page errors are incidents too (ADR 0022):
+
+  - **`reportIncident(input)`** (`louise-toolkit/worker`) reports a failure caught in code that has no `env` or `ctx`, such as framework middleware. It reaches `composeWorker`'s `onIncident` sinks when the handler finishes, and does nothing without `onIncident`. A cause reported this way isn't counted again if it's re-thrown to `composeWorker`.
+  - **`createLouiseMiddleware`** (`@louise-toolkit/astro`) reports an error a page, an endpoint, or the middleware throws, then re-throws it, so Astro still renders its error page. Before, Astro caught those errors outside every middleware and `composeWorker` never saw them. Set `reportErrors: false` to turn it off. An error a streamed page throws after its first bytes are sent is still out of reach of any middleware.
+
+  Nothing changes for a site without `onIncident` on `composeWorker`.
+
+- 0ba0640: Incident counts over time, in Analytics Engine (ADR 0022):
+
+  - **`analyticsIncidents((env) => env.INCIDENT_EVENTS)`** (`louise-toolkit/incidents`) is a sink that writes one data point per report, indexed by fingerprint, so a site can see whether a failure is happening more often. Give it its own dataset, not the Core Web Vitals one. `incidentDataPoint` builds the point for a sink of your own.
+  - **`incidentCountsSqlQuery`** builds the SQL for each incident's count per day or hour, weighted for sampling, with an optional `timeZone` for where a site's day starts. **`parseIncidentCountRows`** reads the result.
+
+- cf12fbd: `composeWorker` captures incidents (ADR 0022 § 3). Pass `onIncident` (one sink, a list, or `{ sinks, critical, release }`), and every failure the Worker's handlers see becomes an `IncidentReport` sent to your sinks:
+
+  - **A throw** from a route, the fallback, `queue`, or `scheduled` is reported, then re-thrown, so responses don't change.
+  - **A `reportDegraded` call** is reported through the next handler to finish in the isolate, since a degrade has no `ctx` of its own.
+  - **Sinks run through `ctx.waitUntil`,** after the response. A sink that throws or rejects is logged and ignored.
+  - **`critical`** marks the failures that should alert, by dotted name or path prefix. `isCriticalIncident` (`louise-toolkit/incidents`) is the same check.
+  - **`release`** reads the deployed version from the Worker's bindings.
+
+  `withIncidentCapture(handler, capture)` does the same wrapping for a handler you compose by hand. Without `onIncident`, `composeWorker` behaves as before.
+
+  Nothing stores reports yet: the D1 table and sink follow in the next release. Until then, a sink that logs is enough to see them in Workers Logs.
+
+- 1fc869c: Queue failures are incidents (ADR 0022 § 7, as amended):
+
+  - **`processBatch`** reports a failure on a message's last delivery as a `queue` incident, named for the error, with the queue's name as its path. `maxRetries` (new, default `DEFAULT_MAX_RETRIES`, 3) is the queue's `max_retries`; set it when your `wrangler.jsonc` changes it. An earlier failure is only logged, as before. The report reaches `composeWorker`'s `onIncident` sinks when the Worker's `queue` handler finishes; without `onIncident`, nothing changes.
+  - **`deadLetterConsumer((env) => env.DB)`** (`louise-toolkit/incidents`) is a `queue` handler for a dead-letter queue. It keeps each message in a new `dead_letters` table in the site's D1, reports it as a `DeadLetter` incident, and acks it. Add `deadLetters` to your drizzle-kit schema and generate a migration.
+  - **`listDeadLetters` and `replayDeadLetter`** read kept messages and send one back onto a queue.
+
+  The last-attempt log line now says the message goes to the dead-letter queue, instead of that it's marked for retry.
+
+- b0d2e37: A new subpath, `louise-toolkit/incidents`, holds the pure part of incident capture (ADR 0022):
+
+  - **`IncidentReport`** is the flat, JSON-serializable shape every failure becomes: a throw from a route, a queue handler, or a cron, and a `reportDegraded` call.
+  - **`buildIncidentReport`** and **`incidentFromDegraded`** build one. They keep the request's pathname and host, never its query string, and they never throw.
+  - **`fingerprintFailure`** groups reports into incidents. It hashes the kind, name, code, and the message with its numbers, IDs, and quoted values replaced, and it leaves out the path, the stack, and the release.
+  - **`redactMessage`** replaces email addresses and long tokens in each report's message and path.
+
+  Nothing captures or stores reports yet. `composeWorker`'s `onIncident` and the sinks follow in later releases.
+
+  **Behavior change:** `describeFailure` (`louise-toolkit/worker`) now sets a `FailureReport`'s `url` to the request's pathname only, because a query string can carry a token. The field keeps its name and type. If an `escalate` hook reads the host or the query from `url`, take them from `HealingContext.request` instead.
+
+- 0786a5b: The site's D1 keeps its incidents (ADR 0022 § 4, as amended):
+
+  - **The `incidents` table** (`louise-toolkit/incidents`) holds one row per fingerprint, with a count, first and last times seen, and when it was resolved or reopened. Add it to your drizzle-kit schema with `export { incidents } from "louise-toolkit/incidents"`, and generate a migration.
+  - **`d1Incidents((env) => env.DB)`** is the sink that keeps the record: put it first in `composeWorker`'s `onIncident`. 100 identical throws become one row with a count of 100.
+  - **`upsertIncident`, `listIncidents`, `getIncident`, and `resolveIncident`** read and write the table. A resolved incident reopens when its failure comes back.
+  - **`incidentsRoute`** (`louise-toolkit/editor`) lists, reads, and resolves incidents at `/api/louise/incidents`, for the site's editors only.
+
+  **Sinks get a second argument, `{ env, cause }`:** the Worker's bindings, and the value that was thrown, unredacted and in memory only. A sink written for the one-argument form still works.
+
+  **`louise-toolkit/incidents` now needs `drizzle-orm`,** the optional peer the `db` subpath already needs. `louise-toolkit/worker`, where capture lives, still doesn't.
+
+- bbe2a20: An agent with no browser can call the MCP endpoint with a scoped, expiring agent token (#235).
+
+  - **`mcpRoute` takes `resolveAgent`.** A request with `Authorization: Bearer` is authenticated by the token alone and skips the same-origin check; a request without one is unchanged. `resolveMcpSession({ resolveUser })` turns a token into the editor who issued it, with `session.agent` set to the token's ID, name, and scope.
+  - **Tokens are scoped, expire, and revoke immediately.** A scope maps each collection to `read`, `draft`, or `publish`, and there's no default. A token lasts 30 days unless its issuer says otherwise, and at most 90. Only its SHA-256 is stored, and it starts with `louise_at_`.
+  - **`agentTokensRoute`** at `/api/louise/mcp/tokens` lets a signed-in editor issue, list, and revoke their own tokens. A token can't manage tokens.
+  - **`editorForUser(env, userId)`** in `louise-toolkit/auth` re-derives an editor from their user row. A token stops working when its editor isn't an admin, is banned, or has left the sign-in allowlist.
+  - **`bearerRoute(route)`** in `louise-toolkit/worker` marks a route that checks a bearer token itself. `composeWorker`'s gate lets a bearer request through to marked routes only; everywhere else under the prefix it's refused as before.
+  - **`apiGate.takesBearer`** in `@louise-toolkit/astro` does the same for the middleware gate, by path. It's off unless you set it.
+
+  **Upgrading:** nothing changes until you pass `resolveAgent`. To turn tokens on, export `agentTokens` from `louise-toolkit/mcp` in your Drizzle schema, generate and apply the migration that creates `agent_tokens`, and mount `agentTokensRoute`. With the Astro middleware gate, also set `apiGate.takesBearer: (path) => path === LOUISE_MCP_PATH`. If your auth uses `tablePrefix` or `resolveAdmins`, pass the same to `editorForUser`. The reasoning is in the 2026-09-27 amendments to ADR 0009 and ADR 0012.
+
+- 4e0702d: `buildMenuTabs` in `louise-toolkit/commerce/square` (#715): order-ahead menu tabs from Square's category tree. It takes what `listCatalogDetailed`, `listCategories`, `listModifierLists`, and `retrieveInventoryCounts` already return, and makes no Square call. Each chosen top-level category gives a tab per subcategory, plus a trailing tab for items filed directly under it. Each item carries its priced variations, a sold-out flag (only when every variation is tracked and at zero or below), and its modifier lists with the item's own `min` and `max`.
+
+  The chosen categories and hidden items are arguments. An empty `categoryIds` is an empty menu: picking a category by name stays with the site. Nothing changes for existing code.
+
+- 9fcda28: Opening hours and pickup times in `louise-toolkit/dates` (#714): `parseOpeningHours`, `openingState`, `pickupSlots`, `pickupProblem`, and `openingHoursJsonLd`. They read editor-written hours (`7a — 7p`, `Closed`) and answer on the shop's clock, so a page and its server offer and accept the same pickup times, and the structured-data hours come from the same parser.
+
+  The time zone, prep time, lead, slot step, horizon, slot count, grace past closing, and label locale are all arguments, with no defaults. So is what an unreadable row means (`whenUnknown`). An overnight range such as `8p — 2a` reads as `null`. Nothing changes for existing code.
+
+- 265e50c: A site chooses the rich-text color swatches, and the default no longer offers the state colors (#605).
+
+  - **`colors` on `RichTextFieldOptions`:** a list of `{ label, token }` theme tokens, on a field or on the `mountSections` `richText` default. A field that names its own list wins, and an empty list hides the color button. A token must fit `--color-<token>` (lowercase letters, digits, and hyphens), or it's skipped.
+  - **The default is the brand roles:** primary, secondary, accent, and neutral. Info, success, warning, and error are no longer offered: text in a state color reads as a message, and a theme's error orange can turn red.
+
+  **Upgrading:** text already colored with a state token keeps its color; only the picker changed. To offer those colors again, or your own brand colors, pass `colors`.
+
+- 348af4f: Rich text can convert punctuation as the owner types, and mark a phrase as another language (#606).
+
+  - **`typography` on `RichTextFieldOptions`** (off by default): `--` becomes an em dash and `...` an ellipsis; with `quotes: "“”‘’"` (or any language's four marks), straight quotes become curly ones. There's no default quote pair, since they differ by language.
+  - **`language: true`** adds a Language button that wraps the selection in `<span lang="…">`. The editor keeps a stored `<span lang>` whether or not the button is on.
+  - **The sanitizer keeps `lang` on `span`** when its value looks like a BCP 47 tag, and drops it otherwise.
+
+  **Upgrading:** nothing is required.
+
+- 6998d43: A field save refuses a collection with no primary key instead of rewriting every row (#702).
+
+  `applyFieldSave` matched the save's `key` against the table's primary key, and on a table without one it ran the update with no `WHERE`, rewriting the whole table. It now answers `500` with a message that names the collection, and `saveRoute` throws at construction when any collection it's given has no primary key.
+
+  **Upgrading:** every framework table has an `id` primary key, so a site using them sees no change. A site that passes `saveRoute` a table without a primary key now fails at startup; give the table one.
+
+- df7b551: Tip math in `louise-toolkit/commerce` (#716): `percentTip`, `tipCap`, `parseTipCents`, and `clampTip`, so a checkout's page and server compute presets and the cap with the same code. The presets, the cap's floor and ceiling, and its share of the subtotal are all arguments. The one default is `subtotalPercent: 100`, a cap equal to the subtotal before the floor and ceiling apply.
+
+  `louise-toolkit/commerce/square` adds `orderSubtotal(order)`: Square's subtotal after discounts and before tax and service charges. Take the tip cap on it, from `calculateOrder` on the page and the created order on the server, so the two sides can't disagree near the cap. Nothing changes for existing code.
+
+### Patch Changes
+
+- e0663dd: Content tooling fixes (#699):
+
+  - **`generateSchemaSource` emits `checkbox` fields** as the integer-as-boolean column `codegen` builds at runtime. It used to throw, so a site with a checkbox field couldn't generate its schema file.
+  - **`runMigration` takes a typed migration:** a `defineMigration<MyDoc>(…)` result no longer fails typecheck.
+  - **`runMigration` counts only the writes that land:** a document whose update fails is reported in `errors` alone, not also in `changed` and `changes`.
+  - **The `search.fields` type error** lists `json` among the indexable types.
+
+- a3423b6: The inline edit bar now says "Couldn't publish. The live page hasn't changed." when a publish fails, followed by the server's reason when it gives one, such as a failed field check. Before, it said "Couldn't save," which described the wrong action. The status keeps its error styling, so a site that styles `.louise-status[data-status="error"]` needs no change.
+
+  When a media delete comes back as in use but doesn't say what uses the file, the second prompt now says the file is still in use instead of "still used by 0 items" (#704).
+
+- 39d9f27: Email links accept only `https:`, `http:`, and `mailto:` (#703).
+
+  - **`mailButton` and `mailFallbackLink`** used to escape any URL and link to it, so a `javascript:` or `data:` URL reached the email's markup. A link with another scheme now renders its text with no `href`.
+  - **`escapeHtml` also escapes `'`** as `&#39;`, so a value is safe in a single-quoted attribute too.
+
+  **Upgrading:** nothing to change for a site that links to its own `https` pages. A relative URL, which a mail client can't follow anyway, now renders as plain text; pass an absolute one.
+
+- 81a71d5: Local API fixes (#697):
+
+  - **Publishing on the `sqlite-proxy` driver works without a batch callback.** Drizzle's proxy always has a `batch` method, which throws when `drizzle()` got no batch callback. The Local API now sees that and falls back to sequential writes, so publish and search sync no longer fail with "Write failed" on that driver.
+  - **Drafts accept nested group data.** `saveDraft`, `scheduleDraft`, and `prepareDraft` take `{ seo: { title } }` as `create` does, and store it flat like the row. A flat snapshot (`seo_title`) still works.
+  - **`publish` returns the document nested,** as `create` and `update` do, and passes the nested shape to `afterChange` and the reindex.
+  - **`diffVersions` refuses two versions of different pages** with `LouiseContentError`, as its documentation said it would.
+
+  **Upgrading:** code that read a published document's flat group columns (`page.seo_title`) should read the nested field (`page.seo.title`).
+
+- a23b35a: Square client fixes (#700):
+
+  - **`retrieveTimecard` and `retrieveTeamMember` return `null` for a 404,** as `retrieveLocation` and the other retrieves already did, instead of throwing.
+  - **An empty 2xx body reads as an empty object,** so a caller that reads a field gets `undefined` rather than a `TypeError`.
+  - **`batchUpsertCatalogObjects` follows Square's object limits:**
+    - It packs items into batches of at most 1,000 objects, counting each variation.
+    - It refuses a write over 10,000 objects with a clear error before sending anything.
+    - It returns without a request for an empty list.
+
+    Before, it split into 10 even batches and left the limit to Square's 400.
+
+- dffa94e: Stripe invoice fixes (#701):
+
+  - **Currency case:** `createLineItemInvoice` lowercases the currency, as `createPaymentIntent` and `createAndSendInvoice` already do.
+  - **Fallback total:** when Stripe doesn't report the amount due, the total is summed from the rounded line amounts, the same values the invoice items were sent with.
+  - **Encoded ids:** both invoice helpers encode the invoice id in the finalize and send paths.
+
+- 0ae20ab: Visual editing fixes (#698):
+
+  - **Hover leaves no styles behind:** clearing the highlight restores `outline-offset` and `cursor`, not just `outline`.
+  - **An odd field key can't throw:** `applyPreviewValues` matches tagged regions by comparing the attribute, so a key containing `"` or `]` no longer breaks the selector.
+  - **Only object values are applied:** `applyPreviewValues` ignores a `values` payload that isn't an object.
+  - **An unguarded preview warns:** `mountPreviewSync` logs a warning when it has no `allowedOrigin`, since it then accepts preview values from any window.
+  - **Ids parse strictly:** `decodeEditRef` accepts only digits, so `pages:7abc:title` and a negative id are rejected.
+
 ## 0.36.0
 
 ### Minor Changes
