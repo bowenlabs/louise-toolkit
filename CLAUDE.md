@@ -63,6 +63,7 @@ corepack pnpm run lint:solid
 corepack pnpm run lint:arch                       # ast-grep invariants
 corepack pnpm run lint:core                       # no Astro in the core
 corepack pnpm run lint:names                      # no client site names
+corepack pnpm run lint:facts                      # no unrecorded currency, locale, or zone
 corepack pnpm run lint:docs                       # Vale ratchet (after `vale sync`)
 corepack pnpm run knip                            # dead code
 corepack pnpm run lint:release
@@ -217,6 +218,11 @@ the Worker's clock or the browser. A default is fine only for a fact about an
 external API (a provider's field limits, its SDK hosts), or when it's overridable
 and harmless. When you pull code up from a site, turn every site constant into a
 parameter, and call out any default that remains in the PR body.
+
+`corepack pnpm run lint:facts` checks the three facts that leak in as string
+literals: an ISO 4217 currency code, a BCP 47 locale with a region, and an IANA
+time zone, anywhere in `packages/louise/src`. A literal that stays goes on the
+allowlist in `scripts/ci/checks/site-fact-literals.mjs`, with its reason.
 
 ## Naming
 

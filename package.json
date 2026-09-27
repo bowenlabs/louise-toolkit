@@ -19,6 +19,7 @@
     "lint:docs": "node --test scripts/ci/checks/copy-extract.test.mjs && node scripts/ci/checks/vale-ratchet.mjs",
     "lint:core": "node scripts/ci/checks/no-astro-in-core.mjs",
     "lint:names": "node scripts/ci/checks/no-client-names.mjs",
+    "lint:facts": "node scripts/ci/checks/site-fact-literals.mjs",
     "lint:arch": "corepack pnpm --package=@ast-grep/cli@0.45.2 dlx ast-grep scan",
     "lint:solid": "corepack pnpm dlx --package=oxlint@1.73.0 --package=eslint-plugin-solid@0.17.0 oxlint packages/louise/src/client",
     "knip": "knip",
