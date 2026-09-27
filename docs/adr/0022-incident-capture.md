@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Proposed (2026-09-27)
+- **Status:** Accepted (2026-09-27)
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
