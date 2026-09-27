@@ -94,6 +94,19 @@ a disposer. A `file` field uploads through the media route and stores the
 returned URL. On a `422` the server's per-field messages are painted back onto
 the inputs.
 
+What `<Form>` does for assistive technology:
+
+- **Labels and hints:** each control has a `<label>`, and `aria-describedby`
+  points at its `help` text and, after a failed check, its error.
+- **Required fields:** a required field gets `required` and `aria-required`. The
+  form is `novalidate`, so no browser bubble appears, and `:required` is there
+  to style.
+- **After a failed check:** focus moves to the first invalid field, and the
+  status region says how many need attention. A server violation that matches
+  no field shows in the status region instead.
+- **IDs:** each control's ID is `louise-f-<form name>-<field>`, so two forms on
+  one page don't collide.
+
 ## Complex forms: TanStack Form (optional)
 
 The base `<Form>` covers flat, generated forms with no dependency. For a
