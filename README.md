@@ -9,9 +9,9 @@ Editing is the headline: no separate administration app, no JSON forms for prose
 and the live site becomes editable in place: text where the text is, structured
 sections through your own components, and back-office work in Louise Settings.
 
-[Documentation](https://docs.louisetoolkit.com) ·
-[Quickstart](https://docs.louisetoolkit.com/guide/quickstart) ·
-[Is Louise for you?](https://docs.louisetoolkit.com/guide/comparison) ·
+[Documentation](https://docs.louisetoolkit.org) ·
+[Quickstart](https://docs.louisetoolkit.org/guide/quickstart) ·
+[Is Louise for you?](https://docs.louisetoolkit.org/guide/comparison) ·
 [`louise-toolkit`](packages/louise)
 
 </div>
@@ -60,8 +60,7 @@ packages/
     src/theme/     # the "louise" daisyUI editor theme (fonts, CSS)
   louise-astro/    # @louise-toolkit/astro — the optional Astro adapter (middleware, Actions, loaders)
 workers/
-  site/            # louisetoolkit.com — Astro on Cloudflare Workers: the marketing site, itself built with Louise Toolkit
-  docs/            # docs.louisetoolkit.com — standalone Starlight; served by the same worker by Host
+  docs/            # docs.louisetoolkit.org — standalone Starlight on an assets-only Worker
   sandbox/         # sandbox.louisetoolkit.com — a live, write-capable demo that resets nightly
 ```
 
@@ -77,19 +76,19 @@ Then, from the repo root:
 
 ```sh
 vp install          # install the workspace
-pnpm build          # pack the library (vp pack) + build the site (astro build)
+pnpm build          # pack the library and the adapter, then build the sandbox and the docs
 pnpm test           # run the library's Vitest suite
 pnpm check          # Oxlint + Oxfmt + type-aware lint & type-check (TS7) over the library's TypeScript
 pnpm lint:astro     # Biome lint over .astro files
 pnpm lint:solid     # oxlint + eslint-plugin-solid over the SolidJS client
 pnpm knip           # dead-code check: unused files & exports across the workspace
 pnpm typecheck      # tsc over the library
-pnpm dev            # run louisetoolkit.com locally (marketing + Starlight docs)
+pnpm dev            # run the Starlight docs locally
 ```
 
 The library is packaged with `vp pack` (tsdown/Rolldown under the hood: multi-entry
 `.d.ts` generation, tree-shaking). See [`packages/louise`](packages/louise) for the package
-readme and [docs.louisetoolkit.com](https://docs.louisetoolkit.com) for the full guide and API
+readme and [docs.louisetoolkit.org](https://docs.louisetoolkit.org) for the full guide and API
 reference.
 
 ## Roadmap

@@ -54,8 +54,8 @@ so the font streams alongside the page instead of delaying first paint.
 
 The inlined face carries only `wght`. If your design uses `font-stretch`, you
 need the `wdth` axis too: self-host a variable woff2 instanced to `wght` and
-`wdth`, which is still far smaller than an all-axis file. The reference site's
-[`public/fonts/README.md`](https://github.com/bowenlabs/louise-toolkit/blob/main/workers/site/public/fonts/README.md)
+`wdth`, which is still far smaller than an all-axis file. The docs site's
+[`public/fonts/README.md`](https://github.com/bowenlabs/louise-toolkit/blob/main/workers/docs/public/fonts/README.md)
 has the `fontTools` commands. Whatever tool fetches the font, check that the
 file it returns keeps `wdth`: without the axis, `font-stretch` has no effect and
 the text renders at normal width.

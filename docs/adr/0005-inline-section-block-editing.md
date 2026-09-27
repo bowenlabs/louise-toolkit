@@ -288,3 +288,10 @@ One part of §3 landed differently:
   history into it would couple the two surfaces. The history drawer reuses the
   `.louise-drawer` styles. Merging the two drawers is an open follow-up, not a
   decision.
+
+## Amendment (2026-09-26): no reference section to convert
+
+The _Reference_ item, converting one `workers/site` section onto blocks, won't
+happen here: `workers/site` left the repository, and bowenlabs.io, the site that
+replaced it, is built with Astroid's section library. The item is closed rather
+than done. No decision above changes.

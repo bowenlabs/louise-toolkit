@@ -8,7 +8,7 @@ engineStrict: true
 
 # Dedupe @cloudflare/workers-types onto the v5 that packages/louise targets.
 # wrangler declares an optional ^4 peer, which otherwise pulls a second (v4) copy
-# into workers/site + workers/sandbox — splitting drizzle-orm into two
+# into workers/sandbox — splitting drizzle-orm into two
 # peer-keyed instances and producing spurious cross-version type errors.
 # workers-types is types-only, so pinning wrangler's optional peer forward to v5
 # has no runtime effect.
@@ -66,7 +66,7 @@ overrides:
   # sharp — GHSA-rgj7-g3m4-5g8c, two libheif vulnerabilities bundled into the
   # prebuilt binaries (GHSA-g89c-p67h-r497, GHSA-2jg2-4ch7-h545). Fixed in
   # 0.35.4. Dev-only: it reaches us through miniflare (wrangler and
-  # @cloudflare/vite-plugin) under workers/sandbox and workers/site, and its
+  # @cloudflare/vite-plugin) under workers/sandbox, and its
   # native build is disallowed below, so no vulnerable binary is ever installed —
   # `pnpm audit --prod` flags the resolution regardless. astro had already
   # resolved 0.35.4, so like the esbuild pin this UNIFIES two copies onto one.
