@@ -262,7 +262,6 @@ export function MediaUrlPicker(props: {
       <button
         class="louise-btn"
         type="button"
-        aria-invalid={props.errorId ? "true" : undefined}
         aria-describedby={props.errorId}
         onClick={() => setOpen(!open())}
       >

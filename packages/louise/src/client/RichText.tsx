@@ -226,7 +226,9 @@ function ResizableImage(props: SolidNodeViewProps) {
           }
         >
           {/* Closes when focus leaves the whole editor, not the text field, so
-              the decorative checkbox beside it can take focus. */}
+              the decorative checkbox beside it can take focus. The handlers are
+              delegated: they hear focus and keys from the two controls inside. */}
+          {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions */}
           <div
             class="louise-rt-alt-edit"
             onFocusOut={(e) => {
@@ -252,6 +254,8 @@ function ResizableImage(props: SolidNodeViewProps) {
               // Clearing the text means "not written yet", not decorative.
               onInput={(e) => props.setAttrs({ alt: e.currentTarget.value || null })}
             />
+            {/* Stops the editor taking the selection; the checkbox inside is the control. */}
+            {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
             <label class="louise-rt-alt-decorative" onMouseDown={(e) => e.stopPropagation()}>
               <input
                 type="checkbox"
