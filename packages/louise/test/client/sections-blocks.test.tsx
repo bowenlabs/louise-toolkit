@@ -270,6 +270,64 @@ describe("mountSections — multi-type block add-picker", () => {
     expect(paletteLabels("Add a block")).toEqual(["Feature", "Quote", "Aside"]);
   });
 
+  it("shows each type's SVG icon and description, and names the row by its label", async () => {
+    stubFetch();
+    const host = pageHost(["A"]);
+    const svg = '<svg viewBox="0 0 256 256"><path d="M0 0h256v256H0z"/></svg>';
+    dispose = mount(host, ["A"], {
+      catalog: MULTI_CATALOG,
+      blocks: {
+        // A class-name icon isn't drawn: on the page, `grid` could match the
+        // site's own CSS.
+        feature: { label: "Feature", icon: "grid", fields: {} },
+        quote: {
+          label: "Quote",
+          icon: svg,
+          description: "A pull quote with its source.",
+          fields: {},
+        },
+      },
+    });
+    await flush();
+
+    over(blockEls(host)[0].querySelector("div") as Node);
+    toolbarButtons()[3].click();
+    await flush();
+
+    const [feature, quote] = [...(palette("Add a block")?.querySelectorAll("button") ?? [])];
+    expect(feature.querySelector(".louise-palette-icon")).toBeNull();
+    expect(feature.hasAttribute("aria-describedby")).toBe(false);
+    expect(quote.querySelector(".louise-palette-icon svg")).not.toBeNull();
+    expect(quote.querySelector(".louise-palette-icon")?.getAttribute("aria-hidden")).toBe("true");
+    expect(quote.querySelector(".louise-palette-label")?.textContent).toBe("Quote");
+    const desc = document.getElementById(quote.getAttribute("aria-describedby") ?? "");
+    expect(desc?.textContent).toBe("A pull quote with its source.");
+    expect(quote.contains(desc)).toBe(true);
+  });
+
+  it("shows section descriptions in the add-section picker", async () => {
+    stubFetch();
+    const host = pageHost(["A"]);
+    dispose = mount(host, ["A"], {
+      catalog: {
+        grid: {
+          label: "Grid",
+          description: "Cards in columns.",
+          fields: {},
+          blocks: { allow: ["feature"] },
+        },
+      },
+    });
+    await flush();
+
+    (document.querySelector('[aria-controls="louise-add-section-picker"]') as HTMLElement).click();
+    await flush();
+
+    const row = palette("Add a section")?.querySelector("button");
+    expect(row?.querySelector(".louise-palette-label")?.textContent).toBe("Grid");
+    expect(row?.querySelector(".louise-palette-desc")?.textContent).toBe("Cards in columns.");
+  });
+
   it("inserts without a picker when only one type is allowed", async () => {
     const calls = stubFetch();
     const host = pageHost(["A"]);

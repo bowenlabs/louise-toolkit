@@ -125,9 +125,9 @@ export interface SectionField {
   options?: FieldOptions;
   /**
    * `select` only—an opaque hint for how the picker should render (for example,
-   * `"swatch"` for colour tokens). Passed through untouched, like
-   * {@link SectionDef.icon}: the schema layer has no business knowing what a
-   * swatch looks like, and a site's renderer may ignore it entirely.
+   * `"swatch"` for colour tokens). Passed through untouched: the schema
+   * layer has no business knowing what a swatch looks like, and a site's
+   * renderer may ignore it entirely.
    */
   display?: string;
   /**
@@ -170,8 +170,19 @@ export interface SectionField {
 export interface SectionDef {
   /** Palette label. */
   label: string;
-  /** Optional palette icon (opaque string passed through). */
+  /**
+   * Optional palette icon. The add picker draws it when it's inline SVG
+   * markup, such as a Phosphor icon imported with `?raw`, and sizes it to the
+   * text with `currentColor`. Any other string passes through untouched, and
+   * the picker doesn't draw it.
+   */
   icon?: string;
+  /**
+   * Optional one-sentence description the add picker shows under the label,
+   * so an owner knows what a type looks like before adding it. For example,
+   * "An image beside a heading and text."
+   */
+  description?: string;
   /** The section's editable fields, keyed by prop name. */
   fields: Record<string, SectionField>;
   /**
@@ -269,7 +280,10 @@ export type SectionCatalog = Record<string, SectionDef>;
  *  the same `array` / `discriminator` support, no separate path. */
 export interface BlockDef {
   label: string;
+  /** Optional palette icon, drawn as {@link SectionDef.icon} is. */
   icon?: string;
+  /** Optional one-sentence description, shown as {@link SectionDef.description} is. */
+  description?: string;
   fields: Record<string, SectionField>;
   /** Inspector-rail settings for this block (ADR 0005 §5): the block-level
    *  analogue of {@link SectionDef.settings}; values live under
