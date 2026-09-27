@@ -22,6 +22,7 @@ import {
   NODE_MARKER_ATTR,
   parseNodePath,
   type NodeDescriptor,
+  nodeName,
   type NodePath,
   readNodeMarkers,
   type ResolveNode,
@@ -163,14 +164,48 @@ function injectChromeStyle(doc: Document): void {
   doc.head.appendChild(style);
 }
 
+/** Elements with no role of their own, so a focused one announces nothing. */
+const GENERIC_TAGS = new Set(["DIV", "SPAN", "SECTION"]);
+
 /** Make a marked node a keyboard tab-stop so its toolbar is reachable without a
- *  mouse. Additive: never overwrites an author's own `tabindex`, and flags what it
- *  added with `data-louise-kbd` so the disposer removes exactly that. Idempotent. */
-function makeChromeFocusable(el: HTMLElement): void {
-  if (el.dataset.louiseKbd === "1" || el.hasAttribute("tabindex")) return;
-  el.tabIndex = 0;
-  el.setAttribute("aria-keyshortcuts", CHROME_KEYSHORTCUTS);
-  el.dataset.louiseKbd = "1";
+ *  mouse, and give a generic element a role and a name, so a screen reader says
+ *  what has focus (#596). Additive: never overwrites an author's own `tabindex`,
+ *  `role`, or name, and flags what it added (`data-louise-kbd`,
+ *  `-kbd-role`, `-kbd-label`) so the disposer removes exactly that. An element
+ *  with a native role, such as a link or a heading, keeps it. Idempotent. */
+function makeChromeFocusable(el: HTMLElement, desc: NodeDescriptor | null): void {
+  if (el.dataset.louiseKbd !== "1" && !el.hasAttribute("tabindex")) {
+    el.tabIndex = 0;
+    el.setAttribute("aria-keyshortcuts", CHROME_KEYSHORTCUTS);
+    el.dataset.louiseKbd = "1";
+  }
+  if (!desc || !GENERIC_TAGS.has(el.tagName)) return;
+  if (!el.hasAttribute("role")) {
+    el.setAttribute("role", "group");
+    el.dataset.louiseKbdRole = "1";
+  }
+  const named = el.hasAttribute("aria-labelledby") || el.hasAttribute("aria-label");
+  if (!named || el.dataset.louiseKbdLabel === "1") {
+    el.setAttribute("aria-label", nodeName(desc));
+    el.dataset.louiseKbdLabel = "1";
+  }
+}
+
+/** Remove what {@link makeChromeFocusable} added, and nothing else. */
+function unmakeChromeFocusable(el: HTMLElement): void {
+  if (el.dataset.louiseKbd === "1") {
+    el.removeAttribute("tabindex");
+    el.removeAttribute("aria-keyshortcuts");
+    delete el.dataset.louiseKbd;
+  }
+  if (el.dataset.louiseKbdRole === "1") {
+    el.removeAttribute("role");
+    delete el.dataset.louiseKbdRole;
+  }
+  if (el.dataset.louiseKbdLabel === "1") {
+    el.removeAttribute("aria-label");
+    delete el.dataset.louiseKbdLabel;
+  }
 }
 
 /** A marker rendered with `display: contents` generates NO box—the ring can't
@@ -200,6 +235,19 @@ function placeToolbar(toolbar: HTMLElement, el: HTMLElement): void {
   toolbar.style.top = `${Math.min(Math.max(4, box.top + 6), window.innerHeight - h - 4)}px`;
 }
 
+/** The mounted chrome: call it to dispose, as before. */
+export interface NodeChrome {
+  (): void;
+  /**
+   * Make a node inserted or re-rendered after mount keyboard-ready: `el` and
+   * every marked node inside it become tab stops with a role and a name. The
+   * chrome prepares what's on the page when it mounts; an editor calls this
+   * after `insertNodeElement` or `replaceNodeElement`, whose fresh markup
+   * carries none of it (#596).
+   */
+  prepare(el: HTMLElement): void;
+}
+
 /**
  * Mount the on-canvas chrome over every `data-louise-node` under the document.
  *
@@ -208,9 +256,9 @@ function placeToolbar(toolbar: HTMLElement, el: HTMLElement): void {
  * single attribute rather than a hand-ordered ladder with manual cross-clearing.
  *
  * Returns a disposer that removes the listeners, the toolbar, the injected style,
- * and every keyboard affordance it added.
+ * and every keyboard affordance it added, with a `prepare` for nodes added later.
  */
-export function mountNodeChrome(opts: NodeChromeActions, doc: Document = document): () => void {
+export function mountNodeChrome(opts: NodeChromeActions, doc: Document = document): NodeChrome {
   injectChromeStyle(doc);
 
   const button = (icon: string, title: string): HTMLButtonElement => {
@@ -359,7 +407,15 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
 
   // ── Keyboard path (a11y) ───────────────────────────────────────────────────
   // One path for every node kind, where there used to be one per layer.
-  for (const { el } of readNodeMarkers(doc)) makeChromeFocusable(el);
+  const prepareMarked = (el: HTMLElement): void => {
+    const path = parseNodePath(el.getAttribute(NODE_MARKER_ATTR));
+    makeChromeFocusable(el, path ? opts.resolve(path) : null);
+  };
+  for (const { el } of readNodeMarkers(doc)) prepareMarked(el);
+  const prepare = (root: HTMLElement): void => {
+    if (root.hasAttribute(NODE_MARKER_ATTR)) prepareMarked(root);
+    for (const el of root.querySelectorAll<HTMLElement>(SELECTOR)) prepareMarked(el);
+  };
 
   const enabledButtons = (): HTMLButtonElement[] =>
     [...toolbar.querySelectorAll<HTMLButtonElement>("button:not([disabled])")].filter(
@@ -453,19 +509,17 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   doc.addEventListener("focusin", onFocusIn, true);
   doc.addEventListener("keydown", onKeyDown, true);
 
-  return () => {
+  const dispose = (): void => {
     doc.removeEventListener("mouseover", onOver, true);
     doc.removeEventListener("focusin", onFocusIn, true);
     doc.removeEventListener("keydown", onKeyDown, true);
     clear();
-    for (const el of doc.querySelectorAll<HTMLElement>("[data-louise-kbd]")) {
-      el.removeAttribute("tabindex");
-      el.removeAttribute("aria-keyshortcuts");
-      delete el.dataset.louiseKbd;
-    }
+    const added = "[data-louise-kbd], [data-louise-kbd-role], [data-louise-kbd-label]";
+    for (const el of doc.querySelectorAll<HTMLElement>(added)) unmakeChromeFocusable(el);
     toolbar.remove();
     doc.getElementById(CHROME_STYLE_ID)?.remove();
   };
+  return Object.assign(dispose, { prepare });
 }
 
 export { samePath };

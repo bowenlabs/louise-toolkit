@@ -114,6 +114,25 @@ export interface NodeDescriptor {
   label?: string;
 }
 
+/** The word for a node of each tone, as a person would say it. */
+const TONE_NOUN: Record<NodeTone, string> = {
+  section: "Section",
+  block: "Block",
+  value: "Field",
+  shared: "Shared section",
+  external: "External content",
+};
+
+/**
+ * A node's accessible name, such as "Section · Hero": what it is, then which
+ * one. The node and its toolbar both use it, so the name a screen reader reads
+ * on focus matches the toolbar that opens from it (#596, #542).
+ */
+export function nodeName(desc: NodeDescriptor): string {
+  const noun = TONE_NOUN[desc.tone ?? "section"];
+  return desc.label ? `${noun} · ${desc.label}` : noun;
+}
+
 /** Ring/toolbar palettes. `section`/`block`/`value` preserve the pre-0010 orange /
  *  blue / violet; Phase B adds `shared` (green) and `external` (yellow). */
 export type NodeTone = "section" | "block" | "value" | "shared" | "external";

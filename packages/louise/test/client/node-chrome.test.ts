@@ -441,3 +441,44 @@ describe("mountNodeChrome — actions carry the path", () => {
     expect(section.hasAttribute("tabindex")).toBe(false);
   });
 });
+
+describe("mountNodeChrome—a focused node says what it is (#596)", () => {
+  it("names a generic node as a group, from the same text as its toolbar", () => {
+    const { section, block } = tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    expect(section.getAttribute("role")).toBe("group");
+    expect(section.getAttribute("aria-label")).toBe("Section · Hero");
+    expect(block.getAttribute("aria-label")).toBe("Block · block");
+  });
+
+  it("leaves a native role, and an author's own role and name, alone", () => {
+    const { section, field } = tree();
+    section.setAttribute("role", "region");
+    section.setAttribute("aria-label", "Welcome");
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    expect(field.hasAttribute("role")).toBe(false);
+    expect(field.hasAttribute("aria-label")).toBe(false);
+    expect(section.getAttribute("role")).toBe("region");
+    expect(section.getAttribute("aria-label")).toBe("Welcome");
+  });
+
+  it("removes exactly what it added when disposed", () => {
+    const { section } = tree();
+    const chrome = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    chrome();
+    expect(section.hasAttribute("tabindex")).toBe(false);
+    expect(section.hasAttribute("role")).toBe(false);
+    expect(section.hasAttribute("aria-label")).toBe(false);
+  });
+
+  it("prepares a node inserted after mount, with its marked descendants", () => {
+    const chrome = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    dispose = chrome;
+    const { section, block } = tree();
+    expect(block.hasAttribute("tabindex")).toBe(false);
+    chrome.prepare(section);
+    expect(section.tabIndex).toBe(0);
+    expect(block.tabIndex).toBe(0);
+    expect(block.getAttribute("aria-label")).toBe("Block · block");
+  });
+});
