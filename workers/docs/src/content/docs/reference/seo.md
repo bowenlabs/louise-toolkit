@@ -1,6 +1,6 @@
 ---
 title: seo
-description: "louise-toolkit/seo—a page row and site settings turned into head tags, plus sitemap.xml and robots.txt builders."
+description: "louise-toolkit/seo—a page row and site settings turned into head tags and JSON-LD, plus sitemap.xml and robots.txt builders."
 sidebar:
   order: 15.6
 ---
@@ -102,7 +102,21 @@ what a share gets. Pass `ogCard: false` in the Settings config when your site
 renders no cards, and the preview falls back to the default image the way a
 share does.
 
-<<<<<<< HEAD
+## `sitemapXml(entries)` and `robotsTxt(options?)`
+
+Two pure builders. `sitemapXml` turns `{ loc, lastmod? }` entries into a
+`sitemap.xml` document, in the order given, with every value escaped; a
+`lastmod` that isn't a valid date is left out. `robotsTxt({ sitemapUrl?,
+disallow? })` writes a `robots.txt` for every crawler, allowing everything
+unless you list paths.
+
+Don't disallow a `noindex` page. A crawler that can't fetch a page never sees its
+`noindex`, so the page can still be indexed from links to it.
+
+To serve both from the published pages, mount
+[`sitemapRoute`](/reference/editor/#the-sitemap-route) from
+`louise-toolkit/editor`.
+
 ## JSON-LD structured data
 
 Search engines read schema.org markup to learn outright what a page is about.
@@ -136,22 +150,6 @@ Mark up only what the page visibly shows. A structured address, opening hours,
 and business type have no `site_settings` column yet: keep them in the row's
 `custom` JSON, and render the visible address and hours from the same values,
 so the text and the markup can't disagree.
-=======
-## `sitemapXml(entries)` and `robotsTxt(options?)`
-
-Two pure builders. `sitemapXml` turns `{ loc, lastmod? }` entries into a
-`sitemap.xml` document, in the order given, with every value escaped; a
-`lastmod` that isn't a valid date is left out. `robotsTxt({ sitemapUrl?,
-disallow? })` writes a `robots.txt` for every crawler, allowing everything
-unless you list paths.
-
-Don't disallow a `noindex` page. A crawler that can't fetch a page never sees its
-`noindex`, so the page can still be indexed from links to it.
-
-To serve both from the published pages, mount
-[`sitemapRoute`](/reference/editor/#the-sitemap-route) from
-`louise-toolkit/editor`.
->>>>>>> origin/main
 
 ## Limits
 
