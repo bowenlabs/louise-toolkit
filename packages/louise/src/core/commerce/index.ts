@@ -102,3 +102,6 @@ export {
   type ParseMoneyOptions,
   parseMoneyInput,
 } from "./money.js";
+
+// Tip math: preset percentages and a cap, with the shop's policy as parameters.
+export { clampTip, parseTipCents, percentTip, tipCap, type TipCapOptions } from "./tip.js";
