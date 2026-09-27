@@ -5,7 +5,8 @@
   (2026-07-28). The fragment-render contract, instant structural ops, and the
   inspector stand and are generalized there. Note especially that this ADR's
   "blocks are flat; they do not nest in v1" is a limitation of the hand-rolled
-  layer model, not a product decision.
+  layer model, not a product decision. **Amended 2026-09-27:** the bar's status,
+  History, and what didn't ship (see below).
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0003 (Astroid `<Section>` / `<Editable>` primitives), ADR 0001
   (opinionated where it's expensive), #12 (structure builder), #13 (block
@@ -295,3 +296,25 @@ The _Reference_ item, converting one `workers/site` section onto blocks, won't
 happen here: `workers/site` left the repository, and bowenlabs.io, the site that
 replaced it, is built with Astroid's section library. The item is closed rather
 than done. No decision above changes.
+
+## Amendment (2026-09-27): the bar's status, History, and what didn't ship
+
+Four statements above had stopped being true (#468):
+
+- **The bar's status.** §3 says the bar shows "Unsaved → Saving… → Draft saved."
+  Until #468 a sections page showed nothing while saving or after, only a bare
+  "Couldn't save" on a failure. It now shows "Saving…," then "Draft saved" for
+  about 3 seconds, in a status region that's in the page at rest. A failure is
+  worded for its action in an alert with **Try again**: "Couldn't save your
+  draft. Your edits are still here.," "Couldn't publish. The live page hasn't
+  changed.," or "Couldn't delete the draft." The server's reason follows when it
+  gave one. "Unsaved" isn't shown: with autosave it lasts only until the debounce.
+- **Where History opens.** The 2026-09-24 amendment puts a History button on the
+  edit bar. The trigger moved to the Settings drawer's top strip; the bar's button
+  is only a fallback for a host that mounts sections without `mountSettings`. The
+  history drawer itself is unchanged.
+- **Duplicate and drag-to-reorder never shipped.** Reorder is move up and move
+  down, on the toolbar and with Alt+Up and Alt+Down, which now announce where the
+  node landed. There's no duplicate. Both remain open ideas, not decisions.
+- **Color coding.** Orange for sections and blue for blocks gave way to one ring
+  color and a toolbar tag that names the node (#603, ADR 0019 §4).

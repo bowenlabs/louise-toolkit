@@ -90,6 +90,13 @@ export function PagesPanel(props: {
   }));
   const searching = () => q().trim().length > 0;
   const shown = () => (searching() ? (searchQuery.data ?? []) : list());
+  // How many pages match, read out as the owner types (#468). Empty at rest,
+  // and while the search is still running.
+  const matchCount = () => {
+    if (!searching() || searchQuery.isFetching) return "";
+    const n = shown().length;
+    return n === 0 ? "No pages match" : `${n} ${n === 1 ? "page matches" : "pages match"}`;
+  };
 
   const createMutation = useMutation(() => ({
     mutationFn: (input: { title: string; slug: string; body?: string }) =>
@@ -140,7 +147,11 @@ export function PagesPanel(props: {
             placeholder="Search pages…"
             value={q()}
             onInput={(e) => setQ(e.currentTarget.value)}
+            aria-describedby="louise-pages-match-count"
           />
+          <p id="louise-pages-match-count" class="louise-muted louise-settings-hint" role="status">
+            {matchCount()}
+          </p>
           <Show
             when={!query.isLoading}
             fallback={<Skeleton label="Loading your pages" count={4} />}

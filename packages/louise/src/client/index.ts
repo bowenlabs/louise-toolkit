@@ -346,8 +346,16 @@ function createChrome(opts: ChromeOptions): Chrome {
       for (const peer of peers) {
         const dot = document.createElement("span");
         dot.className = "louise-avatar";
-        dot.textContent = initials(peer.name);
         dot.title = `${peer.name} is editing`;
+        // The initials are drawn; the name is what a screen reader hears (#468).
+        const mark = document.createElement("span");
+        mark.setAttribute("aria-hidden", "true");
+        mark.textContent = initials(peer.name);
+        const name = document.createElement("span");
+        name.className = "louise-sr-only";
+        name.textContent = `${peer.name} is editing`;
+        dot.appendChild(mark);
+        dot.appendChild(name);
         presence.appendChild(dot);
       }
     },

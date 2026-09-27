@@ -192,6 +192,27 @@ export interface SectionsEditorProps {
   realtime?: RealtimeOption;
 }
 
+/** How long a wait runs before the bar says so (the Doherty threshold). */
+const WORKING_AFTER_MS = 400;
+
+/** How long "Draft saved" stays in the bar after a save. */
+const SAVED_FLASH_MS = 3000;
+
+/** An action whose failure the bar words for itself. */
+type FailedAction = "save" | "publish" | "discard";
+
+/** A failure in words for its action, and what's still true, then the
+ *  server's reason when it gave one (#468). */
+function failureText(action: FailedAction, detail: string): string {
+  const base =
+    action === "publish"
+      ? "Couldn’t publish. The live page hasn’t changed."
+      : action === "discard"
+        ? "Couldn’t delete the draft."
+        : "Couldn’t save your draft. Your edits are still here.";
+  return detail ? `${base} ${detail}` : base;
+}
+
 /** The note beside Publish that says why it's unavailable, for its
  *  `aria-describedby`. */
 const PUBLISH_REASON_ID = "louise-sections-publish-reason";
@@ -927,6 +948,40 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // A specific save-failure reason (for example, a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
+  // The action that failed and how to try it again, for the bar's alert, which
+  // words the failure for its action (#468).
+  const [failed, setFailed] = createSignal<{ action: FailedAction; retry: () => void } | null>(
+    null,
+  );
+  // A wait the owner should hear about, such as "Adding section…". Set only
+  // once the wait passes WORKING_AFTER_MS, so a quick one stays quiet (#468).
+  const [working, setWorking] = createSignal<string | null>(null);
+  const whileWorking = async <T,>(
+    label: string,
+    busy: HTMLElement | null,
+    run: () => Promise<T>,
+  ): Promise<T> => {
+    const timer = setTimeout(() => {
+      setWorking(label);
+      busy?.setAttribute("aria-busy", "true");
+    }, WORKING_AFTER_MS);
+    try {
+      return await run();
+    } finally {
+      clearTimeout(timer);
+      setWorking(null);
+      busy?.removeAttribute("aria-busy");
+    }
+  };
+  // "Draft saved" shows for a few seconds after a save, then clears.
+  const [savedFlash, setSavedFlash] = createSignal(false);
+  let savedFlashTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(savedFlashTimer));
+  const flashSaved = () => {
+    setSavedFlash(true);
+    clearTimeout(savedFlashTimer);
+    savedFlashTimer = setTimeout(() => setSavedFlash(false), SAVED_FLASH_MS);
+  };
 
   const [versions, setVersions] = createSignal<VersionRow[]>([]);
   // The id of the version that is currently LIVE (page's `published_version_id`),
@@ -940,6 +995,27 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     (InspectTarget & { top: number; left: number }) | null
   >(null);
   const hasDraft = () => versions().some((v) => v.status === "draft");
+  // The bar's status line: in progress, then "Draft saved" for a moment, or the
+  // confirmation after a publish reloaded the page.
+  const statusText = () =>
+    working() ??
+    (status() === "saving"
+      ? "Saving…"
+      : status() === "publishing"
+        ? "Publishing…"
+        : savedFlash()
+          ? "Draft saved"
+          : justPublished()
+            ? PUBLISHED_MESSAGE
+            : "");
+  const statusState = () =>
+    working() || status() === "saving" || status() === "publishing"
+      ? "saving"
+      : savedFlash()
+        ? "saved"
+        : justPublished()
+          ? "published"
+          : "idle";
   // Publish needs something to publish, and nothing already in flight.
   const nothingToPublish = () => !dirty() && !hasDraft();
   const canPublish = () => status() !== "publishing" && !nothingToPublish();
@@ -968,6 +1044,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const touched = () => {
     editGen++;
     setJustPublished(false);
+    setSavedFlash(false);
     setDirty(true);
     if (status() !== "idle") setStatus("idle");
     if (autoCfg.enabled) auto?.schedule();
@@ -1134,8 +1211,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   });
 
   // Parse a `{ error, violations }` body into a display detail (validation reason).
-  const detailFrom = (body: { error?: string; violations?: { message: string }[] } | null) =>
-    body?.violations?.[0]?.message ?? body?.error;
+  // The server's own reason for a refused request. Only a 4xx carries one
+  // written for the owner; a 5xx's text can be internals, so it isn't shown.
+  const detailFrom = (
+    body: { error?: string; violations?: { message: string }[] } | null,
+    status: number,
+  ) =>
+    status >= 400 && status < 500 ? (body?.violations?.[0]?.message ?? body?.error) : undefined;
 
   // Save the current sections as a DRAFT (the live page is untouched until
   // publish). Resolves with the new version's id when the save wrote one (a
@@ -1169,7 +1251,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         return null;
       }
       if (!res.ok) {
-        const detail = detailFrom(body);
+        const detail = detailFrom(body, res.status);
         if (detail) setErrorDetail(detail);
         throw new Error(`draft failed: ${res.status}`);
       }
@@ -1182,7 +1264,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   // A save that resolved null: a conflict waiting for the owner, or an error.
-  const failSave = () => setStatus(conflictRev() !== undefined ? "conflict" : "error");
+  const failSave = () => {
+    if (conflictRev() !== undefined) return setStatus("conflict");
+    setFailed({ action: "save", retry: () => void save() });
+    setStatus("error");
+  };
 
   // The conflict's two ways out (#572). Keep mine saves again with their
   // revision as the base, so it replaces exactly what the owner was shown;
@@ -1201,11 +1287,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // edit).
   const save = async () => {
     const gen = editGen;
+    setFailed(null);
     setStatus("saving");
     if ((await saveDraft()) !== null) {
       // Leave dirty set if an edit landed mid-save, so the auto-saver reschedules.
       if (editGen === gen) setDirty(false);
       setStatus("saved");
+      flashSaved();
       void loadVersions();
     } else {
       failSave();
@@ -1224,12 +1312,18 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // Supersede any queued auto-save so it can't stage a draft mid-publish.
     auto?.cancel();
     setErrorDetail("");
+    setFailed(null);
     setStatus("publishing");
+    const failPublish = () => {
+      setFailed({ action: "publish", retry: () => void publish(versionId) });
+      setStatus("error");
+    };
     let vid = versionId;
     if (vid === undefined && dirty()) {
       const saved = await saveDraft();
       if (saved === null) {
-        failSave();
+        if (conflictRev() !== undefined) setStatus("conflict");
+        else failPublish();
         return;
       }
       // A buffered save names no version; publishing "the latest draft" then
@@ -1248,7 +1342,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           error?: string;
           violations?: { message: string }[];
         } | null;
-        const detail = detailFrom(body);
+        const detail = detailFrom(body, res.status);
         if (detail) setErrorDetail(detail);
         throw new Error(`publish failed: ${res.status}`);
       }
@@ -1257,7 +1351,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       location.reload();
     } catch (err) {
       console.error("[louise] publish failed", err);
-      setStatus("error");
+      failPublish();
     }
   };
 
@@ -1265,6 +1359,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // is never live), so just re-fetch the list—no reload.
   const discardDraft = async (versionId: number) => {
     setErrorDetail("");
+    setFailed(null);
     try {
       const res = await fetch(`/api/louise/pages/${props.pageId}/discard`, {
         method: "POST",
@@ -1273,12 +1368,14 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        if (body?.error) setErrorDetail(body.error);
+        const detail = detailFrom(body, res.status);
+        if (detail) setErrorDetail(detail);
         throw new Error(`discard failed: ${res.status}`);
       }
       void loadVersions();
     } catch (err) {
       console.error("[louise] discard draft failed", err);
+      setFailed({ action: "discard", retry: () => void discardDraft(versionId) });
       setStatus("error");
     }
   };
@@ -1353,7 +1450,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const rerenderSection = async (i: number): Promise<void> => {
     const item = state.items[i];
     const onPage = !!nodeEl([i]);
-    const html = item && onPage ? await renderSectionFragment(unwrap(item) as SectionItem) : null;
+    const html =
+      item && onPage
+        ? await whileWorking("Updating section…", nodeEl([i]), () =>
+            renderSectionFragment(unwrap(item) as SectionItem),
+          )
+        : null;
     const tmp = html ? document.createElement("div") : null;
     if (tmp) tmp.innerHTML = html as string;
     // The fragment's OUTERMOST marked node is the section itself (its blocks and
@@ -1409,7 +1511,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       return next;
     });
 
-    const html = await renderSectionFragment(item);
+    const html = await whileWorking("Adding section…", null, () => renderSectionFragment(item));
     const tmp = html ? document.createElement("div") : null;
     if (tmp) tmp.innerHTML = html as string;
     const el = tmp?.querySelector<HTMLElement>(`[${NODE_MARKER_ATTR}]`) ?? null;
@@ -1836,27 +1938,39 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const BarControls = () => (
     <>
       {/* Realtime presence—the other editors on this page (empty strip hides). */}
-      <Show when={peers().length > 0}>
-        <span class="louise-presence" aria-live="polite">
-          <For each={peers()}>
-            {(peer) => (
-              <span class="louise-avatar" title={`${peer.name} is editing`}>
-                {initials(peer.name)}
-              </span>
-            )}
-          </For>
-        </span>
-      </Show>
+      {/* In the page at rest, so the first editor who joins is announced, by
+          name rather than initials (#468). */}
+      <span class="louise-presence" aria-live="polite">
+        <For each={peers()}>
+          {(peer) => (
+            <span class="louise-avatar" title={`${peer.name} is editing`}>
+              <span aria-hidden="true">{initials(peer.name)}</span>
+              <span class="louise-sr-only">{peer.name} is editing</span>
+            </span>
+          )}
+        </For>
+      </span>
       {/* The bar's status region, always in the page so a message written into
           it is announced. It says the page went live after a publish reloads it
           (#597). */}
-      <span class="louise-status" data-status="published" role="status">
-        {justPublished() ? PUBLISHED_MESSAGE : ""}
+      <span class="louise-status" data-status={statusState()} role="status">
+        {statusText()}
       </span>
-      <Show when={status() === "error"}>
-        <span class="louise-sections-status" data-status="error" title={errorDetail()}>
-          {errorDetail() || "Couldn’t save"}
-        </span>
+      {/* The failure, worded for the action that failed, in an alert that's
+          always in the page so it's announced (#468). */}
+      <span
+        class="louise-sections-status"
+        data-status={failed() ? "error" : undefined}
+        role="alert"
+      >
+        {failed() ? failureText(failed()!.action, errorDetail()) : ""}
+      </span>
+      <Show when={failed()}>
+        {(f) => (
+          <button class="louise-btn louise-btn-xs" type="button" onClick={() => f().retry()}>
+            Try again
+          </button>
+        )}
       </Show>
       <Show when={status() === "conflict"}>
         <span class="louise-sections-status" data-status="error" aria-live="polite">
