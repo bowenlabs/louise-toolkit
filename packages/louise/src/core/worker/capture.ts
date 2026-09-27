@@ -1,0 +1,178 @@
+// Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
+//
+// louise-toolkit/worker—incident capture at the edges `composeWorker` owns
+// (ADR 0022 § 3).
+//
+// A throw from `fetch`, `queue`, or `scheduled` becomes an `IncidentReport`,
+// goes to the site's sinks through `ctx.waitUntil`, and is re-thrown, so
+// Cloudflare answers exactly as it would have. A `reportDegraded` call has no
+// `ctx` of its own, so each one waits in a small buffer until the next handler
+// in this isolate finishes and flushes it.
+//
+// Nothing here may fail the work it reports on. A sink that throws is logged
+// with `console.error`, not `reportDegraded`: a degrade from a failing sink
+// would feed the next flush, which would fail the same way, forever.
+
+import { onDegraded, type DegradedEvent } from "../degraded.js";
+import {
+  buildIncidentReport,
+  incidentFromDegraded,
+  isCriticalIncident,
+  type IncidentInput,
+  type IncidentReport,
+  type IncidentSink,
+} from "../incidents/index.js";
+
+/** How `onIncident` is configured, in full. */
+export interface IncidentCaptureOptions<Env = unknown> {
+  /** One sink or several. Each gets every report. */
+  readonly sinks: IncidentSink | readonly IncidentSink[];
+  /**
+   * The failures that should alert: dotted names (`commerce.checkout`) and
+   * path prefixes (`/cart`). See `isCriticalIncident`. Everything else is
+   * counted and alerts no one.
+   */
+  readonly critical?: readonly string[];
+  /**
+   * The deployed version, read from the Worker's bindings, for example, a
+   * version metadata binding's `id`. Omitted, reports carry no release.
+   */
+  readonly release?: (env: Env) => string | undefined;
+}
+
+/** What `onIncident` takes: one sink, a list, or the full options. */
+export type IncidentCapture<Env = unknown> =
+  | IncidentSink
+  | readonly IncidentSink[]
+  | IncidentCaptureOptions<Env>;
+
+/** Degrades a buffer holds before it drops the rest until the next flush. */
+const MAX_PENDING_DEGRADES = 100;
+
+/**
+ * Wrap a Worker's handlers so every failure they see becomes an incident.
+ * `composeWorker` does this for you when you pass `onIncident`; call it
+ * directly only for a handler you compose by hand. Call it once per Worker,
+ * at module scope: each call listens for degrades in this isolate.
+ *
+ * `fetch`, `queue`, and `scheduled` keep their behavior. A throw is reported,
+ * then re-thrown. A handler that isn't there stays absent.
+ */
+export function withIncidentCapture<Env, QMessage>(
+  handler: ExportedHandler<Env, QMessage>,
+  capture: IncidentCapture<Env>,
+): ExportedHandler<Env, QMessage> {
+  const { sinks, critical, release } = normalize(capture);
+  const pending: { event: DegradedEvent; at: number }[] = [];
+  let dropped = 0;
+  onDegraded((event) => {
+    if (pending.length < MAX_PENDING_DEGRADES) pending.push({ event, at: Date.now() });
+    else dropped++;
+  });
+
+  const releaseOf = (env: Env): string | undefined => {
+    try {
+      return release?.(env) || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const dispatch = (reports: IncidentReport[], ctx: ExecutionContext): void => {
+    if (reports.length === 0) return;
+    const work = reports.flatMap((report) => {
+      const marked = critical.length
+        ? { ...report, critical: isCriticalIncident(report, critical) }
+        : report;
+      return sinks.map((sink) =>
+        Promise.resolve()
+          .then(() => sink(marked))
+          .catch((err: unknown) => {
+            console.error(
+              `[louise] incident sink failed for ${marked.name} (${marked.fingerprint})`,
+              err,
+            );
+          }),
+      );
+    });
+    try {
+      ctx.waitUntil(Promise.all(work));
+    } catch (err) {
+      console.error("[louise] incident capture couldn't schedule its sinks", err);
+    }
+  };
+
+  // Called in a `finally`, so it must not throw either.
+  const flush = (env: Env, ctx: ExecutionContext, thrown?: IncidentInput): void => {
+    try {
+      const releaseValue = releaseOf(env);
+      const reports: IncidentReport[] = [];
+      if (thrown) reports.push(buildIncidentReport({ ...thrown, release: releaseValue }));
+      for (const { event, at } of pending.splice(0)) {
+        reports.push(incidentFromDegraded(event, { release: releaseValue, now: at }));
+      }
+      if (dropped > 0) {
+        console.error(`[louise] incident capture dropped ${dropped} degrades; its buffer was full`);
+        dropped = 0;
+      }
+      dispatch(reports, ctx);
+    } catch (err) {
+      console.error("[louise] incident capture failed", err);
+    }
+  };
+
+  const wrapped: ExportedHandler<Env, QMessage> = { ...handler };
+  const { fetch, queue, scheduled } = handler;
+  if (fetch) {
+    wrapped.fetch = async (request, env, ctx) => {
+      let thrown: IncidentInput | undefined;
+      try {
+        return await fetch(request, env, ctx);
+      } catch (err) {
+        thrown = { kind: "fetch", cause: err, request: request as unknown as Request };
+        throw err;
+      } finally {
+        flush(env, ctx, thrown);
+      }
+    };
+  }
+  if (queue) {
+    wrapped.queue = async (batch, env, ctx) => {
+      let thrown: IncidentInput | undefined;
+      try {
+        await queue(batch, env, ctx);
+      } catch (err) {
+        thrown = { kind: "queue", cause: err, path: batch.queue };
+        throw err;
+      } finally {
+        flush(env, ctx, thrown);
+      }
+    };
+  }
+  if (scheduled) {
+    wrapped.scheduled = async (controller, env, ctx) => {
+      let thrown: IncidentInput | undefined;
+      try {
+        await scheduled(controller, env, ctx);
+      } catch (err) {
+        thrown = { kind: "scheduled", cause: err, path: controller.cron };
+        throw err;
+      } finally {
+        flush(env, ctx, thrown);
+      }
+    };
+  }
+  return wrapped;
+}
+
+function normalize<Env>(capture: IncidentCapture<Env>): {
+  sinks: readonly IncidentSink[];
+  critical: readonly string[];
+  release: ((env: Env) => string | undefined) | undefined;
+} {
+  if (typeof capture === "function") return { sinks: [capture], critical: [], release: undefined };
+  if (Array.isArray(capture)) return { sinks: capture, critical: [], release: undefined };
+  const options = capture as IncidentCaptureOptions<Env>;
+  const sinks = typeof options.sinks === "function" ? [options.sinks] : options.sinks;
+  return { sinks, critical: options.critical ?? [], release: options.release };
+}

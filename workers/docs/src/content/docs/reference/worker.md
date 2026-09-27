@@ -26,6 +26,7 @@ interface ComposeWorkerOptions<Env> {
   queue?: ExportedHandler<Env>["queue"];
   scheduled?: ExportedHandler<Env>["scheduled"];
   gate?: { resolveEditor: ResolveEditor<Env>; prefix?: string }; // see below
+  onIncident?: IncidentCapture<Env>; // see below
 }
 ```
 
@@ -107,6 +108,59 @@ function. It returns `null` to let the request through, or the 401 or 403
 `Response` to send instead. `prefix` changes the protected path from
 `/api/louise`. Without `gate`, `composeWorker` behaves as before. The reasoning
 is in ADR 0012.
+
+### Incident capture: `onIncident`
+
+```ts
+type IncidentCapture<Env> =
+  | IncidentSink
+  | IncidentSink[]
+  | {
+      sinks: IncidentSink | IncidentSink[];
+      critical?: string[]; // dotted names and path prefixes
+      release?: (env: Env) => string | undefined;
+    };
+```
+
+Set `onIncident` and every failure the Worker's handlers see becomes an
+[`IncidentReport`](/reference/incidents/) sent to your sinks:
+
+- **A throw** from a route, the fallback, `queue`, or `scheduled` is reported,
+  then re-thrown, so Cloudflare answers exactly as it would have. A `queue`
+  report's `path` is the queue's name; a `scheduled` report's is the cron
+  expression.
+- **A `reportDegraded` call** is reported too. A degrade has no `ctx` of its
+  own, so it waits in a buffer of up to 100 until the next handler in the
+  isolate finishes. A degrade past that limit is dropped and counted in a log
+  line.
+
+Sinks run through `ctx.waitUntil`, after the response. A sink that throws or
+rejects is logged and ignored; it never degrades, because that degrade would
+feed the next flush and fail the same way.
+
+```ts
+export default composeWorker<Env>({
+  routes: [louiseApiRoute],
+  fetch: ssrHandler,
+  onIncident: {
+    sinks: [logIncident],
+    critical: ["commerce.checkout", "/cart"],
+    release: (env) => env.VERSION?.id,
+  },
+});
+```
+
+`critical` marks the failures that should alert. An entry that starts with `/`
+is a path prefix: `/cart` matches `/cart/items`, not `/cartoon`. Any other entry
+is a name, and matches the dotted names under it too. The site decides, because
+only the site knows which failures matter most (ADR 0022 § 6).
+
+`release` reads the deployed version from the Worker's bindings, such as a
+version metadata binding. A `release` that throws is ignored.
+
+Compose once per Worker, at module scope: each composed Worker listens for
+degrades in its isolate. For a handler you compose by hand,
+`withIncidentCapture(handler, capture)` does the same wrapping.
 
 ## `withEdgeCache(handler, config)`
 
@@ -227,5 +281,6 @@ generally safe to retry. `describeFailure(ctx)` builds a flat, serializable
 
 ## Types
 
-`WorkerRoute`, `ComposeWorkerOptions`, `EdgeCacheConfig`, `HealingRule`,
-`HealingContext`, `HealingOptions`, `FailureReport`.
+`WorkerRoute`, `ComposeWorkerOptions`, `IncidentCapture`,
+`IncidentCaptureOptions`, `EdgeCacheConfig`, `HealingRule`, `HealingContext`,
+`HealingOptions`, `FailureReport`.

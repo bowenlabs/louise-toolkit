@@ -10,6 +10,7 @@ import {
   buildIncidentReport,
   fingerprintFailure,
   incidentFromDegraded,
+  isCriticalIncident,
   MAX_INCIDENT_MESSAGE,
   redactMessage,
   type IncidentInput,
@@ -26,8 +27,9 @@ This subpath is the pure part: the report's shape, the fingerprint, and the
 redaction. No bindings and no peers.
 
 The design is [ADR 0022](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0022-incident-capture.md).
-Capture in `composeWorker` and the sinks that store and forward reports build on
-these pieces.
+[`composeWorker`'s `onIncident`](/reference/worker/#incident-capture-onincident)
+captures reports from a Worker's handlers. The sinks that store and forward them
+build on these pieces.
 
 ## `IncidentReport`
 
@@ -111,6 +113,21 @@ Replaces email addresses with `[email]`, and any run of 24 or more token
 characters that includes a digit with `[redacted]`. Every report's `message` and
 `path` go through it. It's a floor, not a guarantee: never put personal data in
 an error message or a degrade's details.
+
+## `isCriticalIncident(report, critical)`
+
+```ts
+function isCriticalIncident(
+  report: Pick<IncidentReport, "name" | "path">,
+  critical: readonly string[],
+): boolean;
+```
+
+Whether a report matches a site's critical list. An entry that starts with `/`
+is a path prefix: `/cart` matches `/cart` and `/cart/checkout`, not `/cartoon`.
+Any other entry is a name, and matches that name and the dotted names under it:
+`commerce.checkout` matches `commerce.checkout.session` too. `onIncident` runs it
+for you when you pass `critical`.
 
 ## `IncidentSink`
 
