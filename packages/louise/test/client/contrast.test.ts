@@ -145,6 +145,78 @@ describe("the editor chrome", () => {
     return out;
   }
 
+  // Both schemes' roles as hex: light from the `:root` block, dark from the
+  // same with DARK_ROLES laid over it (#603).
+  const darkRoles: Record<string, string> = {};
+  const darkBlock = /const DARK_ROLES = `([\s\S]*?)`;/.exec(stylesSource)?.[1] ?? "";
+  for (const m of darkBlock.matchAll(/(--louise-[\w-]+):\s*(#[0-9a-f]{6});/gi))
+    darkRoles[m[1]] = m[2];
+  const schemes: Array<[string, (role: string) => string]> = [
+    ["light", (role) => resolve(`var(${role})`)],
+    ["dark", (role) => darkRoles[role] ?? resolve(`var(${role})`)],
+  ];
+  /** `color` at `pct` percent over `base`, both hex. */
+  const mixOver = (color: string, pct: number, base: string): string => {
+    const [c, b] = [color, base].map((h) => Number.parseInt(longHex(h).slice(1), 16));
+    const a = pct / 100;
+    return `#${[16, 8, 0]
+      .map((shift) =>
+        Math.round(((c! >> shift) & 255) * a + ((b! >> shift) & 255) * (1 - a))
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")}`;
+  };
+
+  it("defines a dark value for every role a rule reads for color", () => {
+    for (const role of [
+      "--louise-surface",
+      "--louise-text",
+      "--louise-text-muted",
+      "--louise-accent",
+      "--louise-on-accent",
+      "--louise-ring",
+      "--louise-danger",
+      "--louise-warning",
+      "--louise-success",
+    ])
+      expect(darkRoles[role], role).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  describe.each(schemes)("in the %s scheme", (_scheme, role) => {
+    const text: Array<[string, string, string]> = [
+      ["text", "--louise-text", "--louise-surface"],
+      ["body text", "--louise-text-body", "--louise-surface"],
+      ["secondary text", "--louise-text-secondary", "--louise-surface"],
+      ["muted text", "--louise-text-muted", "--louise-surface"],
+      ["secondary text on the muted surface", "--louise-text-secondary", "--louise-surface-muted"],
+      ["accent text", "--louise-accent", "--louise-surface"],
+      ["text on the accent", "--louise-on-accent", "--louise-accent"],
+      ["success text", "--louise-success", "--louise-surface"],
+      ["text on success", "--louise-on-accent", "--louise-success"],
+      ["text on warning", "--louise-on-accent", "--louise-warning"],
+      ["danger text", "--louise-danger", "--louise-surface"],
+      ["text on danger", "--louise-on-accent", "--louise-danger"],
+      ["text on the unrated badge", "--louise-on-accent", "--louise-text-muted"],
+    ];
+    it.each(text)("gives %s 4.5:1", (_label, fg, bg) => {
+      expect(contrast(role(fg), role(bg))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it.each([
+      ["--louise-accent-deep", "--louise-accent"],
+      ["--louise-danger-deep", "--louise-danger"],
+      ["--louise-warning-deep", "--louise-warning"],
+    ])("keeps %s at 4.5:1 on a 10%% tint of its color", (deep, tinted) => {
+      const tint = mixOver(role(tinted), 10, role("--louise-surface"));
+      expect(contrast(role(deep), tint)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("keeps the ring at 3:1 against the surface", () => {
+      expect(contrast(role("--louise-ring"), role("--louise-surface"))).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   it("keeps the ring blue for 3:1 and the text stop for 4.5:1", () => {
     expect(ringBlue).toBeDefined();
     expect(textBlue).toBeDefined();

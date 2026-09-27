@@ -56,7 +56,7 @@ const MAIN_ID = "louise-studio-main";
  *  of styling the frame can't leave to the site, because a skip link that is
  *  always visible or never visible has failed either way. */
 const SKIP_LINK_CSS = `.louise-studio-shell-skip{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
-.louise-studio-shell-skip:focus{position:fixed;left:1rem;top:1rem;width:auto;height:auto;overflow:visible;z-index:2147483647;padding:.5rem .75rem;background:#fff;color:#111;border-radius:.375rem;box-shadow:0 0 0 2px currentColor}`;
+.louise-studio-shell-skip:focus{position:fixed;left:1rem;top:1rem;width:auto;height:auto;overflow:visible;z-index:2147483647;padding:.5rem .75rem;background:var(--louise-surface,#fff);color:var(--louise-text,#0f172a);border-radius:.375rem;box-shadow:0 0 0 2px currentColor}`;
 
 function injectSkipLinkStyle(): void {
   if (document.getElementById("louise-studio-shell-style")) return;

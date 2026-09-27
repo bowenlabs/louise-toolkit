@@ -93,3 +93,15 @@ describe("the chrome's tokens (#603)", () => {
     expect(orangeReaders).toEqual([]);
   });
 });
+
+describe("the chrome in dark mode (#603)", () => {
+  it("follows the system setting, and lets a page pin either scheme", async () => {
+    const { injectStyles } = await import("../../src/client/styles.js");
+    injectStyles();
+    const css = [...document.querySelectorAll("style")].map((s) => s.textContent).join("\n");
+    expect(css).toMatch(
+      /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-louise-scheme="light"\]\) \{[^}]*--louise-surface: #0e141b;/,
+    );
+    expect(css).toMatch(/:root\[data-louise-scheme="dark"\] \{[^}]*--louise-surface: #0e141b;/);
+  });
+});
