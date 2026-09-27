@@ -203,10 +203,10 @@ const saveDraftActionFor = (db: D1Database) =>
     getEnv: () => ({ DB: db }),
   });
 
-// The merge-base / KV-buffer happy path saves a draft version to D1 and is
-// covered by the astro-preview E2E against a real local D1 (there is no async
-// in-memory SQLite harness in this repo)—mirroring versions-route.test.ts. These
-// cover the Action wrapper contract, which short-circuits before that machinery.
+// The merge-base / KV-buffer path that saves a draft version is the library's
+// `applySaveDraft`, tested on real SQLite in louise-toolkit's
+// page-lifecycle.test.ts and versions-route-coverage.test.ts. These cover the
+// Action wrapper contract, which short-circuits before that machinery.
 describe("louiseSaveDraftAction", () => {
   it("input schema requires an integer id and a data object", () => {
     const action = saveDraftActionFor({} as D1Database);

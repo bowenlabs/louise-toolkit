@@ -12,9 +12,9 @@ import {
 } from "../../src/core/editor/index.js";
 
 // The route short-circuits (fall-through / auth / bad-id) before ever touching
-// the DB, so these contract tests need only a no-op D1. The draft-merge /
-// publish happy path runs against a real local D1 in the astro-preview E2E
-// (there is no async in-memory SQLite harness in this repo).
+// the DB, so these contract tests need only a no-op D1. The draft-merge and
+// publish paths run on real SQLite in page-lifecycle.test.ts and
+// versions-route-coverage.test.ts.
 //
 // `applySaveDraft` converts a `LouiseValidationError` thrown by the collection's
 // `beforeChange` hook (for example, an unknown section `_type`) into a 422, with or

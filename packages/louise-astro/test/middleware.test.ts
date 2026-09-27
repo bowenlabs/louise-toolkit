@@ -480,3 +480,60 @@ describe("createLouiseMiddleware — redirecting a page that moved (#574)", () =
     );
   });
 });
+
+describe("createLouiseMiddleware — edit mode (#508)", () => {
+  const signedIn = () =>
+    createLouiseMiddleware({ resolveEditor: () => ({ email: "alex@example.com" }) as never });
+  const ctxAt = (path: string, cookie?: string) => {
+    const ctx = makeContext("GET", path);
+    if (cookie) ctx.cookies.set("louise_edit", cookie);
+    return ctx;
+  };
+  const editMode = (ctx: APIContext) => (ctx.locals as { editMode: boolean }).editMode;
+
+  it("enters edit mode on ?louise and remembers it in a cookie", async () => {
+    const ctx = ctxAt("/?louise");
+    await run(signedIn(), ctx);
+    expect(editMode(ctx)).toBe(true);
+    expect(ctx.cookies.get("louise_edit")?.value).toBe("1");
+  });
+
+  it("stays in edit mode from the cookie alone, and leaves on ?louise=off", async () => {
+    const sticky = ctxAt("/about", "1");
+    await run(signedIn(), sticky);
+    expect(editMode(sticky)).toBe(true);
+
+    const off = ctxAt("/about?louise=off", "1");
+    await run(signedIn(), off);
+    expect(editMode(off)).toBe(false);
+    expect(off.cookies.get("louise_edit")).toBeUndefined();
+  });
+
+  it("ignores the cookie without a session", async () => {
+    const ctx = ctxAt("/about", "1");
+    await run(createLouiseMiddleware({ resolveEditor: () => null }), ctx);
+    expect(editMode(ctx)).toBe(false);
+  });
+});
+
+describe("createLouiseMiddleware — cspStyleSrc", () => {
+  it("rewrites the response CSP's style-src", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      cspStyleSrc: "'self' 'unsafe-inline'",
+    });
+    const res = (await mw(
+      makeContext("GET", "/"),
+      async () =>
+        new Response("ok", {
+          headers: {
+            "content-type": "text/html",
+            "content-security-policy": "default-src 'self'; style-src 'self'",
+          },
+        }),
+    )) as Response;
+    expect(res.headers.get("content-security-policy")).toContain(
+      "style-src 'self' 'unsafe-inline'",
+    );
+  });
+});

@@ -180,7 +180,7 @@ resolveEditor, validate? }`. The
   `423` with `locked`; see
   [When someone else is editing](/guide/drafts/#when-someone-else-is-editing).
 - **`searchRoute`**—full-text search over a collection with a `search` config:
-  `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
+  `GET /api/louise/pages/search?q=…&limit=…` returns ranked rows, drafts included, from
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
   `search.fields` is indexed by flattening every string leaf, so structured
   `sections` content is searchable. Pass
