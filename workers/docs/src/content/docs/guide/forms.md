@@ -103,15 +103,32 @@ to the form's `formRoute`. It's unstyled by default (every element has a
 import { Form } from "louise-toolkit/client";
 import { contact } from "./forms"; // a client-safe { name, fields } config
 
-<Form form={contact} />; // POSTs to /api/louise/forms/inquiries
+// POSTs to /api/louise/forms/inquiries. `siteKey` comes from the server, from
+// `activeCaptcha`, so the widget and the check are on or off together.
+<Form form={contact} turnstile={siteKey ? { siteKey } : undefined} />;
 ```
 
 Pass a plain `{ name, fields }` config to the client (not the `defineForm`
 _result_, which carries the Drizzle table—keep that server-side). For a
 non-Solid site, `mountForm(hostEl, { form })` renders into a DOM node and returns
-a disposer. A `file` field uploads through the media route and stores the
-returned URL. On a `422` the server's per-field messages are painted back onto
-the inputs.
+a disposer. On a `422` the server's per-field messages are painted back onto the
+inputs.
+
+- **Turnstile:** a form that declares `spam.turnstile`, served by a `formRoute`
+  with a `turnstileSecret`, refuses every submit that carries no token. Pass
+  `turnstile: { siteKey, appearance?, action?, theme? }`, and `<Form>` renders
+  the widget above the submit button, sends its token as
+  `cf-turnstile-response`, and resets it after any failed submit, since a token
+  is single-use. A `403` shows a message that names the spam check.
+- **Without the script:** the `<form>` has `method="post"` and the `formRoute`
+  action, so a copy submitted before the script runs, or after it fails, posts
+  to the route instead of putting every answer in the page's URL.
+- **Uploads:** a `file` field uploads to `mediaAction` and stores the URL it
+  answers with. There's no default: the toolkit's media route is for editors,
+  so a visitor's upload needs a route of your own, wrapped in
+  [`publicRoute`](/reference/worker/) with its own size, type, and rate limits
+  (ADR 0012). Without one, `<Form>` logs an error at mount and refuses the
+  upload. A **Remove** button next to an uploaded file clears it.
 
 What `<Form>` does for assistive technology:
 
