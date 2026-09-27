@@ -120,6 +120,28 @@ describe("sections rich text — per-field modes", () => {
     expect(optsFor("body")).toEqual({ inline: true });
   });
 
+  it("gives every field the site's swatches unless the field names its own (#605)", async () => {
+    const brand = [{ label: "Brand orange", token: "brand-orange" }];
+    const own = [{ label: "Ink", token: "neutral" }];
+    mount(pageHost("prose"), {
+      richText: { inline: true, colors: brand },
+      richTextModes: { prose: { minimal: false } },
+    });
+    await flush();
+    expect(optsFor("heading")).toEqual({ inline: true, colors: brand });
+    expect(optsFor("body")).toEqual({ minimal: false, colors: brand });
+
+    dispose?.();
+    mounts.length = 0;
+    document.body.replaceChildren();
+    mount(pageHost("prose"), {
+      richText: { colors: brand },
+      richTextModes: { prose: { minimal: false, colors: own } },
+    });
+    await flush();
+    expect(optsFor("body")).toEqual({ minimal: false, colors: own });
+  });
+
   it("keeps the light-inline bubble as the default when richText is omitted too", async () => {
     mount(pageHost(), {});
     await flush();

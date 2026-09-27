@@ -47,6 +47,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { CHROME_LANG, wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
 import { render } from "solid-js/web";
 import { Icon, type IconName } from "./icons.jsx";
+import type { RichTextColor } from "../core/content/sections.js";
 import { thumb } from "./thumb.js";
 
 /**
@@ -65,22 +66,23 @@ async function r2ImageUploader({ file }: { file: File }): Promise<string> {
 }
 
 /**
- * Brand text colours offered by the format bubble's swatch popover (#182 Phase 5).
- * Each is a **daisyUI theme token**, not a fixed hex—the mark stores
- * `color: var(--color-<token>)`, so it resolves to the SITE's own theme colour at
- * render and a re-theme flows through with no content rewrite. The swatch preview
- * uses the same `var()`, so it shows the site's actual colour in the editor.
+ * The text colours the format bubble offers when a field names none (#182
+ * Phase 5, #605). Each is a **daisyUI theme token**, not a fixed hex—the mark
+ * stores `color: var(--color-<token>)`, so it resolves to the SITE's own theme
+ * colour at render and a re-theme flows through with no content rewrite. The
+ * swatch preview uses the same `var()`, so it shows the site's actual colour in
+ * the editor. Brand roles only: text in a state colour (info, success, warning,
+ * error) reads as a message, and a theme can change what those look like.
  */
-const TEXT_COLORS = [
+const DEFAULT_TEXT_COLORS: readonly RichTextColor[] = [
   { label: "Primary", token: "primary" },
   { label: "Secondary", token: "secondary" },
   { label: "Accent", token: "accent" },
   { label: "Neutral", token: "neutral" },
-  { label: "Info", token: "info" },
-  { label: "Success", token: "success" },
-  { label: "Warning", token: "warning" },
-  { label: "Error", token: "error" },
-] as const;
+];
+
+/** A token that fits `var(--color-<token>)`, the only shape the sanitizer keeps. */
+const COLOR_TOKEN = /^[a-z][a-z0-9-]*$/;
 
 /**
  * AI rewrite modes offered by the toolbar sparkle menu (#75/#166). The `mode`
@@ -445,6 +447,9 @@ export interface RichTextProps {
    *  `false` to drop it—for example, a section heading field where an inline image
    *  makes no sense but the other block buttons (heading/list/quote) do. */
   image?: boolean;
+  /** The text colors to offer, as theme tokens (#605). Default: primary,
+   *  secondary, accent, and neutral. An empty list hides the color button. */
+  colors?: readonly RichTextColor[];
   class?: string;
 }
 
@@ -463,7 +468,9 @@ export interface RichTextField {
  * the live page stays clean until the editor actually selects text. Reads
  * active mark/node state reactively and runs editor commands.
  */
-function Toolbar(props: { minimal?: boolean; image?: boolean }) {
+function Toolbar(props: { minimal?: boolean; image?: boolean; colors?: readonly RichTextColor[] }) {
+  const colors = () =>
+    (props.colors ?? DEFAULT_TEXT_COLORS).filter((c) => COLOR_TOKEN.test(c.token));
   const editor = useEditor<LouiseEditorExtension>();
   const active = useEditorDerivedValue((e: Editor<LouiseEditorExtension>) => ({
     bold: e.marks.bold.isActive(),
@@ -742,69 +749,71 @@ function Toolbar(props: { minimal?: boolean; image?: boolean }) {
           />
         </Show>
       </Show>
-      <span class="louise-tb-sep" />
-      <div class="louise-tb-color">
-        <button
-          ref={(el) => {
-            colorTrigger = el;
-          }}
-          type="button"
-          class="louise-tb-btn"
-          classList={{ "is-active": colorOpen() }}
-          title="Text color"
-          aria-label="Text color"
-          aria-haspopup="true"
-          aria-expanded={colorOpen()}
-          aria-controls="louise-tb-swatches"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setColorOpen((v) => !v)}
-        >
-          <Icon name="palette" />
-        </button>
-        <Show when={colorOpen()}>
-          <div
-            id="louise-tb-swatches"
-            class="louise-tb-swatches"
-            role="group"
+      <Show when={colors().length > 0}>
+        <span class="louise-tb-sep" />
+        <div class="louise-tb-color">
+          <button
+            ref={(el) => {
+              colorTrigger = el;
+            }}
+            type="button"
+            class="louise-tb-btn"
+            classList={{ "is-active": colorOpen() }}
+            title="Text color"
             aria-label="Text color"
-            ref={(el) =>
-              onCleanup(
-                wirePopoverDismiss(el, {
-                  onClose: () => setColorOpen(false),
-                  trigger: colorTrigger,
-                }),
-              )
-            }
+            aria-haspopup="true"
+            aria-expanded={colorOpen()}
+            aria-controls="louise-tb-swatches"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setColorOpen((v) => !v)}
           >
-            <For each={TEXT_COLORS}>
-              {(c) => (
-                <button
-                  type="button"
-                  class="louise-swatch"
-                  title={c.label}
-                  aria-label={`Text color ${c.label}`}
-                  style={{ background: `var(--color-${c.token})` }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => applyColor(c.token)}
-                />
-              )}
-            </For>
-            <button
-              type="button"
-              class="louise-swatch louise-swatch-clear"
-              title="Default color"
-              aria-label="Clear text color"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                editor().commands.removeTextColor();
-                setColorOpen(false);
-              }}
+            <Icon name="palette" />
+          </button>
+          <Show when={colorOpen()}>
+            <div
+              id="louise-tb-swatches"
+              class="louise-tb-swatches"
+              role="group"
+              aria-label="Text color"
+              ref={(el) =>
+                onCleanup(
+                  wirePopoverDismiss(el, {
+                    onClose: () => setColorOpen(false),
+                    trigger: colorTrigger,
+                  }),
+                )
+              }
             >
-              <Icon name="x" />
-            </button>
-          </div>
-        </Show>
-      </div>
+              <For each={colors()}>
+                {(c) => (
+                  <button
+                    type="button"
+                    class="louise-swatch"
+                    title={c.label}
+                    aria-label={`Text color ${c.label}`}
+                    style={{ background: `var(--color-${c.token})` }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyColor(c.token)}
+                  />
+                )}
+              </For>
+              <button
+                type="button"
+                class="louise-swatch louise-swatch-clear"
+                title="Default color"
+                aria-label="Clear text color"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  editor().commands.removeTextColor();
+                  setColorOpen(false);
+                }}
+              >
+                <Icon name="x" />
+              </button>
+            </div>
+          </Show>
+        </div>
+      </Show>
       {/* AI rewrite (#75/#166). Hidden once we learn the AI binding is absent
           (first 503). Enabled only over a real selection—there's nothing to
           rewrite at a bare caret. Anchored to the right so the menu stays
@@ -945,7 +954,11 @@ export function RichText(props: RichTextProps) {
             the live page stays clean until the editor highlights text. */}
         <Show when={props.toolbar !== false}>
           <InlinePopoverRoot class="louise-format-bubble">
-            <Toolbar minimal={props.minimal || props.inline} image={props.image} />
+            <Toolbar
+              minimal={props.minimal || props.inline}
+              image={props.image}
+              colors={props.colors}
+            />
           </InlinePopoverRoot>
         </Show>
         <div class={props.class ?? "louise-prose-surface"} ref={host} />
@@ -988,6 +1001,7 @@ export function mountRichText(
     minimal?: boolean;
     image?: boolean;
     inline?: boolean;
+    colors?: readonly RichTextColor[];
   },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
@@ -1002,6 +1016,7 @@ export function mountRichText(
         minimal={opts?.minimal}
         image={opts?.image}
         inline={opts?.inline}
+        colors={opts?.colors}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;
