@@ -9,6 +9,7 @@
 // the entrypoint is a declaration of routes + fallback rather than hand-rolled
 // per site.
 
+import { type IncidentCapture, withIncidentCapture } from "./capture.js";
 import {
   type ApiGateConfig,
   hasBearerCredential,
@@ -55,6 +56,14 @@ export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
    * never sees. Omitted, `composeWorker` behaves exactly as before.
    */
   gate?: ApiGateConfig<Env>;
+  /**
+   * Incident capture (ADR 0022). Set it and a throw from `fetch`, `queue`, or
+   * `scheduled`, and every `reportDegraded` call, becomes an
+   * `IncidentReport` sent to these sinks after the response. A throw is still
+   * re-thrown, so responses don't change. One sink, a list, or
+   * `{ sinks, critical, release }`. Omitted, nothing is captured.
+   */
+  onIncident?: IncidentCapture<Env>;
 }
 
 /**
@@ -62,7 +71,9 @@ export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
  * fallback, with optional `queue`/`scheduled` handlers. On `fetch`, each route
  * runs in order and the first `Response` short-circuits; if none match, the
  * `fetch` fallback handles it. With `gate`, the editor API is deny-by-default
- * (see {@link ComposeWorkerOptions.gate} and ADR 0012).
+ * (see {@link ComposeWorkerOptions.gate} and ADR 0012). With `onIncident`,
+ * every failure the handlers see is reported (see
+ * {@link ComposeWorkerOptions.onIncident} and ADR 0022).
  */
 export function composeWorker<Env = unknown, QMessage = unknown>(
   options: ComposeWorkerOptions<Env, QMessage>,
@@ -129,7 +140,7 @@ function withQueueAndCron<Env, QMessage>(
 ): ExportedHandler<Env, QMessage> {
   if (options.queue) handler.queue = options.queue;
   if (options.scheduled) handler.scheduled = options.scheduled;
-  return handler;
+  return options.onIncident ? withIncidentCapture(handler, options.onIncident) : handler;
 }
 
 // The deny-by-default editor API gate (ADR 0012): `composeWorker({ gate })`,
@@ -156,6 +167,10 @@ export {
 // its own file; re-exported here so it's part of the `louise-toolkit/worker`
 // subpath alongside `composeWorker`.
 export * from "./healing.js";
+
+// Incident capture (ADR 0022): what `composeWorker({ onIncident })` runs, for
+// a handler composed by hand too.
+export * from "./capture.js";
 
 // `withEdgeCache`—cookie-aware Worker Cache API layer for the SSR fallback
 // (#163), so public pages edge-cache while personalized (editor) requests always

@@ -131,6 +131,30 @@ export function incidentFromDegraded(
 }
 
 /**
+ * Whether a report matches the site's critical list. Only the site knows which
+ * failures matter most, so the list is a parameter (ADR 0022 § 6). An entry
+ * that starts with `/` is a path prefix: `/cart` matches `/cart` and
+ * `/cart/checkout`, not `/cartoon`. Any other entry is a name, and matches
+ * that name and the dotted names under it: `commerce.checkout` matches
+ * `commerce.checkout.session` too.
+ */
+export function isCriticalIncident(
+  report: Pick<IncidentReport, "name" | "path">,
+  critical: readonly string[],
+): boolean {
+  return critical.some((entry) => {
+    if (!entry) return false;
+    if (entry.startsWith("/")) {
+      const path = report.path;
+      if (!path) return false;
+      const prefix = entry.endsWith("/") ? entry : `${entry}/`;
+      return path === entry || path.startsWith(prefix);
+    }
+    return report.name === entry || report.name.startsWith(`${entry}.`);
+  });
+}
+
+/**
  * The grouping key for a failure: 16 hex characters from the kind, the name,
  * the code, and the message with its variable parts replaced (numbers, IDs,
  * quoted values, email addresses, tokens). "Row 41 not found" and "Row 97 not
