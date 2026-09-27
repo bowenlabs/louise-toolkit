@@ -228,6 +228,15 @@ describe("the provider clients", () => {
     expect(err.detail).toBe("Your card has insufficient funds.");
   });
 
+  it("Stripe: a PaymentIntent charges in the currency the site passes", async () => {
+    const calls = stubFetch(() => Response.json({ id: "pi_1", client_secret: "cs_1" }));
+    const item = { slug: "a", name: "A", qty: 2, unitAmountCents: 500 };
+    await createPaymentIntent("sk_test", [item], { currency: "EUR" });
+    await createPaymentIntent("sk_test", [item]);
+    const currencies = calls.map((c) => new URLSearchParams(String(c.init.body)).get("currency"));
+    expect(currencies).toEqual(["eur", "usd"]);
+  });
+
   it("Stripe: a PaymentIntent id is encoded, so it can't address another resource", async () => {
     const calls = stubFetch(() => Response.json({ id: "pi_1" }));
     await retrievePaymentIntent("sk_test", "pi_1/../../customers");
