@@ -150,7 +150,8 @@ const CSS = `
   display: none;
 }
 .louise-status[data-status="error"],
-.louise-status[data-status="conflict"] {
+.louise-status[data-status="conflict"],
+.louise-status[data-status="locked"] {
   color: #dc2626;
 }
 /* A draft-save conflict's two ways out (#572), beside the status. */

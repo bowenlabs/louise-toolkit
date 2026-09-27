@@ -162,6 +162,10 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   the revisions of the fields it stored, and a save whose `$base` is stale for a
   field someone else changed gets a `409` with `conflicts`; see
   [When someone else saved first](/guide/drafts/#when-someone-else-saved-first).
+  Pass `softLocks` (`realtimeSoftLocks` from `louise-toolkit/realtime`) and a
+  save that changes a field another editor holds in the realtime session gets a
+  `423` with `locked`; see
+  [When someone else is editing](/guide/drafts/#when-someone-else-is-editing).
 - **`searchRoute`**—full-text search over a collection with a `search` config:
   `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
@@ -325,9 +329,10 @@ its own endpoint rather than using the `WorkerRoute`s above—an Astro Action, s
 
 - `applyFieldSave(env, config, session, input)`—one inline field write, the body
   of `saveRoute`.
-- `applySaveDraft(env, deps, session, id, snapshot, { base? })`—a versioned draft
+- `applySaveDraft(env, deps, session, id, snapshot, { base?, softLocks? })`—a versioned draft
   write, the body of the draft route. `id` is a [`PageId`](/reference/content/#page-and-version-ids). `base` is the field revisions the save
-  started from; a stale one is a `409` with `conflicts`. This is also what the
+  started from; a stale one is a `409` with `conflicts`. `softLocks` is where the
+  held soft-locks come from; changing a held field is a `423` with `locked`. This is also what the
   realtime Durable Object calls, so there is exactly one write path rather than
   two that can drift. `fieldRev(value)` and `fieldRevs(data, keys)` compute the
   revisions, and `DRAFT_BASE_KEY` is the `$base` body key.

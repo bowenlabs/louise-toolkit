@@ -89,6 +89,8 @@ export { DEFAULT_SEO_FIX_BATCH, type SeoFixRouteConfig, seoFixRoute } from "./se
 export { type AiRouteConfig, aiRoute } from "./ai.js";
 export {
   applySaveDraft,
+  type DraftSoftLocks,
+  type DraftSoftLockTarget,
   latestPendingDraft,
   type SaveDraftDeps,
   type SaveDraftOptions,
