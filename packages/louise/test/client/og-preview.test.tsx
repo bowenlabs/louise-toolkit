@@ -37,6 +37,24 @@ describe("ogPreviewContent", () => {
   });
 });
 
+describe("ogPreviewContent's fallbacks", () => {
+  it("falls back to the site's default image when the site renders no cards", () => {
+    expect(
+      ogPreviewContent("", "T", undefined, { cards: false, defaultImage: "https://cdn/d.png" }),
+    ).toEqual({ kind: "image", src: "https://cdn/d.png" });
+  });
+
+  it("still prefers the card to the default image when the site renders cards", () => {
+    expect(ogPreviewContent("", "T", undefined, { defaultImage: "https://cdn/d.png" }).kind).toBe(
+      "card",
+    );
+  });
+
+  it("shows nothing when there's no image, no card, and no default", () => {
+    expect(ogPreviewContent("", "T", undefined, { cards: false })).toEqual({ kind: "none" });
+  });
+});
+
 describe("OgPreview", () => {
   let host: HTMLElement;
   let dispose: (() => void) | undefined;
@@ -67,5 +85,25 @@ describe("OgPreview", () => {
     const img = host.querySelector(".louise-og-img");
     expect(img?.getAttribute("src")).toBe("https://cdn/share.png");
     expect(host.querySelector(".louise-og-card")).toBeNull();
+  });
+
+  it("says when a share uses the site's default image", () => {
+    mount(() => (
+      <OgPreview
+        customImage=""
+        title="Launch Day"
+        share={{ cards: false, defaultImage: "https://cdn/default.png" }}
+      />
+    ));
+    expect(host.querySelector(".louise-og-img")?.getAttribute("src")).toBe(
+      "https://cdn/default.png",
+    );
+    expect(host.textContent).toContain("Using the site's default share image.");
+  });
+
+  it("says a share has no image, and shows no preview box, when nothing supplies one", () => {
+    mount(() => <OgPreview customImage="" title="Launch Day" share={{ cards: false }} />);
+    expect(host.querySelector(".louise-og-preview")).toBeNull();
+    expect(host.textContent).toContain("Shares show no image.");
   });
 });

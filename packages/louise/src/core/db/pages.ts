@@ -27,8 +27,9 @@ export const pagesColumns = {
     .default("draft"),
   seoTitle: text("seo_title"),
   seoDescription: text("seo_description"),
-  /** Absolute URL of the page's Open Graph share image; null falls back to the
-   *  site-wide default in `site_settings`. */
+  /** Absolute URL of the page's Open Graph share image. When null, a share
+   *  shows the site's generated card if it renders one, then the site-wide
+   *  default in `site_settings` (`shareImageSource`, louise-toolkit/seo). */
   ogImage: text("og_image"),
   /** Keep the page out of search indexes (legal pages, private notes). */
   noindex: integer("noindex", { mode: "boolean" }).notNull().default(false),

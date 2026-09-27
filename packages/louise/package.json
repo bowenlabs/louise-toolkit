@@ -166,6 +166,11 @@
       "import": "./dist/core/mcp/index.js",
       "default": "./dist/core/mcp/index.js"
     },
+    "./seo": {
+      "types": "./dist/core/seo/index.d.ts",
+      "import": "./dist/core/seo/index.js",
+      "default": "./dist/core/seo/index.js"
+    },
     "./qr": {
       "types": "./dist/core/qr/index.d.ts",
       "import": "./dist/core/qr/index.js",

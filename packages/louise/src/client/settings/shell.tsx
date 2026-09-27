@@ -63,8 +63,9 @@ export interface SettingsConfig {
   /** Starter layouts offered under "New page from template" in the Pages panel. */
   pageTemplates?: PageTemplate[];
   /** Match the Pages panel's live share-card preview to the site's real OG card
-   *  (brand, colours, footer, font). Omit for the toolkit's default card. */
-  ogCard?: OgCardOptions;
+   *  (brand, colours, footer, font). Omit for the toolkit's default card; pass
+   *  `false` when the site renders no cards. */
+  ogCard?: OgCardOptions | false;
   /** Override which framework Settings groups render. Omit for the defaults;
    *  pass a subset (or `[]`) so a site whose settings don't map to
    *  `siteSettingsColumns` shows no empty base fields—its config lives in
