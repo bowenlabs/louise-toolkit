@@ -105,3 +105,37 @@ describe("the chrome in dark mode (#603)", () => {
     expect(css).toMatch(/:root\[data-louise-scheme="dark"\] \{[^}]*--louise-surface: #0e141b;/);
   });
 });
+
+describe("touch targets (#543)", () => {
+  const coarse = (source: string) =>
+    /@media \(pointer: coarse\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
+
+  it.each([".louise-icon-btn", ".louise-tb-btn", ".louise-btn-xs", ".louise-bar-history"])(
+    "gives %s at least 44 px under a coarse pointer",
+    (selector) => {
+      const rule = new RegExp(`\\${selector} \\{([^}]*)\\}`).exec(coarse(styles))?.[1] ?? "";
+      expect(rule).toMatch(/min-height: 44px/);
+    },
+  );
+
+  it("gives the node toolbar's buttons 44 px, and delete room from its neighbors", () => {
+    expect(coarse(chrome)).toMatch(/\.louise-chrome-btn \{ width: 44px; height: 44px; \}/);
+    expect(chrome).toMatch(/\.louise-chrome-del \{ margin-inline: 6px; \}/);
+    dispose = mountNodeChrome({
+      resolve: () => null,
+      onMove: () => {},
+      onDelete: () => {},
+      onAddSibling: () => {},
+      onAddChild: () => {},
+      onInspect: () => {},
+    });
+    const del = document.querySelector('.louise-chrome-toolbar button[aria-label="Delete"]');
+    expect(del?.classList.contains("louise-chrome-del")).toBe(true);
+  });
+
+  let dispose: (() => void) | undefined;
+  afterEach(() => {
+    dispose?.();
+    dispose = undefined;
+  });
+});

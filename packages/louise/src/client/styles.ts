@@ -1683,14 +1683,15 @@ html[data-louise-studio] body {
   .louise-savedraft, .louise-publish, .louise-settings {
     min-height: 44px;
   }
-  .louise-icon-btn { min-width: 36px; min-height: 36px; }
-  /* Formatting toolbar, colour swatches, inspector ops and inputs were all
-     below a comfortable tap size. */
-  .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 1.1875rem; }
+  /* Every control a finger taps is at least 44 px each way (WCAG 2.5.5, #543).
+     36 px was too small where delete sits beside move: a miss there is a
+     destructive miss. */
+  .louise-icon-btn { min-width: 44px; min-height: 44px; }
+  .louise-tb-btn { min-width: 44px; min-height: 44px; font-size: 1.1875rem; }
   .louise-swatch { width: 32px; height: 32px; }
-  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: var(--louise-text-sm); }
-  .louise-input, .louise-select { min-height: 42px; }
-  .louise-bar-history { min-height: 36px; }
+  .louise-btn-xs { min-height: 44px; padding: 6px 10px; font-size: var(--louise-text-sm); }
+  .louise-input, .louise-select { min-height: 44px; }
+  .louise-bar-history { min-height: 44px; }
 }
 
 /* Tablet: keep the side drawer, cap it so the live site stays visible. */

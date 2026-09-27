@@ -127,6 +127,15 @@ ${TONE_CSS}
   padding: 0;
 }
 .louise-chrome-btn svg { width: 15px; height: 15px; }
+/* Delete sits 8 px from its neighbors (6 px margin plus the toolbar's 2 px gap),
+   so a slip off move doesn't delete (#543). */
+.louise-chrome-del { margin-inline: 6px; }
+/* A finger gets 44 px targets (WCAG 2.5.5, #543). Here, not in the main
+   stylesheet, so the rule ships wherever the toolbar does. */
+@media (pointer: coarse) {
+  .louise-chrome-btn { width: 44px; height: 44px; }
+  .louise-chrome-btn svg { width: 20px; height: 20px; }
+}
 .louise-chrome-tag {
   padding: 0 6px 0 4px;
   font: 600 var(--louise-text-xs, 0.75rem)/1 var(--louise-font-body, ui-sans-serif, system-ui, sans-serif);
@@ -274,6 +283,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   const up = button(arrowUp, "Move up");
   const down = button(arrowDown, "Move down");
   const del = button(xIcon, "Delete");
+  del.classList.add("louise-chrome-del");
   const addSibling = button(plusIcon, "Add after");
   const addChild = button(listPlus, "Add the first one");
   const cog = button(wrench, "Layout & settings");
