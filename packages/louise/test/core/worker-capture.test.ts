@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { LouiseDbError, reportDegraded } from "../../src/core/errors.js";
 import type { IncidentReport } from "../../src/core/incidents/index.js";
 import { isCriticalIncident } from "../../src/core/incidents/index.js";
-import { composeWorker, withIncidentCapture } from "../../src/core/worker/index.js";
+import { composeWorker, reportIncident, withIncidentCapture } from "../../src/core/worker/index.js";
 
 // --- test doubles ----------------------------------------------------------
 
@@ -366,5 +366,45 @@ describe("isCriticalIncident", () => {
 
   it("ignores an empty entry", () => {
     expect(isCriticalIncident({ name: "Error", path: "/" }, [""])).toBe(false);
+  });
+});
+
+describe("reportIncident", () => {
+  it("reports a failure the code caught, when the handler finishes", async () => {
+    const { reports, sink } = recorder();
+    const worker = composeWorker({
+      fetch: async (request) => {
+        reportIncident({ kind: "fetch", cause: new Error("caught and handled"), request });
+        return new Response("fallback");
+      },
+      onIncident: sink,
+    });
+    const { ctx, settled } = makeCtx();
+    const res = await worker.fetch!(req(), {}, ctx);
+    await settled();
+    expect(await res.text()).toBe("fallback");
+    expect(reports).toMatchObject([
+      { kind: "fetch", message: "caught and handled", path: "/cart" },
+    ]);
+  });
+
+  it("counts a reported error once when it's re-thrown to composeWorker", async () => {
+    const { reports, sink } = recorder();
+    const worker = composeWorker({
+      fetch: async (request) => {
+        const err = new Error("reported, then re-thrown");
+        reportIncident({ kind: "fetch", cause: err, request });
+        throw err;
+      },
+      onIncident: sink,
+    });
+    const { ctx, settled } = makeCtx();
+    await expect(worker.fetch!(req(), {}, ctx)).rejects.toThrow("reported, then re-thrown");
+    await settled();
+    expect(reports).toHaveLength(1);
+  });
+
+  it("does nothing without a capture listening", () => {
+    expect(() => reportIncident({ kind: "fetch", cause: new Error("x") })).not.toThrow();
   });
 });

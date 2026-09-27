@@ -1,7 +1,9 @@
 import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
 import { describe, expect, it } from "vitest";
 import { createLouiseMiddleware } from "../src/middleware.js";
+import type { IncidentReport } from "louise-toolkit/incidents";
 import type { KVLike, RateRule } from "louise-toolkit/security";
+import { composeWorker } from "louise-toolkit/worker";
 
 /** In-memory KV counter—the same fake the security tests use. */
 function makeKv(): KVLike {
@@ -581,5 +583,110 @@ describe("createLouiseMiddleware — cspStyleSrc", () => {
     expect(res.headers.get("content-security-policy")).toContain(
       "style-src 'self' 'unsafe-inline'",
     );
+  });
+});
+
+describe("createLouiseMiddleware—incidents (ADR 0022)", () => {
+  // Astro catches a page's throw outside every middleware and renders its own
+  // 500, so this stands in for Astro inside a composeWorker fallback.
+  async function throughWorker(
+    mw: MiddlewareHandler,
+    next: MiddlewareNext,
+    path = "/menu",
+  ): Promise<{ status: number; reports: IncidentReport[] }> {
+    const reports: IncidentReport[] = [];
+    const worker = composeWorker({
+      fetch: async (request) => {
+        const context = makeContext(request.method, new URL(request.url).pathname);
+        try {
+          return (await mw(context, next)) as Response;
+        } catch {
+          return new Response("Astro's error page", { status: 500 });
+        }
+      },
+      onIncident: (report) => {
+        reports.push(report);
+      },
+    });
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      passThroughOnException() {},
+    };
+    const res = await worker.fetch!(
+      new Request(`https://example.com${path}`) as unknown as Parameters<
+        NonNullable<ExportedHandler["fetch"]>
+      >[0],
+      {},
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(pending);
+    return { status: res.status, reports };
+  }
+
+  const throwingPage: MiddlewareNext = async () => {
+    throw new TypeError("Cannot read properties of undefined (reading 'title')");
+  };
+
+  it("reports a page's throw, and re-throws it for Astro's error page", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null });
+    const { status, reports } = await throughWorker(mw, throwingPage);
+    expect(status).toBe(500);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ kind: "fetch", name: "TypeError", path: "/menu" });
+  });
+
+  it("reports a guard that throws", async () => {
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      guard: () => {
+        throw new Error("guard broke");
+      },
+    });
+    const { reports } = await throughWorker(mw, htmlNext);
+    expect(reports.map((r) => r.message)).toEqual(["guard broke"]);
+  });
+
+  it("counts an error once when it also escapes to composeWorker", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null });
+    const reports: IncidentReport[] = [];
+    const worker = composeWorker({
+      // No catch here: the error escapes the middleware and the fallback both.
+      fetch: async (request) =>
+        (await mw(makeContext("GET", new URL(request.url).pathname), throwingPage)) as Response,
+      onIncident: (report) => {
+        reports.push(report);
+      },
+    });
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      passThroughOnException() {},
+    };
+    await expect(
+      worker.fetch!(
+        new Request("https://example.com/menu") as unknown as Parameters<
+          NonNullable<ExportedHandler["fetch"]>
+        >[0],
+        {},
+        ctx as unknown as ExecutionContext,
+      ),
+    ).rejects.toThrow(TypeError);
+    await Promise.all(pending);
+    expect(reports).toHaveLength(1);
+  });
+
+  it("changes nothing for a page that doesn't throw", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null });
+    const { status, reports } = await throughWorker(mw, htmlNext);
+    expect(status).toBe(200);
+    expect(reports).toEqual([]);
+  });
+
+  it("reports nothing with reportErrors: false", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null, reportErrors: false });
+    const { status, reports } = await throughWorker(mw, throwingPage);
+    expect(status).toBe(500);
+    expect(reports).toEqual([]);
   });
 });

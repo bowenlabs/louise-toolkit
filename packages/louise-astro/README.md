@@ -43,6 +43,12 @@ Pass `apiGate: true` to deny the editor API by default: every request under
 `/api/louise` must come from a signed-in editor before any route runs, with
 writes and WebSocket upgrades origin-checked. This is the same gate as
 `composeWorker({ gate })` (ADR 0012), for routes mounted as Astro API routes.
+
+An error a page, an endpoint, or the middleware throws is reported as an
+incident, then re-thrown, so Astro still renders its error page. Astro catches
+the error outside every middleware, so `composeWorker` never sees a throw; this
+is how it still reaches the sinks you gave `composeWorker`'s `onIncident`
+(ADR 0022). Pass `reportErrors: false` to turn it off.
 Middleware runs before Astro knows which route file answers, so a public route
 is declared by path: the toolkit's form, vitals, and status routes are exempt
 at their default paths, and `apiGate: { isPublic: (path) => … }` adds your own.

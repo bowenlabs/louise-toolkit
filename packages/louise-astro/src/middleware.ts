@@ -19,7 +19,7 @@
 // This subpath is the ONE place Louise touches Astro's types—`astro` is an
 // optional peer, pulled in only by sites that import `louise-toolkit/astro`.
 
-import type { APIContext, MiddlewareHandler } from "astro";
+import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
 import {
   allowCspDataFonts,
   louiseSecurityHeaders,
@@ -36,6 +36,7 @@ import {
   LOUISE_API_PREFIX,
   LOUISE_EDIT_COOKIE,
   louiseApiGate,
+  reportIncident,
   underPrefix,
 } from "louise-toolkit/worker";
 
@@ -193,6 +194,18 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
     | { location: string; status: number }
     | null
     | Promise<{ location: string; status: number } | null>;
+  /**
+   * Report an error a page, an endpoint, or this middleware throws as an
+   * incident (ADR 0022), then re-throw it, so Astro still renders its error
+   * page. Astro catches the error outside every middleware and answers with
+   * its 500, so `composeWorker` never sees a throw; this is how the error still
+   * reaches `composeWorker`'s `onIncident` sinks. Without `onIncident` it does
+   * nothing. Default `true`.
+   *
+   * An error a streamed page throws after its first bytes are sent happens
+   * outside every middleware, so no middleware can report it.
+   */
+  reportErrors?: boolean;
   /** Edit-mode cookie name. Default {@link LOUISE_EDIT_COOKIE} (`"louise_edit"`).
    *  Change it and the `withEdgeCache` bypass predicate must be told too, or an
    *  editor gets served the cached public page. */
@@ -202,7 +215,8 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
 /**
  * Build the shared Louise Astro middleware: rate-limit → resolve the editor
  * session + sticky `?louise` edit mode → `next()` → content-freshness cache headers
- * + CSP `style-src` rewrite + transport security headers. Sites supply the bits
+ * + CSP `style-src` rewrite + transport security headers. A thrown error is
+ * reported as an incident and re-thrown (see {@link LouiseMiddlewareConfig.reportErrors}). Sites supply the bits
  * that vary via {@link LouiseMiddlewareConfig} and export the result as
  * `onRequest`.
  */
@@ -215,7 +229,7 @@ export function createLouiseMiddleware<TEditor = unknown>(
   const apiGate = config.apiGate === true ? {} : config.apiGate || undefined;
   const apiPrefix = apiGate?.prefix ?? LOUISE_API_PREFIX;
 
-  return async (context, next) => {
+  const handle = async (context: APIContext, next: MiddlewareNext): Promise<Response> => {
     // Rate-limit the public, unauthenticated POST surfaces before any other
     // work. Keyed by client IP via a KV counter; `rateLimit` fails open on a KV
     // error so a limiter outage never takes down sign-in or the contact form.
@@ -364,6 +378,17 @@ export function createLouiseMiddleware<TEditor = unknown>(
     }
     return finish(context, response);
   };
+
+  if (config.reportErrors === false) return handle;
+  const reporting: MiddlewareHandler = async (context, next) => {
+    try {
+      return await handle(context, next);
+    } catch (err) {
+      reportIncident({ kind: "fetch", cause: err, request: context.request });
+      throw err;
+    }
+  };
+  return reporting;
 
   /** The response-side work every answer gets, a gate refusal included. */
   function finish(context: APIContext, response: Response): Response {

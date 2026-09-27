@@ -138,7 +138,7 @@ The helpers keep returning `null`, and tell a caller why through an `onFailure` 
 ## Consequences
 
 - **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and editor route, with the sink's `{ env, cause }` argument (§ 4 and the amendment), the queue changes (§ 7), the AI reasons (§ 8), and an Analytics Engine sink. Each is a `minor` changeset with no new dependency.
-- **`@louise-toolkit/astro`** passes `onIncident` through its middleware, so an Astro site's route errors are captured too.
+- **`@louise-toolkit/astro`**'s middleware reports what a page, an endpoint, or the middleware throws, through `reportIncident`, then re-throws it. Astro catches that error outside every middleware and renders its own 500, so `composeWorker` never sees a throw; this is how an Astro site's route errors reach the same sinks.
 - **astroidjs** wires the sinks by default in its scaffold, generates a dead-letter consumer for each declared dead-letter queue, and adds the Sentry sink as a per-site setting, turned on for every Monitored and Supported site.
 - **louise-ops** records each site's Sentry project in the site registry. Watchtower reads incidents from each site's D1 and from Sentry, and the `search_incidents`, `get_incident`, and `site_status` tools read the same two sources.
 - **Each site adds one migration** for the two tables, and its runbook names its dead-letter queue and how to replay it.
