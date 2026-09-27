@@ -132,7 +132,5 @@
   --louise-accent: var(--color-primary);
   --louise-accent-soft: color-mix(in oklch, var(--color-primary) 12%, transparent);
   --louise-ring: color-mix(in oklch, var(--color-primary) 40%, transparent);
-  /* Headers use Hepta Slab; body copy uses Roboto Flex. */
-  --louise-font: "Hepta Slab", "Iowan Old Style", Georgia, serif;
-  --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* The font tokens live in fonts.css, the file that loads the font. */
 }
