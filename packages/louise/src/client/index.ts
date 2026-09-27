@@ -125,6 +125,7 @@ type ChromeStatus =
   | "publishing"
   | "published"
   | "error"
+  | "publish-error"
   | "conflict"
   | "locked";
 
@@ -138,7 +139,8 @@ interface ChromeConflict {
 
 interface Chrome {
   setDirty: (dirty: boolean) => void;
-  setStatus: (status: ChromeStatus) => void;
+  /** `detail` is the server's reason, for `publish-error` (#704). */
+  setStatus: (status: ChromeStatus, detail?: string) => void;
   /** Versioned pages only: whether an unpublished draft exists (Publish enable). */
   setHasDraft: (hasDraft: boolean) => void;
   /** Realtime only: render the other editors currently in the session (avatars). */
@@ -304,8 +306,16 @@ function createChrome(opts: ChromeOptions): Chrome {
       hasDraft = draft;
       refreshPublish();
     },
-    setStatus: (s) => {
+    setStatus: (s, detail) => {
       if (!status) return;
+      if (s === "publish-error") {
+        // Styled as an error, and worded for the action the owner took, as the
+        // sections bar does (#468, #704).
+        status.dataset.status = "error";
+        const base = "Couldn’t publish. The live page hasn’t changed.";
+        status.textContent = detail ? `${base} ${detail}` : base;
+        return;
+      }
       status.dataset.status = s;
       status.textContent =
         s === "saving"
@@ -864,13 +874,19 @@ export function mountLouise(opts: MountLouiseOptions): void {
         headers: { "content-type": "application/json" },
         body: "{}",
       });
-      if (!res.ok) throw new Error(`publish failed: ${res.status}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        const reason = typeof body?.error === "string" ? body.error : "";
+        console.error(`[louise] publish failed: ${res.status}`, reason);
+        chrome.setStatus("publish-error", reason);
+        return;
+      }
       // Say it went live once the reload lands (#597).
       if (pageId !== undefined) markPublished(pageId);
       location.reload();
     } catch (err) {
       console.error("[louise] publish failed", err);
-      chrome.setStatus("error");
+      chrome.setStatus("publish-error");
     }
   };
 

@@ -90,8 +90,13 @@ export function MediaPanel() {
       .map((u) => [u.collection, u.label].filter(Boolean).join(": "))
       .filter(Boolean)
       .join(", ");
+    // A 409 that names no references still means the file is in use (#704).
+    const uses =
+      used.length === 0
+        ? "This file is still in use"
+        : `This file is still used by ${used.length} item${used.length === 1 ? "" : "s"}`;
     return (
-      `This file is still used by ${used.length} item${used.length === 1 ? "" : "s"}` +
+      uses +
       (list ? ` (${list})` : "") +
       ". Deleting it shows a broken image there, and it can’t be undone. Delete anyway?"
     );
