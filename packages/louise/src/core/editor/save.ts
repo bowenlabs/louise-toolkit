@@ -95,17 +95,28 @@ export async function applyFieldSave<Env extends EditorRouteEnv = EditorRouteEnv
   const id = Number(body.key);
   if (!Number.isInteger(id)) return { ok: false, status: 400, error: "Bad id" };
 
-  const pkCol = getTableConfig(collConfig.table).columns.find((c) => c.primary) as
-    | SQLiteColumn
-    | undefined;
-  const setBuilder = db(env.DB)
+  // Without a primary key there's no row to match `key` against, and an update
+  // with no WHERE would rewrite the whole table (#702). Refuse instead.
+  const pkCol = primaryKeyOf(collConfig.table);
+  if (!pkCol) {
+    return {
+      ok: false,
+      status: 500,
+      error: `Collection "${body.collection}" has no primary key, so a field save can't find its row`,
+    };
+  }
+  const [updated] = await db(env.DB)
     .update(collConfig.table)
-    .set({ [body.field]: resolved.stored } as never);
-  const [updated] = await (pkCol
-    ? setBuilder.where(eq(pkCol, id)).returning()
-    : setBuilder.returning());
+    .set({ [body.field]: resolved.stored } as never)
+    .where(eq(pkCol, id))
+    .returning();
   if (!updated) return { ok: false, status: 404, error: "Not found" };
   return { ok: true };
+}
+
+/** The table's primary-key column, or `undefined` when it has none. */
+function primaryKeyOf(table: SaveCollectionConfig["table"]): SQLiteColumn | undefined {
+  return getTableConfig(table).columns.find((c) => c.primary) as SQLiteColumn | undefined;
 }
 
 /**
@@ -117,6 +128,13 @@ export function saveRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 ): WorkerRoute<Env> {
   const path = config.path ?? "/api/louise/save";
   const sanitize = config.sanitize ?? sanitizeRichHtml;
+  // Fail at startup, not on the first save: a collection without a primary key
+  // can't be saved to by row (#702).
+  for (const [name, collection] of Object.entries(config.collections)) {
+    if (!primaryKeyOf(collection.table)) {
+      throw new Error(`saveRoute: collection "${name}" has no primary key.`);
+    }
+  }
 
   return async (request, env) => {
     if (!matchPath(request, path)) return undefined;
