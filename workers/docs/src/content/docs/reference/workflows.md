@@ -74,7 +74,7 @@ The site owns the `WorkflowEntrypoint` subclass and the wrangler binding (it imp
 runtime glue.
 
 ```ts
-// workers/site/src/workflows/publish.ts
+// src/workflows/publish.ts
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { defineWorkflow } from "louise-toolkit/workflows";
 import { reindexDoc } from "louise-toolkit/content";

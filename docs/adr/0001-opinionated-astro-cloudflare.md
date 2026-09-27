@@ -140,3 +140,11 @@ Astro-adapter detail, not a replacement for the primitive.
       `composeWorker` as the default.
 - [ ] **Per module**, apply the rule from the Decision section; delete wrappers
       whose only job was portability that no site uses.
+
+## Amendment (2026-09-26): the reference site left the repository
+
+The reference site that the _Reference site_ item describes, `workers/site`
+(louisetoolkit.com), is gone from this repository. BowenLabs' own site,
+bowenlabs.io, now plays that role and is built with Astroid, so it follows the
+sites' patterns by construction. The item is closed rather than done. What CI
+builds here against the packed library is `workers/sandbox`.

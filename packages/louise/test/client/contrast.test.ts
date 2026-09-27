@@ -1,5 +1,4 @@
-// WCAG 2.x contrast for the `louise` themes, the editor chrome, and the reference
-// site's copy of the theme (#545).
+// WCAG 2.x contrast for the `louise` themes and the editor chrome (#545).
 //
 // Text needs 4.5:1 (WCAG 1.4.3); a ring, border, or focus outline needs only 3:1
 // (1.4.11). The brand blue #1481ef sits between the two at 3.88:1 against white,
@@ -17,12 +16,6 @@ import { describe, expect, it } from "vitest";
 const read = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
 const themeCss = read("../../src/theme/louise.css");
 const stylesSource = read("../../src/client/styles.ts");
-// The reference site keeps its own copy of the theme, with its own bases, and its
-// own sign-in page. Both live in this repository, so a drift from the package
-// fails here rather than on the live site.
-const siteThemeCss = read("../../../../workers/site/src/styles/louise.css");
-const siteSignInSource = read("../../../../workers/site/src/pages/louise.astro");
-const siteEditDemoSource = read("../../../../workers/site/src/sections/EditDemo.astro");
 
 const channel = (value: number): number => {
   const c = value / 255;
@@ -72,8 +65,6 @@ function themeTokens(name: string, css = themeCss): Record<string, string> {
 const THEMES = [
   ["louise", "package", themeCss],
   ["louise-dark", "package", themeCss],
-  ["louise", "reference site", siteThemeCss],
-  ["louise-dark", "reference site", siteThemeCss],
 ] as const;
 
 describe.each(THEMES)("the %s theme in the %s", (name, _where, css) => {
@@ -99,64 +90,6 @@ describe.each(THEMES)("the %s theme in the %s", (name, _where, css) => {
     // `text-primary`, `link-primary`, and an error message sit on the page itself.
     for (const key of ["primary", "error"]) {
       expect(contrast(tokens[key], tokens["base-100"]), key).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-});
-
-describe("the reference site", () => {
-  it("copies the package theme's text-bearing brand tokens", () => {
-    // The site's bases and radii are its own; the colors that carry text aren't.
-    const keys = ["primary", "info", "error"].flatMap((k) => [k, `${k}-content`]);
-    for (const name of ["louise", "louise-dark"]) {
-      const site = themeTokens(name, siteThemeCss);
-      const pkg = themeTokens(name);
-      for (const key of keys) expect(site[key], `${name} ${key}`).toBe(pkg[key]);
-    }
-  });
-
-  it("gives the sign-in button 4.5:1 at rest and on hover", () => {
-    const style = siteSignInSource.slice(siteSignInSource.indexOf("<style>"));
-    const rest = /\bbutton \{([^}]*)\}/.exec(style)?.[1] ?? "";
-    const hover = /\bbutton:hover \{([^}]*)\}/.exec(style)?.[1] ?? "";
-    const hex = (body: string, prop: string): string | undefined =>
-      new RegExp(`(?<![-\\w])${prop}:\\s*(#[0-9a-f]{3,6})\\b`, "i").exec(body)?.[1];
-    const text = hex(rest, "color");
-    expect(text).toBeDefined();
-    for (const body of [rest, hover]) {
-      const fill = hex(body, "background");
-      expect(fill).toBeDefined();
-      expect(contrast(text!, fill!)).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
-  it("gives the sign-in button a 3:1 edge against its card", () => {
-    // WCAG 1.4.11: the text-stop fill is only 2.88:1 on the dark card, so the
-    // button's boundary is its border, which has to hold at rest and on hover.
-    const style = siteSignInSource.slice(siteSignInSource.indexOf("<style>"));
-    const card = /\.card \{([^}]*)\}/.exec(style)?.[1] ?? "";
-    const rest = /\bbutton \{([^}]*)\}/.exec(style)?.[1] ?? "";
-    const hover = /\bbutton:hover \{([^}]*)\}/.exec(style)?.[1] ?? "";
-    const cardFill = /(?<![-\w])background:\s*(#[0-9a-f]{3,6})\b/i.exec(card)?.[1];
-    const edge = /(?<![-\w])border:\s*\d+px solid (#[0-9a-f]{3,6})\b/i.exec(rest)?.[1];
-    expect(cardFill).toBeDefined();
-    expect(edge, "the button needs a solid border").toBeDefined();
-    expect(hover, "hover mustn't drop the border").not.toMatch(/(?<![-\w])border(?:-color)?:/);
-    expect(contrast(edge!, cardFill!)).toBeGreaterThanOrEqual(3);
-  });
-
-  it("gives the edit demo's status text 4.5:1 on its bar", () => {
-    // The mock's address bar carries "Published" in view mode and "Editing" in
-    // edit mode, both as small bold text.
-    const barAt = siteEditDemoSource.indexOf("lt-demo-status-view");
-    const bar = siteEditDemoSource.slice(siteEditDemoSource.lastIndexOf("<div", barAt), barAt);
-    const barFill = /\bbg-\[(#[0-9a-f]{6})\]/i.exec(bar)?.[1];
-    expect(barFill).toBeDefined();
-    for (const status of ["lt-demo-status-view", "lt-demo-status-edit"]) {
-      const text = new RegExp(`${status}[^"]*\\btext-\\[(#[0-9a-f]{6})\\]`, "i").exec(
-        siteEditDemoSource,
-      )?.[1];
-      expect(text, status).toBeDefined();
-      expect(contrast(text!, barFill!), status).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must equal the Worker's name in the Cloudflare dashboard, or Workers Builds
+  // refuses every build before it starts.
+  "name": "louisetoolkit-org",
+  "compatibility_date": "2026-06-20",
+
+  // An assets-only Worker: no `main`, no script. `astro build` emits a plain
+  // static site to dist/ (no adapter), and Cloudflare serves it directly.
+  // Security headers come from public/_headers, which Astro copies into dist/.
+  //
+  // The docs used to be folded into the reference site's Worker and served by
+  // Host on docs.louisetoolkit.com. That site moved out of this repository, so
+  // the docs are their own Worker now, the same shape as docs.astroidjs.org.
+  "assets": { "directory": "./dist" },
+
+  // `custom_domain: true` provisions the DNS record on first deploy.
+  "routes": [{ "pattern": "docs.louisetoolkit.org", "custom_domain": true }],
+
+  "observability": { "enabled": true },
+}

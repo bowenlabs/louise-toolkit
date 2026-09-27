@@ -1,38 +1,10 @@
 #!/usr/bin/env sh
-# Pack the library, then build the site.
+# Build the docs for Cloudflare Workers Builds.
 #
-# In deploy/CI environments (e.g. Cloudflare Workers Builds) the Vite+ `vp`
-# toolchain isn't preinstalled — it's a curl-installed global, not a pnpm
-# dependency — so bootstrap it here the same way .github/workflows/ci.yml does.
-# Local dev already has `vp` on PATH, so the install is skipped.
+# workers/docs is a static Starlight site served by an assets-only Worker
+# (workers/docs/wrangler.jsonc). Its pages don't import the library, so there's
+# nothing to pack first: install, then build the docs to workers/docs/dist,
+# which the deploy command (`wrangler deploy` in workers/docs) uploads.
 set -e
 
-if ! command -v vp >/dev/null 2>&1; then
-  echo "vp not found — installing Vite+…"
-  curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash
-  # The installer drops the `vp` binary in ~/.vite-plus/bin.
-  export PATH="$HOME/.vite-plus/bin:$PATH"
-fi
-
-# Build the library to dist/ (consumed by the docs + site builds below). Run the
-# pack directly rather than `vp run louise#pack`: the task-runner form can serve a
-# cache hit without restoring dist/ (its outputs aren't declared in a pipeline),
-# leaving the site build unable to resolve the `louise-toolkit/*` subpaths.
-(cd packages/louise && NODE_PATH=node_modules vp pack)
-
-# The Astro adapter, for the same reason: the site imports `@louise-toolkit/astro`
-# and its `exports` point at dist/, so the workspace link resolves to nothing
-# until this runs. Missing it fails the site build with "Failed to resolve entry
-# for package", which is not an obvious symptom of an unbuilt sibling.
-(cd packages/louise-astro && corepack pnpm run build)
-
-# Build the standalone static docs app (workers/docs) and fold its output into
-# the marketing Worker's static assets at public/_docs. Astro copies public/
-# verbatim into the build, so the one Worker serves docs.louisetoolkit.com from
-# /_docs (see workers/site/src/worker.ts). Must happen before the site build.
-vp run "docs#build"
-rm -rf workers/site/public/_docs
-mkdir -p workers/site/public
-cp -R workers/docs/dist workers/site/public/_docs
-
-vp run "site#build"
+corepack pnpm -C workers/docs run build

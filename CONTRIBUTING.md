@@ -15,7 +15,7 @@ contributions are grounded in real usage, and correctness matters more than volu
 - **Propose work**: an issue goes into a milestone only when a site or a client
   needs it. Everything else is labeled `parked`. Parked issues stay open, and a
   real need is enough to bring one back.
-- **Improve the docs**: [docs.louisetoolkit.com](https://docs.louisetoolkit.com)
+- **Improve the docs**: [docs.louisetoolkit.org](https://docs.louisetoolkit.org)
   is built from `workers/docs` (Starlight); fixes there are always welcome.
 
 ## Project layout
@@ -28,8 +28,9 @@ This is a [pnpm](https://pnpm.io) workspace driven by [Vite+](https://viteplus.d
 - `packages/louise-astro`: `@louise-toolkit/astro`, the optional Astro adapter:
   middleware, Actions, content-layer loaders, the forms bridge. Everything that
   imports Astro's types lives here so the core stays framework-agnostic.
-- `workers/site`, `workers/docs`: the marketing site and docs, both deployed by
-  one Worker.
+- `workers/docs`: the docs at docs.louisetoolkit.org, an assets-only Worker.
+- `workers/sandbox`: a write-capable demo that CI also builds against the packed
+  library.
 
 ## Dev setup
 
@@ -43,10 +44,10 @@ vp install
 Common commands (from the repo root unless noted):
 
 ```sh
-corepack pnpm build          # pack the library and the adapter, then build the site
+corepack pnpm build          # pack the library and the adapter, then build the sandbox and docs
 corepack pnpm test           # the Vitest suites of the library and the Astro adapter
 corepack pnpm typecheck      # tsgo over the library
-corepack pnpm dev            # run louisetoolkit.com locally (marketing + docs)
+corepack pnpm dev            # run the docs locally
 ```
 
 Always write `corepack pnpm`, never bare `pnpm`: the CI runner has only
@@ -60,7 +61,7 @@ secret scan from `secrets.yml`, and it's the one list: when a workflow gains a
 step, that list gains it too, so this file doesn't keep a copy that can drift.
 
 A green `corepack pnpm test` isn't enough on its own. The type-check, the
-export-map check after a build, and the site build each catch breakage that the
+export-map check after a build, and the sandbox build each catch breakage that the
 test suite reports as a pass.
 
 The library's `check` script, `vp check`, runs Vite+'s **type-aware lint + full type-check** (tsgolint on
@@ -89,7 +90,7 @@ Louise is **pre-1.0**, so the many granular subpath exports aren't frozen yet.
 Until 1.0, **breaking changes ship as a `minor` bump** (not major) and must be
 described in the changeset so consumers can upgrade deliberately. Additive
 features are `minor`; fixes and small enhancements are `patch`. Changes scoped to
-`workers/site` / `workers/docs` (both in the changeset `ignore` list) don't need one.
+`workers/docs` / `workers/sandbox` (both in the changeset `ignore` list) don't need one.
 
 ## Pull requests
 

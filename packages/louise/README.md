@@ -14,7 +14,7 @@ handlers, and the daisyUI editor theme, as granular, tree-shakeable subpath
 exports. The core primitives are framework-agnostic (they run in any Worker or a
 unit test); the batteries target Astro on Cloudflare.
 
-> Full guide and API reference: **[docs.louisetoolkit.com](https://docs.louisetoolkit.com)**
+> Full guide and API reference: **[docs.louisetoolkit.org](https://docs.louisetoolkit.org)**
 
 ## Install
 
@@ -105,8 +105,8 @@ import { mountLouise } from "louise-toolkit/client";
 mountLouise(); // no-op unless the page rendered edit-mode markers
 ```
 
-See the [Quickstart](https://docs.louisetoolkit.com/guide/quickstart) to go from zero
-to editable, then the [Getting Started guide](https://docs.louisetoolkit.com/guide/getting-started)
+See the [Quickstart](https://docs.louisetoolkit.org/guide/quickstart) to go from zero
+to editable, then the [Getting Started guide](https://docs.louisetoolkit.org/guide/getting-started)
 for the full wiring (edit mode, the save endpoint, rich text, Louise Settings, media, theme).
 
 ## Contributing / building

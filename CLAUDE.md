@@ -90,8 +90,9 @@ node scripts/ci/checks/export-map.mjs
 corepack pnpm -C packages/louise-astro run typecheck
 corepack pnpm -C packages/louise-astro run build
 
-# Build the site — the reference site, against both built packages
-corepack pnpm run build:site
+# Build the sandbox against the built library, then the docs
+corepack pnpm run build:sandbox
+sh scripts/ci-build.sh
 ```
 
 The last block catches what nothing before it can: an export map that omits a new
@@ -137,7 +138,7 @@ Astro-specific code belongs in `@louise-toolkit/astro`; opinions belong in
 `corepack pnpm run lint:names` runs the same kind of scan over the whole
 repository for client site names. The repository is public, so it names no
 client site in code, tests, or docs: keep the reason and drop the name ("a site
-whose sign-out lived in Settings"). CHANGELOGs and the two pages that feature
+whose sign-out lived in Settings"). CHANGELOGs and the docs page that features
 the sites, with their consent, are the exceptions.
 
 Every rule carries a `note` explaining the invariant, because a rule nobody
@@ -224,29 +225,19 @@ npm. Only the package specifier carries that name. The brand tokens stay `louise
 `mountLouise`, the `data-louise-*` markers, the `louise` CLI binary, and the
 `packages/louise` directory.
 
-## The reference site
+## The docs and the sandbox
 
-`workers/site` is louisetoolkit.com, and it deploys through Cloudflare Workers
-Builds. Know these before you change it:
+The reference site moved out of this repository; it's bowenlabs.io, built with
+Astroid. What deploys from here:
 
-- **Every push deploys production,** branches included (#521). A branch's code
-  goes live against the same data `main` reads.
-- **There's one D1 database** for every deploy. Change a stored section's shape
-  with expand and contract: seed both the old and new keys, then drop the old key
-  once every deploy runs the new code. Seeds are in `workers/site/seed/`.
-- **Provision a named resource before you merge its binding.** A binding to a
-  Queue, D1 database, R2 bucket, or KV namespace that doesn't exist fails the
-  deploy, while the build and CI stay green.
-- **Sign-in is one shared password,** checked against the
-  `LOUISE_EDITOR_PASSWORD` secret. There's no user table, so there's no user to
-  seed. Locally, copy `.env.example` to `.env` and set it.
-- **Running it locally:** `corepack pnpm dev` on Node 26. A `POST` needs a
-  matching `Origin` header, because of Astro's origin check. A stale Durable
-  Object alarm error after you add a DO clears with `rm -rf
-workers/site/.wrangler/state` and a fresh local migration.
-- **The `/examples` code panes slice real source** with `?raw` and `#region`
-  markers (`src/lib/examples/region.ts`). Mark a region in the real file; never
-  paste a copy into the page.
+- **`workers/docs` is docs.louisetoolkit.org,** a static Starlight site on an
+  assets-only Worker (`workers/docs/wrangler.jsonc`), the same shape as
+  docs.astroidjs.org. Workers Builds runs `scripts/ci-build.sh`, and CI runs the
+  same script, so a broken page fails the PR rather than the deploy. Security
+  headers come from `workers/docs/public/_headers`.
+- **`workers/sandbox` is the site CI builds** against the packed library, the
+  check the build block above ends with.
+- **Running the docs locally:** `corepack pnpm dev` on Node 26.
 
 Lessons that don't fit a rule here are in `docs/LESSONS.md`.
 

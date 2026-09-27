@@ -1,27 +1,12 @@
 ---
 title: Quickstart
-description: See Louise running in 30 seconds, then make a field on your own Astro + Cloudflare site editable in place.
+description: Make a field on your own Astro + Cloudflare site editable in place.
 sidebar:
   order: 0
 ---
 
 Louise is a **toolkit for building editable sites on Astro + Cloudflare Workers**—content, commerce, media, forms, auth, and AI as composable primitives. Editing
 the live page in place is the headline; this page gets you from zero to it.
-
-## See it first (30 seconds)
-
-You don't have to install anything to evaluate Louise:
-
-- **[Interactive examples](https://louisetoolkit.com/examples)**—each primitive as
-  live UI beside the real, drift-proof source that ships it. The
-  [contact form](https://louisetoolkit.com/examples/forms) and
-  [Workers checkout](https://louisetoolkit.com/examples/commerce) run today.
-- **[Live sandbox](https://sandbox.louisetoolkit.com)**—a real, write-capable
-  Louise site that resets nightly. Toggle edit mode and change anything; nothing
-  you do sticks around.
-
-This whole docs-and-marketing site is itself built with Louise, so the demos
-_are_ the product.
 
 ## Add it to your app (≈5 minutes)
 

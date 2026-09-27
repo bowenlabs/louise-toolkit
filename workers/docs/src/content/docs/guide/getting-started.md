@@ -12,16 +12,6 @@ Cloudflare Workers app and wire the pieces you need. The core primitives are
 framework-agnostic (they run under Astro, Hono, a bare Worker, or a unit test); the
 batteries—the client, theme, and Astroid—target Astro on Cloudflare.
 
-:::tip[See it running first]
-Two live surfaces let you try Louise before wiring it in. The
-[interactive examples](https://louisetoolkit.com/examples) show each primitive as
-live UI backed by real, drift-proof source—the
-[contact form](https://louisetoolkit.com/examples/forms) and
-[Workers checkout](https://louisetoolkit.com/examples/commerce) are live today. The
-[sandbox](https://sandbox.louisetoolkit.com) is a write-capable demo that resets
-nightly, so you can poke at real saves without leaving anything behind.
-:::
-
 ## Install
 
 ```sh
@@ -105,7 +95,7 @@ import { SQUARE_ENV, SQUARE_TOKEN } from "astro:env/server";
 ```
 
 `astro:env` covers env vars and secrets; D1/R2/Queues **bindings** still arrive on
-`env`. The [live sandbox](https://sandbox.louisetoolkit.com) wires its Square
+`env`. The sandbox in this repository (`workers/sandbox`) wires its Square
 checkout exactly this way.
 
 ## Your first inline-editable field
