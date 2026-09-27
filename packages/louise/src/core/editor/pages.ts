@@ -18,8 +18,12 @@ import { LouiseValidationError } from "../errors.js";
 import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
 import type { EditorSession } from "../auth/types.js";
+import { toPageId } from "../content/ids.js";
+import { type CollectionConfig, flattenFields } from "../content/types.js";
 import type { WorkerRoute } from "../worker/index.js";
+import type { DraftBufferKV } from "./draft-buffer.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
+import { applySaveDraft, hasPendingDraft, type SaveDraftDeps } from "./versions.js";
 
 /** Context passed to a {@link PagesRouteConfig.validate} hook. */
 export interface PagesValidateContext {
@@ -132,6 +136,23 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * without this they orphan. Omit for an unversioned collection.
    */
   versionsTable?: SQLiteTable;
+  /**
+   * Keep an update in the page's pending draft (#530). An update writes the
+   * live row, but publish copies the whole draft snapshot onto that row, so
+   * without this, a rename made while a draft was pending comes undone at the
+   * next publish, and a changed slug moves the page back to its old URL.
+   *
+   * With it, an update that changes a field of `config` also saves those
+   * fields into the pending work: the KV buffer, else the newest pending draft.
+   * A page with no pending work gets no draft. Pass the same `config` and
+   * `bufferKv` as `versionsRoute`; it needs {@link versionsTable}.
+   */
+  drafts?: {
+    /** The collection config; its fields are the ones a draft snapshot holds. */
+    config: CollectionConfig;
+    /** The KV draft buffer, as `versionsRoute` takes it. */
+    bufferKv?: (env: Env) => DraftBufferKV | undefined;
+  };
 }
 
 /** Keep only allowlisted fields from `input`, sanitizing the rich ones. Pure. */
@@ -179,6 +200,44 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         | SQLiteColumn
         | undefined)
     : undefined;
+  if (config.drafts && !versionsTable) {
+    throw new Error("pagesRoute: `drafts` needs `versionsTable`.");
+  }
+  const draftDeps: SaveDraftDeps<Env> | undefined =
+    config.drafts && versionsTable
+      ? {
+          table,
+          versionsTable,
+          config: config.drafts.config,
+          bufferKv: config.drafts.bufferKv,
+        }
+      : undefined;
+  const snapshotKeys = new Set(
+    config.drafts ? Object.keys(flattenFields(config.drafts.config.fields)) : [],
+  );
+
+  /** Save an update's snapshot fields into the page's pending work, if any (#530). */
+  const carryIntoDraft = async (
+    env: Env,
+    editor: EditorSession,
+    id: number,
+    data: Record<string, unknown>,
+  ): Promise<void> => {
+    if (!draftDeps) return;
+    const carry: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) if (snapshotKeys.has(key)) carry[key] = value;
+    if (Object.keys(carry).length === 0) return;
+    const pageId = toPageId(id);
+    try {
+      if (!(await hasPendingDraft(env, draftDeps, editor, pageId))) return;
+      const saved = await applySaveDraft(env, draftDeps, editor, pageId, carry);
+      if (!saved.ok) throw new Error(`draft save answered ${saved.status}: ${saved.error}`);
+    } catch (err) {
+      // The live write already landed. Reported, because until the draft is
+      // saved again, the next publish puts the old values back.
+      reportDegraded("editor.pages.draftCarry", err, { id });
+    }
+  };
 
   /** Reject a write whose (transformed) slug is a reserved path. */
   const reservedSlugRejection = (data: Record<string, unknown>): Response | null => {
@@ -271,6 +330,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
           .where(eq(pkCol, id))
           .returning();
         if (!updated) return json({ error: "Not found" }, 404);
+        await carryIntoDraft(env, g.editor, id, data);
         await fireAfterWrite(g.editor, { operation: "update", id });
         return json({ page: updated });
       } catch {

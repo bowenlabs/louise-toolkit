@@ -146,7 +146,10 @@ export const ALL: APIRoute = (ctx) =>
   throw from it never fails the write. Plain CRUD writes don't touch the search
   index, so pass `afterWrite: (_editor, { id }) => reindexDoc(db(env.DB), pages,
 pagesCollection, id)` to keep that one row searchable, rather than rebuilding
-  the whole index with `reindexSearch` after every edit.
+  the whole index with `reindexSearch` after every edit. For a versioned
+  collection, pass `versionsTable` and `drafts: { config, bufferKv? }`, so an
+  update also lands in the page's pending draft and the next publish doesn't
+  undo it; see [Writing to the live row directly](/guide/drafts/#writing-to-the-live-row-directly).
 - **`versionsRoute`**—the [draft/publish + version history](/guide/drafts/)
   surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
   (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest
