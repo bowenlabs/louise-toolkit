@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LouiseWorkflowError } from "../../src/core/errors.js";
 import {
   defineWorkflow,
+  isWorkflowInstanceId,
   startWorkflow,
   type WorkflowPipelineStep,
 } from "../../src/core/workflows/index.js";
@@ -133,10 +134,10 @@ describe("startWorkflow", () => {
     const out = await startWorkflow(
       workflow as unknown as Workflow<PublishParams>,
       { collection: "pages", id: 42 },
-      { id: "publish:pages:42" },
+      { id: "publish-pages-42-v7" },
     );
     expect(workflow.create).toHaveBeenCalledWith({
-      id: "publish:pages:42",
+      id: "publish-pages-42-v7",
       params: { collection: "pages", id: 42 },
     });
     expect(out).toBe(instance);
@@ -148,10 +149,31 @@ describe("startWorkflow", () => {
     expect(workflow.create).toHaveBeenCalledWith({ id: undefined, params: 7 });
   });
 
+  it("refuses an ID Cloudflare would reject, before calling create", async () => {
+    const workflow = { create: vi.fn().mockResolvedValue({}) };
+    for (const id of ["publish:pages:42", "-leading-hyphen", "a/b", "", "x".repeat(101)]) {
+      await expect(
+        startWorkflow(workflow as unknown as Workflow<number>, 1, { id }),
+      ).rejects.toBeInstanceOf(LouiseWorkflowError);
+    }
+    expect(workflow.create).not.toHaveBeenCalled();
+  });
+
   it("wraps a create failure in LouiseWorkflowError", async () => {
     const workflow = { create: vi.fn().mockRejectedValue(new Error("no capacity")) };
     await expect(startWorkflow(workflow as unknown as Workflow<number>, 1)).rejects.toBeInstanceOf(
       LouiseWorkflowError,
     );
+  });
+});
+
+describe("isWorkflowInstanceId", () => {
+  it("accepts letters, digits, hyphens, and underscores up to 100 characters", () => {
+    expect(isWorkflowInstanceId("publish-pages-42-v7")).toBe(true);
+    expect(isWorkflowInstanceId("_private")).toBe(true);
+    expect(isWorkflowInstanceId("x".repeat(100))).toBe(true);
+    expect(isWorkflowInstanceId("x".repeat(101))).toBe(false);
+    expect(isWorkflowInstanceId("publish:pages:42")).toBe(false);
+    expect(isWorkflowInstanceId("-x")).toBe(false);
   });
 });

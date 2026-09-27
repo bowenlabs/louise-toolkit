@@ -136,7 +136,11 @@ createVersionedLocalApi(db, table, versionsTable, config, registry?, options?);
   and name what to add.
 - `registry` is a `ContentRegistry`. `find` and `findByID` need one to resolve
   relationship fields with `depth: 1`.
-- `options.deferReindex` moves full-text index updates off the write path.
+- `options.deferReindex` moves full-text index updates off the write path. It
+  receives the row's `id`, and on a publish a second argument,
+  `{ versionId }`, naming the version that went live. A publish has committed
+  by the time it runs, so a throw from it doesn't fail the publish: it's logged
+  as the `content.publish.reindex` degrade.
 - The type parameters are the table types and your context type. Without them,
   `context` is `unknown` and accepts anything.
 
