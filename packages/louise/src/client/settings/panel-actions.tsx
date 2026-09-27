@@ -131,18 +131,14 @@ function statusLabel(s: SaveStatus): string {
   }
 }
 
+/** The footer's status region. It's always in the page, empty at rest, so a
+ *  status written into it is announced; mounting it with its text wasn't
+ *  (#468). Empty, it takes no space. */
 function SaveStatusPill(props: { status: SaveStatus }): JSX.Element {
   return (
-    <Show when={props.status.state !== "idle"}>
-      <span
-        class="louise-foot-status"
-        data-state={props.status.state}
-        role="status"
-        aria-live="polite"
-      >
-        {statusLabel(props.status)}
-      </span>
-    </Show>
+    <span class="louise-foot-status" data-state={props.status.state} role="status">
+      {statusLabel(props.status)}
+    </span>
   );
 }
 

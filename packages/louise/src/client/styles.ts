@@ -1658,6 +1658,48 @@ html[data-louise-studio] body {
   border-radius: 12px;
   background: var(--louise-surface);
 }
+/* Loading, empty, and error states (#468). */
+.louise-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.louise-skeleton { display: grid; gap: 8px; }
+.louise-skeleton[data-shape="grid"] { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+.louise-skeleton-item {
+  display: block;
+  height: 44px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--louise-text) 7%, transparent);
+  animation: louise-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.louise-skeleton[data-shape="grid"] .louise-skeleton-item { height: 72px; }
+.louise-skeleton[data-shape="panel"] .louise-skeleton-item { height: 12px; border-radius: 4px; }
+.louise-skeleton[data-shape="panel"] .louise-skeleton-item:last-child { width: 60%; }
+@keyframes louise-skeleton-pulse {
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .louise-skeleton-item { animation: none; }
+}
+.louise-empty,
+.louise-error-state {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 8px 0;
+}
+.louise-empty p,
+.louise-error-text { margin: 0; }
+/* No :empty { display: none } here: a hidden region leaves the accessibility
+   tree, so filling it would read as an insertion, which isn't announced. */
+.louise-error-text { color: var(--louise-danger); font-weight: 600; }
 /* Numbers that sit in columns or change in place take aligned digits, so a
    reading doesn't shift as it updates (#603): the vitals, the dashboard's
    counts, and the media panel's file sizes. */

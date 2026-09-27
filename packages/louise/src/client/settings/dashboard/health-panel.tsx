@@ -13,7 +13,8 @@ import { createSignal, For, Show } from "solid-js";
 import type { CwvSummary } from "../../../core/analytics/index.js";
 import { HEALTH_STALE_AFTER_MS, type HealthSummary, isStale } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
-import { apiGet, louiseQueryKeys } from "../query.js";
+import { EmptyState, ErrorState, Skeleton } from "../../states.jsx";
+import { apiErrorMessage, apiGet, louiseQueryKeys } from "../query.js";
 import type { DashboardApi } from "./types.js";
 
 /** Compact relative time ("just now", minutes or hours ago); falls back to the date for older scans. */
@@ -118,96 +119,109 @@ export function HealthPanel(props: {
       </button>
       <div style={{ height: "14px" }} />
 
-      <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
+      <Show
+        when={!query.isLoading}
+        fallback={<Skeleton label="Loading your site’s health" shape="panel" count={4} />}
+      >
         <Show
-          when={summary()}
+          when={!query.isError}
           fallback={
-            <p class="louise-muted">No health check yet. The daily scan fills this in shortly.</p>
+            <ErrorState
+              message={apiErrorMessage(query.error, "Couldn’t load your site’s health.")}
+              onRetry={() => void query.refetch()}
+            />
           }
         >
-          {(s) => (
-            <>
-              <LastChecked
-                checkedAt={s().checkedAt}
-                staleAfterMs={props.staleAfterMs ?? HEALTH_STALE_AFTER_MS}
-              />
+          <Show
+            when={summary()}
+            fallback={
+              <EmptyState message="No health check yet. The daily scan fills this in shortly." />
+            }
+          >
+            {(s) => (
+              <>
+                <LastChecked
+                  checkedAt={s().checkedAt}
+                  staleAfterMs={props.staleAfterMs ?? HEALTH_STALE_AFTER_MS}
+                />
 
-              {/* Pending schema migrations: the one problem an owner can't fix,
+                {/* Pending schema migrations: the one problem an owner can't fix,
                   so it says who can, and names the files for them. Only shown
                   when there is one. */}
-              <Show when={(s().pendingMigrations ?? []).length > 0}>
-                <section class="louise-settings-group">
-                  <h3 class="louise-settings-title">Database updates</h3>
-                  <p class="louise-muted">{pendingMessage(s().pendingMigrations!.length)}</p>
-                  <div class="louise-list">
-                    <For each={s().pendingMigrations}>
-                      {(file) => (
-                        <div class="louise-list-item">
-                          <div class="louise-item-main">
-                            <div class="louise-item-title">{file}</div>
-                          </div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </section>
-              </Show>
-
-              {/* Broken links—listed for review; nothing to auto-fix here. */}
-              <section class="louise-settings-group">
-                <h3 class="louise-settings-title">Broken links</h3>
-                <Show
-                  when={(s().brokenLinkDetails ?? []).length > 0}
-                  fallback={<p class="louise-muted">No broken links found.</p>}
-                >
-                  <div class="louise-list">
-                    <For each={s().brokenLinkDetails}>
-                      {(b) => (
-                        <div class="louise-list-item">
-                          <div class="louise-item-main">
-                            <div class="louise-item-title">{b.url}</div>
-                            <div class="louise-item-sub">
-                              {b.status === "error" ? "Didn’t respond" : `Returned ${b.status}`} ·
-                              on {b.from}
+                <Show when={(s().pendingMigrations ?? []).length > 0}>
+                  <section class="louise-settings-group">
+                    <h3 class="louise-settings-title">Database updates</h3>
+                    <p class="louise-muted">{pendingMessage(s().pendingMigrations!.length)}</p>
+                    <div class="louise-list">
+                      <For each={s().pendingMigrations}>
+                        {(file) => (
+                          <div class="louise-list-item">
+                            <div class="louise-item-main">
+                              <div class="louise-item-title">{file}</div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                  <Show when={s().brokenLinks > (s().brokenLinkDetails ?? []).length}>
-                    <p class="louise-muted louise-settings-hint">
-                      …and {s().brokenLinks - (s().brokenLinkDetails ?? []).length} more.
-                    </p>
-                  </Show>
+                        )}
+                      </For>
+                    </div>
+                  </section>
                 </Show>
-              </section>
 
-              <AiFixSection
-                heading="Image descriptions"
-                count={s().missingAlt}
-                message={`${count(s().missingAlt, "image")} missing a description.`}
-                allClear="Every image has a description."
-                fixer={altFix}
-                reviewLabel="Review in Media"
-                onReview={() => props.navigate({ panel: "media" })}
-                unavailableNote="AI descriptions aren’t set up for this site. Add them by hand in Media."
-              />
+                {/* Broken links—listed for review; nothing to auto-fix here. */}
+                <section class="louise-settings-group">
+                  <h3 class="louise-settings-title">Broken links</h3>
+                  <Show
+                    when={(s().brokenLinkDetails ?? []).length > 0}
+                    fallback={<p class="louise-muted">No broken links found.</p>}
+                  >
+                    <div class="louise-list">
+                      <For each={s().brokenLinkDetails}>
+                        {(b) => (
+                          <div class="louise-list-item">
+                            <div class="louise-item-main">
+                              <div class="louise-item-title">{b.url}</div>
+                              <div class="louise-item-sub">
+                                {b.status === "error" ? "Didn’t respond" : `Returned ${b.status}`} ·
+                                on {b.from}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                    <Show when={s().brokenLinks > (s().brokenLinkDetails ?? []).length}>
+                      <p class="louise-muted louise-settings-hint">
+                        …and {s().brokenLinks - (s().brokenLinkDetails ?? []).length} more.
+                      </p>
+                    </Show>
+                  </Show>
+                </section>
 
-              <AiFixSection
-                heading="Search engine info"
-                count={s().seoGaps}
-                message={`${count(s().seoGaps, "page")} missing an SEO title or description.`}
-                allClear="Every page has search info."
-                fixer={seoFix}
-                reviewLabel="Review in Pages"
-                onReview={() => props.navigate({ panel: "pages" })}
-                unavailableNote="AI SEO isn’t set up for this site. Add titles/descriptions by hand in Pages."
-              />
+                <AiFixSection
+                  heading="Image descriptions"
+                  count={s().missingAlt}
+                  message={`${count(s().missingAlt, "image")} missing a description.`}
+                  allClear="Every image has a description."
+                  fixer={altFix}
+                  reviewLabel="Review in Media"
+                  onReview={() => props.navigate({ panel: "media" })}
+                  unavailableNote="AI descriptions aren’t set up for this site. Add them by hand in Media."
+                />
 
-              <PerformanceSection cwv={s().cwv} />
-            </>
-          )}
+                <AiFixSection
+                  heading="Search engine info"
+                  count={s().seoGaps}
+                  message={`${count(s().seoGaps, "page")} missing an SEO title or description.`}
+                  allClear="Every page has search info."
+                  fixer={seoFix}
+                  reviewLabel="Review in Pages"
+                  onReview={() => props.navigate({ panel: "pages" })}
+                  unavailableNote="AI SEO isn’t set up for this site. Add titles/descriptions by hand in Pages."
+                />
+
+                <PerformanceSection cwv={s().cwv} />
+              </>
+            )}
+          </Show>
         </Show>
       </Show>
     </div>

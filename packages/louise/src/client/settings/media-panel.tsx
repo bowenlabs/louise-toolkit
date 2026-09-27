@@ -10,8 +10,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../icons.jsx";
 import { thumb } from "../thumb.js";
+import { EmptyState, ErrorState, Skeleton } from "../states.jsx";
 import { usePanelActions } from "./panel-actions.jsx";
-import { apiGet, louiseQueryKeys } from "./query.js";
+import { apiErrorMessage, apiGet, louiseQueryKeys } from "./query.js";
 import { describeUploadFailures, uploadMediaFiles } from "./upload.js";
 
 /** A tracked media asset (a `media` table row + its resolved public `url`). */
@@ -133,29 +134,42 @@ export function MediaPanel() {
         />
       </label>
       <div style={{ height: "14px" }} />
-      <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
+      <Show
+        when={!query.isLoading}
+        fallback={<Skeleton label="Loading your media" shape="grid" count={6} />}
+      >
         <Show
-          when={items().length > 0}
-          fallback={<p class="louise-muted">No media in storage yet.</p>}
+          when={!query.isError}
+          fallback={
+            <ErrorState
+              message={apiErrorMessage(query.error, "Couldn’t load your media.")}
+              onRetry={() => void query.refetch()}
+            />
+          }
         >
-          <div class="louise-media-grid">
-            <For each={items()}>
-              {(m) => (
-                <MediaCard
-                  item={m}
-                  copied={copied() === m.url}
-                  deleting={deleteMutation.isPending}
-                  editing={editingKey() === m.key}
-                  onEdit={() => setEditingKey(m.key)}
-                  onCloseEdit={() => setEditingKey((k) => (k === m.key ? null : k))}
-                  onCopy={() => void copy(m.url)}
-                  onDelete={() => del(m.key)}
-                  onSaved={() => qc.invalidateQueries({ queryKey: louiseQueryKeys.media })}
-                  onError={setError}
-                />
-              )}
-            </For>
-          </div>
+          <Show
+            when={items().length > 0}
+            fallback={<EmptyState message="No media yet. Upload images to add them." />}
+          >
+            <div class="louise-media-grid">
+              <For each={items()}>
+                {(m) => (
+                  <MediaCard
+                    item={m}
+                    copied={copied() === m.url}
+                    deleting={deleteMutation.isPending}
+                    editing={editingKey() === m.key}
+                    onEdit={() => setEditingKey(m.key)}
+                    onCloseEdit={() => setEditingKey((k) => (k === m.key ? null : k))}
+                    onCopy={() => void copy(m.url)}
+                    onDelete={() => del(m.key)}
+                    onSaved={() => qc.invalidateQueries({ queryKey: louiseQueryKeys.media })}
+                    onError={setError}
+                  />
+                )}
+              </For>
+            </div>
+          </Show>
         </Show>
       </Show>
     </>

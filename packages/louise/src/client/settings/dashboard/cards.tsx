@@ -16,8 +16,8 @@ import { apiGet, louiseQueryKeys } from "../query.js";
 import { Card } from "./Card.jsx";
 import type { CardStatus, DashboardApi, DashboardCard, OverviewData } from "./types.js";
 
-/** The one shared overview query every card reads (deduped by key). */
-function useOverview() {
+/** The one shared overview query every card, and the home panel, reads (deduped by key). */
+export function useOverview() {
   return useQuery(() => ({
     queryKey: louiseQueryKeys.overview,
     queryFn: () => apiGet<OverviewData>("/api/louise/overview"),

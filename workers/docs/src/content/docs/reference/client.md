@@ -273,6 +273,32 @@ back the raw-URL text input for a site that knowingly wants it. All default off.
 outside the Settings' TanStack Query provider (for example, the sections inspector)—it
 powers **Choose from media** on section `image` fields.
 
+### Loading, empty, and error states
+
+```ts
+import { EmptyState, ErrorState, InlineError, Skeleton } from "louise-toolkit/client/settings";
+```
+
+The four states a panel moves through, so every panel shows them the same way:
+
+- `<Skeleton label="Loading your pages" shape="rows" count={4} />`: a busy
+  placeholder in the shape of what's coming, `rows`, `grid`, or `panel`. It's a
+  `role="status"` region with `aria-busy`, and its `label` is what a screen reader
+  hears. The shimmer stops under `prefers-reduced-motion`.
+- `<EmptyState message="No pages yet." action={{ label, onClick }} />`: nothing
+  here yet, and the one next step, if there is one.
+- `<ErrorState message={…} onRetry={() => query.refetch()} />`: what failed, and
+  **Try again**. `onRetry` is required, so a failure with no way out can't be
+  written. Pass `apiErrorMessage(error, fallback)` as the message.
+- `<InlineError id="…" message={…} />`: a field-level message. Point the field's
+  `aria-describedby` at its `id`.
+
+Keep a failed load apart from an empty one: a list that failed to load isn't a
+list with nothing in it. `ErrorState` and `InlineError` are live regions that are
+in the page before their message and fill it a tick later, because many screen
+readers announce a change to a region that's already there, not a region
+inserted along with its text.
+
 ### Data layer
 
 ```ts

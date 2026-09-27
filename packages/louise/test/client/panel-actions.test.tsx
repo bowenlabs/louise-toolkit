@@ -136,11 +136,13 @@ describe("panel-actions — footer stack", () => {
 });
 
 describe("panel-actions — status pill", () => {
-  it("renders saving/saved/error and hides on idle", () => {
+  it("renders saving/saved/error in a region that's there, empty, at idle", () => {
     const [status, setStatus] = createSignal<SaveStatus>({ state: "idle" });
     mount(() => <Consumer actions={[]} status={() => status()} />);
-    // idle → no pill, and with no actions the whole footer collapses.
-    expect(pill()).toBeNull();
+    // idle → the status region is in the page, empty, so the first status
+    // written into it is announced (#468).
+    expect(pill()?.getAttribute("role")).toBe("status");
+    expect(pill()?.textContent).toBe("");
 
     setStatus({ state: "saving" });
     expect(pill()?.textContent).toContain("Saving");
