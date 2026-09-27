@@ -1,5 +1,45 @@
 # @louise-toolkit/astro
 
+## 0.4.0
+
+### Minor Changes
+
+- 9ffe693: `createLouiseMiddleware` takes an optional `redirectFor(path, context)` (#574). When a GET or HEAD answers 404, the middleware asks it where the path moved and answers with that redirect instead, keeping the visitor's query string. A live page always wins, since it's only asked after a 404, and a lookup that throws keeps the 404. Pair it with `resolvePageRedirect` and the `pageRedirects` table from `louise-toolkit/db`.
+- c241310: `louiseSaveDraftAction` takes an optional `base`, the field revisions a draft save started from (#572), and returns the saved fields' `revs`. A save whose `base` is stale for a field someone else changed returns `{ conflicts }` rather than throwing, because a rejected Action reaches the client only as an error, which can't carry the current values the owner chooses between. If your site wraps the Action for `mountLouise({ actions })`, resolve with its result as before and the editor shows the conflict.
+- fa3f05d: `louiseSaveDraftAction` takes an optional `softLocks`, as `versionsRoute` does (#572). A save that changes a field another editor holds in the realtime session returns `{ locked }` as data rather than throwing, the same way a conflict returns `{ conflicts }`, and the editor shows it. Pass `realtimeSoftLocks` from `louise-toolkit/realtime`.
+- bd15917: `seoHead(Astro, input)` prints a page's head tags from `louise-toolkit/seo`'s `pageHead`, with the origin and path taken from the request (#582). The origin is `input.origin`, then the `site` in `astro.config`, then the request's own origin, so set `site` to keep a preview host out of the canonical URL. Print the result inside `<head>` with `<Fragment set:html={…} />`. It needs the `louise-toolkit` release that adds `louise-toolkit/seo`.
+
+### Patch Changes
+
+- dd1e803: The docs moved to [docs.louisetoolkit.org](https://docs.louisetoolkit.org). The package `homepage` and the README links point there now. Nothing in the code changes, and the old docs.louisetoolkit.com links keep working as long as its redirect is in place.
+- Updated dependencies [57ab8ad]
+- Updated dependencies [346ab53]
+- Updated dependencies [2cee9bc]
+- Updated dependencies [b5bc2d1]
+- Updated dependencies [e8c452f]
+- Updated dependencies [3ab9a01]
+- Updated dependencies [dd1e803]
+- Updated dependencies [c241310]
+- Updated dependencies [fa3f05d]
+- Updated dependencies [98a7af7]
+- Updated dependencies [b215176]
+- Updated dependencies [bd15917]
+- Updated dependencies [5bbed31]
+- Updated dependencies [9ffe693]
+- Updated dependencies [8fbee20]
+- Updated dependencies [d7a3644]
+- Updated dependencies [d2c5aca]
+- Updated dependencies [bdceb77]
+- Updated dependencies [38d51b3]
+- Updated dependencies [e53714d]
+- Updated dependencies [6dd5c85]
+- Updated dependencies [2d93708]
+- Updated dependencies [ab0a1e8]
+- Updated dependencies [692ce84]
+- Updated dependencies [b02ea9e]
+- Updated dependencies [79a01c4]
+  - louise-toolkit@0.35.0
+
 ## 0.3.0
 
 ### Minor Changes

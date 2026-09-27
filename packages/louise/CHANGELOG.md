@@ -1,5 +1,256 @@
 # louise-toolkit
 
+## 0.35.0
+
+### Minor Changes
+
+- 57ab8ad: A site can give rewrites and SEO suggestions its voice, audience, and locale (#553). Only alt text took a site's prompt before; rewrite and SEO used a fixed one.
+
+  - `RewriteOptions` and `SeoOptions` take `instructions`, appended to the fixed prompt. `RewriteOptions` also takes `examples`, up to two before-and-after pairs sent as example turns.
+  - `aiRoute` takes `rewrite: { instructions, examples }` and `seo: { instructions }`. `seoFixRoute`'s existing `seoOptions` carries `instructions` to the backfill.
+
+  There's no default voice: voice and locale are site facts, so without these options the prompts are unchanged. Each site that uses the assists should pass its own.
+
+- 346ab53: The Health panel's AI backfills suggest, and the owner accepts (#549). **Fix with AI** wrote model output straight to live data: SEO fields into the live page row and alt text into the media table, and the list of what changed was thrown away. On a versioned collection, a draft saved before the backfill also blanked the new SEO fields again at the next publish.
+
+  - `POST …/media/generate-alt` and `POST …/pages/generate-seo` write nothing. They return `{ suggestions }` for the missing fields only.
+  - The Health panel's **Suggest with AI** shows them as a list the owner can edit, **Accept**, or **Skip**, with **Accept all**. An accepted description is saved with the media route's `PATCH`.
+  - An accepted SEO suggestion goes to the new `POST …/pages/generate-seo/apply` (`{ id, seoTitle?, seoDescription? }`). Pass `seoFixRoute({ drafts })`, the draft dependencies `versionsRoute` takes, and it's saved as a draft through `applySaveDraft`, so version history holds it and a publish can't blank it; without `drafts`, it's written to the live row.
+
+  What to know when you upgrade: the two backfill endpoints now answer `{ suggestions }` instead of `{ fixed, results }`, and they no longer write. A script that called them to fill fields in bulk should apply what it gets back: the media `PATCH` for alt text, and `generate-seo/apply` for SEO. Marking which fields a model wrote waits on the provenance column the MCP write tools add (#236).
+
+- 2cee9bc: The editor chrome goes dark with the system setting (#603, ADR 0019 §3).
+
+  With every rule reading a role token since the last release, dark mode is a second set of role values. The edit bar, the node toolbar, the Settings drawer, the studio, and the pickers switch when the owner's system is in dark mode. The surface is `#0e141b`, text is `#e6edf3`, and the brand fills keep their hue and take dark ink on top, as the `louise-dark` theme does. Every text pair in both schemes clears 4.5:1, and the ring clears 3:1; the contrast test checks each one.
+
+  What to know when you upgrade:
+
+  - An owner whose system is in dark mode now sees a dark editor over the site, whatever the site's own colors are.
+  - To pin a scheme, set `data-louise-scheme="light"` or `data-louise-scheme="dark"` on the root element. A site with its own theme switch can set it to match.
+  - The chrome doesn't read the site's daisyUI theme, so choosing `louise-dark` for a site doesn't switch the chrome by itself. The scope note in `louise.css` says so.
+
+- b5bc2d1: The editor chrome works under a Windows contrast theme, follows the browser's text size, and tells a screen reader its strings are English (#598).
+
+  - **Forced colors:** focus on an editable field, an input, or the rich-text frame was drawn only as a box shadow after `outline: none`, and forced colors remove box shadows, so focus disappeared. Those rules now set a transparent outline, which is invisible in normal colors and painted in the system color under forced colors. A `forced-colors` block gives the active section or block, the active chip, tab, and toolbar button, and the node toolbar a `Highlight` outline or a border, since their normal cue is a shadow or a background.
+  - **Focus rings:** the input and rich-text focus ring was a 12 percent tint; it's now a solid 2 px ring in the brand blue, 3.88:1 against white.
+  - **Text size:** every font size in the chrome's styles is in `rem` instead of `px`, so an owner who raises their browser's default text size gets larger editor text.
+  - **Language:** every root the chrome adds to the page (the edit bar, the node toolbar, the sections dock and its pickers, inspector, and history drawer, the Settings drawer, the studio, the grammar popover, and the rich-text alt-text control) carries `lang="en"`, so a screen reader on a page in another language reads the chrome's strings with English rules. The value describes the chrome's strings, not the site.
+  - **New-tab link:** the Pages panel's "View published page" link says "(opens in a new tab)" and shows an icon instead of a `→` a screen reader read aloud.
+
+  What to know when you upgrade: `rem` follows the site's root font size as well as the browser's. A site that shrinks the root, such as `html { font-size: 62.5% }`, now shrinks the editor chrome with it. Set the root back to `100%` on edit-mode pages, or size the site's own text another way.
+
+- e8c452f: The editor chrome reads role tokens instead of color literals, every editable node rings in one color, and orange now means danger and nothing else (#603, ADR 0019 §3 and §4).
+
+  - **Role tokens:** every rule in the chrome's stylesheet reads a role, such as `--louise-surface`, `--louise-text`, `--louise-text-muted`, `--louise-border`, `--louise-accent`, `--louise-ring`, `--louise-success`, `--louise-warning`, or `--louise-danger`. Roles point at a small palette in the same `:root` block. About 235 literals are gone, and translucent tints are `color-mix()` of a token, so they follow it.
+  - **One ring:** every section, block, field, shared value, and external value rings in the brand blue (`--louise-node-ring`), with one toolbar color (`--louise-node-bar`). The toolbar's tag says what the node is, so color no longer has to.
+  - **Orange is danger:** errors, the danger button, the "poor" vitals badge, and the grammar underline use the theme's error orange, `#b8501f` (4.99:1), instead of red, since the palette has no red. Sections and Sign out, which were orange, are now the brand blue. The soft-lock badge, the missing-alt-text flag, and the "needs improvement" vitals badge use a warning amber, `#a16207`.
+  - **A type scale:** text sizes come from five steps, `--louise-text-2xs` (11 px at the default size) through `--louise-text-lg` (16 px). The 9 px and 10 px labels grow to 11 px, and the 15 px panel titles grow to 16 px.
+  - **Aligned digits:** the vitals readouts, the dashboard's counts, and the media panel's file sizes use `tabular-nums`.
+
+  What to know when you upgrade:
+
+  - These chrome tokens are gone: `--louise-yellow`, `--louise-violet`, `--louise-violet-strong`, `--louise-orange-strong`, `--louise-shared`, and `--louise-external`. `--louise-orange` changed from `#ea7317` to `#b8501f`. A site that overrode one of them should override the matching role instead, such as `--louise-danger` or `--louise-node-ring`.
+  - Owners see the change on the canvas: every ring is blue, and errors are orange instead of red.
+  - `data-louise-tone` is still set on the active node and the toolbar, so a site's own CSS keyed on it keeps working; the chrome just doesn't color by it.
+  - The chrome doesn't go dark yet. That's the next part of #603, once every rule reads a role.
+
+- 3ab9a01: An owner can mark an image as decorative, and AI alt text gets the image's context (#599).
+
+  - **Three alt states:** `NULL` is not written yet, `""` is decorative (HTML's "skip this image"), and any other text is the description. The Media panel's alt editor and the rich-text image control each get a **Decorative image** checkbox. The media route's `PATCH` now stores a `null` alt as `NULL` instead of `''`, and rich text serializes a decorative image as `alt=""` and parses it back, where it used to drop the attribute.
+  - **Only NULL is missing:** the alt backfill selects `"alt" IS NULL`, so it no longer regenerates an image the owner cleared on purpose. `MEDIA_ALT_MISSING_SQL` exports the condition for a site's health scan.
+  - **Context:** `AltTextOptions.context` (`pageTitle`, `heading`, `caption`, `href`) is folded into the prompt, and a linked image is described by where the link goes. The backfill passes the image's caption. Without context, the prompt is unchanged.
+
+  What to know when you upgrade:
+
+  - **Run the migration before the new count goes live.** An existing `''` alt is ambiguous: it used to mean both "not written" and "cleared". `MEDIA_ALT_UNDECIDED_SQL("media")` is the one-time statement, `UPDATE "media" SET "alt" = NULL WHERE "alt" = '';`, which makes each one "not written" so nothing silently becomes decorative. Add it as a D1 migration with your media table's name.
+  - **A site's health scan** should count missing alt text with `MEDIA_ALT_MISSING_SQL`, or decorative images stay on the owner's to-do list.
+
+- c241310: A draft save can now tell that someone else saved first (#572). Before, a save merged over the freshest pending work with no idea what the editor last saw, so an owner with the page open in two tabs, or an agent saving while the owner typed, silently overwrote the other's changes field by field.
+
+  Every field now has a revision, a short hash of its stored value. `GET /:id/versions` returns the current ones as `revs`, and every draft save returns the revisions of the fields it stored. A save that sends its starting revisions under `$base` gets a `409` with `conflicts` (each field's current `value` and `rev`) when a field it sets has changed since, unless both ended up at the same value. `applySaveDraft` takes them as a sixth argument, `{ base }`, and `fieldRev`, `fieldRevs`, `parseDraftBase`, and `DRAFT_BASE_KEY` are exported from `louise-toolkit/editor`.
+
+  The inline editor and the sections dock send `$base` and show a conflict as a choice: **Keep mine** saves again over their edit, **Reload** loads theirs. Auto-save holds off until the owner picks.
+
+  What to know when you upgrade:
+
+  - A save without `$base` is unchecked, so scripts and older clients behave as before. The realtime session and the MCP write tools don't send it.
+  - With the KV draft buffer on, the check narrows the window between two saves; it doesn't close it, because KV isn't atomic.
+  - A site that wraps `actions.louise.saveDraft` for `mountLouise({ actions })` must resolve with the Action's result, as the option already documents, so a returned conflict reaches the editor.
+  - The sections dock no longer reports "Couldn't save" when the KV buffer absorbs a save. It treated a save with no new version ID as a failure, which on a buffered site was most of them.
+
+- fa3f05d: A draft save can now respect the realtime session's soft-lock (#572). The session enforced its lock on a rich-text field only on its own socket, so an editor whose socket dropped, or a second tab without one, could save over a body someone else was still editing through the draft route's fetch fallback.
+
+  `versionsRoute` takes an optional `softLocks`, and `applySaveDraft` takes it in its options next to `base`. `realtimeSoftLocks({ namespace, fields })` from `louise-toolkit/realtime` builds one from the same Durable Object namespace `realtimeRoute` uses. A save that changes a field another editor holds answers `423` with `locked: ["body"]`, and nothing is written. The holder's own saves go through, and so does a save that sends a held field unchanged. The edit bar shows "Someone else is editing this right now." and keeps the edits for the next save, and its pre-publish snapshot leaves out a field someone else holds.
+
+  What to know when you upgrade:
+
+  - It's opt-in. Without `softLocks`, a save behaves as before.
+  - Leave `softLocks` out of the deps your session's own `persist` passes to `applySaveDraft`. The session already checks its locks.
+  - A save that changes a lockable field makes one request to that page's Durable Object. When it can't be answered, the save goes ahead and reports `editor.softLocks` through `reportDegraded`.
+  - The session now answers a plain `GET` for its locks. Your `DurableObject` subclass already forwards `fetch`, so there's nothing to change there.
+
+- 98a7af7: The page builder's flag is named for what it turns on, and the docs gain a glossary (#537).
+
+  "Block" meant three things: a section's blocks, the rich-text page builder's blocks, and the nodes a renderer registry maps. The flag that turns the builder on was called `blocks`, so it read as the first.
+
+  - **`builder` replaces `blocks`** on `RichText`, `mountRichText`, and a `richText` field's options (`RichTextFieldOptions`), and **`data-louise-builder="1"` replaces `data-louise-blocks="1"`** on an inline rich-text field.
+  - **`BuilderBlockDef`** from `louise-toolkit/client` names a builder block's schema. It was exported as `BlockDef`, the same name as a section's `BlockDef` in `louise-toolkit/content`, a different type.
+  - **Old names still work.** `blocks`, `data-louise-blocks`, and the client's `BlockDef` remain as deprecated aliases, so nothing breaks. Switch to the new names when you next touch that code.
+  - **Glossary.** A new reference page gives each content-model term one meaning (section, block, builder block, live, hidden, pending, superseded, and the rest) and the word the editor shows an owner.
+
+- b215176: Version history no longer puts an old version live in one click, and a deleted draft can come back (#540).
+
+  - **Open as draft:** a published row's **Restore** is now **Open as draft**. It loads that version onto the page as a new draft, the way **Edit** resumes a draft, and the owner goes live through the usual **Publish**. Nothing in the drawer publishes anymore.
+  - **Undo a draft delete:** the trash icon removes the row at once and shows **Draft deleted · Undo** in the drawer for 8 seconds, with focus on **Undo**. The discard request is sent when that window ends, the drawer closes, or a publish starts, with `keepalive` so a reload right after doesn't cancel it. One delete waits at a time; a second delete sends the first.
+  - **Row summaries:** each row names how many sections the version holds and the labels of the first two, such as "3 sections · Hero, Feature grid, …".
+
+  No site change is needed. If your own tests click **Restore** in the history drawer, they now look for **Open as draft**.
+
+- bd15917: A new subpath, `louise-toolkit/seo`, turns a page row and the site settings into head tags (#582). Settings has always stored a meta description, a default share image, a favicon, and **Hide from search engines**, but nothing read them into a page, so an owner who hid the site from search engines was still indexed. `pageHead(input)` decides the title (through your title template), the description (SEO description, then the body's text, then the site default, never `content=""`), `noindex` (the page's or the site's), a canonical URL with the query string dropped except the parameters you keep, Open Graph and Twitter tags, and the favicon. `renderHeadTags(head)` prints them with every value escaped.
+
+  The share image follows one order everywhere, `shareImageSource`: the page's own image, then the site's generated card, then the site-wide default. The Pages panel's share preview now uses it, so it shows the default image when your site renders no cards; pass `ogCard: false` in the Settings config to say so. The panel's SEO title and description fields now count characters against the limits search results cut at.
+
+  Two behavior changes to check when you upgrade:
+
+  - `metaDescription()` clamps at 155 characters by default, not 160, so a derived description and an AI-suggested one agree. Pass `{ maxLength: 160 }` to keep the old length. `SEO_TITLE_MAX` and `SEO_DESCRIPTION_MAX` now live in `louise-toolkit/seo`; `louise-toolkit/ai` still exports them.
+  - The Pages panel reads `/api/louise/settings` to find the default share image. A site without that route shows the generated card as before.
+
+- 5bbed31: "Published" now has one meaning, and publish and unpublish keep a page's visibility in step (#534, ADR 0021).
+
+  - **Publish shows the page.** `publish` now sets the row's `status = 'published'` in the same batch that copies the snapshot and moves the pointer. Before, a new page stayed hidden after its **Publish** until someone changed its Status by hand, and the Pages panel still read Draft.
+  - **Unpublish hides the page.** `unpublish` now sets `status = 'draft'` and keeps the row and `published_version_id`. Before, it cleared the pointer and left the page public. A collection whose table has no `status` column can't be hidden, so `unpublish` throws `LouiseContentError` there, and the route answers `422`.
+  - **Superseded drafts stay superseded.** A draft is now superseded when it's at or below the highest version ever promoted, not the current pointer. Before, an unpublish, or publishing an older version by ID, made old drafts pending again, so the next save built on stale content and "publish the latest draft" could put it live. `latestPendingDraft(versions)` drops its second argument, and `resumeDraft` no longer reads `publishedVersionId` from the row.
+  - **The scheduler skips superseded drafts.** `publishScheduled` no longer promotes a due draft that a later publish superseded.
+  - **Publish with nothing pending.** `POST …/publish` with no pending draft shows a hidden page again as it stands, through the new `republish`, which keeps edits made while it was hidden. It publishes a never-published page as it stands. A live page with nothing pending still gets `400 No draft to publish`.
+  - **`status` belongs to publish.** With `versionsTable`, `pagesRoute` refuses `status` on create and update with a `422`. The Pages panel shows **Publish** and **Unpublish** for such a page instead of a Status select, and lists pages as Live, Hidden, or Not published.
+  - **The rules, exported.** `pageState`, `versionState`, `promotedHighWater`, and `isPageLive` from `louise-toolkit/content`. The versions `GET` adds `state` to each version and `pageState` to the response. The history drawer labels rows Live, Hidden, Earlier, Draft, Scheduled, or Superseded, and the edit bar counts only pending drafts as work to publish.
+
+  To upgrade:
+
+  - **Pages already unpublished.** A page unpublished before this release still has `status = 'published'` and no pointer, so it's still public, as it was. Nothing changes it automatically, because a page created live without drafts looks the same. Review them with `SELECT id, slug FROM pages WHERE status = 'published' AND published_version_id IS NULL`, and unpublish the ones meant to be hidden.
+  - **Your own `status` writes.** A script or form that writes `status` through `pagesRoute` on a versioned page now gets a `422`. Call `POST /api/louise/pages/:id/publish` or `…/unpublish` instead.
+  - **`latestPendingDraft` callers** drop the second argument.
+
+- 9ffe693: A renamed page keeps its old URL working (#574). A slug is a page's public URL, and renaming a page from the Pages panel is how it gets its address, so every inbound link, bookmark, and search result for the old one used to turn into a 404.
+
+  - `louise-toolkit/db` adds a `pageRedirects` table (`page_redirects`: `from_path`, `to_path`, `code`) and `resolvePageRedirect(db, table, path)`, which returns `{ location, status }` or `null`, following a chain of renames.
+  - `pagesRoute({ redirects: pageRedirects })` records `/old → /new` in the same batch as a slug change. A new page on an old path, or a rename onto one, clears the redirect away from it, so a redirect never shadows a page. Earlier redirects to the old path move to the new one, so a chain stays one hop.
+  - `versionsRoute({ redirects: pageRedirects })` records the rename when a publish changes the slug. It's written right after the publish; if that write fails, the publish stands and the failure is reported as `editor.redirects`.
+
+  What to know when you upgrade: it's opt-in. Add `pageRedirects` to the schema drizzle-kit reads and generate the migration, pass the table to both routes, and give the Astro middleware `redirectFor`.
+
+- 8fbee20: `pagesRoute` can keep an update in the page's pending draft (#530). The Pages panel saves a page's title, slug, and SEO fields to the live row through `pagesRoute`, but publish copies the whole draft snapshot onto that row. So when a page had a pending draft, the next publish put the old values back: a rename came undone, and a changed slug moved the page back to its old URL.
+
+  Pass `drafts: { config, bufferKv? }` with the same collection config and KV buffer you give `versionsRoute`. An update then also saves the fields the snapshot holds into the page's pending work, the KV buffer or else the newest pending draft, so the change survives the next publish. It still goes live right away, as before.
+
+  What to know when you upgrade:
+
+  - It's opt-in, and it needs `versionsTable`, which `pagesRoute` already takes for the delete cascade. Without `drafts`, an update behaves as before.
+  - A page with no pending work gets no draft, and a field outside the snapshot, such as `status`, stays on the live row only.
+  - If the draft refuses the change, the live write stands and the route reports `editor.pages.draftCarry` through `reportDegraded`. Until the draft is saved again, the next publish puts the old values back.
+  - An editor with the page open keeps its own copy of a renamed field. If it then saves that field, it gets the `409` conflict from #572, not a silent overwrite.
+
+- d7a3644: The add-section and add-block pickers now show each type's icon and a one-line description under its label (#546). Before, an owner picked from names such as "Split image" with no idea what each looked like.
+
+  `SectionDef` and `BlockDef` gain an optional `description`, one short sentence. The picker draws `icon` when it's inline SVG markup, such as a Phosphor icon imported with `?raw`, sized to the text and drawn in `currentColor`. It leaves any other `icon` string out, as it did before, because a bare name like `grid` could match a site's own CSS on the page.
+
+  To adopt, give each catalog entry a `description`, and switch `icon` from a name to SVG markup. Nothing breaks if you don't: a type with neither shows its label, as before.
+
+- d2c5aca: The add-section and add-block pickers now work from the keyboard, and every section and block says what it is when it has focus (#596).
+
+  - **Pickers:** opening one moves focus to its first item. Escape, from inside it or from the button that opened it, closes it and returns focus to that button. After a pick, focus lands on the new section or block rather than falling to the top of the page.
+  - **The trailing Add section button** no longer announces a menu. It sets `aria-expanded` and `aria-controls` for the picker it opens.
+  - **Named nodes:** a section or block rendered as a `div`, `span`, or `section` gets `role="group"` and a name such as "Section · Hero" when the editor makes it a tab stop, from a new `nodeName` helper the toolbar can share. An element with its own role (a link, a heading, an image), or an author's own `role` or `aria-label`, is left alone.
+  - **Sections added or re-rendered during the session** stay in the keyboard path. `mountNodeChrome` now returns its disposer with a `prepare(el)` method, which the sections editor calls after it inserts or replaces a section, so the new markup's sections and blocks become named tab stops without a reload.
+
+  What to know when you upgrade: `mountNodeChrome`'s return value is still callable as the disposer, so existing callers work unchanged.
+
+- bdceb77: Publish is the edit bar's one primary action, stays reachable while there's nothing to publish, and says when the page is live (#597).
+
+  - **One filled button:** Publish is the one action that changes the live site, so it's now filled (white on the blue text stop, 5.08:1). Save draft, Settings, and Sign out stay text buttons.
+  - **Reachable when unavailable:** Publish, Save, and Save draft use `aria-disabled` instead of `disabled` while they have nothing to do, so Tab and the toolbar's arrow keys still reach them, and a click does nothing. Beside Publish, "Nothing to publish yet" says why, tied to it with `aria-describedby`. This applies to the inline edit bar and the sections bar alike.
+  - **Says it's live:** a publish still ends in a reload, but it now leaves a one-shot flag in `sessionStorage`, and the reloaded bar says "Published. Your page is live." in its status region. A private window without storage skips the message. The sections bar gains a status region that's always in the page, so the message is announced.
+  - **Says who holds a lock:** a field a realtime peer holds shows its badge as a real text element, "Alex is editing this field," instead of CSS generated content. The editable surface points `aria-describedby` at it and is `aria-readonly`, in place of `aria-disabled` on its container, so a screen reader user who tabs in hears that it's locked and who has it.
+
+  What to know when you upgrade: a test that expected an unavailable Publish, Save, or Save draft to be `disabled` now finds `aria-disabled="true"`. Site CSS that targeted `.louise-editable.louise-locked::before` or `data-louise-locked-by` should target `.louise-lock-note` instead.
+
+- 38d51b3: `processBatch` now waits before a failed message is redelivered (#632). Each retry passes `delaySeconds` from `defaultRetryDelay(attempts)`: 30 seconds on the first delivery, then a minute, then two, doubling up to a 5-minute cap. Before, it called `retry()` with no delay, so a failure from a rate limit or an upstream outage spent every redelivery inside the same bad minute.
+
+  A new optional third argument, `{ retryDelay }`, takes the delay in seconds for a given attempt. To keep the old behavior, pass `{ retryDelay: () => 0 }`. The delay `processBatch` sets overrides a `retry_delay` in the queue's `wrangler.jsonc`, so a consumer that relied on that setting passes its own `retryDelay` instead.
+
+  A message that's already waiting when you deploy keeps the delay it was given; the new backoff applies from its next failure.
+
+- e53714d: An AI rewrite shows its result before it replaces anything, and keeps a selection's paragraphs (#544, #551).
+
+  - **Preview:** the rewrite appears under the original with **Replace** and **Discard**, and nothing changes until Replace. A rewrite used to replace the selection at once.
+  - **Failures say so:** "Couldn't rewrite this right now. Your text hasn't changed." A `503` says "AI rewrite isn't set up for this site." once, then retires the control when the menu closes, instead of vanishing without a word.
+  - **Paragraphs:** a selection across several blocks goes to the model as paragraphs separated by blank lines, and each answer paragraph goes back into its own block, so headings and list items keep their type. A rewrite used to merge them into one. When the answer's paragraphs don't line up, Replace is off and the menu says why. `rewriteText` asks the model to keep the paragraphs only when the text has several; a single paragraph's prompt is unchanged.
+  - **Links:** a selection holding a link can't be rewritten, and the menu says why, since the model could change where the link goes.
+  - The preview notes when bold, italics, or other formatting in the selection won't carry over.
+
+- 6dd5c85: The sections bar says what it's doing and what failed, and the editor announces what changed without a screen reader user having to look (#468).
+
+  - **Save status:** a sections page shows "Saving…" and then "Draft saved" for about 3 seconds. It used to show nothing unless a save failed.
+  - **Failures in words for their action,** with **Try again**: "Couldn't save your draft. Your edits are still here.," "Couldn't publish. The live page hasn't changed.," and "Couldn't delete the draft." A 4xx's reason follows; a 5xx's text doesn't, since it can carry internals. Both messages sit in regions that are in the page at rest, so they're announced.
+  - **Slow changes say so:** adding a section, or changing one that re-renders through the fragment route, shows "Adding section…" or "Updating section…" once the wait passes 400 ms, and marks the section `aria-busy`.
+  - **Announcements:** the Pages search reads "3 pages match" or "No pages match" as the owner types. Moving a section or block with Alt+Up or Alt+Down reads where it landed, such as "Hero moved to position 2 of 5". The presence strip is in the page at rest and reads each editor's name, not their initials.
+
+  ADR 0005 is amended: its status line, where History opens, and that duplicate and drag-to-reorder never shipped.
+
+- 2d93708: The settings drawer now says why a save failed, and keeps its buttons usable (#592).
+
+  - **Settings:** a refused save marks each field the server named, shows the message under it (linked with `aria-describedby`), opens its section, focuses the first one, and counts them in the footer: "1 field needs attention." A link list marks the row, so `navLinks[1].href` lands on row 2.
+  - **Pages:** a refused save shows the route's reason, such as "“admin” is a reserved path.", never the request line `PATCH /api/louise/pages/3 422`.
+  - **Save and Revert stay enabled** in Settings, Pages, and the Media editor, so they stay in the tab order and Cmd+S always answers. With nothing changed, Settings and Pages say "No changes to save", and the Media editor closes.
+  - **Link rows** name each control by its row ("Remove link 2, Shop"), label both inputs visibly, focus the new row's label after **Add link**, and focus the next row's **Remove** (or **Add link**) after a removal.
+  - **Links typed as `example.com/shop`** get `https://` when the field loses focus and before a save, and the field shows the corrected value. The server's scheme check is unchanged.
+  - **Users:** the invite form asks for one optional **Name** and an **Email**, with visible labels. **Add editor** stays enabled and answers a missing email in words, and a refused invite shows the route's reason.
+  - The **Upload** button shows a focus ring.
+
+  What to know when you upgrade:
+
+  - `LouiseApiError` from `louise-toolkit/client/settings` now carries the parsed `body`, and the new `apiErrorMessage(error, fallback)` turns any thrown error into owner-facing text: a 4xx route's own `error`, else your fallback. A site panel that showed `error.message` showed the request line; switch it to `apiErrorMessage`.
+  - `settingsRoute`'s 422 messages are rewritten for owners: a link says "Enter a link that starts with https://, mailto:, or /.", an image says "Choose an image from the media library.", and the top-level `error` counts the fields. A test that matched the old wording needs updating.
+  - `editorsRoute` accepts `name` on an invite, alongside `firstName` and `lastName`, and its missing-email message reads "Enter the editor’s email address."
+  - A test that expected the footer's Save to be disabled until an edit now finds it enabled.
+
+- ab0a1e8: Loading, empty, and error states for the editor's panels (#468): `Skeleton`, `EmptyState`, `ErrorState`, and `InlineError`, exported from `louise-toolkit/client/settings`.
+
+  - `ErrorState` requires `onRetry`, so a failure with no way out can't be written. Its alert, and `InlineError`, are in the page before their message, so a screen reader announces it.
+  - The Pages panel, the Media panel, both media pickers, and the site health panel show a skeleton while loading and **Try again** when a load fails. A failed load used to read as an empty one: "No pages yet," "No uploads yet."
+  - The dashboard shows a skeleton while it checks the site, and says it couldn't check when the overview fails. It used to say "Your site is healthy" in both cases.
+  - The Settings footer's status region is in the page at rest, so the first status written into it is announced.
+
+  What to know when you upgrade: a test that looked for the footer's status pill to be absent at idle now finds it present and empty. A test that read the dashboard summary right after mount should wait for the overview to load.
+
+- 692ce84: Structural edits on the canvas undo (#541). Deleting a section or block was instant and autosaved within a second, and Delete or Backspace on a focused node did the same, so the only way back was version history.
+
+  - **Undo:** Ctrl+Z or Cmd+Z reverses the newest structural edit, up to 20: deleting, moving, or adding a section or block, and the array-item and variant changes behind the wrench. The keystroke is left alone inside a text or rich-text field, which keep their own undo, and inside a dialog.
+  - **Notice:** a delete shows **Deleted Hero · Undo** in the edit bar, a `role="status"` region, for 8 seconds, held open while **Undo** has focus.
+  - **Scope of an undo:** each undo reverses only its own edit, not the whole page. A deleted element goes back as it was, with its paths restamped, so text typed elsewhere after the delete stays.
+  - **One media prompt:** deleting a media file that content still uses now asks once, naming where it's used, instead of twice in a row. `mediaRoute` and `listMediaRoute` answer a new `GET ?references=<key>` with `{ references }` for that. A server without it still works, with the old second prompt.
+
+  No site change is needed.
+
+- b02ea9e: The node toolbar says what it acts on, and its add button says where it adds (#542).
+
+  - **One direction:** a section's `+` inserted a new section above it while a block's inserted below, under the same "Add Hero after" label. Both now insert below, labeled "Add section below" and "Add block below," and the section picker opens under the section it adds after. ADR 0010 records the choice.
+  - **A visible name:** the toolbar shows the node's kind and name at its leading edge, such as "Section · Hero," and uses the same text as its `aria-label` instead of "Editor actions." The kind was told only by ring color before.
+  - **Shortcuts in tooltips:** "Move up (Alt+Up)," "Move down (Alt+Down)," and "Delete Hero (Delete)." The shortcuts were in `aria-keyshortcuts` only, so a sighted keyboard user couldn't learn them.
+
+  What to know when you upgrade: an owner used to a section's `+` adding above it now gets the new section below. A test that looked for the toolbar's "Editor actions" name or an "Add … after" label needs updating.
+
+- 79a01c4: Every editor control a finger taps is at least 44 px (#543). On a phone or tablet the node toolbar's buttons were 26 px, and icon buttons, extra-small buttons, and History stopped at 36 px, with delete right beside move, so a miss was a destructive miss.
+
+  - Under `pointer: coarse`, the node toolbar's buttons are 44 by 44 px, and icon buttons, the formatting toolbar, extra-small buttons, History, and inputs get a 44 px minimum. The toolbar's rule ships with the toolbar's own stylesheet, so it applies wherever the toolbar mounts.
+  - Delete sits 8 px from its neighbors on the node toolbar, on every pointer.
+
+  What to know when you upgrade: on touch devices the node toolbar is wider and taller, so it covers a little more of the node it floats over.
+
+### Patch Changes
+
+- dd1e803: The docs moved to [docs.louisetoolkit.org](https://docs.louisetoolkit.org). The package `homepage` and the README links point there now. Nothing in the code changes, and the old docs.louisetoolkit.com links keep working as long as its redirect is in place.
+
 ## 0.34.0
 
 ### Minor Changes
