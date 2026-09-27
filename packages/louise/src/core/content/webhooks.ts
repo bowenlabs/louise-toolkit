@@ -35,6 +35,13 @@ export interface WebhookMessage {
   doc: Record<string, unknown>;
   /** ms since epoch, included in the signed/delivered payload. */
   timestamp: number;
+  /**
+   * Fixed when the event is created, so every retry of this delivery carries
+   * the same one. Sent as `X-Louise-Delivery` and in the signed body; a
+   * receiver that has seen it drops the repeat. Optional only so a message
+   * enqueued before it existed still delivers.
+   */
+  deliveryId?: string;
 }
 
 /**
@@ -56,6 +63,7 @@ export function createWebhookHook(
       event: operation,
       doc,
       timestamp: Date.now(),
+      deliveryId: crypto.randomUUID(),
     });
   };
 }
@@ -72,37 +80,63 @@ async function hmacSha256Hex(payload: string, secret: string): Promise<string> {
   return Array.from(new Uint8Array(signature), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** How {@link deliverWebhook} sends one delivery. */
+export interface WebhookDeliveryOptions {
+  /** When set, the delivery carries `X-Louise-Signature`: HMAC-SHA256 (hex)
+   *  over the raw JSON body. */
+  secret?: string;
+  /**
+   * The delivery's ID, sent as `X-Louise-Delivery` and as `deliveryId` in the
+   * body. Fix it when the event happens, not when it's sent, so a retry
+   * carries the same ID and the receiver can drop it: from a Workflow step, use
+   * the instance ID (`event.instanceId`); from a queue, store it on the message.
+   */
+  deliveryId?: string;
+  /** Tightens the public-URL policy (allowed hosts, the timeout). */
+  policy?: PublicUrlPolicy;
+}
+
 /**
- * Delivers a single `WebhookMessage`. Throws `LouiseQueueError` on a refused
- * URL, a non-2xx response, or no response at all—meant to be called from
- * inside `processBatch`'s handler, where a thrown error becomes a
- * `message.retry()`.
+ * POST one JSON payload to a webhook, through the same checked path every
+ * Louise webhook uses. Throws `LouiseQueueError` on a refused URL, a non-2xx
+ * response, or no response at all, so a queue handler's `processBatch` retries
+ * it and a Workflow step fails and retries.
  *
  * The URL goes through `fetchPublicUrl`: https only, no IP addresses or
  * private-network names, every redirect hop checked, a timeout. The error
  * names the endpoint's origin, never its path—a webhook path is often the
  * credential (a Slack or Discord hook URL is one).
+ *
+ * ```ts
+ * // A publish Workflow's notify step:
+ * { name: "webhook", run: async ({ env, payload, instanceId }) => {
+ *     await deliverWebhook(env.PUBLISH_WEBHOOK, { event: "publish", ...payload }, {
+ *       secret: env.PUBLISH_WEBHOOK_SECRET,
+ *       deliveryId: instanceId,
+ *     });
+ *     return { notified: true };
+ * } }
+ * ```
  */
-export async function deliverWebhookMessage(
-  message: WebhookMessage,
-  policy: PublicUrlPolicy = {},
+export async function deliverWebhook(
+  url: string,
+  payload: Record<string, unknown>,
+  options: WebhookDeliveryOptions = {},
 ): Promise<void> {
-  const body = JSON.stringify({
-    event: message.event,
-    doc: message.doc,
-    timestamp: message.timestamp,
-  });
+  const { secret, deliveryId, policy = {} } = options;
+  const body = JSON.stringify(deliveryId === undefined ? payload : { ...payload, deliveryId });
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (message.secret) {
-    headers["X-Louise-Signature"] = await hmacSha256Hex(body, message.secret);
+  if (deliveryId !== undefined) headers["X-Louise-Delivery"] = deliveryId;
+  if (secret) {
+    headers["X-Louise-Signature"] = await hmacSha256Hex(body, secret);
   }
 
-  const endpoint = originOf(message.url);
+  const endpoint = originOf(url);
   let response: Response;
   try {
-    response = await fetchPublicUrl(message.url, {
+    response = await fetchPublicUrl(url, {
       ...policy,
       provider: "Webhook",
       method: "POST",
@@ -118,6 +152,22 @@ export async function deliverWebhookMessage(
       `Webhook delivery to ${endpoint} returned status ${response.status}`,
     );
   }
+}
+
+/**
+ * Delivers a single `WebhookMessage` through {@link deliverWebhook}, with the
+ * message's `deliveryId`. Meant to be called from inside `processBatch`'s
+ * handler, where a thrown error becomes a `message.retry()`.
+ */
+export async function deliverWebhookMessage(
+  message: WebhookMessage,
+  policy: PublicUrlPolicy = {},
+): Promise<void> {
+  await deliverWebhook(
+    message.url,
+    { event: message.event, doc: message.doc, timestamp: message.timestamp },
+    { secret: message.secret, deliveryId: message.deliveryId, policy },
+  );
 }
 
 /** The endpoint's origin, for an error message—never the path. */
