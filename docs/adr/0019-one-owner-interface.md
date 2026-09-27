@@ -1,6 +1,6 @@
 # ADR 0019: One owner interface: the owner bar, `/louise`, and support
 
-- **Status:** Proposed (2026-09-26)
+- **Status:** Proposed (2026-09-26); revised 2026-09-27 for the owner frame and the editing bar
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0018 (design principles), ADR 0010 (the editable-node model), ADR 0011 (TanStack on Solid), ADR 0004 (edge caching), ADR 0012 (API boundary), ADR 0016 (privacy-first), issues #468, #480, #542, #543, #597, #598, #603
 
@@ -25,11 +25,15 @@ Seven design decisions, then the sequence that ships them.
 
 ### 1. An editing-session registry replaces DOM negotiation
 
-A small registry in the client (`registerEditingSurface`, `subscribeEditingSession`) lets each surface (inline fields, sections, and later settings) announce whether it has changes, its status, and how to publish. The owner bar's single Publish publishes every registered surface ("Publish 2 changes"). The DOM selector, the fallback strip, and the three cross-mount events go.
+A small registry in the client (`registerEditingSurface`, `subscribeEditingSession`) lets each surface (inline fields, sections, and later settings) announce whether it has changes, its status, and how to publish. The editing bar's single Publish publishes every registered surface ("Publish 2 changes"). The DOM selector, the fallback strip, and the three cross-mount events go.
 
 ### 2. One shell, two presentations, one screen model
 
 `OwnerShell` renders the existing panel set plus two new panels, Attention and Help, under an `OwnerBar`. Its presentation is `overlay` (over the live page, with a scrim and dialog semantics) or `page` (at `/louise`). Screens are a pure model (`ownerScreenFromPath`, `ownerHref`) with two stores: the URL hash in the overlay, so Back works over the live page, and the path on `/louise/<screen>`. No TanStack Router. The routed studio frame stays for sites that build custom routed apps, and ADR 0011 is amended to say so.
+
+Over the live page, the chrome is a frame (ADR 0018, principle 3). `OwnerBar` is its top edge in every signed-in state. `EditingBar` floats at the bottom and mounts only in edit mode; it reads the registry from decision 1 and shows the change count, the save status, Discard, Preview, and Publish. Outside edit mode, the edit toggle shows the registry's count instead. The frame's other three edges are fixed overlays with `pointer-events: none`, so the page renders and scrolls as it does for a visitor. There's no iframe and no inner scroll container, either of which would break `window.scrollY`, scroll listeners, and `100vh` sections.
+
+The kit reserves the bars' space with `padding-top` and `scroll-padding-top` on the root, and publishes it as two custom properties: `--louise-inset-top` whenever the owner bar shows, and `--louise-inset-bottom` only while the editing bar shows. A site's sticky header uses `top: var(--louise-inset-top, 0)`, and a cookie banner or chat button uses the bottom inset the same way; for a visitor both fall back to zero. Astroid's themes adopt them once, so its sites don't each patch it. The frame reads the ring token (decision 3), goes pale and thin outside edit mode, thins again at the mobile preset, and draws in `Highlight` under forced colors.
 
 ### 3. Chrome tokens are self-contained
 
@@ -55,24 +59,25 @@ A `site_settings_versions` table through the existing versions helper, a `settin
 
 Ten pull requests, each passing the full check suite alone. Every behavior change ships as a `minor` changeset, pre-1.0.
 
-| PR  | Ships                                                                                                                                                                                                                      | Closes                 |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| 0   | This ADR and ADR 0018; amendments to 0004 (bypass on the session cookie, `/louise` never cached), 0010, and 0011                                                                                                           | #608                   |
-| 1   | Role tokens, one ring rule, the toolbar tag, 44 px targets, forced-colors outline; section add inserts below like blocks                                                                                                   | #542, #543, #603       |
-| 2   | `rem` type scale, `lang` on every chrome root, "opens in a new tab"                                                                                                                                                        | #598                   |
-| 3   | The support module, `supportRoute`, the overview slice                                                                                                                                                                     | support, kit half      |
-| 4   | Loading, empty, and error primitives; migrate the panels                                                                                                                                                                   | #468                   |
-| 5   | The registry, the owner bar and shell (additive), the Attention and Help panels                                                                                                                                            | #597, #480 first slice |
-| 6   | The sign-in island, the session-cookie cache bypass, `ownerPath`, `louiseOwner()`, `louiseAuthRoute()`                                                                                                                     | the owner entry        |
-| 7   | The reference site onto kit auth and the kit `/louise` (provision Email Sending and the session secret first)                                                                                                              | the shared password    |
-| 8   | The settings draft                                                                                                                                                                                                         | settings preview       |
-| 9   | On-canvas editors for image, link, toggle, select, and color fields; the inspector keeps only anchorless fields; live settings preview through CSS variables, marker sync, and fragment re-render with a settings override | the canvas             |
-| 10  | Retire the bottom bar, the drawer-versus-studio split, and the events; `mountSettings` and `mountStudio` become deprecated aliases over `mountOwner` for one minor                                                         | the old shells         |
+| PR  | Ships                                                                                                                                                                                                                                                                         | Closes                 |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 0   | This ADR and ADR 0018; amendments to 0004 (bypass on the session cookie, `/louise` never cached), 0010, and 0011                                                                                                                                                              | #608                   |
+| 1   | Role tokens, one ring rule, the toolbar tag, 44 px targets, forced-colors outline; section add inserts below like blocks                                                                                                                                                      | #542, #543, #603       |
+| 2   | `rem` type scale, `lang` on every chrome root, "opens in a new tab"                                                                                                                                                                                                           | #598                   |
+| 3   | The support module, `supportRoute`, the overview slice                                                                                                                                                                                                                        | support, kit half      |
+| 4   | Loading, empty, and error primitives; migrate the panels                                                                                                                                                                                                                      | #468                   |
+| 5   | The registry, the frame, the owner bar and shell (additive), the inset properties, the Attention and Help panels                                                                                                                                                              | #597, #480 first slice |
+| 6   | The sign-in island, the session-cookie cache bypass, `ownerPath`, `louiseOwner()`, `louiseAuthRoute()`                                                                                                                                                                        | the owner entry        |
+| 7   | The reference site onto kit auth and the kit `/louise` (provision Email Sending and the session secret first)                                                                                                                                                                 | the shared password    |
+| 8   | The settings draft                                                                                                                                                                                                                                                            | settings preview       |
+| 9   | On-canvas editors for image, link, toggle, select, and color fields; the inspector keeps only anchorless fields; live settings preview through CSS variables, marker sync, and fragment re-render with a settings override                                                    | the canvas             |
+| 10  | Turn the bottom bar into the editing bar (edit mode only, reads the registry, Settings and Sign out move to the owner bar); retire the drawer-versus-studio split and the events; `mountSettings` and `mountStudio` become deprecated aliases over `mountOwner` for one minor | the old shells         |
 
 ## Consequences
 
 - **Sites that call `mountSettings` or `mountStudio` today** (astroidjs's bootstrap and the client sites) move to `mountOwner` during the one-minor overlap. `OPEN_SETTINGS_EVENT` keeps working, so a site's own Settings button doesn't break first.
 - **The edge cache bypasses on the session cookie**, not only the edit cookie, because the owner bar makes "signed in, edit mode off" a common state. A settings publish touches every page and the cache has no wildcard purge, so publish iterates the site's slugs, or accepts the 60-second floor and says so.
+- **A site with a fixed or sticky header** needs `top: var(--louise-inset-top, 0)`, or the owner bar covers the header while someone is signed in. A fixed element at the bottom needs the bottom inset, or the editing bar covers it in edit mode. A visitor sees no difference. The upgrade note names both properties.
 - **The reference-site cutover deploys production on merge.** Email Sending is onboarded for the domain first, or nobody can sign in. It's verified on a preview deploy, and the shared-password page can stay one deploy longer behind a flag.
 - **The settings draft buffer is a singleton key** shared by every editor, last write wins per key. Acceptable for an owner plus an engineer. Settings validation hooks live on the collection, not only in the route, so a buffered value doesn't skip them.
 - **Field types change their default.** `image`, `link`, `toggle`, `select`, and `color` become inline by default. A section whose render marks none of them still reaches those fields through the inspector, which is the load-bearing case PR 9 tests.
@@ -82,6 +87,8 @@ Ten pull requests, each passing the full check suite alone. Every behavior chang
 
 - **Keep the drawer and add an owner home page.** Rejected: it leaves three shells and adds a fourth.
 - **TanStack Router for the owner shell.** Rejected: the screen model is small, and a hash-backed overlay over the live page is simpler than a router in a dialog.
+- **Frame the site in an iframe or an inner scroll container.** Rejected: either one draws a cleaner frame, and either one breaks the scroll position, scroll listeners, and viewport units the site's own code relies on.
+- **Keep the bottom bar in every signed-in state.** Rejected: it floats over a page the owner is only reading, and the edit toggle's count carries the same reminder without covering anything.
 - **Derive chrome tokens from the site's daisyUI theme.** Rejected for the collision in decision 3.
 - **Tickets in louise-ops with a widget in the site.** Rejected by ADR 0016; the site keeps the rows.
 - **A sign-in page per site, as today.** Rejected: three hand-written pages already differ, and the owner app needs one contract.
