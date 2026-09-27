@@ -103,8 +103,8 @@ export const pagesVersions = collectionVersionsTable(pagesCollection);
 // pages: { …pagesColumns, publishedVersionId: integer("published_version_id") }
 ```
 
-Mount [`versionsRoute`](/reference/editor/)—**before `pagesRoute`**, so its
-`/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher:
+Mount [`versionsRoute`](/reference/editor/) alongside `pagesRoute`, in either
+order:
 
 ```ts
 versionsRoute({

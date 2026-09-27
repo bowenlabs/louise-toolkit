@@ -10,8 +10,7 @@
 // per slice (it owns the exact COUNTs against its own tables), so the toolkit
 // makes no assumption about column names. A slice with no resolver is simply
 // omitted; a resolver that throws is treated as absent (it never fails the whole
-// dashboard with a 500), so a card degrades to "nothing to show" rather than an error. Mount
-// it before pagesRoute like searchRoute/versionsRoute.
+// dashboard with a 500), so a card degrades to "nothing to show" rather than an error.
 
 import { reportDegraded } from "../degraded.js";
 import type { WorkerRoute } from "../worker/index.js";

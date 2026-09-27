@@ -191,8 +191,10 @@ export function pickFields(
 
 /**
  * Build the `pages` editor route. Handles the collection path (GET list, POST
- * create) and the `/:id` item path (GET/PATCH/DELETE). Returns `undefined` for
- * any other path so `composeWorker` falls through.
+ * create) and the `/:id` item path (GET/PATCH/DELETE), where `:id` is all
+ * digits. Returns `undefined` for any other path so `composeWorker` falls
+ * through, which is what lets `versionsRoute`, `searchRoute`, and the other
+ * routes under the same prefix mount in any order around it.
  */
 export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   config: PagesRouteConfig<Env>,
@@ -291,7 +293,11 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   return async (request, env) => {
     const path = new URL(request.url).pathname;
     const isBase = path === base;
-    const isItem = path.startsWith(`${base}/`);
+    // Only `/:id` with an all-digit `:id` is ours. `/search`, `/42/versions`,
+    // and every other path under the prefix belong to a sibling route, so they
+    // fall through before the guard rather than getting a 400 here.
+    const segment = path.startsWith(`${base}/`) ? path.slice(base.length + 1) : undefined;
+    const isItem = segment !== undefined && /^\d+$/.test(segment);
     if (!isBase && !isItem) return undefined;
 
     const method = request.method;
@@ -344,8 +350,10 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     }
 
     // Item path: read / update / delete by id.
-    const id = Number(path.slice(base.length + 1));
-    if (!Number.isInteger(id)) return json({ error: "Bad id" }, 400);
+    // All digits, but past what a number holds exactly: a malformed ID, not
+    // another route's path.
+    const id = Number(segment);
+    if (!Number.isSafeInteger(id)) return json({ error: "Bad id" }, 400);
 
     if (method === "GET") {
       const [row] = await database.select().from(table).where(eq(pkCol, id)).limit(1);

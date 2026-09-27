@@ -12,9 +12,6 @@
 // it always was. When present, keyword and semantic result lists are fused with
 // Reciprocal Rank Fusion (RRF)—a rank-only merge that needs no comparable
 // scores between FTS `rank` and cosine similarity.
-//
-// Like versionsRoute, MOUNT THIS BEFORE pagesRoute: `search`/`reindex` are
-// non-integer path segments that pagesRoute's `/:id` matcher would else 400 on.
 
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import {
