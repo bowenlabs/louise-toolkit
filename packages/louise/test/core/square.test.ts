@@ -132,6 +132,7 @@ describe("mapCatalogItem", () => {
       name: "Harbor Blend",
       description: "House medium roast",
       imageUrl: "https://cdn.square/img-1.jpg",
+      images: [{ id: "img-1", url: "https://cdn.square/img-1.jpg" }],
       version: 3,
       // Presence defaults to "sold everywhere" when Square omits the fields,
       // matching Square's own default for present_at_all_locations.
@@ -161,7 +162,30 @@ describe("mapCatalogItem", () => {
       new Map(),
     );
     expect(item.imageUrl).toBeNull();
+    expect(item.images).toEqual([]);
     expect(item.variations).toEqual([]);
+  });
+
+  it("lists every image in Square's order, primary first", () => {
+    const images = new Map([
+      ["img-1", "https://cdn.square/img-1.jpg"],
+      ["img-3", "https://cdn.square/img-3.jpg"],
+    ]);
+    const item = mapCatalogItem(
+      {
+        id: "item-3",
+        type: "ITEM",
+        item_data: { name: "Cold Brew", image_ids: ["img-1", "img-2", "img-3"] },
+      },
+      images,
+    );
+    expect(item.imageUrl).toBe("https://cdn.square/img-1.jpg");
+    // An id whose IMAGE object wasn't in the response keeps its place, with no URL.
+    expect(item.images).toEqual([
+      { id: "img-1", url: "https://cdn.square/img-1.jpg" },
+      { id: "img-2", url: null },
+      { id: "img-3", url: "https://cdn.square/img-3.jpg" },
+    ]);
   });
 });
 
