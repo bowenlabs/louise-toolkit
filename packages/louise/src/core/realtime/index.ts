@@ -35,6 +35,7 @@ import type { EditorSession } from "../auth/types.js";
 import { type PageId, parsePageId } from "../content/ids.js";
 import { reportDegraded } from "../degraded.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "../editor/shared.js";
+import type { DraftSoftLocks } from "../editor/versions.js";
 import type { WorkerRoute } from "../worker/index.js";
 
 /** WS envelope version; bump if the message shape changes (clients check `v`). */
@@ -103,6 +104,15 @@ const LOCK_PREFIX = "lock:";
 const REV_KEY = "rev";
 const TARGET_KEY = "target";
 const LAST_WRITER_KEY = "lastWriter";
+
+/** The session's lock-read path. The Durable Object is reachable only through a
+ *  stub, never from a browser, so this is internal to {@link realtimeSoftLocks}. */
+const LOCKS_PATH = "/_louise/locks";
+
+/** The Durable Object name for a page's session: one object per page. */
+function sessionName(slug: string, id: number): string {
+  return `${slug}:${id}`;
+}
 
 /** Which page a session persists to—parsed from the upgrade path, stashed so the
  *  alarm flush (no request in scope) knows where to write. */
@@ -333,6 +343,10 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
   return {
     async fetch(request) {
       if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+        // The held locks, for a draft save that didn't come through a socket (#572).
+        if (request.method === "GET" && new URL(request.url).pathname === LOCKS_PATH) {
+          return json({ locks: await readLocks() });
+        }
         return new Response("Expected a WebSocket upgrade", { status: 426 });
       }
       const pair = new WebSocketPair();
@@ -489,12 +503,59 @@ export function realtimeRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // One DO per page. Forward the *original* request (so the WebSocket upgrade
     // headers survive), just re-pointed at a URL carrying the resolved identity—the
     // full session (id/name/email/role) so the coalesced flush is attributed.
-    const stub = ns.get(ns.idFromName(`${slug}:${id}`));
+    const stub = ns.get(ns.idFromName(sessionName(slug, id)));
     const doUrl = new URL(url);
     doUrl.searchParams.set(EDITOR_ID_PARAM, g.editor.userId);
     doUrl.searchParams.set(EDITOR_NAME_PARAM, g.editor.name ?? "Editor");
     doUrl.searchParams.set(EDITOR_EMAIL_PARAM, g.editor.email ?? "");
     doUrl.searchParams.set(EDITOR_ROLE_PARAM, g.editor.role ?? "");
     return stub.fetch(new Request(doUrl, request));
+  };
+}
+
+export interface RealtimeSoftLocksConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
+  /** The same Durable Object namespace {@link realtimeRoute} forwards to. When
+   *  it returns `undefined`, there's no session, so no field is locked. */
+  namespace: (env: Env) => DurableObjectNamespace | undefined;
+  /** The session's `lockFields`, for example, `["body"]`. */
+  fields: readonly string[];
+}
+
+/**
+ * The soft-locks a page's realtime session holds, for `versionsRoute`'s
+ * `softLocks` (#572). The session enforces its locks only on its own socket; a
+ * surface whose socket dropped saves through the draft route instead, and
+ * without this, that save could replace a body another editor holds.
+ *
+ *   versionsRoute({
+ *     ...pagesDraftDeps,
+ *     resolveEditor,
+ *     softLocks: realtimeSoftLocks({ namespace: (env) => env.EDIT_SESSION, fields: ["body"] }),
+ *   });
+ *
+ * A save that changes a lockable field makes one request to that page's
+ * Durable Object. Leave `softLocks` out of the deps the session's own
+ * `persist` uses: the session already checks its locks.
+ */
+export function realtimeSoftLocks<Env extends EditorRouteEnv = EditorRouteEnv>(
+  cfg: RealtimeSoftLocksConfig<Env>,
+): DraftSoftLocks<Env> {
+  return {
+    fields: cfg.fields,
+    async read(env, target) {
+      const ns = cfg.namespace(env);
+      if (!ns) return {};
+      const stub = ns.get(ns.idFromName(sessionName(target.slug, target.id)));
+      const res = await stub.fetch(`https://edit-session.invalid${LOCKS_PATH}`);
+      if (!res.ok) throw new Error(`realtime locks read failed: ${res.status}`);
+      const body = (await res.json()) as { locks?: unknown };
+      const locks: Record<string, string> = {};
+      if (body.locks && typeof body.locks === "object") {
+        for (const [field, holder] of Object.entries(body.locks)) {
+          if (typeof holder === "string") locks[field] = holder;
+        }
+      }
+      return locks;
+    },
   };
 }

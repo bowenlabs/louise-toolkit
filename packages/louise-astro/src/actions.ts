@@ -42,7 +42,7 @@ import { D1_BOOKMARK_COOKIE } from "louise-toolkit/db";
 import { applyFieldSave, type SaveCollectionConfig } from "louise-toolkit/editor";
 import { applySettingsPatch, type SettingsPatchConfig } from "louise-toolkit/editor";
 import type { EditorRouteEnv } from "louise-toolkit/editor";
-import { applySaveDraft, type SaveDraftDeps } from "louise-toolkit/editor";
+import { applySaveDraft, type DraftSoftLocks, type SaveDraftDeps } from "louise-toolkit/editor";
 import { sanitizeRichHtml } from "louise-toolkit/security";
 
 /** The subset of Astro's `ActionError` codes the editor handlers emit. */
@@ -135,7 +135,11 @@ export interface SaveDraftActionInput {
 }
 
 export interface LouiseSaveDraftActionConfig<Env extends EditorRouteEnv = EditorRouteEnv>
-  extends EditorActionDeps<Env>, SaveDraftDeps<Env> {}
+  extends EditorActionDeps<Env>, SaveDraftDeps<Env> {
+  /** The soft-locks a save respects (#572): `realtimeSoftLocks` from
+   *  `louise-toolkit/realtime`, as `versionsRoute` takes it. */
+  softLocks?: DraftSoftLocks<Env>;
+}
 
 /** Map an `apply*` HTTP status onto an Astro `ActionError` code. */
 function statusToCode(status: number): ActionErrorCode {
@@ -271,7 +275,8 @@ export function louiseSettingsAction<Env extends EditorRouteEnv = EditorRouteEnv
  * A save whose `base` is stale for a field someone else changed returns
  * `{ conflicts }` rather than throwing (#572). An Action's rejection reaches the
  * client only as an error, which can't carry the current values the owner
- * needs to choose between, so the conflict comes back as data.
+ * needs to choose between, so the conflict comes back as data. A save that
+ * changes a field another editor holds returns `{ locked }` the same way.
  */
 export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEnv>(
   config: LouiseSaveDraftActionConfig<Env>,
@@ -297,9 +302,10 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
         editor,
         toPageId(input.id),
         input.data,
-        { base: input.base },
+        { base: input.base, softLocks: config.softLocks },
       );
       if (!result.ok && result.conflicts) return { conflicts: result.conflicts };
+      if (!result.ok && result.locked) return { locked: result.locked };
       if (!result.ok) throwActionError(resolved.ActionError, result.status, result.error);
       // Persist the D1 bookmark so this Action's draft is read-your-writes on the
       // next edit-mode load behind read replication (#69). Mirrors the raw

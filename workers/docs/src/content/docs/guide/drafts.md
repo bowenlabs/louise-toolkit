@@ -110,6 +110,47 @@ older clients and scripts working unchanged. Two things to know:
   design ([ADR 0002](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0002-realtime-collab-durable-object.md)),
   and the agent write tools save the way they always have.
 
+## When someone else is editing
+
+On a site that runs the [realtime session](/reference/realtime/), a rich-text
+field such as `body` is soft-locked while someone edits it. The session enforces
+that lock only on its own socket. An editor whose socket dropped saves through the
+draft route instead, and so does a second tab without a socket, so pass the
+session's locks to `versionsRoute` too:
+
+```ts
+import { realtimeSoftLocks } from "louise-toolkit/realtime";
+
+versionsRoute({
+  ...pagesDraftDeps,
+  resolveEditor,
+  softLocks: realtimeSoftLocks({ namespace: (env) => env.EDIT_SESSION, fields: ["body"] }),
+});
+```
+
+A save that changes a field another editor holds then answers `423`, and nothing
+is written:
+
+```json
+{ "error": "Someone else is editing this right now.", "locked": ["body"] }
+```
+
+The edit bar says so and keeps the edits, so the next save tries again once
+they've released the field. The lock holder's own saves go through, and so does
+a save that sends a held field unchanged. Before Publish, the edit bar leaves a
+field someone else holds out of its snapshot, because its copy of that field is
+stale.
+
+- **Only a save that changes a lockable field reads the locks.** It costs one
+  request to that page's Durable Object.
+- **The check fails open.** When the session can't answer, the save goes ahead
+  and reports `editor.softLocks` through
+  [`reportDegraded`](/reference/errors/#reportdegradedname-cause-details), because a soft-lock is
+  advisory and an unreachable session mustn't stop every save.
+- **Leave `softLocks` out of the session's own `persist`.** The session already
+  checks its locks, and its coalesced flush can carry a held field on behalf of
+  the editor who holds it.
+
 ## One versioned surface per page
 
 A save sends only the fields it changed, and the route backfills the rest. That

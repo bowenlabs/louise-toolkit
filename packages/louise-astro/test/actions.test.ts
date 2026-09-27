@@ -267,6 +267,34 @@ describe("louiseSaveDraftAction", () => {
     );
     expect(result).toMatchObject({ conflicts: [{ field: "title", value: "Theirs" }] });
   });
+
+  it("returns the fields someone else holds as data rather than throwing", async () => {
+    const liveRow = getTableConfig(pages).columns.map((c) =>
+      c.name === "id" ? 5 : c.name === "title" ? "Live" : null,
+    );
+    const { db } = makeD1(() => [liveRow]);
+    const store = new Map<string, string>();
+    const now = Date.now();
+    store.set(
+      "draft:v2:pages:5",
+      JSON.stringify({ data: { title: "Live" }, updatedAt: now, flushedAt: now }),
+    );
+    const action = louiseSaveDraftAction({
+      table: pages,
+      versionsTable: collectionVersionsTable(draftConfig),
+      config: draftConfig,
+      ActionError: FakeActionError,
+      getEnv: () => ({ DB: db }),
+      bufferKv: () => ({
+        get: async (key) => store.get(key) ?? null,
+        put: async (key, value) => void store.set(key, value),
+        delete: async (key) => void store.delete(key),
+      }),
+      softLocks: { fields: ["title"], read: async () => ({ title: "someone-else" }) },
+    });
+    const result = await action.handler({ id: 5, data: { title: "Mine" } }, makeCtx());
+    expect(result).toEqual({ locked: ["title"] });
+  });
 });
 
 // Regression for #138 / the Astro v6 `locals.runtime.env` removal: there is no

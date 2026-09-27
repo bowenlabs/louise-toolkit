@@ -116,7 +116,7 @@ async function signOut(): Promise<void> {
   location.assign(exitHref());
 }
 
-type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error" | "conflict";
+type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error" | "conflict" | "locked";
 
 /** What the bar offers when a draft save finds someone else's edit (#572). */
 interface ChromeConflict {
@@ -278,7 +278,9 @@ function createChrome(opts: ChromeOptions): Chrome {
                 ? "Couldn’t save"
                 : s === "conflict"
                   ? "Someone else changed this since you opened it."
-                  : "";
+                  : s === "locked"
+                    ? "Someone else is editing this right now."
+                    : "";
     },
     setConflict: (conflict) => {
       if (!conflictActions) return;
@@ -561,6 +563,10 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // elements, both keyed by field name. Populated in the field loop.
   const remoteAppliers = new Map<string, (value: unknown) => void>();
   const lockEls = new Map<string, HTMLElement>();
+  // The lock-guarded fields a peer holds right now. The pre-publish snapshot
+  // leaves them out: this editor's copy of a held field is stale, and the
+  // draft route refuses a save that changes it (#572).
+  const heldByOthers = new Set<string>();
   // Every field's current-value getter, keyed by field name—used to force the
   // latest realtime edits into a fresh draft right before Publish (the DO's own
   // coalesced flush might not have fired yet). Populated in the field loop.
@@ -641,8 +647,12 @@ export function mountLouise(opts: MountLouiseOptions): void {
   };
 
   // A save's outcome as the draft routes report it: the saved fields' `revs`,
-  // or the `conflicts` that refused it.
-  type DraftSaveBody = { revs?: Record<string, string>; conflicts?: DraftConflictBody[] };
+  // or the `conflicts` or `locked` fields that refused it.
+  type DraftSaveBody = {
+    revs?: Record<string, string>;
+    conflicts?: DraftConflictBody[];
+    locked?: string[];
+  };
 
   // Show a conflict and hold auto-save until the owner picks a way out.
   const openConflict = (conflicts: DraftConflictBody[]) => {
@@ -701,11 +711,19 @@ export function mountLouise(opts: MountLouiseOptions): void {
           // Survive a flush fired during page-hide / unload.
           keepalive: true,
         });
-        if (!res.ok && res.status !== 409) throw new Error(`draft failed: ${res.status}`);
+        if (!res.ok && res.status !== 409 && res.status !== 423) {
+          throw new Error(`draft failed: ${res.status}`);
+        }
         result = (await res.json().catch(() => null)) as DraftSaveBody | null;
       }
       if (result?.conflicts?.length) {
         openConflict(result.conflicts);
+        return false;
+      }
+      // A peer holds a field this save changes. The edits stay dirty, so the
+      // next save tries again once they've released it.
+      if (result?.locked?.length) {
+        chrome.setStatus("locked");
         return false;
       }
       for (const [field, rev] of Object.entries(result?.revs ?? {})) revs.set(field, rev);
@@ -730,18 +748,26 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // yet—this snapshot guarantees Publish promotes the latest, not a stale draft.
   const flushRealtimeDraft = async (): Promise<boolean> => {
     const data: Record<string, unknown> = {};
-    for (const [field, getter] of fieldGetters) data[field] = getter();
+    for (const [field, getter] of fieldGetters) {
+      if (!heldByOthers.has(field)) data[field] = getter();
+    }
     chrome.setStatus("saving");
     try {
+      let result: DraftSaveBody | null;
       if (opts.actions?.saveDraft && pageId !== undefined) {
-        await opts.actions.saveDraft({ id: pageId, data });
+        result = (await opts.actions.saveDraft({ id: pageId, data })) as DraftSaveBody | null;
       } else {
         const res = await fetch(`/api/louise/pages/${pageId}/versions`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(data),
         });
-        if (!res.ok) throw new Error(`draft failed: ${res.status}`);
+        if (!res.ok && res.status !== 423) throw new Error(`draft failed: ${res.status}`);
+        result = (await res.json().catch(() => null)) as DraftSaveBody | null;
+      }
+      if (result?.locked?.length) {
+        chrome.setStatus("locked");
+        return false;
       }
       chrome.setStatus("saved");
       return true;
@@ -904,10 +930,13 @@ export function mountLouise(opts: MountLouiseOptions): void {
     // goes read-only with a badge; a field I hold (or that's free) is editable.
     const applyLocks = (locks: RealtimeLocks) => {
       const meId = rt?.you()?.id ?? "";
+      heldByOthers.clear();
       for (const [field, el] of lockEls) {
         const holder = locks[field];
         const byName = currentPeers.find((p) => p.id === holder)?.name ?? "Someone";
-        setFieldLock(el, holder && holder !== meId ? byName : null);
+        const theirs = Boolean(holder) && holder !== meId;
+        if (theirs) heldByOthers.add(field);
+        setFieldLock(el, theirs ? byName : null);
       }
     };
     rt = connectRealtime({
@@ -925,6 +954,7 @@ export function mountLouise(opts: MountLouiseOptions): void {
           // Socket down—clear presence + any lock UI; edits fall back to fetch.
           currentPeers = [];
           chrome.setPresence([]);
+          heldByOthers.clear();
           for (const el of lockEls.values()) setFieldLock(el, null);
         }
       },
