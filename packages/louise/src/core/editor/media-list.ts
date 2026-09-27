@@ -39,7 +39,8 @@ export interface ListMediaRouteConfig<Env extends MediaRouteEnv = MediaRouteEnv>
 
 /**
  * Build a registry-less `media` editor route. GET lists the R2 bucket
- * newest-first (each item carries its public `url`), POST uploads a verified
+ * newest-first (each item carries its public `url`), and `GET ?references=<key>`
+ * returns `{ references }` for one file. POST uploads a verified
  * image under an allowlisted `scope`, DELETE removes an object after the
  * reference scan (`409 in_use` with `{ references }` unless `?force=1`). No D1
  * `media` table is read or written. Returns `undefined` for a non-matching path.
@@ -59,6 +60,13 @@ export function listMediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
     if (method === "GET") {
       const g = await guardEditor(request, env, config.resolveEditor, false);
       if ("response" in g) return g.response;
+      // `?references=<key>`: what uses this file, as `mediaRoute` answers it.
+      const refKey = new URL(request.url).searchParams.get("references");
+      if (refKey !== null) {
+        return json({
+          references: sources.length > 0 ? await findMediaReferences(env.DB, refKey, sources) : [],
+        });
+      }
       const media = await listMedia(env.MEDIA, env.MEDIA_URL);
       return json({ media });
     }

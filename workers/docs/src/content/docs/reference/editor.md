@@ -185,7 +185,9 @@ resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   sniffed uploads (recording intrinsic `width`/`height`), the registry list,
   `PATCH` to set an asset's [`alt`/`caption`](/guide/media/#asset-level-alt-caption-and-dimensions)
   (only those two columns are writable), and a delete-safety reference scan (a
-  `409 in_use` unless `?force=1`). Its env widens `EditorRouteEnv` with the R2
+  `409 in_use` unless `?force=1`). `GET ?references=<key>` runs the same scan
+  without deleting and returns `{ references }`, so the Media panel names what
+  uses a file in its one delete prompt. Its env widens `EditorRouteEnv` with the R2
   bindings (`MediaRouteEnv`: `MEDIA`, `MEDIA_URL`).
 - **`listMediaRoute`**—the same GET/POST/DELETE contract as `mediaRoute` but
   with **no `media` registry table**: GET lists the R2 bucket directly via
