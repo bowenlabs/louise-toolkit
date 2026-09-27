@@ -25,6 +25,9 @@ export default defineConfig({
       description:
         "The V8-native toolkit for building editable sites on Astro and Cloudflare Workers: content, commerce, media, forms, auth, and AI as composable primitives.",
       logo: { src: "./src/assets/louise-icon.svg", replacesTitle: false },
+      // Not /favicon.svg: browsers cache a favicon by URL, so a new icon at the
+      // old path keeps showing the old one. A new icon needs a new filename.
+      favicon: "/louise-icon.svg",
       social: [
         {
           icon: "github",
