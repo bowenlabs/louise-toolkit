@@ -32,14 +32,22 @@ function startWorkflow<P>(
 ```
 
 Starts a new Workflow instance (the producer, mirroring `enqueue`). A `create` failure is wrapped in
-[`LouiseWorkflowError`](/reference/errors/) (original as `cause`). Pass `id` for idempotency—creating
-with an existing id throws, so a stable key coalesces a double-trigger:
+[`LouiseWorkflowError`](/reference/errors/) (original as `cause`).
+
+`id` names the instance. Cloudflare accepts at most 100 letters, digits, hyphens, and underscores, not
+starting with a hyphen, so an ID with a `:` or `/` fails. `startWorkflow` checks the ID before it calls
+`create` and throws `LouiseWorkflowError` for one that doesn't fit; `isWorkflowInstanceId(id)` runs the
+same check.
+
+Creating an instance whose ID Cloudflare still retains throws, so key the ID by the operation, not by
+the thing it touches. A page's ID repeats on every publish, so `publish-pages-42` fails on the page's
+second publish within the retention window. Add the version that went live:
 
 ```ts
 await startWorkflow(
   env.PUBLISH_WORKFLOW,
   { collection: "pages", id },
-  { id: `publish:pages:${id}` },
+  { id: `publish-pages-${id}-v${versionId}` },
 );
 ```
 
@@ -121,8 +129,28 @@ export class PublishWorkflow extends WorkflowEntrypoint<Env, PublishParams> {
 }
 ```
 
-Trigger it from the publish route with `startWorkflow(env.PUBLISH_WORKFLOW, { collection, id })`, and
-bind it in `wrangler.jsonc`:
+Trigger it from the publish route. `versionsRoute`'s `deferReindex` runs after each publish commits,
+and on a publish its second argument carries the `versionId` that went live:
+
+```ts
+versionsRoute({
+  // …
+  deferReindex: (env) => async (id, info) => {
+    if (info?.versionId === undefined) return; // a save, not a publish
+    await startWorkflow(
+      env.PUBLISH_WORKFLOW,
+      { collection: "pages", id },
+      { id: `publish-pages-${id}-v${info.versionId}` },
+    );
+  },
+});
+```
+
+The publish has already committed when this runs, so a throw here doesn't fail it: the route reports
+the publish as done, and the Local API logs the failure with
+[`reportDegraded`](/reference/errors/) as `content.publish.reindex`.
+
+Bind the Workflow in `wrangler.jsonc`:
 
 ```jsonc
 "workflows": [

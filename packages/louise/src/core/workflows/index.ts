@@ -20,20 +20,46 @@
 import type { WorkflowEvent, WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import { LouiseWorkflowError } from "../errors.js";
 
+/** The characters Cloudflare accepts in a Workflow instance ID. */
+const WORKFLOW_ID_PATTERN = /^[a-zA-Z0-9_][a-zA-Z0-9-_]*$/;
+/** The longest Workflow instance ID Cloudflare accepts. */
+const WORKFLOW_ID_MAX_LENGTH = 100;
+
+/**
+ * Whether `id` is a valid Workflow instance ID: letters, digits, `-`, and `_`,
+ * not starting with `-`, and at most 100 characters. Cloudflare rejects any
+ * other ID when it creates the instance, which {@link startWorkflow} checks
+ * before it calls `create`.
+ */
+export function isWorkflowInstanceId(id: string): boolean {
+  return id.length <= WORKFLOW_ID_MAX_LENGTH && WORKFLOW_ID_PATTERN.test(id);
+}
+
 /**
  * Start a new Workflow instance. Mirrors {@link import("../queues/index.js").enqueue}:
  * the producer is one call, and a create failure is wrapped in
  * {@link LouiseWorkflowError}. `Workflow`/`WorkflowInstance` are the ambient
- * Cloudflare binding types. Pass `id` for idempotency (creating with an existing
- * id throws)—for example, `publish:pages:42` so a double-publish coalesces.
+ * Cloudflare binding types.
+ *
+ * `id` names the instance, and must pass {@link isWorkflowInstanceId}: an ID
+ * with a `:` or `/` is refused here, before `create`, rather than by Cloudflare.
+ * Creating an instance whose ID still exists throws, so key it by the operation,
+ * not the thing the operation touches: `publish-pages-42-v7` (page 42, version 7)
+ * rather than `publish-pages-42`, which fails on the page's second publish.
  */
 export async function startWorkflow<P>(
   workflow: Workflow<P>,
   params: P,
   options?: { id?: string },
 ): Promise<WorkflowInstance> {
+  const id = options?.id;
+  if (id !== undefined && !isWorkflowInstanceId(id)) {
+    throw new LouiseWorkflowError(
+      `Invalid workflow instance ID "${id}": use at most ${WORKFLOW_ID_MAX_LENGTH} letters, digits, hyphens, or underscores, and don't start with a hyphen`,
+    );
+  }
   try {
-    return await workflow.create({ id: options?.id, params });
+    return await workflow.create({ id, params });
   } catch (cause) {
     throw new LouiseWorkflowError("Failed to start workflow", cause);
   }
