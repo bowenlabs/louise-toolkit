@@ -191,6 +191,15 @@ export interface SectionsEditorProps {
   realtime?: RealtimeOption;
 }
 
+/** The add-section picker's ID, for the trailing button's `aria-controls`. */
+const ADD_SECTION_PICKER_ID = "louise-add-section-picker";
+
+/** Move focus into a just-opened picker. Deferred a microtask, because a
+ *  `<Portal>`'s node isn't attached when its `ref` runs (see `wireDialogA11y`). */
+function focusFirstItem(panel: HTMLElement): void {
+  queueMicrotask(() => panel.querySelector<HTMLElement>("button:not([disabled])")?.focus());
+}
+
 function humanize(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 }
@@ -892,6 +901,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     index: number;
     top: number;
     left: number;
+    /** The control that opened it, which Escape returns focus to (#596). */
+    opener: HTMLElement | null;
   } | null>(null);
   // The add-BLOCK type-picker, the block-level analogue of `addPicker`: null when
   // closed, else the owning section, the insert index within its `blocks`, and the
@@ -903,7 +914,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     types: string[];
     top: number;
     left: number;
+    opener: HTMLElement | null;
   } | null>(null);
+  // Make an inserted or re-rendered node keyboard-ready: the node chrome's
+  // `prepare`, assigned once the chrome mounts below.
+  let prepareNode: (el: HTMLElement) => void = () => {};
   // A specific save-failure reason (for example, a server validation violation), shown
   // in place of the generic "Couldn't save".
   const [errorDetail, setErrorDetail] = createSignal("");
@@ -1035,25 +1050,25 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     // and dispatches on its shape rather than on a layer the chrome named.
     // Markers are stamped by the render in edit mode; on an unmarked host the
     // chrome simply finds nothing. Disposed with the editor.
-    onCleanup(
-      mountNodeChrome({
-        resolve: (path) =>
-          describeNode(path, {
-            items: state.items,
-            catalog: props.catalog,
-            blocks: props.blocks,
-            shared: props.shared,
-          }),
-        onMove: (path, delta) => moveNode(path, delta),
-        onDelete: (path) => deleteNode(path),
-        onAddSibling: (path) => addSibling(path),
-        onAddChild: (path) => addChild(path),
-        onInspect: (path) => {
-          const target = inspectTargetFor(path);
-          if (target) openInspector(target);
-        },
-      }),
-    );
+    const chrome = mountNodeChrome({
+      resolve: (path) =>
+        describeNode(path, {
+          items: state.items,
+          catalog: props.catalog,
+          blocks: props.blocks,
+          shared: props.shared,
+        }),
+      onMove: (path, delta) => moveNode(path, delta),
+      onDelete: (path) => deleteNode(path),
+      onAddSibling: (path) => addSibling(path),
+      onAddChild: (path) => addChild(path),
+      onInspect: (path) => {
+        const target = inspectTargetFor(path);
+        if (target) openInspector(target);
+      },
+    });
+    prepareNode = chrome.prepare;
+    onCleanup(chrome);
 
     // Auto-save flush + unsaved-changes guard. `visibilitychange → hidden` /
     // `pagehide` are the reliable "leaving" signals; the keepalive draft POST
@@ -1338,6 +1353,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       return;
     }
     replaceNodeElement([], i, el);
+    prepareNode(el);
     wireInline(
       el,
       props.catalog,
@@ -1354,9 +1370,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
   // Apply an in-section structural mutation, then re-render that section in place.
   // Replaces the old `structural()` (save-and-reload) for array/variant/block ops.
-  const restructureSection = (i: number, mutate: () => void): void => {
+  const restructureSection = (i: number, mutate: () => void): Promise<void> => {
     mutate();
-    void rerenderSection(i);
+    return rerenderSection(i);
   };
 
   // Add is INSTANT (#182 Phase 3 / ADR 0005 §4): optimistically splice the item
@@ -1367,7 +1383,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const addSection = async (type: string, atIndex = state.items.length) => {
     const def = props.catalog[type];
     if (!def) return;
-    setAddPicker(null);
+    closeAddPicker();
     const item = { _type: type, ...blankRecord(def.fields) } as SectionItem;
     // Insert at `atIndex`—a section's `+` passes its own index, so the new
     // section takes it and pushes the clicked one down ("insert above"); the
@@ -1393,6 +1409,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       return;
     }
     insertNodeElement(el, [], index, props.host);
+    prepareNode(el);
     wireInline(
       el,
       props.catalog,
@@ -1405,6 +1422,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       props.blocks,
     );
     touched();
+    // Focus lands on what the owner added, not on <body>.
+    el.focus();
   };
   // Reorder + delete are INSTANT (#182 Phase 1 / ADR 0005 §4): reconcile the
   // store, mirror the change on the already-rendered DOM (move/remove the marked
@@ -1468,15 +1487,34 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   const insertBlock = (section: number, at: number, type: string) => {
     const def = props.blocks?.[type];
     if (!def) return; // unknown block type → no-op
-    setBlockPicker(null);
-    restructureSection(section, () =>
+    closeBlockPicker();
+    void restructureSection(section, () =>
       set("items", section, "blocks", (b: unknown) => {
         const next = (Array.isArray(b) ? b : []).slice();
         next.splice(at, 0, { _type: type, ...blankRecord(def.fields) });
         return next;
       }),
-    );
+    ).then(() => nodeEl([section, "blocks", at])?.focus());
   };
+
+  // Close a picker after a choice, handing focus back to its opener until the
+  // insert lands, rather than dropping it with the picker (#596).
+  const closeAddPicker = () => {
+    const opener = addPicker()?.opener;
+    setAddPicker(null);
+    opener?.focus();
+  };
+  const closeBlockPicker = () => {
+    const opener = blockPicker()?.opener;
+    setBlockPicker(null);
+    opener?.focus();
+  };
+
+  /** The element that has focus, as a picker's opener. */
+  const focusedElement = (): HTMLElement | null =>
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null;
 
   // Insert a block into `section` at `at`, anchoring the type-picker under
   // `anchor`'s rendered element. One allowed type inserts straight away; several
@@ -1495,7 +1533,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const left = box
       ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
       : Math.round(window.innerWidth / 2 - 120);
-    setBlockPicker({ section, at, types, top, left });
+    setBlockPicker({ section, at, types, top, left, opener: focusedElement() });
   };
 
   // The block toolbar's `+`—insert AFTER the hovered block, since blocks read as
@@ -1635,7 +1673,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     const left = box
       ? Math.min(Math.max(box.left + 8, 8), window.innerWidth - 240)
       : Math.round(window.innerWidth / 2 - 120);
-    setAddPicker({ index, top, left });
+    setAddPicker({ index, top, left, opener: focusedElement() });
   };
 
   const setLayout = (index: number, layout: string) => {
@@ -1846,6 +1884,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       <Show when={addPicker()}>
         <Portal>
           <div
+            id={ADD_SECTION_PICKER_ID}
             class="louise-sections-palette"
             role="group"
             aria-label="Add a section"
@@ -1855,7 +1894,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
               left: `${addPicker()?.left}px`,
               "z-index": "2147483000",
             }}
-            ref={(el) => onCleanup(wirePopoverDismiss(el, { onClose: () => setAddPicker(null) }))}
+            ref={(el) => {
+              onCleanup(
+                wirePopoverDismiss(el, {
+                  onClose: () => setAddPicker(null),
+                  trigger: addPicker()?.opener,
+                }),
+              );
+              focusFirstItem(el);
+            }}
           >
             <For each={Object.entries(props.catalog)}>
               {([type, def]) => (
@@ -1888,9 +1935,15 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                 left: `${picker().left}px`,
                 "z-index": "2147483000",
               }}
-              ref={(el) =>
-                onCleanup(wirePopoverDismiss(el, { onClose: () => setBlockPicker(null) }))
-              }
+              ref={(el) => {
+                onCleanup(
+                  wirePopoverDismiss(el, {
+                    onClose: () => setBlockPicker(null),
+                    trigger: picker().opener,
+                  }),
+                );
+                focusFirstItem(el);
+              }}
             >
               <For each={picker().types}>
                 {(type) => (
@@ -1918,7 +1971,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         <button
           class="louise-btn louise-btn-block"
           type="button"
-          aria-haspopup="true"
+          aria-expanded={addPicker() !== null}
+          aria-controls={ADD_SECTION_PICKER_ID}
           onClick={() => openAddPicker(state.items.length)}
         >
           <Icon name="plus" /> {state.items.length === 0 ? "Add your first section" : "Add section"}

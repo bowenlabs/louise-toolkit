@@ -163,3 +163,67 @@ describe("mountSections — fragment-render add (#182 Phase 3)", () => {
     expect(reload).toHaveBeenCalled();
   });
 });
+
+describe("mountSections—the add-section picker's focus (#596)", () => {
+  const trailing = () =>
+    document.querySelector<HTMLButtonElement>(".louise-sections-add .louise-btn-block")!;
+  const picker = () => document.querySelector<HTMLElement>(".louise-sections-palette");
+  const escape = (el: Element) =>
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+  it("moves focus into the picker, and says the trailing button controls it", async () => {
+    stubFetch();
+    dispose = mount(pageHost(1), [{ _type: "promo", heading: "Sec 0" }]);
+    await flush();
+    expect(trailing().hasAttribute("aria-haspopup")).toBe(false);
+    expect(trailing().getAttribute("aria-expanded")).toBe("false");
+
+    trailing().focus();
+    click(trailing());
+    await flush();
+    expect(trailing().getAttribute("aria-expanded")).toBe("true");
+    expect(trailing().getAttribute("aria-controls")).toBe(picker()?.id);
+    expect(document.activeElement).toBe(picker()?.querySelector("button"));
+  });
+
+  it("closes on Escape from inside the picker or the opener, and returns focus to the opener", async () => {
+    stubFetch();
+    dispose = mount(pageHost(1), [{ _type: "promo", heading: "Sec 0" }]);
+    await flush();
+
+    trailing().focus();
+    click(trailing());
+    await flush();
+    escape(document.activeElement!);
+    await flush();
+    expect(picker()).toBeNull();
+    expect(document.activeElement).toBe(trailing());
+
+    click(trailing());
+    await flush();
+    escape(trailing());
+    await flush();
+    expect(picker()).toBeNull();
+    expect(document.activeElement).toBe(trailing());
+  });
+
+  it("focuses the new section after an insert, named and in the tab order", async () => {
+    stubFetch();
+    const host = pageHost(1);
+    dispose = mount(host, [{ _type: "promo", heading: "Sec 0" }]);
+    await flush();
+
+    trailing().focus();
+    click(trailing());
+    await flush();
+    click(picker()!.querySelector(".louise-slash-item"));
+    await flush();
+    await flush();
+
+    const added = host.querySelector<HTMLElement>('[data-louise-node="1"]')!;
+    expect(document.activeElement).toBe(added);
+    expect(added.tabIndex).toBe(0);
+    expect(added.getAttribute("role")).toBe("group");
+    expect(added.getAttribute("aria-label")).toBe("Section · Promo");
+  });
+});
