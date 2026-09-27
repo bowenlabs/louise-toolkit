@@ -35,14 +35,28 @@ there its own way:
 | `louise-dark` | `#1481ef` under `#0e141b` (4.77:1) | `#db6327` under `#0e141b` (5.14:1) |
 
 No single blue clears 4.5:1 both under white text and as text on a dark base,
-so the dark theme keeps the brand fills and puts dark ink on them. The editor
-chrome follows the same rule: `#1481ef` draws rings, borders, and focus
-outlines, where 3:1 is enough, and any text on or in the blue uses the
-one-stop-darker `--louise-blue-strong` (`#0f6ecd`). The orange works the same
-way: `--louise-orange` (`#ea7317`) draws rings, and text on or in it uses
-`--louise-orange-strong` (`#b45309`, 5.02:1). The yellow `--louise-yellow`
-(`#ca8a04`) is too light for white text, so the one badge that fills with it
-uses dark ink (`#231903`, 5.90:1).
+so the dark theme keeps the brand fills and puts dark ink on them.
+
+### The editor chrome's tokens
+
+The editor chrome (the edit bar, the node toolbar, the drawer) injects its own
+stylesheet, and every rule in it reads a **role** token rather than a color:
+`--louise-surface`, `--louise-text`, `--louise-text-muted`, `--louise-border`,
+`--louise-accent`, `--louise-ring`, `--louise-success`, `--louise-warning`,
+`--louise-danger`, and the node ring and toolbar, `--louise-node-ring` and
+`--louise-node-bar`. The roles point at a small palette, and a site can override
+either layer on `:root`.
+
+The chrome follows the theme's contrast rule. `--louise-ring` is the brand blue
+`#1481ef`, for rings, borders, and focus outlines, where 3:1 is enough; text and
+fills use `--louise-accent`, the one-stop-darker `#0f6ecd` (5.08:1). Danger is the
+theme's error orange `#b8501f` (4.99:1), and orange means danger and nothing else
+in the chrome. Warning is amber `#a16207` (4.92:1 under white text). Every
+editable node rings in the one brand blue, and the toolbar's tag says what the
+node is.
+
+Text sizes come from a five-step scale in `rem`, `--louise-text-2xs` (11 px at the
+default size) through `--louise-text-lg` (16 px).
 
 ## Usage
 

@@ -33,7 +33,7 @@ describe("the chrome's CSS under forced colors", () => {
   it("draws the input ring solid, not as a faint tint", () => {
     expect(styles).not.toContain("rgba(20, 129, 239, 0.12);\n}");
     expect(styles).toMatch(
-      /\.louise-input:focus,[\s\S]*?box-shadow: 0 0 0 1px var\(--louise-blue\)/,
+      /\.louise-input:focus,[\s\S]*?box-shadow: 0 0 0 1px var\(--louise-ring\)/,
     );
   });
 });
@@ -62,5 +62,34 @@ describe("the chrome's language", () => {
       onInspect: () => {},
     });
     expect(document.querySelector(".louise-chrome-toolbar")?.getAttribute("lang")).toBe("en");
+  });
+});
+
+describe("the chrome's tokens (#603)", () => {
+  // The rules after the `:root` block, comments and `${…}` interpolations out.
+  const rules = styles
+    .slice(styles.indexOf("}", styles.indexOf("--louise-font-body")))
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/\$\{[^}]*\}/g, "");
+
+  it("reads a role token for every color, never a literal", () => {
+    expect(rules.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
+    expect(rules.match(/rgba?\(/g) ?? []).toEqual([]);
+  });
+
+  it("sizes every piece of text from the type scale", () => {
+    const sizes = [...rules.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1]!.trim());
+    // A glyph box sizes its icon, not text, so it may sit above the scale.
+    const offScale = sizes.filter(
+      (v) =>
+        !v.startsWith("var(--louise-text-") && !v.endsWith("em") && Number.parseFloat(v) < 1.0625,
+    );
+    expect(offScale).toEqual([]);
+  });
+
+  it("means danger and nothing else by orange", () => {
+    expect(styles).toMatch(/--louise-danger:\s*var\(--louise-orange\)/);
+    const orangeReaders = rules.match(/var\(--louise-orange[\w-]*\)/g) ?? [];
+    expect(orangeReaders).toEqual([]);
   });
 });

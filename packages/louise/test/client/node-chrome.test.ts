@@ -228,22 +228,21 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
     expect(toolbar()?.getAttribute("data-louise-tone")).toBe("value");
   });
 
-  it("has a palette rule for every NodeTone, ring and bar", () => {
-    // jsdom doesn't cascade injected stylesheets, so this pins the CSS text: a
-    // tone that `describeNode` can return but the palette doesn't style renders
-    // an INVISIBLE selection (no ring, white glyphs on transparent)—a failure
-    // that looks like a resolver bug, which is why it gets a named test.
+  it("rings every tone in one color, with no per-tone palette (ADR 0019 §4)", () => {
+    // jsdom doesn't cascade injected stylesheets, so this pins the CSS text. One
+    // rule covers every node, so no tone the resolver returns can render an
+    // invisible selection, the failure the old per-tone palette guarded against.
     const el = document.createElement("div");
     el.setAttribute("data-louise-node", "0");
     document.body.appendChild(el);
     dispose = mountNodeChrome({ ...noopActions, resolve: () => ({ tone: "section" }) });
 
     const css = document.getElementById("louise-chrome-style")?.textContent ?? "";
-    const tones: string[] = ["section", "block", "value", "shared", "external"];
-    for (const tone of tones) {
-      expect(css).toContain(`.louise-node-active[data-louise-tone="${tone}"]`);
-      expect(css).toContain(`.louise-chrome-toolbar[data-louise-tone="${tone}"]`);
-    }
+    expect(css).toContain("box-shadow: 0 0 0 2px var(--louise-node-ring, #1481ef)");
+    expect(css).toContain(
+      ".louise-chrome-toolbar { background: var(--louise-node-bar, #0f6ecd); }",
+    );
+    expect(css).not.toMatch(/\[data-louise-tone=/);
   });
 
   it("degrades an unknown tone to the neutral fallback, not to nothing", () => {
