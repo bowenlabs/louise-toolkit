@@ -181,7 +181,7 @@ describe("mountNodeChrome — the toolbar is a function of capabilities", () => 
       "Move up",
       "Move down",
       "Delete Hero",
-      "Add Hero after",
+      "Add section below",
       "Layout & settings",
     ]);
   });
@@ -308,7 +308,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
 
     over(el);
     expect(shownButtons()).not.toContain("Add the first block");
-    expect(shownButtons()).toContain("Add block after");
+    expect(shownButtons()).toContain("Add section below");
   });
 
   it("calls onAddChild, distinct from onAddSibling", () => {
@@ -328,7 +328,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
     over(el);
     const btns = [...(toolbar()?.querySelectorAll("button") ?? [])] as HTMLButtonElement[];
     btns.find((b) => b.getAttribute("aria-label") === "Add the first block")?.click();
-    btns.find((b) => b.getAttribute("aria-label") === "Add block after")?.click();
+    btns.find((b) => b.getAttribute("aria-label") === "Add section below")?.click();
 
     expect(calls).toEqual(["child:1", "sibling:1"]);
   });
@@ -352,7 +352,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
     over(el);
     const btns = [...(toolbar()?.querySelectorAll("button") ?? [])] as HTMLButtonElement[];
     const byName = (n: string) => btns.find((b) => b.getAttribute("aria-label") === n);
-    const sibling = byName("Add block after");
+    const sibling = byName("Add block below");
     const child = byName("Add the first block");
 
     // Both on screen at once...
@@ -363,7 +363,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
   });
 
   // The child button names what goes IN. `desc.label` names the container, which
-  // is right for "Add <container> after" one button along and wrong here: live QA
+  // is right for the container's own buttons and wrong here: live QA
   // read "Add the first Hero" on a hero whose children are CTAs.
   it("names the child add after the CHILD, not the container", () => {
     const el = emptyContainer();
@@ -378,7 +378,7 @@ describe("mountNodeChrome — the empty-container affordance", () => {
 
     over(el);
     expect(shownButtons()).toContain("Add the first CTA");
-    expect(shownButtons()).toContain("Add Hero after");
+    expect(shownButtons()).toContain("Add section below");
     expect(shownButtons()).not.toContain("Add the first Hero");
   });
 
@@ -417,7 +417,7 @@ describe("mountNodeChrome — actions carry the path", () => {
     byLabel("Move up").click();
     byLabel("Move down").click();
     byLabel("Delete block").click();
-    byLabel("Add block after").click();
+    byLabel("Add block below").click();
     byLabel("Layout & settings").click();
 
     // Paths, not indices—nothing here needs re-deriving after a re-stamp.
@@ -480,5 +480,41 @@ describe("mountNodeChrome—a focused node says what it is (#596)", () => {
     expect(section.tabIndex).toBe(0);
     expect(block.tabIndex).toBe(0);
     expect(block.getAttribute("aria-label")).toBe("Block · block");
+  });
+});
+
+describe("mountNodeChrome—the toolbar says what it acts on (#542)", () => {
+  it("names the toolbar and shows a tag with the node's name", () => {
+    const { section } = tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    over(section);
+    expect(toolbar()?.getAttribute("aria-label")).toBe("Section · Hero");
+    const tag = toolbar()?.querySelector(".louise-chrome-tag");
+    expect(tag?.textContent).toBe("Section · Hero");
+    expect(tag?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("puts the shortcut in the tooltip, not in the accessible name", () => {
+    const { block } = tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    over(block);
+    const byLabel = (label: string) =>
+      toolbar()?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    expect(byLabel("Move up")?.title).toBe("Move up (Alt+Up)");
+    expect(byLabel("Move down")?.title).toBe("Move down (Alt+Down)");
+    expect(byLabel("Delete block")?.title).toBe("Delete block (Delete)");
+    expect(byLabel("Add block below")?.title).toBe("Add block below");
+  });
+
+  it("gives a tone it doesn't know a neutral word", () => {
+    const el = document.createElement("div");
+    el.setAttribute("data-louise-node", "0");
+    document.body.appendChild(el);
+    dispose = mountNodeChrome({
+      ...noopActions,
+      resolve: () => ({ fields: true, tone: "someday" as never, label: "Map" }),
+    });
+    over(el);
+    expect(toolbar()?.getAttribute("aria-label")).toBe("Item · Map");
   });
 });

@@ -237,3 +237,32 @@ describe("mountSections—the add-section picker's focus (#596)", () => {
     expect(added.getAttribute("aria-label")).toBe("Section · Promo");
   });
 });
+
+describe("mountSections—a section's + adds below it (#542)", () => {
+  it("inserts the new section after the one whose + opened the picker", async () => {
+    const calls = stubFetch();
+    const host = pageHost(2);
+    dispose = mount(host, [
+      { _type: "promo", heading: "Sec 0" },
+      { _type: "promo", heading: "Sec 1" },
+    ]);
+    await flush();
+
+    host
+      .querySelector('[data-louise-node="0"]')!
+      .dispatchEvent(new Event("mouseover", { bubbles: true }));
+    click(document.querySelector('.louise-chrome-toolbar button[aria-label="Add section below"]'));
+    await flush();
+    click(document.querySelector(".louise-sections-palette .louise-slash-item"));
+    await flush();
+    await flush();
+
+    const draft = calls.findLast(
+      (c) => c.method === "POST" && c.url === "/api/louise/pages/1/versions",
+    );
+    const headings = (draft?.body as { sections?: SectionItem[] })?.sections?.map(
+      (s) => (s as { heading?: string }).heading,
+    );
+    expect(headings).toEqual(["Sec 0", "", "Sec 1"]);
+  });
+});
