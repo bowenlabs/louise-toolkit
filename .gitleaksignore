@@ -5,3 +5,11 @@
 # about which commerce providers fill which roles, matches the
 # generic-api-key rule.
 29b5c1c5dcee7d7533a6e5f8e1e75fed2405bc28:packages/astroid/README.md:generic-api-key:71
+
+# False positives: the Square test fixtures pass readable idempotency keys
+# ("recount-2026-09-27", "enroll-C1-PLAN1") so a test can check the key is
+# sent as given. The `idempotencyKey:` label matches the generic-api-key rule.
+0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-coverage.test.ts:generic-api-key:494
+0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-coverage.test.ts:generic-api-key:498
+0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:645
+0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:649
