@@ -10,7 +10,7 @@ const posts = sqliteTable("posts", {
   title: text("title"),
   body: text("body"),
 });
-// No primary key: a save updates every row, and answers 404 only on an empty table (#702).
+// No primary key: a save can't find its row, so it's refused (#702).
 const notes = sqliteTable("notes", { text: text("text") });
 
 function sqliteD1() {
@@ -102,28 +102,27 @@ describe("applyFieldSave", () => {
     expect(out).toEqual({ ok: false, status: 400, error: "Value must be a non-empty string" });
   });
 
-  it("updates a table without a primary key, and 404s when it's empty", async () => {
+  it("refuses a table without a primary key, and leaves its rows alone (#702)", async () => {
     const h = sqliteD1();
-    const empty = await applyFieldSave({ DB: h.d1 }, collections, clean, {
-      collection: "notes",
-      key: "1",
-      field: "text",
-      value: "Kai",
-    });
-    expect(empty).toEqual({ ok: false, status: 404, error: "Not found" });
-    h.sqlite.exec(`INSERT INTO notes (text) VALUES ('a')`);
+    h.sqlite.exec(`INSERT INTO notes (text) VALUES ('a'), ('b')`);
     const out = await applyFieldSave({ DB: h.d1 }, collections, clean, {
       collection: "notes",
       key: "1",
       field: "text",
       value: "Kai",
     });
-    expect(out).toEqual({ ok: true });
-    expect(h.all("notes")).toEqual([{ text: "Kai" }]);
+    expect(out).toEqual({
+      ok: false,
+      status: 500,
+      error: `Collection "notes" has no primary key, so a field save can't find its row`,
+    });
+    expect(h.all("notes")).toEqual([{ text: "a" }, { text: "b" }]);
   });
 });
 
 describe("saveRoute", () => {
+  // saveRoute refuses a collection with no primary key at construction (#702).
+  const routed = { posts: collections.posts };
   const editor = {
     userId: "u1",
     email: "quinn@example.com",
@@ -140,7 +139,7 @@ describe("saveRoute", () => {
 
   it("answers 400 to a body that isn't JSON or lacks a routing key", async () => {
     const h = sqliteD1();
-    const route = saveRoute({ collections, resolveEditor: () => editor });
+    const route = saveRoute({ collections: routed, resolveEditor: () => editor });
     for (const body of [
       "not json",
       JSON.stringify({ collection: "posts", key: "1", value: "x" }),
@@ -154,7 +153,7 @@ describe("saveRoute", () => {
   it("saves through the default sanitizer and answers ok", async () => {
     const h = sqliteD1();
     h.sqlite.exec(`INSERT INTO posts (id) VALUES (1)`);
-    const route = saveRoute({ collections, resolveEditor: () => editor });
+    const route = saveRoute({ collections: routed, resolveEditor: () => editor });
     const res = await route(
       post(
         JSON.stringify({
@@ -178,7 +177,7 @@ describe("saveRoute", () => {
   it("uses a custom sanitizer and mount path, and reports a missing row", async () => {
     const h = sqliteD1();
     const route = saveRoute({
-      collections,
+      collections: routed,
       resolveEditor: () => editor,
       sanitize: clean,
       path: "/api/edit",

@@ -416,9 +416,9 @@ describe("batchUpsertCatalogObjects", () => {
       batches: { objects: Record<string, unknown>[] }[];
     };
     expect(body.idempotency_key).toBe("catalog-push-1");
-    // Three items spread over at most ten batches: one per batch.
-    expect(body.batches).toHaveLength(3);
-    const [beans, mug, filters] = body.batches.map((b) => b.objects[0]);
+    // Three items, seven objects with their variations: one batch (#700).
+    expect(body.batches).toHaveLength(1);
+    const [beans, mug, filters] = body.batches[0]?.objects ?? [];
     expect(beans).toEqual({
       type: "ITEM",
       id: "beans",
@@ -462,7 +462,7 @@ describe("batchUpsertCatalogObjects", () => {
     expect(res.objects.map((o) => o.id)).toEqual(["ITEM_A"]);
   });
 
-  it("packs items evenly into at most ten batches, with a random key by default", async () => {
+  it("packs items into one batch while they fit, with a random key by default (#700)", async () => {
     const calls = answer({});
     const res = await batchUpsertCatalogObjects(
       CONFIG,
@@ -473,7 +473,7 @@ describe("batchUpsertCatalogObjects", () => {
       batches: { objects: { id: string }[] }[];
     };
     expect(body.idempotency_key).toMatch(UUID);
-    expect(body.batches.map((b) => b.objects.length)).toEqual([3, 3, 3, 3, 3, 3, 3, 3, 1]);
+    expect(body.batches.map((b) => b.objects.length)).toEqual([25]);
     expect(body.batches.flatMap((b) => b.objects.map((o) => o.id))).toEqual(
       Array.from({ length: 25 }, (_, i) => `#item-${i}`),
     );

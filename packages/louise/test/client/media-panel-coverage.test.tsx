@@ -184,7 +184,7 @@ describe("MediaPanel—delete", () => {
     button("Delete").click();
     await flush();
     expect(confirm.mock.calls[1]?.[0]).toBe(
-      "This file is still used by 0 items. Deleting it shows a broken image there, and it can’t be undone. Delete anyway?",
+      "This file is still in use. Deleting it shows a broken image there, and it can’t be undone. Delete anyway?",
     );
     expect(deletes(calls)).toEqual([
       "/api/louise/media?key=web%2Fbread.png",

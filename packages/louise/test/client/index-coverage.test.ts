@@ -223,7 +223,7 @@ describe("mountLouise—publish", () => {
     publish?.click();
     await flush();
     expect(posts(calls, "/publish")).toHaveLength(1);
-    expect(statusText()).toBe("Couldn’t save");
+    expect(statusText()).toBe("Couldn’t publish. The live page hasn’t changed. Locked.");
     expect(reload).not.toHaveBeenCalled();
   });
 
