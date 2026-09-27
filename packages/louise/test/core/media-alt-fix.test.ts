@@ -99,7 +99,7 @@ describe("mediaRoute — POST /generate-alt (AI alt backfill)", () => {
     expect(res?.status).toBe(503);
   });
 
-  it("backfills every image missing alt and returns what it fixed", async () => {
+  it("suggests alt for every image missing it, and writes nothing (#549)", async () => {
     const { db, calls } = makeD1(() => [
       { key: "web/a.png", content_type: "image/png" },
       { key: "web/b.jpg", content_type: "image/jpeg" },
@@ -107,23 +107,22 @@ describe("mediaRoute — POST /generate-alt (AI alt backfill)", () => {
     const { bucket, gets } = makeBucket({ "web/a.png": [1], "web/b.jpg": [2] });
     const res = await mediaRoute(cfg())(post(), env(db, bucket), ctx);
     expect(res?.status).toBe(200);
-    const body = (await res!.json()) as { fixed: number; results: { key: string; alt: string }[] };
-    expect(body.fixed).toBe(2);
-    expect(body.results.map((r) => r.key)).toEqual(["web/a.png", "web/b.jpg"]);
-    expect(body.results[0]?.alt).toBe("A wooden door");
+    const body = (await res!.json()) as { suggestions: { key: string; alt: string }[] };
+    expect(body.suggestions.map((r) => r.key)).toEqual(["web/a.png", "web/b.jpg"]);
+    expect(body.suggestions[0]?.alt).toBe("A wooden door");
     expect(gets).toEqual(["web/a.png", "web/b.jpg"]);
-    // The SELECT filters on missing alt + caps the batch; each fix UPDATEs its row.
+    // The SELECT filters on missing alt and caps the batch; nothing is written
+    // until the owner accepts a suggestion.
     expect(calls[0]?.sql).toMatch(/alt.*IS NULL/s);
     expect(calls[0]?.binds).toEqual([12]); // DEFAULT_ALT_FIX_BATCH
-    expect(updates(calls)).toHaveLength(2);
-    expect(updates(calls)[0]?.binds).toEqual(["A wooden door", "web/a.png"]);
+    expect(updates(calls)).toHaveLength(0);
   });
 
-  it("fixes a single asset when `key` is supplied", async () => {
+  it("suggests for a single asset when `key` is supplied", async () => {
     const { db, calls } = makeD1(() => [{ key: "web/a.png", content_type: "image/png" }]);
     const { bucket } = makeBucket({ "web/a.png": [1] });
     const res = await mediaRoute(cfg())(post({ key: "web/a.png" }), env(db, bucket), ctx);
-    expect((await res!.json()) as { fixed: number }).toMatchObject({ fixed: 1 });
+    expect(((await res!.json()) as { suggestions: unknown[] }).suggestions).toHaveLength(1);
     expect(calls[0]?.binds).toEqual(["web/a.png"]); // bound the key, not the batch limit
   });
 
@@ -139,8 +138,8 @@ describe("mediaRoute — POST /generate-alt (AI alt backfill)", () => {
       env(db, bucket),
       ctx,
     );
-    const body = (await res!.json()) as { fixed: number };
-    expect(body.fixed).toBe(0);
+    const body = (await res!.json()) as { suggestions: unknown[] };
+    expect(body.suggestions).toEqual([]);
     expect(gets).not.toContain("web/doc.pdf"); // never fetched
     expect(updates(calls)).toHaveLength(0); // nothing written
   });

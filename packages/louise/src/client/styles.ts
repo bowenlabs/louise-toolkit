@@ -1706,6 +1706,17 @@ html[data-louise-studio] body {
   border-radius: 12px;
   background: var(--louise-surface);
 }
+/* AI suggestions under review in the Health panel (#549). */
+.louise-review { display: grid; gap: 10px; margin-top: 8px; }
+.louise-review-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.louise-review-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--louise-border);
+  border-radius: 8px;
+}
+.louise-review-actions { display: flex; gap: 6px; }
 /* Loading, empty, and error states (#468). */
 .louise-sr-only {
   position: absolute;
