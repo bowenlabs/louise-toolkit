@@ -171,6 +171,9 @@ function ResizableImage(props: SolidNodeViewProps) {
     };
   const [editingAlt, setEditingAlt] = createSignal(false);
   const alt = () => attrs().alt ?? "";
+  // An empty string, as opposed to null, marks the image decorative (#599).
+  const decorative = () => attrs().alt === "";
+  const altLabel = () => (decorative() ? "Decorative" : alt() ? "Alt" : "Alt?");
   return (
     <ResizableRoot
       class="louise-rt-image"
@@ -200,25 +203,36 @@ function ResizableImage(props: SolidNodeViewProps) {
             <button
               type="button"
               class="louise-rt-alt-btn"
-              classList={{ "is-unset": !alt() }}
-              title={alt() ? `Alt text: ${alt()}` : "Add alt text to describe this image"}
-              aria-label={alt() ? `Edit alt text: ${alt()}` : "Add alt text for this image"}
+              classList={{ "is-unset": !alt() && !decorative() }}
+              title={
+                decorative()
+                  ? "Marked decorative: screen readers skip it"
+                  : alt()
+                    ? `Alt text: ${alt()}`
+                    : "Add alt text to describe this image"
+              }
+              aria-label={
+                decorative()
+                  ? "Edit alt text: marked decorative"
+                  : alt()
+                    ? `Edit alt text: ${alt()}`
+                    : "Add alt text for this image"
+              }
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setEditingAlt(true)}
             >
-              {alt() ? "Alt" : "Alt?"}
+              {altLabel()}
             </button>
           }
         >
-          <input
-            class="louise-rt-alt-input"
-            aria-label="Image alt text"
-            placeholder="Describe this image…"
-            value={alt()}
-            ref={(el) => queueMicrotask(() => el.focus())}
-            onMouseDown={(e) => e.stopPropagation()}
-            onInput={(e) => props.setAttrs({ alt: e.currentTarget.value })}
-            onBlur={() => setEditingAlt(false)}
+          {/* Closes when focus leaves the whole editor, not the text field, so
+              the decorative checkbox beside it can take focus. */}
+          <div
+            class="louise-rt-alt-edit"
+            onFocusOut={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (!next || !e.currentTarget.contains(next)) setEditingAlt(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === "Escape") {
                 e.preventDefault();
@@ -226,7 +240,27 @@ function ResizableImage(props: SolidNodeViewProps) {
                 setEditingAlt(false);
               }
             }}
-          />
+          >
+            <input
+              class="louise-rt-alt-input"
+              aria-label="Image alt text"
+              placeholder="Describe this image…"
+              value={alt()}
+              disabled={decorative()}
+              ref={(el) => queueMicrotask(() => el.focus())}
+              onMouseDown={(e) => e.stopPropagation()}
+              // Clearing the text means "not written yet", not decorative.
+              onInput={(e) => props.setAttrs({ alt: e.currentTarget.value || null })}
+            />
+            <label class="louise-rt-alt-decorative" onMouseDown={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={decorative()}
+                onChange={(e) => props.setAttrs({ alt: e.currentTarget.checked ? "" : null })}
+              />
+              Decorative image
+            </label>
+          </div>
         </Show>
       </div>
     </ResizableRoot>
@@ -348,8 +382,12 @@ function louiseExtension(blocks = false, grammar = false, inline = false) {
       type: "image",
       attr: "alt",
       default: null,
-      toDOM: (value) => (value ? ["alt", value] : null),
-      parseDOM: (element) => element.getAttribute("alt") || null,
+      // Three states (#599): null is "not written" and serializes no alt; ""
+      // is decorative and serializes `alt=""`, which tells a screen reader to
+      // skip the image; anything else is the description. Parsing keeps `""`,
+      // so a decorative image survives a round trip.
+      toDOM: (value) => (value === null || value === undefined ? null : ["alt", value]),
+      parseDOM: (element) => (element.hasAttribute("alt") ? element.getAttribute("alt") : null),
     }),
     // Replace the default image rendering with the resizable node view.
     defineSolidNodeView({ name: "image", component: ResizableImage }),

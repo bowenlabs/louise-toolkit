@@ -27,6 +27,12 @@ Add the binding, then opt each feature in.
 mediaRoute({ table: media, resolveEditor, altText: (env) => env.AI });
 ```
 
+Alt has three states. `NULL` is not written yet, an empty string is a
+**decorative** image, which HTML tells a screen reader to skip, and anything else
+is the description. The Media panel and the rich-text image control both have a
+**Decorative image** checkbox, and only `NULL` counts as missing, so the health
+card and the AI backfill leave decorative images alone.
+
 **Rewrite + SEO**—mount `aiRoute` for the editor client to call:
 
 ```ts

@@ -56,6 +56,10 @@ await writeHealthSummary(
 );
 ```
 
+Count `missingAlt` with `MEDIA_ALT_MISSING_SQL` from `louise-toolkit/editor`,
+`("alt" IS NULL)`. An empty alt is an image the owner marked decorative, which
+HTML says to skip, so it isn't missing a description.
+
 Counts are guarded to non-negative integers, so a bad input can't skew the traffic
 light. `now` is injectable for deterministic tests.
 

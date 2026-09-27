@@ -81,6 +81,24 @@ export const DEFAULT_ALT_FIX_BATCH = 12;
 
 // PATCH body: `key` identifies the asset; `alt`/`caption` are the only editable
 // fields and are coerced (any value → string), so they stay `unknown` here.
+/**
+ * The SQL condition for an image whose alt text hasn't been written (#599).
+ * Only NULL counts: `""` is an image the owner marked decorative, which HTML
+ * says to skip. A site's health scan should count with this, so a decorative
+ * image leaves the "missing a description" list.
+ */
+export const MEDIA_ALT_MISSING_SQL = `("alt" IS NULL)`;
+
+/**
+ * The one-time migration for the three alt states (#599). Before, an empty
+ * alt meant both "not written" and "cleared", so an existing `''` is
+ * ambiguous; this makes each one "not written", and the owner marks what's
+ * decorative. Run it before the new count goes live, with the table your
+ * media registry uses.
+ */
+export const MEDIA_ALT_UNDECIDED_SQL = (table = "media") =>
+  `UPDATE "${table.replaceAll('"', '""')}" SET "alt" = NULL WHERE "alt" = '';`;
+
 const MEDIA_PATCH_BODY = s.object({
   key: s.string({ min: 1 }),
   alt: s.unknown(),
@@ -184,9 +202,12 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
       );
       if (!parsed.ok) return json({ error: "No key" }, 400);
       const { key, alt: altRaw, caption: captionRaw } = parsed.value;
-      // Only alt/caption are editable here; both are optional text (empty string
-      // clears, undefined leaves unchanged). Nothing else on the row is writable.
-      const alt = altRaw === undefined ? undefined : String(altRaw ?? "");
+      // Only alt/caption are editable here; undefined leaves either unchanged.
+      // Alt has three states (#599): null is "not written yet", "" is
+      // decorative, and anything else is the description. A null stays NULL
+      // rather than becoming "", so clearing the field doesn't mark an image
+      // decorative. Nothing else on the row is writable.
+      const alt = altRaw === undefined ? undefined : altRaw === null ? null : String(altRaw);
       const caption = captionRaw === undefined ? undefined : String(captionRaw ?? "");
       const sets: string[] = [];
       const binds: (string | null)[] = [];
@@ -256,13 +277,13 @@ async function generateAltFix<Env extends MediaRouteEnv>(
   const body = (await request.json().catch(() => ({}))) as { key?: unknown };
   const onlyKey = typeof body.key === "string" ? body.key : undefined;
   const batch = config.altFixBatch ?? DEFAULT_ALT_FIX_BATCH;
-  const missing = `("alt" IS NULL OR "alt" = '')`;
+  const missing = MEDIA_ALT_MISSING_SQL;
   const sql = onlyKey
-    ? `SELECT "key","content_type" FROM ${ident(name)} WHERE "key" = ?1 AND ${missing}`
-    : `SELECT "key","content_type" FROM ${ident(name)} WHERE ${missing} ORDER BY "uploaded_at" DESC LIMIT ?1`;
+    ? `SELECT "key","content_type","caption" FROM ${ident(name)} WHERE "key" = ?1 AND ${missing}`
+    : `SELECT "key","content_type","caption" FROM ${ident(name)} WHERE ${missing} ORDER BY "uploaded_at" DESC LIMIT ?1`;
   const { results } = await env.DB.prepare(sql)
     .bind(onlyKey ?? batch)
-    .all<{ key: string; content_type?: string | null }>();
+    .all<{ key: string; content_type?: string | null; caption?: string | null }>();
 
   const suggestions: { key: string; alt: string }[] = [];
   for (const row of results) {
@@ -270,7 +291,11 @@ async function generateAltFix<Env extends MediaRouteEnv>(
     if (row.content_type && !row.content_type.startsWith("image/")) continue;
     const object = await env.MEDIA.get(row.key);
     if (!object) continue; // registry row without its R2 object—nothing to read
-    const alt = await generateAltText(runner, await object.arrayBuffer(), config.altTextOptions);
+    // The caption is the one piece of context a library image carries (#599).
+    const alt = await generateAltText(runner, await object.arrayBuffer(), {
+      ...config.altTextOptions,
+      context: { ...config.altTextOptions?.context, caption: row.caption ?? undefined },
+    });
     if (!alt) continue; // model returned nothing → leave it for a manual fix
     suggestions.push({ key: row.key, alt });
   }
