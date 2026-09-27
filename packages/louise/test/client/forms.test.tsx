@@ -229,4 +229,102 @@ describe("<Form>", () => {
     expect(status?.getAttribute("role")).toBe("status");
     expect(status?.textContent).toBe("");
   });
+
+  it("posts to formRoute without the script, rather than a GET to the page", () => {
+    mount();
+    const f = host.querySelector("form")!;
+    expect(f.getAttribute("method")).toBe("post");
+    expect(f.getAttribute("action")).toBe("/api/louise/forms/inquiries");
+  });
+
+  describe("with Turnstile", () => {
+    function stubTurnstile(token: string | null) {
+      const api = {
+        render: vi.fn(() => "w1"),
+        reset: vi.fn(),
+        remove: vi.fn(),
+        getResponse: vi.fn(() => token ?? undefined),
+      };
+      vi.stubGlobal("turnstile", api);
+      return api;
+    }
+
+    it("sends the widget's token, and resets it after a refused submit", async () => {
+      const api = stubTurnstile("tok-1");
+      const fetchMock = vi.fn(async () => new Response("{}", { status: 403 }));
+      vi.stubGlobal("fetch", fetchMock);
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      dispose = render(
+        () => <Form form={form} turnstile={{ siteKey: "1x00000000000000000000AA" }} />,
+        host,
+      );
+      await flush();
+      expect(api.render).toHaveBeenCalledWith(
+        host.querySelector(".louise-form-turnstile"),
+        expect.objectContaining({ sitekey: "1x00000000000000000000AA" }),
+      );
+      setValue("email", "a@b.co");
+      setValue("message", "hello there");
+      submit();
+      await flush();
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      expect(JSON.parse(String(init.body))["cf-turnstile-response"]).toBe("tok-1");
+      expect(host.querySelector(".louise-form-status")?.textContent).toBe(
+        "Couldn't confirm this came from a person. Try again.",
+      );
+      expect(api.reset).toHaveBeenCalledWith("w1");
+    });
+  });
+
+  describe("file fields", () => {
+    const withFile = defineForm({
+      name: "applications",
+      fields: { portfolio: { type: "file", label: "Portfolio" } },
+    });
+
+    function mountFile(props: { mediaAction?: string } = {}) {
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      dispose = render(() => <Form form={withFile} {...props} />, host);
+    }
+
+    function pickFile() {
+      const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+      const file = new File(["x"], "a.pdf", { type: "application/pdf" });
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    it("refuses an upload without a site upload route, and says so at mount", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      mountFile();
+      expect(error.mock.calls[0]?.[0]).toContain("a file field needs mediaAction");
+      pickFile();
+      await flush();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(host.querySelector(".louise-form-error")?.textContent).toBe(
+        "Uploads aren't set up for this form.",
+      );
+      error.mockRestore();
+    });
+
+    it("uploads to the site's route, and Remove clears the file", async () => {
+      const fetchMock = vi.fn(async () =>
+        Response.json({ url: "https://example.com/uploads/a.pdf" }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      mountFile({ mediaAction: "/api/uploads" });
+      pickFile();
+      await flush();
+      expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("/api/uploads");
+      const remove = host.querySelector<HTMLButtonElement>(".louise-form-remove")!;
+      expect(remove.getAttribute("aria-label")).toBe("Remove the uploaded file from Portfolio");
+      remove.click();
+      expect(host.querySelector(".louise-form-remove")).toBeNull();
+      expect(document.activeElement).toBe(host.querySelector('input[type="file"]'));
+    });
+  });
 });
