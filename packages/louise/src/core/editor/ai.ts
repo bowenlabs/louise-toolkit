@@ -21,6 +21,7 @@ import {
   rewriteText,
   type SeoOptions,
   suggestSeo,
+  type AiFailureReason,
 } from "../ai/index.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -106,23 +107,34 @@ export function aiRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         if (rewriteTooLong(body)) return json({ error: REWRITE_TOO_LONG }, 413);
         return json({ error: "Invalid body" }, 400);
       }
+      let reason: AiFailureReason = "error";
       const text = await rewriteText(runner, parsed.value.text, {
         ...cfg.rewrite,
         mode: parsed.value.mode as RewriteMode | undefined,
         gateway,
+        onFailure: (why) => {
+          reason = why;
+        },
       });
       // Best-effort helper returns null when the model errored, gave nothing, or
       // was cut off at the output cap; 502 so the client can leave the original
-      // text untouched.
-      if (text === null) return json({ error: "Rewrite unavailable" }, 502);
+      // text untouched, with the reason so it can say what went wrong.
+      if (text === null) return json({ error: "Rewrite unavailable", reason }, 502);
       return json({ text });
     }
 
     // action === "seo"
     const parsed = await standardValidate(SEO_BODY, body);
     if (!parsed.ok) return json({ error: "Invalid body" }, 400);
-    const seo = await suggestSeo(runner, parsed.value.content, { ...cfg.seo, gateway });
-    if (!seo) return json({ error: "Suggestion unavailable" }, 502);
+    let reason: AiFailureReason = "error";
+    const seo = await suggestSeo(runner, parsed.value.content, {
+      ...cfg.seo,
+      gateway,
+      onFailure: (why) => {
+        reason = why;
+      },
+    });
+    if (!seo) return json({ error: "Suggestion unavailable", reason }, 502);
     return json(seo);
   };
 }

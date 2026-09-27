@@ -81,6 +81,20 @@ describe("RichText AI rewrite—failures", () => {
     expect(rt.getHTML()).toContain(ORIGINAL);
   });
 
+  it.each([
+    ["rate-limited", "AI is busy right now. Try again in a minute. Your text hasn’t changed."],
+    ["truncated", "That’s too much to rewrite at once. Select less, and try again."],
+    ["model-retired", "Couldn’t rewrite this right now. Your text hasn’t changed."],
+  ])("says what an editor can do when the server's reason is %s", async (reason, message) => {
+    vi.stubGlobal("fetch", respond(502, { error: "Rewrite unavailable", reason }));
+    const { el, rt } = await openRewriteMenu();
+
+    await pick(el, "Tighten");
+
+    expect(el.querySelector('.louise-tb-ai-menu [role="alert"]')?.textContent).toBe(message);
+    expect(rt.getHTML()).toContain(ORIGINAL);
+  });
+
   it("says AI isn't set up on a 503, then retires the control once the menu closes", async () => {
     vi.stubGlobal("fetch", respond(503, { error: "AI unavailable" }));
     const { el } = await openRewriteMenu();

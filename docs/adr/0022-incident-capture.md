@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`.
+- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`. **Amended 2026-09-27** (see _Amendment (2026-09-27, at § 8)_ below): the AI reason is part of the degrade's name, not only its details.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
@@ -128,6 +128,12 @@ Instead, both hand their incident to an internal isolate channel, and capture bu
 - **Without `onIncident`,** nothing listens, and the log line each already writes is the only trace, as before.
 
 `listDeadLetters` and `replayDeadLetter` are the runbook's read and replay. The Health panel's dead-letter count waits for the Health panel's incident view.
+
+## Amendment (2026-09-27, at § 8)
+
+§ 8 put the `reason` in `runAi`'s degrade details. A report doesn't carry details (§ 1), so the reason wouldn't reach the incident row, its fingerprint, or Sentry. It's part of the name instead: `ai.run.model-retired`, `ai.run.rate-limited`, and so on, with the reason still in the details for the log line. A search for `ai.run`, and a `critical` entry of `ai.run`, still match every one. An unusable reply is reported as `ai.invalid-output`, beside the existing `ai.truncated`.
+
+The helpers keep returning `null`, and tell a caller why through an `onFailure` option, which `aiRoute` uses for its `502` body.
 
 ## Consequences
 

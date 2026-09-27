@@ -282,6 +282,13 @@ describe("PagesPanel—AI SEO suggestion", () => {
     expect(alertText()).toBe("Couldn’t suggest SEO right now. Your fields are as you left them.");
   });
 
+  it("says AI is busy when the server says it's rate-limited", async () => {
+    await suggest(() => json({ error: "Suggestion unavailable", reason: "rate-limited" }, 502));
+    expect(alertText()).toBe(
+      "AI is busy right now. Try again in a minute. Your fields are as you left them.",
+    );
+  });
+
   it("sends nothing for a page with no title or body", async () => {
     const calls = stubFetch(undefined, { ...PAGE, title: "", body: null });
     mount(() => <PagesPanel />);

@@ -42,7 +42,12 @@ aiRoute({ resolveEditor, ai: (env) => env.AI });
 ```
 
 Both are session-gated, same-origin mutations (each call spends AI budget), and
-answer `503` when the binding is absent—so the assist is cleanly optional.
+answer `503` when the binding is absent—so the assist is cleanly optional. When
+the model fails, both answer `502` with a `reason`:
+`{ error, reason: "rate-limited" }`, for example (see
+[`AiFailureReason`](/reference/ai/#why-a-call-failed-classifyaierrorerr-and-onfailure)).
+The editor tells an editor to try again in a minute when AI is busy, and to
+select less when a rewrite came back cut off.
 
 **Rewrite takes up to 1,536 characters** (`REWRITE_MAX_CHARS`), a few paragraphs.
 The limit is sized from the rewrite's 512-token output cap, because a rewrite runs
