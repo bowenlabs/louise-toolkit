@@ -39,8 +39,47 @@ import {
 | `parseMoney(text, { locale, currency })` | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.      |
 | `majorToCents(amount, digits?)`          | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                |
 | `parseMoneyInput(text, digits?)`         | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.   |
+| `percentTip(subtotal, percent)`          | A preset tip in cents, rounded at the cent. Exact for a fractional percentage.           |
+| `tipCap(subtotal, cap)`                  | The largest tip the shop accepts. See [Tips](#tips).                                     |
+| `parseTipCents(value)`                   | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.    |
+| `clampTip(tip, subtotal, cap)`           | The tip limited to the cap: what the server charges.                                     |
 | `hmacSha256Hex` / `hmacSha256Base64`     | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
 | `safeEqual(a, b)`                        | Constant-time-ish compare—use it to check a computed signature against a header value.   |
+
+### Tips
+
+A checkout that offers preset percentages or a custom amount runs the tip math
+twice: on the page to show the choices, and on the server to re-check the cap
+before it charges. Call the same functions on both sides, with the shop's policy
+as the arguments. Nothing about the presets or the cap has a default.
+
+```ts
+import { clampTip, parseTipCents, percentTip } from "louise-toolkit/commerce";
+import { orderSubtotal } from "louise-toolkit/commerce/square";
+
+// The shop's policy, from its settings: no toolkit default.
+const presets = [10, 15, 20];
+const cap = { floorCents: 2000, ceilingCents: 10000 };
+
+// On the page, from the calculated order
+const subtotal = orderSubtotal(preview).amount;
+const choices = presets.map((percent) => percentTip(subtotal, percent));
+
+// On the server, from the created order
+const tip = clampTip(parseTipCents(body.tipCents), orderSubtotal(order).amount, cap);
+```
+
+The cap is the subtotal, raised to `floorCents` and lowered to `ceilingCents`.
+Pass `subtotalPercent` to cap at a share of the subtotal instead of all of it.
+
+Take the cap on the payment provider's subtotal, after discounts and before tax,
+on both sides. A server that adds up base variation prices gets a different
+number from the page's, and near the cap it refuses a tip the page offered.
+`orderSubtotal` reads Square's.
+
+`parseTipCents` rounds a number to the cent and reads anything unreadable or
+negative as 0, so a garbled tip charges nothing. `clampTip` lowers an over-cap tip to the cap. To refuse one
+instead and ask the customer again, compare against `tipCap` yourself.
 
 ### Checking a cart against the live catalog
 
@@ -430,25 +469,25 @@ import {
 } from "louise-toolkit/commerce/square";
 ```
 
-| Area                      | Exports                                                                                                                                                                                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                     |
-| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                    |
-| **Catalog images**        | `createCatalogImage`—multipart upload returning the id that `imageIds` takes                                                                                                                                                                 |
-| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                       |
-| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap. |
-| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                 |
-| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                        |
-| **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                      |
-| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling)                         |
-| **Payments**              | `createPayment`—charge a Web Payments card token against an order.                                                                                                                                                                           |
-| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                             |
-| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                          |
-| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                           |
-| **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                     |
-| **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                           |
-| **Invoices**              | `createInvoice`, `publishInvoice`, `retrieveInvoice`, `SquareInvoice`, `InvoicePaymentRequestInput`                                                                                                                                          |
-| **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                  |
+| Area                      | Exports                                                                                                                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                                            |
+| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                                           |
+| **Catalog images**        | `createCatalogImage`—multipart upload returning the id that `imageIds` takes                                                                                                                                                                                        |
+| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                                              |
+| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                        |
+| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                        |
+| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                                               |
+| **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                                             |
+| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
+| **Payments**              | `createPayment`—charge a Web Payments card token against an order.                                                                                                                                                                                                  |
+| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                    |
+| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                                                 |
+| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                                                  |
+| **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                                            |
+| **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                                                  |
+| **Invoices**              | `createInvoice`, `publishInvoice`, `retrieveInvoice`, `SquareInvoice`, `InvoicePaymentRequestInput`                                                                                                                                                                 |
+| **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                                         |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,

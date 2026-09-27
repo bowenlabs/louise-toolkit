@@ -148,6 +148,24 @@ export interface SquareOrder {
   }[];
 }
 
+/**
+ * An order's subtotal as Square computed it: the line items after discounts,
+ * before taxes and service charges. `totalMoney` less `totalTaxMoney` and
+ * `totalServiceChargeMoney`.
+ *
+ * Take a tip's cap on this, from {@link calculateOrder} on the client and from
+ * the created order on the server, so both sides cap against the same number.
+ * A subtotal summed from base variation prices misses discounts and
+ * modifiers, and disagrees near the cap.
+ */
+export function orderSubtotal(order: SquareOrder): SquareMoney {
+  return {
+    amount:
+      order.totalMoney.amount - order.totalTaxMoney.amount - order.totalServiceChargeMoney.amount,
+    currency: order.totalMoney.currency,
+  };
+}
+
 interface RawOrder {
   id?: string;
   location_id?: string;

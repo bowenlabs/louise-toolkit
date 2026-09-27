@@ -108,6 +108,7 @@ describe("aiRoute — rewrite", () => {
       ctx,
     )) as Response;
     expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Rewrite unavailable", reason: "truncated" });
   });
 
   it("returns the rewritten text on success", async () => {
@@ -129,6 +130,24 @@ describe("aiRoute — rewrite", () => {
       ctx,
     )) as Response;
     expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Rewrite unavailable", reason: "invalid-output" });
+  });
+
+  it("says why when the model throws (ADR 0022 § 8)", async () => {
+    const r = route({
+      ai: {
+        run: async () => {
+          throw new Error("3040: Capacity temporarily exceeded, please try again.");
+        },
+      },
+    });
+    const res = (await r(
+      req("POST", "/api/louise/ai/rewrite", { text: "x" }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Rewrite unavailable", reason: "rate-limited" });
   });
 });
 
@@ -152,6 +171,7 @@ describe("aiRoute — seo", () => {
       ctx,
     )) as Response;
     expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Suggestion unavailable", reason: "invalid-output" });
   });
 });
 

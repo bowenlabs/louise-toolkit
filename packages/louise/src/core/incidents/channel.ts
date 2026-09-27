@@ -15,8 +15,18 @@ type Listener = (input: IncidentInput) => void;
 
 const listeners = new Set<Listener>();
 
+// Causes already reported, so one error that's reported where it was caught
+// and then escapes to `composeWorker` counts once. Weak, so it holds nothing.
+const reported = new WeakSet<object>();
+
+/** Whether `cause` has already gone through {@link emitIncident}. */
+export function wasReported(cause: unknown): boolean {
+  return typeof cause === "object" && cause !== null && reported.has(cause);
+}
+
 /** Hand an incident to every listener in this isolate. Never throws. */
 export function emitIncident(input: IncidentInput): void {
+  if (typeof input.cause === "object" && input.cause !== null) reported.add(input.cause);
   for (const listener of listeners) {
     try {
       listener(input);

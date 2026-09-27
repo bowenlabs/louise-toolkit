@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`.
+- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`. **Amended 2026-09-27** (see _Amendment (2026-09-27, at § 8)_ below): the AI reason is part of the degrade's name, not only its details.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
@@ -129,10 +129,16 @@ Instead, both hand their incident to an internal isolate channel, and capture bu
 
 `listDeadLetters` and `replayDeadLetter` are the runbook's read and replay. The Health panel's dead-letter count waits for the Health panel's incident view.
 
+## Amendment (2026-09-27, at § 8)
+
+§ 8 put the `reason` in `runAi`'s degrade details. A report doesn't carry details (§ 1), so the reason wouldn't reach the incident row, its fingerprint, or Sentry. It's part of the name instead: `ai.run.model-retired`, `ai.run.rate-limited`, and so on, with the reason still in the details for the log line. A search for `ai.run`, and a `critical` entry of `ai.run`, still match every one. An unusable reply is reported as `ai.invalid-output`, beside the existing `ai.truncated`.
+
+The helpers keep returning `null`, and tell a caller why through an `onFailure` option, which `aiRoute` uses for its `502` body.
+
 ## Consequences
 
 - **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and editor route, with the sink's `{ env, cause }` argument (§ 4 and the amendment), the queue changes (§ 7), the AI reasons (§ 8), and an Analytics Engine sink. Each is a `minor` changeset with no new dependency.
-- **`@louise-toolkit/astro`** passes `onIncident` through its middleware, so an Astro site's route errors are captured too.
+- **`@louise-toolkit/astro`**'s middleware reports what a page, an endpoint, or the middleware throws, through `reportIncident`, then re-throws it. Astro catches that error outside every middleware and renders its own 500, so `composeWorker` never sees a throw; this is how an Astro site's route errors reach the same sinks.
 - **astroidjs** wires the sinks by default in its scaffold, generates a dead-letter consumer for each declared dead-letter queue, and adds the Sentry sink as a per-site setting, turned on for every Monitored and Supported site.
 - **louise-ops** records each site's Sentry project in the site registry. Watchtower reads incidents from each site's D1 and from Sentry, and the `search_incidents`, `get_incident`, and `site_status` tools read the same two sources.
 - **Each site adds one migration** for the two tables, and its runbook names its dead-letter queue and how to replay it.
