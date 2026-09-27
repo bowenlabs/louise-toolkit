@@ -83,8 +83,10 @@ export function decodeEditRef(value: string): EditRef | null {
   const parts = value.split(":");
   if (parts.length !== 3) return null;
   const [collection, idRaw, field] = parts;
-  const id = Number.parseInt(idRaw, 10);
-  if (!collection || !field || !Number.isFinite(id)) return null;
+  // Digits only: `parseInt` would read `7abc` as 7, and a row id is never negative (#698).
+  if (!collection || !field || !/^\d+$/.test(idRaw ?? "")) return null;
+  const id = Number(idRaw);
+  if (!Number.isSafeInteger(id)) return null;
   return { collection, id, field };
 }
 
@@ -132,6 +134,10 @@ export function applyPreviewValues(
   target: { collection: string; id: number },
   values: Record<string, unknown>,
 ): void {
+  if (values === null || typeof values !== "object" || Array.isArray(values)) return;
+  // Match by comparing the attribute, not by building a selector from the field
+  // key: a key with `"` or `]` would make the selector invalid and throw (#698).
+  const tagged = [...root.querySelectorAll(`[${EDIT_ATTR}]`)];
   for (const [field, value] of Object.entries(values)) {
     if (typeof value !== "string") continue;
     const attr = encodeEditRef({
@@ -139,8 +145,8 @@ export function applyPreviewValues(
       id: target.id,
       field,
     });
-    for (const el of root.querySelectorAll(`[${EDIT_ATTR}="${attr}"]`)) {
-      el.textContent = value;
+    for (const el of tagged) {
+      if (el.getAttribute(EDIT_ATTR) === attr) el.textContent = value;
     }
   }
 }
@@ -151,7 +157,11 @@ export interface PreviewSyncOptions {
   id: number;
   /** Where to search for tagged regions. Default `document`. */
   root?: ParentNode;
-  /** Only accept messages from this origin (the editor). Default: any. */
+  /**
+   * Only accept messages from this origin (the editor). Set it: without it,
+   * any window that can reach the preview can rewrite its visible text, and
+   * the preview logs a warning when it mounts (#698).
+   */
   allowedOrigin?: string;
 }
 
@@ -162,6 +172,11 @@ export interface PreviewSyncOptions {
  */
 export function mountPreviewSync(options: PreviewSyncOptions): () => void {
   const root = options.root ?? document;
+  if (!options.allowedOrigin) {
+    console.warn(
+      "[louise] mountPreviewSync has no allowedOrigin, so it accepts preview values from any window. Pass the editor's origin.",
+    );
+  }
   const handler = (event: MessageEvent) => {
     if (options.allowedOrigin && event.origin !== options.allowedOrigin) return;
     const data = event.data as Partial<PreviewValuesMessage> | null;
@@ -232,10 +247,14 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
     return el instanceof HTMLElement ? el : null;
   };
 
-  let previous: { el: HTMLElement; outline: string } | null = null;
+  // Everything the hover changes, saved so clearing restores all of it (#698).
+  let previous: { el: HTMLElement; outline: string; outlineOffset: string; cursor: string } | null =
+    null;
   const clearHighlight = () => {
     if (previous) {
       previous.el.style.outline = previous.outline;
+      previous.el.style.outlineOffset = previous.outlineOffset;
+      previous.el.style.cursor = previous.cursor;
       previous = null;
     }
   };
@@ -279,7 +298,12 @@ export function mountVisualEditing(options: VisualEditingOptions = {}): () => vo
       hideStegaBox();
       if (el === previous?.el) return;
       clearHighlight();
-      previous = { el, outline: el.style.outline };
+      previous = {
+        el,
+        outline: el.style.outline,
+        outlineOffset: el.style.outlineOffset,
+        cursor: el.style.cursor,
+      };
       el.style.outline = `2px solid ${highlightColor}`;
       el.style.outlineOffset = "2px";
       el.style.cursor = "pointer";
