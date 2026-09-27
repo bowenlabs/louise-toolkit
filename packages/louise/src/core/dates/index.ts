@@ -21,6 +21,8 @@
 // Pure `Intl` throughout: no dependencies, and it runs the same on workerd,
 // Node and in a browser.
 
+import { offsetAt } from "./clock.js";
+
 /** A calendar day as `YYYY-MM-DD`. A plain string, documented by name. */
 export type IsoDate = string;
 
@@ -97,30 +99,6 @@ export function weekdayOf(iso: IsoDate): number {
 }
 
 // ── Calendar day + wall-clock time → instant ─────────────────────────────────
-
-/** Milliseconds `timeZone` is ahead of UTC at instant `t` (negative west of Greenwich). */
-function offsetAt(t: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(t);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const wall = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour"),
-    get("minute"),
-    get("second"),
-  );
-  return wall - (t - (((t % 1000) + 1000) % 1000));
-}
 
 /**
  * The instant at which the wall clock in `timeZone` reads `time` on `iso`—"9 AM
@@ -204,3 +182,19 @@ export function formatCalendarDate(
     new Date(`${iso}T12:00:00Z`),
   );
 }
+
+// ── Opening hours and pickup times ───────────────────────────────────────────
+
+export {
+  openingHoursJsonLd,
+  type OpeningHoursRow,
+  type OpeningRange,
+  type OpeningState,
+  openingState,
+  type OpeningStateOptions,
+  parseOpeningHours,
+  type PickupOptions,
+  pickupProblem,
+  type PickupSlot,
+  pickupSlots,
+} from "./hours.js";
