@@ -1,21 +1,24 @@
-/* Louise brand for the Starlight docs. BowenLabs palette: blue #1481ef
-   primary, gold #f3ae29 accent, light-green #8ebe59 success, orange #db6327.
-   Type is the brand's display system: Roboto Flex (variable weight + width
-   axes) for body AND headings—heavy and a touch wide for headings—and
-   JetBrains Mono for code.
+/* The BowenLabs brand for the Starlight docs, shared with docs.astroidjs.org.
+   The palette is BowenLabs': deep green #4f6933 leads, orange #db6327 is the
+   second color, and light green #8ebe59 the third (bowenlabs.io's
+   astroid.config.ts). Type is the brand's display system: Roboto Flex (variable
+   weight + width axes) for body AND headings—heavy and a touch wide for
+   headings—and JetBrains Mono for code.
 
    Beyond type + accent, this file carries the FULL brand: Phosphor icons (the
    family the whole stack uses via @phosphor-icons/core), brand-colored
-   asides, a refined sidebar, and the lightning brand mark in the header. Phosphor
-   glyphs are inlined as mask-image data URIs so they tint to any brand color and
-   need no extra dependency or component override — authentic Phosphor paths,
-   delivered through CSS.
+   asides, a refined sidebar, and the splash page's hero. The Louise icon, the
+   Phosphor lightning bolt on a deep-green tile, is src/assets/louise-icon.svg,
+   and public/favicon.svg is a copy of it. Phosphor glyphs are inlined as
+   mask-image data URIs so they tint to any brand color and need no extra
+   dependency or component override: authentic Phosphor paths, delivered
+   through CSS.
 
    Everything here is UNLAYERED, so it wins over Starlight's own styles: Starlight
    ≥0.34 moves all of its CSS into cascade layers, and unlayered declarations take
    precedence over any layered rule regardless of specificity. */
 
-/* Self-hosted brand type — served from our own edge, no Google Fonts request
+/* Self-hosted brand type, served from our own edge with no Google Fonts request.
    Roboto Flex keeps the `wght` + `wdth` axes the headings' `font-stretch`
    display type uses; JetBrains Mono is weight-only. See public/fonts/README.md
    for how the subsets are built. */
@@ -38,30 +41,31 @@
 :root {
   --sl-font: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --sl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sl-color-accent-low: #08284a;
-  --sl-color-accent: #1481ef;
-  --sl-color-accent-high: #a9d1ff;
-  --sl-color-white: #ffffff;
+  /* `:root` is Starlight's DARK theme, where the light green leads: deep green
+     on a near-black page is too dark to read. The light overrides are below. */
+  --sl-color-accent-low: #1f2a14;
+  --sl-color-accent: #8ebe59;
+  --sl-color-accent-high: #d4e8bd;
 
-  /* Brand palette — the pure BowenLabs hues (bowenlabs/branding). Used for
-     borders, backgrounds and icon fills, where saturation reads well on both
-     themes. */
-  --lt-blue: #1481ef;
-  --lt-gold: #f3ae29;
-  --lt-green: #8ebe59;
-  --lt-orange: #db6327;
+  /* Brand palette: the pure BowenLabs hues. Used for borders, backgrounds, and
+     icon fills, where saturation reads well on both themes. Amber and red
+     aren't brand colors; they exist only so caution and danger asides still
+     read as warnings. */
+  --brand-green: #4f6933;
+  --brand-orange: #db6327;
+  --brand-light-green: #8ebe59;
+  --brand-amber: #e0a526;
+  --brand-red: #d9483b;
 
-  /* Aside accents — theme-aware so the title text stays legible. `:root` is
-     Starlight's DARK theme; the light overrides live below. */
-  --lt-note: #4ba3ff;
-  --lt-tip: #a6d977;
-  --lt-caution: #f7c14e;
-  --lt-danger: #ef8a5a;
+  /* Aside accents, theme-aware so the title text stays legible. Each clears
+     4.5:1 against its theme's page background. */
+  --lt-note: #8ebe59;
+  --lt-tip: #f0935f;
+  --lt-caution: #f2b84b;
+  --lt-danger: #f08476;
 
   /* Phosphor glyphs (@phosphor-icons/core, 256×256 viewBox) inlined for
-     mask-image. `bold` weight for UI glyphs, `fill` for the lightning accent —
-     matching the stack's icon convention. */
-  --lt-ph-lightning: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z'/%3E%3C/svg%3E");
+     mask-image, in the `bold` weight the stack uses for UI glyphs. */
   --lt-ph-info: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M108,84a16,16,0,1,1,16,16A16,16,0,0,1,108,84Zm128,44A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Zm-72,36.68V132a20,20,0,0,0-20-20,12,12,0,0,0-4,23.32V168a20,20,0,0,0,20,20,12,12,0,0,0,4-23.32Z'/%3E%3C/svg%3E");
   --lt-ph-lightbulb: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M180,232a12,12,0,0,1-12,12H88a12,12,0,0,1,0-24h80A12,12,0,0,1,180,232Zm40-128a91.51,91.51,0,0,1-35.17,72.35A12.26,12.26,0,0,0,180,186v2a20,20,0,0,1-20,20H96a20,20,0,0,1-20-20v-2a12,12,0,0,0-4.7-9.51A91.57,91.57,0,0,1,36,104.52C35.73,54.69,76,13.2,125.79,12A92,92,0,0,1,220,104Zm-24,0a68,68,0,0,0-69.65-68C89.56,36.88,59.8,67.55,60,104.38a67.71,67.71,0,0,0,26.1,53.19A35.87,35.87,0,0,1,100,184h56.1A36.13,36.13,0,0,1,170,157.49,67.68,67.68,0,0,0,196,104Zm-20.07-5.32a48.5,48.5,0,0,0-31.91-40,12,12,0,0,0-8,22.62,24.31,24.31,0,0,1,16.09,20,12,12,0,0,0,23.86-2.64Z'/%3E%3C/svg%3E");
   --lt-ph-warning: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20256%20256'%3E%3Cpath%20d='M240.26,186.1,152.81,34.23h0a28.74,28.74,0,0,0-49.62,0L15.74,186.1a27.45,27.45,0,0,0,0,27.71A28.31,28.31,0,0,0,40.55,228h174.9a28.31,28.31,0,0,0,24.79-14.19A27.45,27.45,0,0,0,240.26,186.1Zm-20.8,15.7a4.46,4.46,0,0,1-4,2.2H40.55a4.46,4.46,0,0,1-4-2.2,3.56,3.56,0,0,1,0-3.73L124,46.2a4.77,4.77,0,0,1,8,0l87.44,151.87A3.56,3.56,0,0,1,219.46,201.8ZM116,136V104a12,12,0,0,1,24,0v32a12,12,0,0,1-24,0Zm28,40a16,16,0,1,1-16-16A16,16,0,0,1,144,176Z'/%3E%3C/svg%3E");
@@ -71,24 +75,24 @@
 }
 
 :root[data-theme="light"] {
-  --sl-color-accent-low: #d3e6ff;
-  --sl-color-accent: #1069d6;
-  --sl-color-accent-high: #0a3a78;
+  --sl-color-accent-low: #e3edd6;
+  --sl-color-accent: #4f6933;
+  --sl-color-accent-high: #2a3a1a;
 
   /* Darker aside accents for legibility on light surfaces. */
-  --lt-note: #1069d6;
-  --lt-tip: #4f7d2e;
-  --lt-caution: #96690d;
-  --lt-danger: #b8471d;
+  --lt-note: #4f6933;
+  --lt-tip: #b8471d;
+  --lt-caution: #8a6100;
+  --lt-danger: #b3261e;
 }
 
-/* Slightly warmer code accents to match the brand yellow. */
+/* Inline code picks up a hint of the brand green. */
 .sl-markdown-content :not(pre) > code {
-  border-color: color-mix(in srgb, var(--lt-blue) 25%, transparent);
+  border-color: color-mix(in srgb, var(--brand-light-green) 30%, transparent);
 }
 
 /* Headings in the brand display face: Roboto Flex, heavy + a little wide, tight
-   tracking — the marketing look, dialed back to stay readable at doc lengths. */
+   tracking. The marketing look, dialed back to stay readable at doc lengths. */
 .sl-markdown-content :is(h1, h2, h3, h4),
 .content-panel h1,
 h1#_top {
@@ -110,35 +114,22 @@ h1#_top {
   font-stretch: 120%;
 }
 
-/* Site title in the header — the "LOUISE" wordmark treatment beside the mark,
-   with the Phosphor lightning brand mark trailing it (the marketing marquee /
-   V8-native badge motif). */
+/* Site title in the header: the wordmark treatment beside the icon. */
 a.site-title {
   font-weight: 900;
   font-stretch: 120%;
   letter-spacing: -0.01em;
 }
-a.site-title::after {
-  content: "";
-  display: inline-block;
-  width: 0.7em;
-  height: 0.7em;
-  margin-inline-start: 0.1em;
-  background-color: var(--lt-gold);
-  -webkit-mask: var(--lt-ph-lightning) center / contain no-repeat;
-  mask: var(--lt-ph-lightning) center / contain no-repeat;
-  opacity: 0.9;
-}
 
-/* Content links — brand-blue underline (Starlight already tints the text with
-   the accent; give the rule a touch of brand personality). */
+/* Content links: a brand-green underline. Starlight already tints the text
+   with the accent; this gives the rule a touch of brand personality. */
 .sl-markdown-content a:not(:where(.not-content *)) {
   text-underline-offset: 0.15em;
-  text-decoration-color: color-mix(in srgb, var(--lt-blue) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--brand-light-green) 55%, transparent);
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--lt-blue) 28%, transparent);
+  background-color: color-mix(in srgb, var(--brand-light-green) 35%, transparent);
 }
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────
@@ -162,7 +153,7 @@ a.site-title::after {
 
 /* Brand glyph before each top-level group label (Starlight marks these with
    `.large`). Order-based (config = Guide then Reference); if Starlight's markup
-   shifts, the glyph simply doesn't render — no layout breakage. */
+   shifts, the glyph doesn't render, and nothing else breaks. */
 .top-level > li:nth-child(1) .large::before,
 .top-level > li:nth-child(2) .large::before {
   content: "";
@@ -175,19 +166,19 @@ a.site-title::after {
   mask: center / contain no-repeat;
 }
 .top-level > li:nth-child(1) .large::before {
-  background-color: var(--lt-blue);
+  background-color: var(--sl-color-accent);
   -webkit-mask-image: var(--lt-ph-compass);
   mask-image: var(--lt-ph-compass);
 }
 .top-level > li:nth-child(2) .large::before {
-  background-color: var(--lt-gold);
+  background-color: var(--brand-orange);
   -webkit-mask-image: var(--lt-ph-code);
   mask-image: var(--lt-ph-code);
 }
 
 /* ── Asides / callouts ────────────────────────────────────────────────────
-   Recolored to the brand palette (note → blue, tip → green, caution → gold,
-   danger → orange) with Phosphor glyphs swapped in for Starlight's defaults.
+   Recolored to the brand palette (note → green, tip → orange, caution →
+   amber, danger → red) with Phosphor glyphs swapped in for Starlight's defaults.
    The glyph is masked onto Starlight's `.starlight-aside__icon` element and
    inherits the aside's accent color; its built-in <svg> path is hidden. */
 .starlight-aside__icon {
@@ -203,23 +194,58 @@ a.site-title::after {
   --lt-aside-icon: var(--lt-ph-info);
   --sl-color-asides-text-accent: var(--lt-note);
   --sl-color-asides-border: var(--lt-note);
-  background-color: color-mix(in srgb, var(--lt-blue) 10%, transparent);
+  background-color: color-mix(in srgb, var(--brand-light-green) 10%, transparent);
 }
 .starlight-aside--tip {
   --lt-aside-icon: var(--lt-ph-lightbulb);
   --sl-color-asides-text-accent: var(--lt-tip);
   --sl-color-asides-border: var(--lt-tip);
-  background-color: color-mix(in srgb, var(--lt-green) 12%, transparent);
+  background-color: color-mix(in srgb, var(--brand-orange) 10%, transparent);
 }
 .starlight-aside--caution {
   --lt-aside-icon: var(--lt-ph-warning);
   --sl-color-asides-text-accent: var(--lt-caution);
   --sl-color-asides-border: var(--lt-caution);
-  background-color: color-mix(in srgb, var(--lt-gold) 12%, transparent);
+  background-color: color-mix(in srgb, var(--brand-amber) 12%, transparent);
 }
 .starlight-aside--danger {
   --lt-aside-icon: var(--lt-ph-siren);
   --sl-color-asides-text-accent: var(--lt-danger);
   --sl-color-asides-border: var(--lt-danger);
-  background-color: color-mix(in srgb, var(--lt-orange) 10%, transparent);
+  background-color: color-mix(in srgb, var(--brand-red) 10%, transparent);
+}
+
+/* ── Splash page ──────────────────────────────────────────────────────────
+   The home page (src/content/docs/index.mdx). A soft green glow behind the
+   hero, and the icon lifted off the page. */
+.hero {
+  position: relative;
+  isolation: isolate;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -4rem -50vw;
+  z-index: -1;
+  background: radial-gradient(
+    50% 60% at 70% 45%,
+    color-mix(in srgb, var(--brand-light-green) 16%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+.hero > img {
+  width: min(55%, 16rem);
+  filter: drop-shadow(0 1.5rem 2.5rem color-mix(in srgb, var(--brand-green) 50%, transparent));
+}
+/* A hero action's icon is a raw Phosphor SVG with no size of its own, so it
+   would otherwise stretch to fill the button. */
+.hero .actions svg {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+}
+.hero .tagline {
+  max-width: 38rem;
+  color: var(--sl-color-gray-2);
 }

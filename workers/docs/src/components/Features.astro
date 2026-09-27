@@ -1,0 +1,73 @@
+---
+// The feature grid on the splash page. Starlight's <Card> only takes its own
+// icon set, and every icon on the stack is Phosphor, so this renders the grid
+// itself. The SVGs are imported raw from @phosphor-icons/core and inlined, the
+// same way the editor client does it, so they inherit `currentColor`.
+import lightning from "@phosphor-icons/core/assets/bold/lightning-bold.svg?raw";
+import pencil from "@phosphor-icons/core/assets/bold/pencil-simple-bold.svg?raw";
+import plugs from "@phosphor-icons/core/assets/bold/plugs-connected-bold.svg?raw";
+import stack from "@phosphor-icons/core/assets/bold/stack-bold.svg?raw";
+import tree from "@phosphor-icons/core/assets/bold/tree-structure-bold.svg?raw";
+import cube from "@phosphor-icons/core/assets/bold/cube-bold.svg?raw";
+
+const icons = { lightning, pencil, plugs, stack, tree, cube };
+
+interface Props {
+  items: { icon: keyof typeof icons; title: string; body: string }[];
+}
+
+const { items } = Astro.props;
+---
+
+<ul class="features not-content">
+  {
+    items.map(({ icon, title, body }) => (
+      <li>
+        <span class="icon" aria-hidden="true" set:html={icons[icon]} />
+        <h3>{title}</h3>
+        <p>{body}</p>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .features {
+    display: grid;
+    /* Three across on a wide screen, so six items land as an even 3 × 2. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    padding: 1.25rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background-color: var(--sl-color-black);
+  }
+  .icon {
+    display: inline-flex;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    color: var(--sl-color-accent-high);
+    background-color: var(--sl-color-accent-low);
+  }
+  .icon :global(svg) {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  h3 {
+    margin: 0.75rem 0 0.25rem;
+    font-size: var(--sl-text-lg);
+    font-weight: 800;
+    font-stretch: 110%;
+    color: var(--sl-color-white);
+  }
+  p {
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.55;
+  }
+</style>

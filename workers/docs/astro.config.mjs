@@ -14,25 +14,17 @@ export default defineConfig({
   // served as-is), so use the passthrough service and skip the heavy `sharp`
   // native dep entirely (#84).
   image: { service: passthroughImageService() },
-  // The docs home is the Getting started guide (there's no separate splash).
-  //
-  // The two `/astroid/` entries are gone-but-not-forgotten: those pages moved to
-  // docs.astroidjs.org when Astroid split into its own repo, and these URLs are
-  // published—linked from the README, from npm, and from wherever readers
-  // bookmarked them. A 404 is a worse answer than a hop. The reference page became
-  // fifteen pages there, so `/reference/astroid/` lands on the config page, which
-  // is what its first section was.
-  redirects: {
-    "/": "/guide/getting-started/",
-    "/guide/astroid/": "https://docs.astroidjs.org/guide/getting-started/",
-    "/reference/astroid/": "https://docs.astroidjs.org/reference/config/",
-  },
+  // No `redirects` here. For a static build, Astro writes each one as an HTML
+  // page with a meta refresh, whose "Redirecting from…" link flashes on screen
+  // before the hop. The redirects live in public/_redirects instead, which the
+  // Worker answers with a real 301. The home page is the splash at
+  // src/content/docs/index.mdx.
   integrations: [
     starlight({
       title: "Louise Toolkit",
       description:
-        "The V8-native toolkit for building editable sites on Astro + Cloudflare Workers — content, commerce, media, forms, auth, and AI as composable primitives.",
-      logo: { src: "./src/assets/louise-monogram.svg", replacesTitle: false },
+        "The V8-native toolkit for building editable sites on Astro and Cloudflare Workers: content, commerce, media, forms, auth, and AI as composable primitives.",
+      logo: { src: "./src/assets/louise-icon.svg", replacesTitle: false },
       social: [
         {
           icon: "github",

@@ -1,0 +1,14 @@
+# Real 301s from the edge, so nobody sees a redirect page. Astro's own
+# `redirects` option writes a static HTML page with a meta refresh for each one,
+# and that page's "Redirecting from…" link flashes on screen before the hop.
+#
+# The Astroid pages moved to docs.astroidjs.org when Astroid split into its own
+# repository. These URLs are published, linked from the README, from npm, and
+# from readers' bookmarks, so they hop rather than 404. The reference page
+# became fifteen pages there, so it lands on the config page, which is what its
+# first section was. Each URL is listed with and without its trailing slash, so
+# either form takes one hop.
+/guide/astroid https://docs.astroidjs.org/guide/getting-started/ 301
+/guide/astroid/ https://docs.astroidjs.org/guide/getting-started/ 301
+/reference/astroid https://docs.astroidjs.org/reference/config/ 301
+/reference/astroid/ https://docs.astroidjs.org/reference/config/ 301
