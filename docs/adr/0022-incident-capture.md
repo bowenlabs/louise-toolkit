@@ -95,7 +95,7 @@ Sentry Team is already paid for, inside the tier fee (ADR 0016 § 7). It groups 
 
 For a Monitored or Supported site, Sentry is where Baylee triages an incident, replacing § 9's "a copy." The Sentry sink stays in astroidjs, never in the core, with `sendDefaultPii` off and request bodies and headers scrubbed. Two things change:
 
-- **It sends the original error.** A stack is what makes a Sentry issue useful, and an `IncidentReport` doesn't carry one. `IncidentSink` gains a second argument, `{ cause }`: the value that was thrown, in memory only and never serialized. The D1 sink ignores it.
+- **It sends the original error.** A stack is what makes a Sentry issue useful, and an `IncidentReport` doesn't carry one. `IncidentSink` gains a second argument, `{ env, cause }`: the Worker's bindings, which the D1 sink needs too, and the value that was thrown, in memory only and never serialized.
 - **It shares the report's fingerprint.** The sink sets the Sentry event's fingerprint to the report's, and tags it with `kind`, `critical`, and the site. So one row in the site's D1 is one Sentry issue, and Watchtower joins the two on the fingerprint. Sentry's stack-based grouping would split and merge differently from the site's record.
 
 Sentry doesn't become the record. The site's D1 still is (ADR 0016 § 1): owners never see Sentry, a site on the Included tier has no Sentry project, and a client who leaves keeps their incident history.
@@ -119,7 +119,7 @@ Watchtower keeps, for the monthly report: the fingerprint, `kind`, `name`, count
 
 ## Consequences
 
-- **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and editor route (§ 4, as amended), the queue changes (§ 7), the AI reasons (§ 8), and the sink's `{ cause }` argument with an Analytics Engine sink (the amendment). Each is a `minor` changeset with no new dependency.
+- **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and editor route, with the sink's `{ env, cause }` argument (§ 4 and the amendment), the queue changes (§ 7), the AI reasons (§ 8), and an Analytics Engine sink. Each is a `minor` changeset with no new dependency.
 - **`@louise-toolkit/astro`** passes `onIncident` through its middleware, so an Astro site's route errors are captured too.
 - **astroidjs** wires the sinks by default in its scaffold, generates a dead-letter consumer for each declared dead-letter queue, and adds the Sentry sink as a per-site setting, turned on for every Monitored and Supported site.
 - **louise-ops** records each site's Sentry project in the site registry. Watchtower reads incidents from each site's D1 and from Sentry, and the `search_incidents`, `get_incident`, and `site_status` tools read the same two sources.
