@@ -427,6 +427,12 @@ export interface RewriteOptions {
  * Keep `text` within {@link REWRITE_MAX_CHARS} for the default cap; a longer
  * passage is likely to come back cut off, and so as `null`.
  */
+/** Added to the rewrite prompt when the text holds several paragraphs, so the
+ *  editor can put each one back in its own block (#551). A single paragraph
+ *  gets the prompt unchanged. */
+const KEEP_PARAGRAPHS =
+  " Keep the same paragraphs in the same order, separated by one blank line, as in the text.";
+
 export async function rewriteText(
   runner: AiRunner | undefined,
   text: string,
@@ -442,7 +448,7 @@ export async function rewriteText(
       messages: [
         {
           role: "system",
-          content: `${instruction} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
+          content: `${instruction}${input.includes("\n\n") ? KEEP_PARAGRAPHS : ""} Reply with only the rewritten text — no preamble, no quotation marks, no explanation.`,
         },
         { role: "user", content: input },
       ],

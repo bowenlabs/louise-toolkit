@@ -45,6 +45,18 @@ selection gets a `413` before any model runs, and its `error` tells the editor t
 select a shorter passage. The editor toolbar shows that message in the rewrite
 menu.
 
+**The toolbar shows a rewrite before it applies it.** The answer appears under
+the original with **Replace** and **Discard**, and nothing changes until the
+owner picks Replace. Several paragraphs go to the model as paragraphs, separated
+by blank lines, and each answer paragraph goes back into its own block, so a
+heading stays a heading. If the answer comes back with a different number of
+paragraphs, Replace is off and the menu says why. Two limits:
+
+- **A selection holding a link can't be rewritten.** The model could change where
+  the link goes, so the menu says to select text without one.
+- **Bold, italics, and other inline formatting don't carry over.** The preview says
+  so when the selection has any.
+
 ## Cost
 
 Workers AI is billed in **Neurons** with a **10,000/day free allocation**, then
