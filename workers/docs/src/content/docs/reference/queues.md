@@ -7,6 +7,7 @@ sidebar:
 
 ```ts
 import {
+  DEFAULT_MAX_RETRIES,
   defaultRetryDelay,
   enqueue,
   processBatch,
@@ -43,6 +44,7 @@ type QueueMessageHandler<T> = (message: T, context: { attempts: number }) => voi
 
 interface ProcessBatchOptions {
   retryDelay?: (attempts: number) => number; // seconds; default defaultRetryDelay
+  maxRetries?: number; // the queue's max_retries; default DEFAULT_MAX_RETRIES (3)
 }
 ```
 
@@ -58,6 +60,16 @@ exhausts its retries leaves a trace before Cloudflare moves it to the
 dead-letter queue. To surface a failure, throw from the handler: a handler
 that returns without throwing acks the message, and `processBatch` logs
 nothing.
+
+A failure on a message's last delivery is also an incident (ADR 0022 § 7).
+`maxRetries` is the queue's `max_retries` from `wrangler.jsonc`, 3 by default,
+as Cloudflare's is; delivery `maxRetries + 1` is the last. That failure is
+reported as a `queue` incident named for the error, with the queue's name as its
+`path`, and reaches [`composeWorker`'s `onIncident`](/reference/worker/#incident-capture-onincident)
+sinks when the Worker's `queue` handler finishes. An earlier failure is only
+logged, because a retry may still clear it. Without `onIncident`, the log line
+is the only trace. To keep what dead-letters, give the dead-letter queue a
+[consumer](/reference/incidents/#deadletterconsumerdatabase-table).
 
 ```ts
 export default {

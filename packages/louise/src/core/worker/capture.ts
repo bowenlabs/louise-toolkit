@@ -6,14 +6,16 @@
 // A throw from `fetch`, `queue`, or `scheduled` becomes an `IncidentReport`,
 // goes to the site's sinks through `ctx.waitUntil`, and is re-thrown, so
 // Cloudflare answers exactly as it would have. A `reportDegraded` call has no
-// `ctx` of its own, so each one waits in a small buffer until the next handler
-// in this isolate finishes and flushes it.
+// `ctx` of its own, and neither does an incident a kit module emits (a queue
+// message's last attempt, a dead letter), so each one waits in a small buffer
+// until the next handler in this isolate finishes and flushes it.
 //
 // Nothing here may fail the work it reports on. A sink that throws is logged
 // with `console.error`, not `reportDegraded`: a degrade from a failing sink
 // would feed the next flush, which would fail the same way, forever.
 
-import { onDegraded, type DegradedEvent } from "../degraded.js";
+import { onDegraded } from "../degraded.js";
+import { onIncidentEmitted } from "../incidents/channel.js";
 import {
   buildIncidentReport,
   incidentFromDegraded,
@@ -52,14 +54,15 @@ interface Captured {
   cause: unknown;
 }
 
-/** Degrades a buffer holds before it drops the rest until the next flush. */
-const MAX_PENDING_DEGRADES = 100;
+/** Reports a buffer holds before it drops the rest until the next flush. */
+const MAX_PENDING = 100;
 
 /**
  * Wrap a Worker's handlers so every failure they see becomes an incident.
  * `composeWorker` does this for you when you pass `onIncident`; call it
  * directly only for a handler you compose by hand. Call it once per Worker,
- * at module scope: each call listens for degrades in this isolate.
+ * at module scope: each call listens for degrades and emitted incidents in
+ * this isolate.
  *
  * `fetch`, `queue`, and `scheduled` keep their behavior. A throw is reported,
  * then re-thrown. A handler that isn't there stays absent.
@@ -69,11 +72,26 @@ export function withIncidentCapture<Env, QMessage>(
   capture: IncidentCapture<Env>,
 ): ExportedHandler<Env, QMessage> {
   const { sinks, critical, release } = normalize(capture);
-  const pending: { event: DegradedEvent; at: number }[] = [];
+  // Each entry builds its report at flush time, when the release is known.
+  const pending: ((release: string | undefined) => Captured)[] = [];
   let dropped = 0;
-  onDegraded((event) => {
-    if (pending.length < MAX_PENDING_DEGRADES) pending.push({ event, at: Date.now() });
+  const hold = (build: (release: string | undefined) => Captured): void => {
+    if (pending.length < MAX_PENDING) pending.push(build);
     else dropped++;
+  };
+  onDegraded((event) => {
+    const now = Date.now();
+    hold((release) => ({
+      report: incidentFromDegraded(event, { release, now }),
+      cause: event.cause,
+    }));
+  });
+  onIncidentEmitted((input) => {
+    const now = input.now ?? Date.now();
+    hold((release) => ({
+      report: buildIncidentReport({ ...input, release, now }),
+      cause: input.cause,
+    }));
   });
 
   const releaseOf = (env: Env): string | undefined => {
@@ -119,14 +137,9 @@ export function withIncidentCapture<Env, QMessage>(
           cause: thrown.cause,
         });
       }
-      for (const { event, at } of pending.splice(0)) {
-        captured.push({
-          report: incidentFromDegraded(event, { release: releaseValue, now: at }),
-          cause: event.cause,
-        });
-      }
+      for (const build of pending.splice(0)) captured.push(build(releaseValue));
       if (dropped > 0) {
-        console.error(`[louise] incident capture dropped ${dropped} degrades; its buffer was full`);
+        console.error(`[louise] incident capture dropped ${dropped} reports; its buffer was full`);
         dropped = 0;
       }
       dispatch(captured, env, ctx);

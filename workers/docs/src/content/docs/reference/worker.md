@@ -129,10 +129,12 @@ Set `onIncident` and every failure the Worker's handlers see becomes an
   then re-thrown, so Cloudflare answers exactly as it would have. A `queue`
   report's `path` is the queue's name; a `scheduled` report's is the cron
   expression.
-- **A `reportDegraded` call** is reported too. A degrade has no `ctx` of its
-  own, so it waits in a buffer of up to 100 until the next handler in the
-  isolate finishes. A degrade past that limit is dropped and counted in a log
-  line.
+- **A `reportDegraded` call** is reported too, and so is a queue message that
+  fails on its last delivery in `processBatch`, and each message a
+  [dead-letter consumer](/reference/incidents/#deadletterconsumerdatabase-table)
+  keeps. None of these has a `ctx` of its own, so each waits in a buffer of up
+  to 100 until the next handler in the isolate finishes. A report past that
+  limit is dropped and counted in a log line.
 
 Each sink gets the report and `{ env, cause }`: the Worker's bindings and the
 value that was thrown. [`d1Incidents`](/reference/incidents/#d1incidentsdatabase-table)
