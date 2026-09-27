@@ -196,11 +196,22 @@ All guards are opt-in per form. The visible ones are enforced only when
 Two **silent** heuristics reject a likely bot with a _fake success_ (so it can't
 tune) and never insert:
 
-- `spam.honeypot: "website"`—a decoy field a bot fills but a human never sees.
-  The `<Form>` helper emits it hidden + `autocomplete="off"`.
+- `spam.honeypot: "louise_trap"`—a decoy field a bot fills but a human never
+  sees. The `<Form>` helper emits it hidden + `autocomplete="off"`.
 - `spam.minSeconds: 2`—a minimum time between render and submit. The helper
   stamps a `louise_ts` at mount; a plain HTML form that doesn't stamp one is not
   penalized.
+
+**Name the honeypot something no autofill matches.** Browsers and password
+managers fill fields by name, and they don't always honor `autocomplete="off"`.
+A decoy called `website`, `company`, or `email` gets filled for a real visitor,
+who then sees "Thanks" while the message is held. `defineForm` logs a warning
+when the name contains a word autofill targets.
+
+A held submission isn't stored, so `formRoute` records each one: by default, one
+log line with the form's name and the verdict (`honeypot` or `too-fast`), never
+the field values. Pass `onSpam(verdict, env, { form, body })` to count them,
+alert on a spike, or store them yourself.
 
 ## Notifications
 

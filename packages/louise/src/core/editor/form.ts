@@ -8,11 +8,13 @@
 // the guard is same-origin (CSRF) + the spam checks, not an editor session.
 
 import { isSameOrigin } from "../auth/guard.js";
+import { reportDegraded } from "../degraded.js";
 import {
   columnName,
   type FormDefinition,
   type FormMailer,
-  looksLikeSpam,
+  type SpamVerdict,
+  spamVerdict,
   notifySubmission,
   validateSubmission,
   verifyTurnstileToken,
@@ -49,6 +51,18 @@ export interface FormRouteConfig<Env extends FormRouteEnv = FormRouteEnv> {
   genericTable?: string;
   /** Fired after a successful insert with the stored values (Tier 3 hook). */
   onSubmit?: (values: Record<string, unknown>, env: Env) => void | Promise<void>;
+  /**
+   * Fired when a silent spam heuristic holds a submission, with which one. The
+   * visitor still sees a success and nothing is stored, so this is the only
+   * record: count held submissions, alert on a spike, or store them yourself.
+   * Default: one log line with the form's name and the verdict, never the
+   * field values.
+   */
+  onSpam?: (
+    verdict: SpamVerdict,
+    env: Env,
+    context: { form: string; body: Record<string, unknown> },
+  ) => void | Promise<void>;
 }
 
 /** Read a submission body as a flat record, from JSON or form-encoding. */
@@ -96,8 +110,18 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
     const body = await readBody(request);
 
     // Silent heuristics (honeypot / too-fast submit): return a fake success so a
-    // bot can't tune, and never insert. Runs before the visible checks.
-    if (looksLikeSpam(form, body)) return json({ ok: true }, 201);
+    // bot can't tune, and never insert. Runs before the visible checks. Autofill
+    // can fill a honeypot for a person, so each hold is recorded, not dropped.
+    const verdict = spamVerdict(form, body);
+    if (verdict) {
+      try {
+        if (config.onSpam) await config.onSpam(verdict, env, { form: form.name, body });
+        else console.warn(`[louise] form "${form.name}": held a submission (${verdict})`);
+      } catch (err) {
+        reportDegraded("forms.onSpam", err, { form: form.name });
+      }
+      return json({ ok: true }, 201);
+    }
 
     // Spam guard—rate limit first (cheap), then Turnstile (a network call).
     if (form.spam?.rateLimit && config.rateLimitKv) {

@@ -4,9 +4,11 @@ import { inquiries, inquiriesForm } from "../../src/core/db/index.js";
 import { formRoute } from "../../src/core/editor/index.js";
 import { s } from "../../src/core/schema/index.js";
 import {
+  autofillProneName,
   coerceFormValue,
   columnName,
   defineForm,
+  spamVerdict,
   tanstackFormValidators,
   validateSubmission,
   verifyTurnstileToken,
@@ -43,6 +45,41 @@ describe("defineForm", () => {
 
   it("rejects a non-identifier form name", () => {
     expect(() => defineForm({ name: "a b", fields: {} })).toThrow(/Invalid form name/);
+  });
+});
+
+describe("honeypot names", () => {
+  it("warns from defineForm when autofill is likely to fill the honeypot", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    defineForm({ name: "contact", fields: {}, spam: { honeypot: "website" } });
+    defineForm({ name: "contact", fields: {}, spam: { honeypot: "louise_trap" } });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('the honeypot "website" is a name browsers autofill');
+    warn.mockRestore();
+  });
+
+  it("matches autofill words however the name is written", () => {
+    for (const name of [
+      "website",
+      "company_name",
+      "homeAddress",
+      "e-mail",
+      "phone2",
+      "address-line1",
+    ]) {
+      expect(autofillProneName(name), name).toBe(true);
+    }
+    for (const name of ["louise_trap", "hp_field", "nectar"]) {
+      expect(autofillProneName(name), name).toBe(false);
+    }
+  });
+
+  it("names the verdict", () => {
+    const config = { name: "f", fields: {}, spam: { honeypot: "louise_trap", minSeconds: 3 } };
+    expect(spamVerdict(config, { louise_trap: " " })).toBeNull();
+    expect(spamVerdict(config, { louise_trap: "x" })).toBe("honeypot");
+    expect(spamVerdict(config, { louise_ts: Date.now() })).toBe("too-fast");
+    expect(spamVerdict(config, {})).toBeNull();
   });
 });
 
@@ -355,20 +392,43 @@ describe("formRoute", () => {
     expect(third?.headers.get("Retry-After")).toBeTruthy();
   });
 
-  it("silently accepts (201, no insert) a filled honeypot", async () => {
+  it("silently accepts (201, no insert) a filled honeypot, and logs the hold", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const hp = defineForm({
       name: "inquiries",
       fields: { email: { type: "email", label: "Email", required: true } },
-      spam: { honeypot: "website" },
+      spam: { honeypot: "louise_trap" },
     });
     const { db, inserts } = makeD1();
     const res = await formRoute({ form: hp })(
-      post({ email: "a@b.co", website: "http://spam" }),
+      post({ email: "a@b.co", louise_trap: "http://spam" }),
       { DB: db },
       ctx,
     );
     expect(res?.status).toBe(201);
     expect(inserts).toHaveLength(0);
+    // One line, with the form and the verdict, never the values.
+    expect(warn).toHaveBeenCalledWith('[louise] form "inquiries": held a submission (honeypot)');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("a@b.co");
+    warn.mockRestore();
+  });
+
+  it("hands a held submission to onSpam instead of the log", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const hp = defineForm({
+      name: "inquiries",
+      fields: { email: { type: "email", label: "Email", required: true } },
+      spam: { honeypot: "louise_trap", minSeconds: 3 },
+    });
+    const onSpam = vi.fn();
+    const { db } = makeD1();
+    const route = formRoute({ form: hp, onSpam });
+    await route(post({ email: "a@b.co", louise_trap: "x" }), { DB: db }, ctx);
+    await route(post({ email: "a@b.co", louise_ts: Date.now() }), { DB: db }, ctx);
+    expect(onSpam.mock.calls.map((c) => c[0])).toEqual(["honeypot", "too-fast"]);
+    expect(onSpam.mock.calls[0]?.[2]).toMatchObject({ form: "inquiries" });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("silently accepts (201, no insert) a too-fast submit", async () => {

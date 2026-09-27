@@ -6,7 +6,14 @@
 
 export { columnName, deriveFormColumns } from "./columns.js";
 export { defineForm } from "./defineForm.js";
-export { looksLikeSpam, notifySubmission, renderSubmissionText } from "./notify.js";
+export { autofillProneName } from "./honeypot.js";
+export {
+  looksLikeSpam,
+  notifySubmission,
+  renderSubmissionText,
+  type SpamVerdict,
+  spamVerdict,
+} from "./notify.js";
 export {
   type TanstackFieldValidator,
   tanstackFieldValidator,

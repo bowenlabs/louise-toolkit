@@ -47,6 +47,8 @@ export interface CwvSummary {
   rating: CwvRating | "none";
   /** Approximate number of measurements the p75 is over (0 → not measured). */
   sampleSize: number;
+  /** The slowest pages, from {@link parseCwvPathRows}, when the scan asked for them. */
+  slowestPaths?: CwvPathSummary[];
 }
 
 const RATING_ORDER: readonly CwvRating[] = ["good", "needs-improvement", "poor"];
@@ -58,6 +60,8 @@ export function summarizeCwv(input: {
   inp?: number;
   cls?: number;
   sampleSize: number;
+  /** The slowest pages, from {@link parseCwvPathRows}; kept as given. */
+  slowestPaths?: CwvPathSummary[];
 }): CwvSummary {
   const present: [CwvMetric, number][] = [];
   if (input.lcp != null) present.push(["LCP", input.lcp]);
@@ -67,7 +71,14 @@ export function summarizeCwv(input: {
   for (const [name, value] of present)
     worst = Math.max(worst, RATING_ORDER.indexOf(rateMetric(name, value)));
   const rating = input.sampleSize > 0 && worst >= 0 ? RATING_ORDER[worst] : "none";
-  return { lcp: input.lcp, inp: input.inp, cls: input.cls, rating, sampleSize: input.sampleSize };
+  return {
+    lcp: input.lcp,
+    inp: input.inp,
+    cls: input.cls,
+    rating,
+    sampleSize: input.sampleSize,
+    ...(input.slowestPaths?.length ? { slowestPaths: input.slowestPaths } : {}),
+  };
 }
 
 // ── Ingestion ──────────────────────────────────────────────────────────────
@@ -173,22 +184,94 @@ export function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<En
 
 const SAFE_DATASET = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/** How many readings a page needs before its own p75 is worth showing. */
+export const CWV_MIN_PATH_SAMPLES = 20;
+
+export interface CwvQueryOptions {
+  /**
+   * Group by the page as well as the metric, from the path each beacon
+   * records, and leave out a page with fewer than `minSamples` readings.
+   * Read the rows with {@link parseCwvPathRows}.
+   */
+  byPath?: boolean;
+  /** With `byPath`, the fewest readings a page needs. Default {@link CWV_MIN_PATH_SAMPLES}. */
+  minSamples?: number;
+}
+
 /**
  * Analytics Engine SQL for the p75 of each metric over the last `sinceHours`.
- * `index1` is the metric name, `double1` the value; `quantileWeighted` accounts
- * for AE's adaptive sampling via `_sample_interval`.
+ * `index1` is the metric name, `double1` the value, and `blob1` the page's
+ * path; `quantileWeighted` accounts for AE's adaptive sampling via
+ * `_sample_interval`. Pass `{ byPath: true }` for a row per page and metric.
  */
-export function cwvSqlQuery(dataset: string, sinceHours = 24): string {
+export function cwvSqlQuery(
+  dataset: string,
+  sinceHours = 24,
+  options: CwvQueryOptions = {},
+): string {
   if (!SAFE_DATASET.test(dataset)) throw new Error(`Invalid dataset name: ${dataset}`);
   const hours = Math.max(1, Math.trunc(sinceHours));
+  const minSamples = Math.max(1, Math.trunc(options.minSamples ?? CWV_MIN_PATH_SAMPLES));
   return (
     `SELECT index1 AS metric, ` +
+    (options.byPath ? `blob1 AS path, ` : "") +
     `quantileWeighted(0.75)(double1, _sample_interval) AS p75, ` +
     `sum(_sample_interval) AS samples ` +
     `FROM ${dataset} ` +
     `WHERE timestamp > NOW() - INTERVAL '${hours}' HOUR ` +
-    `GROUP BY metric`
+    (options.byPath ? `GROUP BY metric, path HAVING samples >= ${minSamples}` : `GROUP BY metric`)
   );
+}
+
+/** One page's p75 vitals, from a `byPath` query. */
+export interface CwvPathSummary {
+  path: string;
+  lcp?: number;
+  inp?: number;
+  cls?: number;
+  /** The worst rating among the metrics present. */
+  rating: CwvRating;
+  /** The most readings behind any one of its metrics. */
+  sampleSize: number;
+}
+
+/** How many of the slowest pages a summary keeps. */
+export const CWV_SLOWEST_PATHS = 5;
+
+/**
+ * Reduce `byPath` {@link cwvSqlQuery} rows to one summary per page, and return
+ * the `limit` slowest: the worst-rated first, then the highest LCP. Pages rated
+ * good are left out, since there's nothing to fix.
+ */
+export function parseCwvPathRows(
+  rows: readonly { metric?: unknown; path?: unknown; p75?: unknown; samples?: unknown }[],
+  limit = CWV_SLOWEST_PATHS,
+): CwvPathSummary[] {
+  const byPath = new Map<string, { metric?: unknown; p75?: unknown; samples?: unknown }[]>();
+  for (const row of rows) {
+    if (typeof row.path !== "string" || row.path === "") continue;
+    byPath.set(row.path, [...(byPath.get(row.path) ?? []), row]);
+  }
+  const pages: CwvPathSummary[] = [];
+  for (const [path, pathRows] of byPath) {
+    const summary = summarizeCwv(parseCwvRows(pathRows));
+    if (summary.rating === "none" || summary.rating === "good") continue;
+    pages.push({
+      path,
+      ...(summary.lcp !== undefined && { lcp: summary.lcp }),
+      ...(summary.inp !== undefined && { inp: summary.inp }),
+      ...(summary.cls !== undefined && { cls: summary.cls }),
+      rating: summary.rating,
+      sampleSize: summary.sampleSize,
+    });
+  }
+  return pages
+    .sort(
+      (a, b) =>
+        RATING_ORDER.indexOf(b.rating) - RATING_ORDER.indexOf(a.rating) ||
+        (b.lcp ?? 0) - (a.lcp ?? 0),
+    )
+    .slice(0, Math.max(0, limit));
 }
 
 /** Reduce {@link cwvSqlQuery} result rows into {@link summarizeCwv} input. */

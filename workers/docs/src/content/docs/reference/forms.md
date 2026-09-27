@@ -78,7 +78,11 @@ blank → `null`).
 pass. `rateLimit` (KV fixed-window), `turnstile` (verified with
 `verifyTurnstileToken`, fails closed), and two **silent** heuristics—`honeypot`
 (a decoy field) and `minSeconds` (a too-fast-submit check vs the render helper's
-`louise_ts`). `looksLikeSpam(config, body)` evaluates the silent pair.
+`louise_ts`). `spamVerdict(config, body)` evaluates the silent pair and returns
+`"honeypot"`, `"too-fast"`, or `null`; `looksLikeSpam(config, body)` is the same
+check as a boolean. `autofillProneName(name)` says whether autofill is likely to
+fill a field with that name, which is what `defineForm` warns about for a
+honeypot.
 
 ```ts
 function verifyTurnstileToken(
