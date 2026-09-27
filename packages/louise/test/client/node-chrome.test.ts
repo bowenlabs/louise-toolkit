@@ -9,6 +9,7 @@
 // must offer a way to add the first one. Pre-0010 the `+` lived only on a child's
 // own toolbar, so an empty block-capable section was a dead end.
 
+import { computeAccessibleName } from "dom-accessibility-api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatNodePath, type NodeDescriptor, type NodePath } from "../../src/client/node.js";
 import { mountNodeChrome } from "../../src/client/node-chrome.js";
@@ -63,7 +64,7 @@ const toolbar = () => document.querySelector<HTMLElement>(".louise-chrome-toolba
 const shownButtons = () =>
   [...(toolbar()?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
     .filter((b) => b.style.display !== "none")
-    .map((b) => b.getAttribute("aria-label"));
+    .map((b) => computeAccessibleName(b));
 const ringed = () => document.querySelector("[data-louise-node].louise-node-active");
 
 let dispose: (() => void) | undefined;
@@ -446,12 +447,22 @@ describe("mountNodeChrome—a focused node says what it is (#596)", () => {
     const { section, block } = tree();
     dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
     expect(section.getAttribute("role")).toBe("group");
-    expect(section.getAttribute("aria-label")).toBe("Section · Hero");
-    expect(block.getAttribute("aria-label")).toBe("Block · block");
+    // The name a screen reader computes, not just the attribute (#600).
+    expect(computeAccessibleName(section)).toBe("Section · Hero");
+    expect(computeAccessibleName(block)).toBe("Block · block");
+  });
+
+  it("leaves no focusable node without a computed name", () => {
+    tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    const focusable = [...document.querySelectorAll<HTMLElement>('[tabindex="0"]')];
+    expect(focusable.length).toBeGreaterThan(0);
+    for (const el of focusable) expect(computeAccessibleName(el), el.outerHTML).not.toBe("");
   });
 
   it("leaves a native role, and an author's own role and name, alone", () => {
     const { section, field } = tree();
+    field.setAttribute("href", "/shop");
     section.setAttribute("role", "region");
     section.setAttribute("aria-label", "Welcome");
     dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
@@ -459,6 +470,13 @@ describe("mountNodeChrome—a focused node says what it is (#596)", () => {
     expect(field.hasAttribute("aria-label")).toBe(false);
     expect(section.getAttribute("role")).toBe("region");
     expect(section.getAttribute("aria-label")).toBe("Welcome");
+  });
+
+  it("names a link field whose URL isn't set, since it has no role of its own", () => {
+    const { field } = tree();
+    dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
+    expect(field.getAttribute("role")).toBe("group");
+    expect(computeAccessibleName(field)).toBe("Field · link");
   });
 
   it("removes exactly what it added when disposed", () => {
@@ -478,7 +496,7 @@ describe("mountNodeChrome—a focused node says what it is (#596)", () => {
     chrome.prepare(section);
     expect(section.tabIndex).toBe(0);
     expect(block.tabIndex).toBe(0);
-    expect(block.getAttribute("aria-label")).toBe("Block · block");
+    expect(computeAccessibleName(block)).toBe("Block · block");
   });
 });
 
@@ -487,7 +505,7 @@ describe("mountNodeChrome—the toolbar says what it acts on (#542)", () => {
     const { section } = tree();
     dispose = mountNodeChrome({ ...noopActions, resolve: resolveLikeToday });
     over(section);
-    expect(toolbar()?.getAttribute("aria-label")).toBe("Section · Hero");
+    expect(computeAccessibleName(toolbar()!)).toBe("Section · Hero");
     const tag = toolbar()?.querySelector(".louise-chrome-tag");
     expect(tag?.textContent).toBe("Section · Hero");
     expect(tag?.getAttribute("aria-hidden")).toBe("true");

@@ -59,7 +59,7 @@ corepack pnpm -C packages/louise run check        # lint + format + type-aware r
 corepack pnpm -C packages/louise-astro run check
 corepack pnpm run fmt:check                       # everything the two above don't reach
 corepack pnpm run lint:astro
-corepack pnpm run lint:solid
+corepack pnpm run lint:solid                      # Solid + accessibility rules on the client
 corepack pnpm run lint:arch                       # ast-grep invariants
 corepack pnpm run lint:core                       # no Astro in the core
 corepack pnpm run lint:names                      # no client site names
