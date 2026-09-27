@@ -77,4 +77,3 @@ segment under its prefix that wasn't an integer. `pagesRoute` now claims only
 `versionsRoute`, `searchRoute`, `seoFixRoute`, and the overview route mount in
 any order, and their `MUST precede` comments are gone. The decision itself
 stands: none of the reasons for declining Hono depended on the ordering rule.
-
