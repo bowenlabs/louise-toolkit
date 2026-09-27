@@ -10,8 +10,9 @@ import { useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, createUniqueId, For, Index, type JSX, Match, Show, Switch } from "solid-js";
 import type { FieldTypeName } from "../../core/content/field-types.js";
 import { Icon } from "../icons.jsx";
+import { EmptyState, ErrorState, Skeleton } from "../states.jsx";
 import { thumb } from "../thumb.js";
-import { apiGet, louiseQueryKeys } from "./query.js";
+import { apiErrorMessage, apiGet, louiseQueryKeys } from "./query.js";
 
 /** A label/href row—the shape stored in the `navLinks`/`socialLinks` JSON. */
 export interface LinkRow {
@@ -268,33 +269,46 @@ export function MediaUrlPicker(props: {
         <Icon name="image" /> {open() ? "Close media" : "Choose from media"}
       </button>
       <Show when={open()}>
-        <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
+        <Show
+          when={!query.isLoading}
+          fallback={<Skeleton label="Loading your media" shape="grid" count={6} />}
+        >
           <Show
-            when={(query.data ?? []).length > 0}
-            fallback={<p class="louise-muted">No uploads yet. Add images in the Media panel.</p>}
+            when={!query.isError}
+            fallback={
+              <ErrorState
+                message={apiErrorMessage(query.error, "Couldn’t load your media.")}
+                onRetry={() => void query.refetch()}
+              />
+            }
           >
-            <div class="louise-media-pick-grid">
-              <For each={query.data ?? []}>
-                {(item) => (
-                  <button
-                    class="louise-media-pick"
-                    type="button"
-                    title={item.key}
-                    // The thumbnail is decorative inside this button (alt=""), so
-                    // the button itself has to carry the name—`title` alone is
-                    // not a reliable accessible name (WCAG 4.1.2).
-                    aria-label={`Use ${item.key}`}
-                    onClick={() => {
-                      props.onPick(item.url);
-                      setOpen(false);
-                    }}
-                  >
-                    {/* 72px grid tile (.louise-media-pick-grid). */}
-                    <img src={thumb(item.url, 72)} alt="" loading="lazy" decoding="async" />
-                  </button>
-                )}
-              </For>
-            </div>
+            <Show
+              when={(query.data ?? []).length > 0}
+              fallback={<EmptyState message="No uploads yet. Add images in the Media panel." />}
+            >
+              <div class="louise-media-pick-grid">
+                <For each={query.data ?? []}>
+                  {(item) => (
+                    <button
+                      class="louise-media-pick"
+                      type="button"
+                      title={item.key}
+                      // The thumbnail is decorative inside this button (alt=""), so
+                      // the button itself has to carry the name—`title` alone is
+                      // not a reliable accessible name (WCAG 4.1.2).
+                      aria-label={`Use ${item.key}`}
+                      onClick={() => {
+                        props.onPick(item.url);
+                        setOpen(false);
+                      }}
+                    >
+                      {/* 72px grid tile (.louise-media-pick-grid). */}
+                      <img src={thumb(item.url, 72)} alt="" loading="lazy" decoding="async" />
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
           </Show>
         </Show>
       </Show>

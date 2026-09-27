@@ -180,8 +180,7 @@ describe("Settings shell — two-group registry split", () => {
     mount(() => <Settings userName="Baylee" />);
     openDrawer();
     // Home is the default landing—the traffic-light summary, not a CRUD panel.
-    await vi.waitFor(() => expect(host.querySelector(".louise-dashboard")).not.toBeNull());
-    expect(host.textContent).toContain("Your site is healthy");
+    await vi.waitFor(() => expect(host.textContent).toContain("Your site is healthy"));
   });
 
   it("opens Pages (no Home) when home is disabled and a site registers no tabs", async () => {

@@ -79,8 +79,7 @@ describe("HomePanel — built-in cards + summary", () => {
     stubOverview({});
     mount(() => <HomePanel cards={BUILTIN_CARDS} navigate={() => {}} />);
 
-    await vi.waitFor(() => expect(host.querySelector(".louise-dashboard")).not.toBeNull());
-    expect(summaryText()).toBe("Your site is healthy");
+    await vi.waitFor(() => expect(summaryText()).toBe("Your site is healthy"));
     expect(cardTitles()).toEqual([]);
   });
 

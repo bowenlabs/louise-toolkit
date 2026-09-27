@@ -16,6 +16,7 @@ import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "soli
 import type { OgCardOptions } from "../../core/browser/og-card.js";
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../../core/seo/limits.js";
 import { Icon } from "../icons.jsx";
+import { EmptyState, ErrorState, Skeleton } from "../states.jsx";
 import { MediaUrlPicker } from "./fields.jsx";
 import { OgPreview } from "./og-preview.jsx";
 import { type SaveStatus, usePanelActions } from "./panel-actions.jsx";
@@ -140,38 +141,53 @@ export function PagesPanel(props: {
             value={q()}
             onInput={(e) => setQ(e.currentTarget.value)}
           />
-          <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
+          <Show
+            when={!query.isLoading}
+            fallback={<Skeleton label="Loading your pages" count={4} />}
+          >
             <Show
-              when={shown().length > 0}
-              fallback={<p class="louise-muted">{searching() ? "No matches." : "No pages yet."}</p>}
+              when={!query.isError}
+              fallback={
+                <ErrorState
+                  message={apiErrorMessage(query.error, "Couldn’t load your pages.")}
+                  onRetry={() => void query.refetch()}
+                />
+              }
             >
-              <div class="louise-list">
-                <For each={shown()}>
-                  {(p) => (
-                    <div class="louise-list-item">
-                      <div class="louise-item-main">
-                        <div class="louise-item-title">{p.title}</div>
-                        <div class="louise-item-sub">
-                          /{p.slug} · {p.status === "published" ? "Published" : "Draft"}
+              <Show
+                when={shown().length > 0}
+                fallback={
+                  <EmptyState message={searching() ? "No pages match." : "No pages yet."} />
+                }
+              >
+                <div class="louise-list">
+                  <For each={shown()}>
+                    {(p) => (
+                      <div class="louise-list-item">
+                        <div class="louise-item-main">
+                          <div class="louise-item-title">{p.title}</div>
+                          <div class="louise-item-sub">
+                            /{p.slug} · {p.status === "published" ? "Published" : "Draft"}
+                          </div>
                         </div>
+                        {/* Edit content on the page canvas; the gear opens page settings. */}
+                        <a class="louise-btn" href={`/${p.slug}?louise`}>
+                          Edit
+                        </a>
+                        <button
+                          class="louise-btn"
+                          type="button"
+                          aria-label="Page settings"
+                          title="Page settings"
+                          onClick={() => setEditing(p)}
+                        >
+                          <Icon name="gear" />
+                        </button>
                       </div>
-                      {/* Edit content on the page canvas; the gear opens page settings. */}
-                      <a class="louise-btn" href={`/${p.slug}?louise`}>
-                        Edit
-                      </a>
-                      <button
-                        class="louise-btn"
-                        type="button"
-                        aria-label="Page settings"
-                        title="Page settings"
-                        onClick={() => setEditing(p)}
-                      >
-                        <Icon name="gear" />
-                      </button>
-                    </div>
-                  )}
-                </For>
-              </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </Show>
           </Show>
 

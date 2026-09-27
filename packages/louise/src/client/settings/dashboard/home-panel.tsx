@@ -10,8 +10,11 @@
 // the drawer footer (#109) collapses here, which is exactly the empty-slot case
 // that panel validates.
 
-import { createEffect, For } from "solid-js";
+import { createEffect, For, Match, Switch } from "solid-js";
 import { createStore } from "solid-js/store";
+import { ErrorState, Skeleton } from "../../states.jsx";
+import { apiErrorMessage } from "../query.js";
+import { useOverview } from "./cards.jsx";
 import type { CardStatus, DashboardApi, DashboardCard } from "./types.js";
 
 /** Sum the counts of every card currently flagged `attention`. */
@@ -52,9 +55,23 @@ export function HomePanel(props: { cards: DashboardCard[]; navigate: DashboardAp
     report: (fn) => createEffect(() => setStatuses(id, fn())),
   });
 
+  // The overview the built-in cards read. While it loads, or when it fails,
+  // every card reports nothing, and the summary would read "healthy" (#468).
+  const overview = useOverview();
+
   return (
     <div class="louise-dashboard">
-      <SummaryHeader statuses={Object.values(statuses)} />
+      <Switch fallback={<SummaryHeader statuses={Object.values(statuses)} />}>
+        <Match when={overview.isLoading}>
+          <Skeleton label="Checking your site" shape="panel" count={2} />
+        </Match>
+        <Match when={overview.isError}>
+          <ErrorState
+            message={apiErrorMessage(overview.error, "Couldn’t check your site.")}
+            onRetry={() => void overview.refetch()}
+          />
+        </Match>
+      </Switch>
       <div class="louise-card-grid">
         <For each={ordered()}>{(c) => c.render(apiFor(c.id))}</For>
       </div>

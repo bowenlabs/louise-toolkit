@@ -6,6 +6,9 @@
 // `mountSettings(config)` in edit mode and register their own collections;
 // everything shares one TanStack Query cache (the data layer below).
 
+// Loading, empty, and error states for a panel (#468).
+export { EmptyState, ErrorState, InlineError, Skeleton } from "../states.jsx";
+
 // Data layer—the shared QueryClient, query keys, and typed fetch helpers.
 export {
   apiErrorMessage,
