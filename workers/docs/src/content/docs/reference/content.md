@@ -148,11 +148,15 @@ before touching the database, and validates writes with the collection's
 
 `createVersionedLocalApi` adds draft/version history for collections that opt in
 with `versions`: `saveDraft`, `scheduleDraft`, `prepareDraft`, `publish`,
-`publishScheduled`, `unpublish`, `findVersions`, `diffVersions`, and
-`discardVersion`. A draft stores its input as the whole snapshot rather than
+`publishScheduled`, `unpublish`, `republish`, `findVersions`, `diffVersions`, and
+`discardVersion`. `publish` makes the row live and `unpublish` hides it, keeping
+the row and its pointer; `republish` shows a hidden row again as it stands.
+`publishScheduled` skips a due draft a later publish superseded. See
+[the page lifecycle](/guide/drafts/#the-model); `pageState`, `versionState`, and
+`promotedHighWater` apply its rules to a row you've read. A draft stores its input as the whole snapshot rather than
 merging it into the live row, so pass every required field. The draft methods
-check the `update` access function. `publish`, `publishScheduled`, and
-`unpublish` check `publish`, and `findVersions` and `diffVersions` check `read`.
+check the `update` access function. `publish`, `publishScheduled`,
+`unpublish`, and `republish` check `publish`, and `findVersions` and `diffVersions` check `read`.
 `can(config, operation, context)` evaluates access without performing the
 operation.
 
@@ -160,7 +164,7 @@ operation.
 
 A page ID and a version ID are both integers, so the versioned methods take
 branded types that keep them apart: `saveDraft`, `scheduleDraft`, `unpublish`,
-and `findVersions` take a `PageId`, and `publish`, `discardVersion`, and
+`republish`, and `findVersions` take a `PageId`, and `publish`, `discardVersion`, and
 `diffVersions` take a `VersionId`. Passing one where the other belongs, or a
 plain `number`, is a type error. At runtime both are ordinary numbers.
 

@@ -11,24 +11,69 @@ when you **Publish**, and every version is recoverable.
 
 ## The model
 
-A page's main row is the **live** document (what the public site renders). Drafts
-live in a companion `${slug}_versions` table until published; a nullable
-`published_version_id` on the main row points at the live version.
+A page's main row is what the public site renders. Drafts live in a companion
+`${slug}_versions` table until published. Three facts on the page describe its
+state, each with one job ([ADR 0021](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0021-page-lifecycle.md)):
+
+- **`status`** is visibility. `published` means a visitor sees the page, and
+  your page route and sitemap filter on it. Only **Publish** and **Unpublish**
+  write it; `pagesRoute` refuses `status` with a `422` on a page with drafts.
+- **`published_version_id`** names the version whose snapshot the row holds.
+  Publish moves it, and nothing clears it, so republishing a hidden page
+  restores the same content.
+- **The high-water mark** is the highest version ever promoted. A draft at or
+  below it is superseded: a later publish moved past it, so it's never resumed
+  or published as current work.
+
+The actions:
 
 - **Save draft** stores a full snapshot in `${slug}_versions`—the live row is
   untouched. With [auto-save](/guide/inline-editing/#auto-save) on (the default),
   edits stage this draft automatically on an idle debounce—no button.
-- **Publish** copies a version's snapshot onto the live row and sets
-  `published_version_id`, running full field validation.
-- **Unpublish** clears the pointer. Publishing an older version by id puts it
-  live again.
+- **Publish** copies the newest pending draft onto the row, moves the pointer,
+  and sets `status = 'published'`, running full field validation. With no
+  pending draft, it shows a hidden page again as it stands, or publishes a
+  never-published page as it stands. Publishing an older version by ID also
+  works, for scripts.
+- **Unpublish** sets `status = 'draft'`. The row and the pointer stay.
 
-The sections editor's history drawer never publishes. A published row's **Open
-as draft** loads that version onto the page as a new draft, so the owner sees
-it in place and goes live through the usual **Publish**. Deleting a draft
-removes its row and shows **Draft deleted · Undo** for 8 seconds. The discard
-request goes out when that window ends, the drawer closes, or a publish starts.
-Each row names how many sections the version holds and the first two.
+### Page states
+
+| State      | `status`    | Pointer | A visitor sees                 |
+| ---------- | ----------- | ------- | ------------------------------ |
+| **New**    | `draft`     | none    | nothing                        |
+| **Live**   | `published` | set     | the current version's snapshot |
+| **Hidden** | `draft`     | set     | nothing                        |
+
+| From   | Action                      | To                                         |
+| ------ | --------------------------- | ------------------------------------------ |
+| New    | publish                     | Live                                       |
+| Live   | save a draft                | Live, with a pending draft                 |
+| Live   | publish a newer draft       | Live                                       |
+| Live   | unpublish                   | Hidden                                     |
+| Hidden | publish                     | Live                                       |
+| any    | a scheduled draft comes due | Live, unless a later publish superseded it |
+
+### Version states
+
+`versionState` from `louise-toolkit/content` names each version's state, and
+the versions route sends it as `state` on every row. A version's stored
+`status` only records that it was promoted once, so read `state` instead.
+
+| State          | What it is                                | In the history drawer                  |
+| -------------- | ----------------------------------------- | -------------------------------------- |
+| **Pending**    | a draft newer than anything ever promoted | Draft · **Edit**, delete               |
+| **Scheduled**  | the same, with a `scheduledAt` time       | Scheduled · **Edit**, delete           |
+| **Superseded** | a draft at or below the high-water mark   | Superseded · **Open as draft**, delete |
+| **Current**    | the version the row holds                 | Live, or Hidden on a hidden page       |
+| **Earlier**    | promoted once, and not the current one    | Earlier · **Open as draft**            |
+
+The sections editor's history drawer never publishes. **Open as draft** loads
+a version onto the page as a new draft, so the owner sees it in place and goes
+live through the usual **Publish**. Deleting a draft removes its row and shows
+**Draft deleted · Undo** for 8 seconds. The discard request goes out when that
+window ends, the drawer closes, or a publish starts. Each row names how many
+sections the version holds and the first two.
 
 Publishing is a distinct privilege from editing (`access.publish`), and is
 **always a manual, explicit action**—auto-save only ever stages drafts, it
@@ -192,7 +237,7 @@ if (Astro.locals.editMode) {
   const draft = await resumeDraft(
     resume.client,
     { versionsTable: pagesVersions, collection: "pages", bufferKv: env.DRAFTS },
-    page, // needs `id` and `publishedVersionId`
+    page, // needs `id`
   );
   resume.commit();
   if (Array.isArray(draft?.sections)) sections = draft.sections;
@@ -204,14 +249,15 @@ sees is what their next save builds on:
 
 1. the KV write buffer, when you pass `bufferKv`—it holds auto-saves newer than
    the last D1 flush;
-2. the newest draft **newer** than the live row's `publishedVersionId`.
+2. the newest draft **newer** than every version ever promoted.
 
-A draft at or below the live pointer is **superseded**. Publishing stamps
-`publishedVersionId` and leaves older drafts in history, and resuming one of those
-would silently revert the just-published content. A page that has never published
-has no pointer, so every draft counts. The route applies the same rule
-server-side: publishing with no explicit `versionId` promotes the newest pending
-draft, never a superseded one.
+A draft at or below that high-water mark is **superseded**. Publishing leaves
+older drafts in history, and resuming one of those would silently revert the
+just-published content. The mark, not the pointer, because the pointer moves back
+when an older version is republished, and unpublishing must not revive old
+drafts either. A page that has never published has no mark, so every draft
+counts. The route applies the same rule server-side: publishing with no explicit
+`versionId` promotes the newest pending draft, never a superseded one.
 
 `resumeDraft` returns the whole snapshot. Which fields a page renders from it is
 your schema's business.
@@ -221,7 +267,7 @@ your schema's business.
 A write that bypasses the routes (a raw SQL `UPDATE` to a page's `sections`, a
 one-off script, a migration) changes only the live row. View mode shows it
 right away, but edit mode doesn't: `resumeDraft` prefers any pending draft,
-whether it's in the KV buffer or a draft version newer than the live pointer.
+whether it's in the KV buffer or a pending draft version.
 The editor keeps seeing the draft, and the next save builds on the draft, so
 publishing overwrites your direct write.
 

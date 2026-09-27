@@ -38,6 +38,12 @@ import {
   Show,
   Switch,
 } from "solid-js";
+import {
+  type PageState,
+  promotedHighWater,
+  versionState,
+  type VersionState,
+} from "../core/content/lifecycle.js";
 import { DRAFT_BASE_KEY } from "../core/editor/revs.js";
 import { describeNode, SHARED_PATH_HEAD } from "./describe-node.js";
 import { createFieldOptions } from "./field-options.js";
@@ -293,6 +299,23 @@ function PaletteItem(props: {
       </span>
     </button>
   );
+}
+
+/** A history row's status word (ADR 0021): the current version reads Live or
+ *  Hidden with its page, and "published" names page visibility only. */
+function versionLabel(state: VersionState, page: PageState | null): string {
+  switch (state) {
+    case "current":
+      return page === "hidden" ? "Hidden" : "Live";
+    case "earlier":
+      return "Earlier";
+    case "scheduled":
+      return "Scheduled";
+    case "superseded":
+      return "Superseded";
+    default:
+      return "Draft";
+  }
 }
 
 function humanize(key: string): string {
@@ -681,7 +704,12 @@ type Status = "idle" | "saving" | "saved" | "publishing" | "published" | "error"
 /** A row from `GET /api/louise/pages/:id/versions`. */
 interface VersionRow {
   id: number;
+  /** Stored: `published` records that the version was promoted once. Never read
+   *  as "live"; `state` says that (ADR 0021). */
   status: "draft" | "published";
+  /** The version's lifecycle state, from the versions route. */
+  state?: VersionState;
+  scheduledAt?: string | number | null;
   createdAt?: string | number | null;
   /** The full snapshot stored for this version—used to resume ("Edit") a draft. */
   versionData?: { sections?: SectionItem[] } | null;
@@ -1053,17 +1081,27 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   };
 
   const [versions, setVersions] = createSignal<VersionRow[]>([]);
-  // The id of the version that is currently LIVE (page's `published_version_id`),
-  // or null if the page is unpublished. Used to flag the live row in history—status
-  // alone can't, since multiple versions read "published" over time.
+  // The page's pointer (`published_version_id`): the version its row holds, live
+  // or hidden (ADR 0021). With the page's own state, it names the current row.
   const [liveVersionId, setLiveVersionId] = createSignal<number | null>(null);
+  const [pageLifecycle, setPageLifecycle] = createSignal<PageState | null>(null);
+  // A version's state as the route computed it, else by the same rule here, for
+  // a server from before the route sent one.
+  const stateOf = (v: VersionRow): VersionState =>
+    v.state ??
+    versionState(v, { publishedVersionId: liveVersionId() }, promotedHighWater(versions()));
   const [showHistory, setShowHistory] = createSignal(false);
   // The inspector popover (#182 Phase 4): which section/block is being inspected,
   // and where to anchor the popover (viewport coords near the selected element).
   const [inspecting, setInspecting] = createSignal<
     (InspectTarget & { top: number; left: number }) | null
   >(null);
-  const hasDraft = () => listedVersions().some((v) => v.status === "draft");
+  // Only pending work counts: a superseded draft isn't something to publish.
+  const hasDraft = () =>
+    listedVersions().some((v) => {
+      const state = stateOf(v);
+      return state === "pending" || state === "scheduled";
+    });
   // The bar's status line: in progress, then "Draft saved" for a moment, or the
   // confirmation after a publish reloaded the page.
   const statusText = () =>
@@ -1085,8 +1123,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         : justPublished()
           ? "published"
           : "idle";
-  // Publish needs something to publish, and nothing already in flight.
-  const nothingToPublish = () => !dirty() && !hasDraft();
+  // Publish needs something to publish, and nothing already in flight. A page
+  // that isn't live always has something: publishing is how it goes live, or
+  // comes back from hidden (ADR 0021).
+  const nothingToPublish = () =>
+    !dirty() && !hasDraft() && (pageLifecycle() === null || pageLifecycle() === "live");
   const canPublish = () => status() !== "publishing" && !nothingToPublish();
   // A publish just reloaded this page (#597). Set a tick after mount, so the
   // status region is in the page before its text changes and gets announced.
@@ -1125,14 +1166,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       const body = (await res.json().catch(() => null)) as {
         versions?: VersionRow[];
         publishedVersionId?: number | null;
+        pageState?: PageState;
         revs?: Record<string, string>;
       } | null;
       setVersions(body?.versions ?? []);
       setLiveVersionId(body?.publishedVersionId ?? null);
+      setPageLifecycle(body?.pageState ?? null);
       sectionsRev ??= body?.revs?.sections;
     } catch {
       setVersions([]);
       setLiveVersionId(null);
+      setPageLifecycle(null);
     }
   };
 
@@ -2469,16 +2513,19 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                   fallback={<p class="louise-muted">No versions yet.</p>}
                 >
                   {(v) => {
-                    const isLive = () => v.id === liveVersionId();
+                    const state = () => stateOf(v);
+                    const isCurrent = () => state() === "current";
+                    const isLive = () => isCurrent() && pageLifecycle() !== "hidden";
                     return (
                       <div
                         class="louise-arr-row"
                         data-live={isLive() ? "1" : undefined}
+                        data-state={state()}
                         data-version-id={v.id}
                       >
                         <span class="louise-version-text">
                           <span>
-                            {isLive() ? "Live" : v.status === "published" ? "Published" : "Draft"}
+                            {versionLabel(state(), pageLifecycle())}
                             {v.createdAt ? ` · ${new Date(v.createdAt).toLocaleString()}` : ""}
                           </span>
                           <Show when={versionSummary(v)}>
@@ -2486,25 +2533,25 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                           </Show>
                         </span>
                         <div class="louise-arr-ops">
-                          {/* Nothing goes live from history. A draft resumes for
-                              editing or is deleted with an undo; an older published
-                              version opens onto the canvas as a new draft, and the
-                              owner publishes it the usual way (#540). */}
+                          {/* Nothing goes live from history. Pending work resumes
+                              for editing or is deleted with an undo; anything else
+                              opens onto the canvas as a new draft, and the owner
+                              publishes it the usual way (#540, ADR 0021). */}
                           <Show
-                            when={v.status === "draft"}
+                            when={state() === "pending" || state() === "scheduled"}
                             fallback={
                               <button
                                 class="louise-btn louise-btn-xs"
                                 type="button"
                                 title={
-                                  isLive()
+                                  isCurrent()
                                     ? undefined
                                     : "Load this version onto the page as a draft"
                                 }
-                                disabled={status() === "publishing" || isLive()}
+                                disabled={status() === "publishing" || isCurrent()}
                                 onClick={() => editDraft(v.id)}
                               >
-                                {isLive() ? "Current" : "Open as draft"}
+                                {isCurrent() ? "Current" : "Open as draft"}
                               </button>
                             }
                           >
@@ -2516,6 +2563,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
                             >
                               Edit
                             </button>
+                          </Show>
+                          <Show when={v.status === "draft"}>
                             <button
                               class="louise-btn louise-btn-xs louise-btn-danger"
                               type="button"

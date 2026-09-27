@@ -10,7 +10,7 @@
 // it any other way—D1 only, or any draft rather than a pending one—shows an
 // editor something other than what their next save will build on.
 
-import { and, desc, eq, gt, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, max, type SQL, sql } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { type D1Client, db } from "../db/index.js";
 import { type DraftBufferKV, draftBufferKey, readDraftBuffer } from "./draft-buffer.js";
@@ -39,8 +39,12 @@ export interface ResumeDraftDeps {
 /** The live row fields the read needs. */
 export interface ResumeDraftRow {
   id: number;
-  /** The live pointer. Drafts at or below it are superseded, not pending. */
-  publishedVersionId: number | null;
+  /**
+   * The row's pointer. No longer read: a draft is superseded when it's at or
+   * below the highest version ever promoted (ADR 0021), which the query
+   * finds itself. Kept so existing callers that pass the row still compile.
+   */
+  publishedVersionId?: number | null;
 }
 
 /**
@@ -48,9 +52,9 @@ export interface ResumeDraftRow {
  * none (render the live row). Precedence matches `applySaveDraft`'s merge base:
  *
  *   1. the KV buffer, when `bufferKv` is given and holds one;
- *   2. the newest draft NEWER than `publishedVersionId`—an older draft is
- *      superseded work, and resuming it would silently revert the page in
- *      edit mode (the same rule as {@link latestPendingDraft}).
+ *   2. the newest draft newer than every version ever promoted—an older draft
+ *      is superseded work, and resuming it would silently revert the page in
+ *      edit mode (the same rule as {@link latestPendingDraft}, ADR 0021).
  *
  * `d1` may be a raw binding or a Sessions-API session. For read-your-writes
  * behind read replication, pass one opened from the editor's bookmark
@@ -70,9 +74,18 @@ export async function resumeDraft(
     if (buffered) return buffered.data;
   }
   const t = deps.versionsTable;
-  const conditions: SQL[] = [eq(t.parentId, row.id), eq(t.status, "draft")];
-  if (row.publishedVersionId != null) conditions.push(gt(t.id, row.publishedVersionId));
-  const [draft] = await db(d1)
+  const database = db(d1);
+  // The high-water mark, in the same query: the highest version ever promoted.
+  const promoted = database
+    .select({ high: max(t.id) })
+    .from(t)
+    .where(and(eq(t.parentId, row.id), eq(t.status, "published")));
+  const conditions: SQL[] = [
+    eq(t.parentId, row.id),
+    eq(t.status, "draft"),
+    gt(t.id, sql`coalesce((${promoted}), 0)`),
+  ];
+  const [draft] = await database
     .select({ versionData: t.versionData })
     .from(t)
     .where(and(...conditions))

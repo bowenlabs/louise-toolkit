@@ -124,34 +124,33 @@ describe("latestPendingDraft — merge base / publish target", () => {
   const published = (id: number) => ({ id, status: "published", versionData: {} });
 
   it("returns undefined when there are no versions", () => {
-    expect(latestPendingDraft([], null)).toBeUndefined();
+    expect(latestPendingDraft([])).toBeUndefined();
   });
 
-  it("returns the newest draft when nothing is published yet", () => {
-    const versions = [draft(3), draft(2), published(1)];
-    // published(1) here is a stray status, but no live pointer → drafts are pending.
-    expect(latestPendingDraft(versions, null)?.id).toBe(3);
+  it("returns the newest draft when nothing has been promoted", () => {
+    expect(latestPendingDraft([draft(3), draft(2)])?.id).toBe(3);
   });
 
-  it("returns the newest draft above the published pointer", () => {
-    // Live pointer is 2; draft 4 is pending, drafts 1 are superseded.
+  it("returns the newest draft above the high-water mark", () => {
+    // Version 2 was promoted, so draft 4 is pending and draft 1 is superseded.
     const versions = [draft(4), published(2), draft(1)];
-    expect(latestPendingDraft(versions, 2)?.id).toBe(4);
+    expect(latestPendingDraft(versions)?.id).toBe(4);
   });
 
-  it("ignores drafts at or below the published pointer (superseded)", () => {
-    // Only a stale draft (id 1) remains under a live pointer of 3 → nothing pending.
-    const versions = [published(3), draft(1)];
-    expect(latestPendingDraft(versions, 3)).toBeUndefined();
+  it("ignores drafts at or below the high-water mark (superseded)", () => {
+    expect(latestPendingDraft([published(3), draft(1)])).toBeUndefined();
   });
 
-  it("treats a draft equal to the published id as superseded", () => {
-    expect(latestPendingDraft([draft(2)], 2)).toBeUndefined();
-    expect(latestPendingDraft([draft(3)], 2)?.id).toBe(3);
+  it("measures against the highest promotion, not the pointer (ADR 0021)", () => {
+    // 5 was promoted, then 2 republished by ID: the pointer is back at 2, but
+    // drafts 3 and 4 stay superseded, so an unpublish or a republish can't
+    // bring them back.
+    const versions = [published(5), draft(4), draft(3), published(2)];
+    expect(latestPendingDraft(versions)).toBeUndefined();
   });
 
   it("carries the snapshot so a partial save can layer over it", () => {
-    const base = latestPendingDraft([draft(5, { body: "wip", sections: [] })], 1);
+    const base = latestPendingDraft([draft(5, { body: "wip", sections: [] }), published(1)]);
     expect(base?.versionData).toEqual({ body: "wip", sections: [] });
   });
 });

@@ -14,6 +14,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
+import { pageState } from "../../core/content/lifecycle.js";
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../../core/seo/limits.js";
 import { Icon } from "../icons.jsx";
 import { EmptyState, ErrorState, Skeleton } from "../states.jsx";
@@ -49,11 +50,25 @@ export interface PageRow {
   title: string;
   body: string | null;
   status: "draft" | "published";
+  /** Present when the page has drafts: the version its row holds. Its presence
+   *  is what tells the panel to publish and unpublish rather than set status. */
+  publishedVersionId?: number | null;
   seoTitle: string | null;
   seoDescription: string | null;
   ogImage: string | null;
   noindex: boolean;
   sortOrder: number | null;
+}
+
+/** Whether the page publishes through drafts (ADR 0021): its row carries the
+ *  pointer column, and only publish and unpublish change who sees it. */
+const hasDrafts = (p: Pick<PageRow, "publishedVersionId">): boolean => "publishedVersionId" in p;
+
+/** A page's visibility in words: live, hidden, or never published. */
+function visibilityLabel(p: Pick<PageRow, "status" | "publishedVersionId">): string {
+  if (!hasDrafts(p)) return p.status === "published" ? "Live" : "Hidden";
+  const state = pageState(p);
+  return state === "live" ? "Live" : state === "hidden" ? "Hidden" : "Not published";
 }
 
 export function PagesPanel(props: {
@@ -178,7 +193,7 @@ export function PagesPanel(props: {
                         <div class="louise-item-main">
                           <div class="louise-item-title">{p.title}</div>
                           <div class="louise-item-sub">
-                            /{p.slug} · {p.status === "published" ? "Published" : "Draft"}
+                            /{p.slug} · {visibilityLabel(p)}
                           </div>
                         </div>
                         {/* Edit content on the page canvas; the gear opens page settings. */}
@@ -255,6 +270,11 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   const [title, setTitle] = createSignal(p.title ?? "");
   const [slug, setSlug] = createSignal(p.slug ?? "");
   const [status, setStatus] = createSignal<PageRow["status"]>(p.status ?? "draft");
+  // The fresh row's pointer, for a page with drafts (see `hasDrafts`).
+  const [pointer, setPointer] = createSignal<Pick<PageRow, "publishedVersionId">>(
+    hasDrafts(p) ? { publishedVersionId: p.publishedVersionId ?? null } : {},
+  );
+  const [visibilityBusy, setVisibilityBusy] = createSignal(false);
   const [seoTitle, setSeoTitle] = createSignal(p.seoTitle ?? "");
   const [seoDescription, setSeoDescription] = createSignal(p.seoDescription ?? "");
   const [ogImage, setOgImage] = createSignal(p.ogImage ?? "");
@@ -298,6 +318,7 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       setTitle(row.title ?? "");
       setSlug(row.slug ?? "");
       setStatus(row.status ?? "draft");
+      setPointer(hasDrafts(row) ? { publishedVersionId: row.publishedVersionId ?? null } : {});
       setSeoTitle(row.seoTitle ?? "");
       setSeoDescription(row.seoDescription ?? "");
       setOgImage(row.ogImage ?? "");
@@ -327,7 +348,8 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       await apiSend(`PATCH`, `/api/louise/pages/${p.id}`, {
         title: title(),
         slug: slug(),
-        status: status(),
+        // A page with drafts goes live through Publish, never its status (ADR 0021).
+        ...(hasDrafts(pointer()) ? {} : { status: status() }),
         seoTitle: seoTitle(),
         seoDescription: seoDescription(),
         ogImage: ogImage(),
@@ -339,6 +361,30 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       console.error("[louise]", err);
       // The route's own reason, such as a reserved slug, never the request line.
       setError(apiErrorMessage(err, "Couldn’t save"));
+    }
+  };
+
+  // Publish or unpublish a page with drafts, straight away. Publish puts the
+  // newest pending draft live, or shows a hidden page again as it stands.
+  const setVisibility = async (action: "publish" | "unpublish") => {
+    setError(null);
+    setVisibilityBusy(true);
+    try {
+      const data = await apiSend<{ page: PageRow }>(
+        "POST",
+        `/api/louise/pages/${p.id}/${action}`,
+        {},
+      );
+      setStatus(data.page.status ?? (action === "publish" ? "published" : "draft"));
+      setPointer({ publishedVersionId: data.page.publishedVersionId ?? null });
+      await qc.invalidateQueries({ queryKey: louiseQueryKeys.pages });
+    } catch (err) {
+      console.error("[louise]", err);
+      setError(
+        apiErrorMessage(err, action === "publish" ? "Couldn’t publish" : "Couldn’t unpublish"),
+      );
+    } finally {
+      setVisibilityBusy(false);
     }
   };
 
@@ -454,18 +500,55 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       </div>
 
       <div class="louise-grid-2">
-        <div class="louise-field">
-          <label for="pg-status">Status</label>
-          <select
-            id="pg-status"
-            class="louise-select"
-            value={status()}
-            onChange={(e) => edited(setStatus)(e.currentTarget.value as PageRow["status"])}
-          >
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-          </select>
-        </div>
+        <Show
+          when={hasDrafts(pointer())}
+          fallback={
+            <div class="louise-field">
+              <label for="pg-status">Status</label>
+              <select
+                id="pg-status"
+                class="louise-select"
+                value={status()}
+                onChange={(e) => edited(setStatus)(e.currentTarget.value as PageRow["status"])}
+              >
+                <option value="draft">Hidden</option>
+                <option value="published">Live</option>
+              </select>
+            </div>
+          }
+        >
+          {/* A page with drafts: its visibility is an action, not a field to save. */}
+          <div class="louise-field" role="group" aria-labelledby="pg-visibility-label">
+            <span id="pg-visibility-label" class="louise-field-label">
+              Visibility
+            </span>
+            <p class="louise-settings-hint" role="status">
+              {visibilityLabel({ status: status(), ...pointer() })}
+            </p>
+            <Show
+              when={status() === "published"}
+              fallback={
+                <button
+                  class="louise-btn louise-btn-primary"
+                  type="button"
+                  disabled={visibilityBusy()}
+                  onClick={() => void setVisibility("publish")}
+                >
+                  Publish
+                </button>
+              }
+            >
+              <button
+                class="louise-btn"
+                type="button"
+                disabled={visibilityBusy()}
+                onClick={() => void setVisibility("unpublish")}
+              >
+                Unpublish
+              </button>
+            </Show>
+          </div>
+        </Show>
         <div class="louise-field">
           <label for="pg-noindex">Search engines</label>
           <select
