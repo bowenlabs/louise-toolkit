@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Must equal the Worker's name in the Cloudflare dashboard, or Workers Builds
   // refuses every build before it starts.
-  "name": "louisetoolkit-org",
+  "name": "louisetoolkit",
   "compatibility_date": "2026-06-20",
 
   // An assets-only Worker: no `main`, no script. `astro build` emits a plain
