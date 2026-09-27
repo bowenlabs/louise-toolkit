@@ -60,6 +60,58 @@ has the `fontTools` commands. Whatever tool fetches the font, check that the
 file it returns keeps `wdth`: without the axis, `font-stretch` has no effect and
 the text renders at normal width.
 
+### Loading a self-hosted face without layout shift
+
+With `font-display: swap`, text first renders in the fallback face and reflows
+when the brand face arrives. That reflow counts toward Cumulative Layout Shift,
+which the [vitals beacon](/reference/analytics/) reports. Give the fallback the
+brand face's metrics, so the swap moves nothing:
+
+```css
+@font-face {
+  font-family: "Roboto Flex Fallback";
+  src: local("Arial");
+  size-adjust: 100%; /* compute each value from your font file */
+  ascent-override: 93%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+
+body {
+  font-family: "Roboto Flex", "Roboto Flex Fallback", sans-serif;
+}
+```
+
+The values above are placeholders: compute them from the brand font's own
+metrics, and the fallback's, for example with a font-metrics tool, and check CLS
+in the Health panel before and after. A display face set at an unusual width has
+no metric match, so the gain is in body text.
+
+### Covering more than Latin-1
+
+The inlined face, and a subset built the same way, stops at `U+0000-00FF` plus a
+few symbols. A letter outside it, such as `Ł`, `č`, or `ő` from Latin
+Extended-A (`U+0100-017F`), drops to the fallback face mid-word. On a public
+page, build a second file for the extended range, and give each face a
+`unicode-range`: a browser downloads the extended file only for a page that uses
+one of its letters.
+
+```css
+@font-face {
+  font-family: "Roboto Flex";
+  src: url("/fonts/RobotoFlex-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: "Roboto Flex";
+  src: url("/fonts/RobotoFlex-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-017F;
+}
+```
+
+A `data:` font, like the editor's inlined face, downloads with its stylesheet
+whatever `unicode-range` says, so the split saves nothing there.
+
 ## Palette
 
 Primary/info blue, accent/warning yellow `#f3ae29`, success green `#8ebe59`,
