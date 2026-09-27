@@ -130,6 +130,19 @@ ${TONE_CSS}
 /* Delete sits 8 px from its neighbors (6 px margin plus the toolbar's 2 px gap),
    so a slip off move doesn't delete (#543). */
 .louise-chrome-del { margin-inline: 6px; }
+/* The move announcer: read by a screen reader, not drawn. Here as well as in
+   the main stylesheet, so it holds wherever the toolbar mounts. */
+.louise-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 /* A finger gets 44 px targets (WCAG 2.5.5, #543). Here, not in the main
    stylesheet, so the rule ships wherever the toolbar does. */
 @media (pointer: coarse) {
@@ -290,6 +303,13 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   for (const b of [up, down, del, addSibling, addChild, cog]) toolbar.appendChild(b);
   toolbar.lang = CHROME_LANG;
   doc.body.appendChild(toolbar);
+  // Where a keyboard move landed, read to a screen reader: "Hero moved to
+  // position 2 of 5" (#468). In the page from mount, so the change is announced.
+  const announcer = doc.createElement("div");
+  announcer.className = "louise-sr-only";
+  announcer.setAttribute("role", "status");
+  announcer.lang = CHROME_LANG;
+  doc.body.appendChild(announcer);
 
   let active: { path: NodePath; el: HTMLElement; desc: NodeDescriptor } | null = null;
 
@@ -444,6 +464,11 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     if (!el) return;
     if (!el.isConnected) return clear();
     activateFrom(el);
+    const moved = active?.desc;
+    if (moved?.ordered) {
+      const name = moved.label ?? nodeKind(moved);
+      announcer.textContent = `${name} moved to position ${moved.ordered.index + 1} of ${moved.ordered.count}`;
+    }
   };
 
   /** After a delete the focused node is gone; move focus to whatever now sits at
@@ -531,6 +556,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
     const added = "[data-louise-kbd], [data-louise-kbd-role], [data-louise-kbd-label]";
     for (const el of doc.querySelectorAll<HTMLElement>(added)) unmakeChromeFocusable(el);
     toolbar.remove();
+    announcer.remove();
     doc.getElementById(CHROME_STYLE_ID)?.remove();
   };
   return Object.assign(dispose, { prepare });

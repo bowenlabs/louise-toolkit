@@ -301,7 +301,8 @@ const CSS = `
   align-items: center;
   gap: 3px;
 }
-.louise-presence:empty { display: none; }
+/* No :empty { display: none }: the strip is a live region, and a hidden one
+   leaves the accessibility tree. Empty, it takes no space. */
 .louise-avatar {
   display: inline-flex;
   align-items: center;

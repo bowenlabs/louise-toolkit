@@ -154,3 +154,28 @@ describe("a failed load isn't an empty one", () => {
     expect(host.textContent).not.toContain("Your site is healthy");
   });
 });
+
+describe("the Pages search says how many match (#468)", () => {
+  it("reads the count out as the owner types, from a region that's there at rest", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) =>
+        String(input).includes("/search")
+          ? jsonResponse({ results: [{ id: 1, title: "Terms", slug: "terms", status: "draft" }] })
+          : jsonResponse({ pages: [] }),
+      ),
+    );
+    mount(() => <PagesPanel />);
+    const count = await vi.waitFor(() => {
+      const el = host.querySelector("#louise-pages-match-count");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(count.getAttribute("role")).toBe("status");
+    expect(count.textContent).toBe("");
+    const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = "ter";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(count.textContent).toBe("1 page matches"));
+  });
+});
