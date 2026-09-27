@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LouiseQueueError } from "../../src/core/errors.js";
-import { enqueue, processBatch } from "../../src/core/queues/index.js";
+import { defaultRetryDelay, enqueue, processBatch } from "../../src/core/queues/index.js";
 
 function fakeMessage<T>(body: T, attempts = 1, id = "msg") {
   return {
@@ -103,5 +103,45 @@ describe("processBatch", () => {
     const handler = vi.fn();
     await processBatch(fakeBatch([m]), handler);
     expect(handler).toHaveBeenCalledWith("x", { attempts: 3 });
+  });
+
+  it("retries with a delay that grows with the attempt", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const messages = [1, 2, 3, 5, 9].map((attempts) => fakeMessage("x", attempts));
+    await processBatch(fakeBatch(messages), () => {
+      throw new Error("rate limited");
+    });
+    expect(messages.map((m) => m.retry.mock.calls[0]![0])).toEqual([
+      { delaySeconds: 30 },
+      { delaySeconds: 60 },
+      { delaySeconds: 120 },
+      { delaySeconds: 300 },
+      { delaySeconds: 300 },
+    ]);
+  });
+
+  it("takes the retry delay from options.retryDelay", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const m = fakeMessage("x", 4);
+    const retryDelay = vi.fn((attempts: number) => attempts * 10);
+    await processBatch(
+      fakeBatch([m]),
+      () => {
+        throw new Error("down");
+      },
+      { retryDelay },
+    );
+    expect(retryDelay).toHaveBeenCalledWith(4);
+    expect(m.retry).toHaveBeenCalledWith({ delaySeconds: 40 });
+  });
+});
+
+describe("defaultRetryDelay", () => {
+  it("starts at 30 seconds, doubles, and caps at 5 minutes", () => {
+    expect([1, 2, 3, 4, 5, 20].map(defaultRetryDelay)).toEqual([30, 60, 120, 240, 300, 300]);
+  });
+
+  it("treats an attempt below 1 as the first", () => {
+    expect(defaultRetryDelay(0)).toBe(30);
   });
 });
