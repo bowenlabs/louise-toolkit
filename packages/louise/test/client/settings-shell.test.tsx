@@ -239,13 +239,17 @@ describe("SettingsPanel — base groups + declarative extension", () => {
     // Site extension group + its field, seeded from the loaded settings.
     expect(host.textContent).toContain("Coffee");
 
-    // Save is dirty-gated in the footer: idle until a field changes.
-    expect(footSave()!.disabled).toBe(true);
+    // Save stays enabled (#592); with nothing changed it says so and sends nothing.
+    expect(footSave()!.disabled).toBe(false);
+    footSave()!.click();
+    await vi.waitFor(() =>
+      expect(host.querySelector(".louise-foot-status")?.textContent).toBe("No changes to save"),
+    );
+    expect(fetchMock.mock.calls.some((c) => (c[1]?.method ?? "GET") === "POST")).toBe(false);
     const roast = host.querySelector<HTMLInputElement>("#louise-set-roastNote")!;
     roast.value = "dark";
     // Solid delegates `input` from the document root, so the event must bubble.
     roast.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(footSave()!.disabled).toBe(false);
     footSave()!.click();
 
     await vi.waitFor(() => {
@@ -397,7 +401,7 @@ describe("PagesPanel — list + built-in pages", () => {
     expect(host.textContent).toContain("Home");
   });
 
-  it("opens page settings and saves via the footer (dirty-gated) + PATCHes the row", async () => {
+  it("opens page settings and saves via the footer + PATCHes the row", async () => {
     const fetchMock = stubFetch((url, method) => {
       if (url.endsWith("/api/louise/pages") && method === "GET") {
         return jsonResponse({ pages: [{ id: 1, title: "Terms", slug: "terms", status: "draft" }] });
@@ -415,19 +419,23 @@ describe("PagesPanel — list + built-in pages", () => {
     await vi.waitFor(() => expect(host.textContent).toContain("Terms"));
     host.querySelector<HTMLButtonElement>('button[aria-label="Page settings"]')!.click();
 
-    // Save + Delete render in the footer; Save is dirty-gated until a field edits.
+    // Save + Delete render in the footer; Save stays enabled and, with nothing
+    // changed, says so rather than sending anything (#592).
     await vi.waitFor(() =>
       expect(host.querySelector('.louise-drawer-foot [data-action="delete"]')).not.toBeNull(),
     );
     await vi.waitFor(() =>
       expect(host.querySelector<HTMLInputElement>("#pg-title")?.value).toBe("Terms"),
     );
-    expect(footSave()!.disabled).toBe(true);
+    expect(footSave()!.disabled).toBe(false);
+    footSave()!.click();
+    await vi.waitFor(() =>
+      expect(host.querySelector(".louise-foot-status")?.textContent).toBe("No changes to save"),
+    );
 
     const title = host.querySelector<HTMLInputElement>("#pg-title")!;
     title.value = "Terms of Service";
     title.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(footSave()!.disabled).toBe(false);
     footSave()!.click();
 
     await vi.waitFor(() => {
@@ -490,7 +498,7 @@ describe("MediaPanel — list", () => {
     expect(host.textContent).toContain("2 KB");
   });
 
-  it("edits an asset's alt via the footer (dirty-gated) and PATCHes the media route", async () => {
+  it("edits an asset's alt via the footer and PATCHes the media route", async () => {
     const fetchMock = stubFetch((url, method) => {
       if (url.endsWith("/api/louise/media") && method === "GET") {
         return jsonResponse({ media: [{ key: "web/a.jpg", url: "https://cdn/a.jpg" }] });
@@ -502,16 +510,15 @@ describe("MediaPanel — list", () => {
     await vi.waitFor(() => expect(host.textContent).toContain("a.jpg"));
     host.querySelector<HTMLButtonElement>('button[aria-label="Edit alt text"]')!.click();
 
-    // Save + Cancel land in the footer; Save is dirty-gated.
+    // Save + Cancel land in the footer; Save stays enabled (#592).
     await vi.waitFor(() =>
       expect(host.querySelector('.louise-drawer-foot [data-action="cancel"]')).not.toBeNull(),
     );
-    expect(footSave()!.disabled).toBe(true);
+    expect(footSave()!.disabled).toBe(false);
 
     const altInput = host.querySelector<HTMLInputElement>(".louise-media-edit .louise-input")!;
     altInput.value = "A red door";
     altInput.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(footSave()!.disabled).toBe(false);
     footSave()!.click();
 
     await vi.waitFor(() => {

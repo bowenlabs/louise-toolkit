@@ -29,6 +29,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // lower-cased) after parse, so they stay `unknown` here; the real gate is the
 // `EMAIL_RE` check on the derived email.
 const INVITE_BODY = s.object({
+  name: s.unknown(),
   firstName: s.unknown(),
   lastName: s.unknown(),
   email: s.unknown(),
@@ -97,15 +98,17 @@ export function editorsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const g = await guardEditor(request, env, config.resolveEditor, true);
       if ("response" in g) return g.response;
       const parsed = await standardValidate(INVITE_BODY, await request.json().catch(() => null));
-      const body: { firstName?: unknown; lastName?: unknown; email?: unknown } = parsed.ok
-        ? parsed.value
-        : {};
+      const body: { name?: unknown; firstName?: unknown; lastName?: unknown; email?: unknown } =
+        parsed.ok ? parsed.value : {};
+      // One `name` field, as the Users panel sends it, or the older two parts.
+      const fullName = typeof body.name === "string" ? body.name.trim() : "";
       const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
       const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
       const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-      if (!EMAIL_RE.test(email)) return json({ error: "A valid email is required." }, 400);
-      // Derive the required display `name` from the parts; fall back to the email.
-      const name = [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
+      if (!EMAIL_RE.test(email)) return json({ error: "Enter the editor’s email address." }, 400);
+      // The required display `name`: as given, else from the parts, else the email.
+      const name =
+        fullName || [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
       const now = new Date().toISOString();
       const id = crypto.randomUUID();
       try {

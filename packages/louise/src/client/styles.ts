@@ -1036,6 +1036,10 @@ html[data-louise-studio] body {
    the image error above — it is the same kind of message: the thing you asked
    for isn't here, and here is why. */
 .louise-field-error { font-size: 11px; color: #dc2626; }
+/* The visible labels on a link row's two inputs (#592), quieter than a field's. */
+.louise-field .louise-row-label { font-size: 11px; }
+/* A fieldset that groups inputs without drawing a box. */
+.louise-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* Version history drawer (#182) — a dedicated right-side drawer opened from the
    bar's History button, reusing the Louise drawer visual family (.louise-drawer).
    The versions list is the same rows the old dock showed, in the drawer body. */
@@ -1308,7 +1312,8 @@ html[data-louise-studio] body {
 .louise-tb-btn:focus-visible,
 .louise-chip:focus-visible,
 .louise-drawer-close:focus-visible,
-.louise-icon-btn:focus-visible {
+.louise-icon-btn:focus-visible,
+.louise-media-upload:focus-within {
   outline: 2px solid var(--louise-blue);
   outline-offset: 2px;
 }

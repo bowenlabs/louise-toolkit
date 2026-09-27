@@ -7,7 +7,7 @@
 // look and behave exactly like the built-in ones.
 
 import { useQuery, useQueryClient } from "@tanstack/solid-query";
-import { createSignal, For, Index, type JSX, Match, Show, Switch } from "solid-js";
+import { createSignal, createUniqueId, For, Index, type JSX, Match, Show, Switch } from "solid-js";
 import type { FieldTypeName } from "../../core/content/field-types.js";
 import { Icon } from "../icons.jsx";
 import { thumb } from "../thumb.js";
@@ -91,11 +91,48 @@ export function Section(props: {
   );
 }
 
+/**
+ * Add `https://` to a link typed the way people type them, `example.com/shop`:
+ * no scheme, and it starts with a host. Anything else comes back unchanged, so
+ * this can't let a new scheme through; the server's scheme check still decides.
+ */
+export function normalizeLinkHref(href: string): string {
+  const value = href.trim();
+  if (/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:[/?#]|$)/i.test(value)) {
+    return `https://${value}`;
+  }
+  return href;
+}
+
 /** A reusable label+href list editor with add / remove / reorder. */
-export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow[]) => void }) {
+export function LinkListEditor(props: {
+  rows: LinkRow[];
+  setRows: (rows: LinkRow[]) => void;
+  /** A message per row index, from the server's violations, shown under the row. */
+  rowErrors?: Readonly<Record<number, string>>;
+}) {
+  const uid = createUniqueId();
+  let list: HTMLDivElement | undefined;
+  let addButton: HTMLButtonElement | undefined;
+  // Focus after the rows re-render, so an added row's input exists and a
+  // removed row's button is gone.
+  const focusLater = (find: () => HTMLElement | null | undefined) =>
+    queueMicrotask(() => find()?.focus());
+  const rowEl = (i: number) => list?.querySelector<HTMLElement>(`[data-row="${i}"]`);
+
   const update = (i: number, patch: Partial<LinkRow>) =>
     props.setRows(props.rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const remove = (i: number) => props.setRows(props.rows.filter((_, j) => j !== i));
+  const remove = (i: number) => {
+    const next = props.rows.filter((_, j) => j !== i);
+    props.setRows(next);
+    // The next row's Remove, which now sits at this index, or the new last
+    // row's, or Add link when the list is empty.
+    focusLater(() =>
+      next.length === 0
+        ? addButton
+        : rowEl(Math.min(i, next.length - 1))?.querySelector<HTMLElement>("[data-remove]"),
+    );
+  };
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= props.rows.length) return;
@@ -103,11 +140,17 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
     [next[i], next[j]] = [next[j]!, next[i]!];
     props.setRows(next);
   };
-  const add = () => props.setRows([...props.rows, { label: "", href: "" }]);
+  const add = () => {
+    props.setRows([...props.rows, { label: "", href: "" }]);
+    focusLater(() => rowEl(props.rows.length - 1)?.querySelector<HTMLElement>("input"));
+  };
+  // Each control names its row, so a screen reader hears which link it acts on.
+  const rowName = (i: number, label: string) =>
+    label.trim() ? `link ${i + 1}, ${label.trim()}` : `link ${i + 1}`;
 
   return (
     <div>
-      <div class="louise-list">
+      <div class="louise-list" ref={list}>
         {/* Index, NOT For. `update` replaces the edited row with a new object, and
             <For> is keyed by REFERENCE, so every keystroke made that row a new
             item, tearing its DOM down and rebuilding it. The <input> being typed
@@ -118,57 +161,80 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
             the values update, so the focused input survives. The rows here are
             positional anyway: reorder moves values between fixed slots. */}
         <Index each={props.rows} fallback={<p class="louise-muted">None yet.</p>}>
-          {(row, i) => (
-            <div class="louise-list-item louise-settings-row">
-              <div class="louise-reorder">
+          {(row, i) => {
+            const labelId = `${uid}-${i}-label`;
+            const hrefId = `${uid}-${i}-href`;
+            const errorId = `${uid}-${i}-error`;
+            const error = () => props.rowErrors?.[i];
+            return (
+              <div class="louise-list-item louise-settings-row" data-row={i}>
+                <div class="louise-reorder">
+                  <button
+                    class="louise-icon-btn"
+                    type="button"
+                    disabled={i === 0}
+                    aria-label={`Move ${rowName(i, row().label)} up`}
+                    onClick={() => move(i, -1)}
+                  >
+                    <Icon name="caretUp" />
+                  </button>
+                  <button
+                    class="louise-icon-btn"
+                    type="button"
+                    disabled={i === props.rows.length - 1}
+                    aria-label={`Move ${rowName(i, row().label)} down`}
+                    onClick={() => move(i, 1)}
+                  >
+                    <Icon name="caretDown" />
+                  </button>
+                </div>
+                <div class="louise-settings-fields">
+                  <label class="louise-row-label" for={labelId}>
+                    Label
+                  </label>
+                  <input
+                    id={labelId}
+                    class="louise-input"
+                    value={row().label}
+                    onInput={(e) => update(i, { label: e.currentTarget.value })}
+                  />
+                  <label class="louise-row-label" for={hrefId}>
+                    Link
+                  </label>
+                  <input
+                    id={hrefId}
+                    class="louise-input"
+                    placeholder="/path or https://…"
+                    value={row().href}
+                    aria-invalid={error() ? "true" : undefined}
+                    aria-describedby={error() ? errorId : undefined}
+                    onInput={(e) => update(i, { href: e.currentTarget.value })}
+                    onBlur={(e) => {
+                      const fixed = normalizeLinkHref(e.currentTarget.value);
+                      if (fixed !== e.currentTarget.value) update(i, { href: fixed });
+                    }}
+                  />
+                  <Show when={error()}>
+                    <p id={errorId} class="louise-field-error">
+                      {error()}
+                    </p>
+                  </Show>
+                </div>
                 <button
                   class="louise-icon-btn"
                   type="button"
-                  disabled={i === 0}
-                  aria-label="Move up"
-                  onClick={() => move(i, -1)}
+                  data-remove
+                  aria-label={`Remove ${rowName(i, row().label)}`}
+                  onClick={() => remove(i)}
                 >
-                  <Icon name="caretUp" />
-                </button>
-                <button
-                  class="louise-icon-btn"
-                  type="button"
-                  disabled={i === props.rows.length - 1}
-                  aria-label="Move down"
-                  onClick={() => move(i, 1)}
-                >
-                  <Icon name="caretDown" />
+                  <Icon name="trash" />
                 </button>
               </div>
-              <div class="louise-settings-fields">
-                <input
-                  class="louise-input"
-                  aria-label={`Link ${i + 1} label`}
-                  placeholder="Label"
-                  value={row().label}
-                  onInput={(e) => update(i, { label: e.currentTarget.value })}
-                />
-                <input
-                  class="louise-input"
-                  aria-label={`Link ${i + 1} URL`}
-                  placeholder="/path or https://…"
-                  value={row().href}
-                  onInput={(e) => update(i, { href: e.currentTarget.value })}
-                />
-              </div>
-              <button
-                class="louise-icon-btn"
-                type="button"
-                aria-label="Remove"
-                onClick={() => remove(i)}
-              >
-                <Icon name="trash" />
-              </button>
-            </div>
-          )}
+            );
+          }}
         </Index>
       </div>
-      <button class="louise-btn" type="button" onClick={add}>
+      <button class="louise-btn" type="button" ref={addButton} onClick={add}>
         <Icon name="plus" /> Add link
       </button>
     </div>
@@ -178,7 +244,11 @@ export function LinkListEditor(props: { rows: LinkRow[]; setRows: (rows: LinkRow
 /** Inline media picker: a small library grid (the same `/api/louise/media` list
  *  the Media panel uses) for URL fields that should point at an uploaded image.
  *  Clicking a thumbnail fills the field instead of hand-pasting a URL. */
-export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
+export function MediaUrlPicker(props: {
+  onPick: (url: string) => void;
+  /** The ID of an error message about the field, linked to the picker's button. */
+  errorId?: string;
+}) {
   const [open, setOpen] = createSignal(false);
   const query = useQuery(() => ({
     queryKey: ["louise", "media"],
@@ -188,7 +258,13 @@ export function MediaUrlPicker(props: { onPick: (url: string) => void }) {
   }));
   return (
     <div>
-      <button class="louise-btn" type="button" onClick={() => setOpen(!open())}>
+      <button
+        class="louise-btn"
+        type="button"
+        aria-invalid={props.errorId ? "true" : undefined}
+        aria-describedby={props.errorId}
+        onClick={() => setOpen(!open())}
+      >
         <Icon name="image" /> {open() ? "Close media" : "Choose from media"}
       </button>
       <Show when={open()}>
@@ -251,8 +327,11 @@ export function ImageField(props: {
    *  the 160 px preview box—pass this only to do something else. Never affects
    *  the stored value. */
   transform?: (url: string) => string;
+  /** A message from the server about this field, shown under it. */
+  invalid?: string;
 }) {
   const qc = useQueryClient();
+  const invalidId = createUniqueId();
   const [uploading, setUploading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   // The preview box is max-height 160px, so that is what gets requested—not
@@ -322,13 +401,18 @@ export function ImageField(props: {
             />
           </label>
         </Show>
-        <MediaUrlPicker onPick={props.onChange} />
+        <MediaUrlPicker onPick={props.onChange} errorId={props.invalid ? invalidId : undefined} />
         <Show when={props.value}>
           <button class="louise-btn" type="button" onClick={() => props.onChange("")}>
             <Icon name="trash" /> Clear
           </button>
         </Show>
       </div>
+      <Show when={props.invalid}>
+        <p id={invalidId} class="louise-field-error">
+          {props.invalid}
+        </p>
+      </Show>
       <Show when={error()}>
         <div class="louise-alert" role="alert" style="margin-top:8px;">
           {error()}
@@ -355,6 +439,11 @@ export function SettingsField(props: {
   def: SettingsFieldDef;
   value: unknown;
   onChange: (value: unknown) => void;
+  /** A message from the server about this field, shown under it and linked
+   *  with `aria-describedby`. */
+  error?: string;
+  /** For a `links` field: a message per row index. */
+  rowErrors?: Readonly<Record<number, string>>;
 }) {
   // A custom-render field bypasses the built-in type switch: it owns its markup
   // and local state, persisting to `key` via the same onChange. Called once with
@@ -362,6 +451,19 @@ export function SettingsField(props: {
   if (props.def.render) return props.def.render({ value: props.value, onChange: props.onChange });
 
   const id = () => `louise-set-${props.def.key}`;
+  const errorId = () => `louise-set-${props.def.key}-error`;
+  // The attributes that tie a control to its error message.
+  const invalid = () =>
+    props.error
+      ? { "aria-invalid": "true" as const, "aria-describedby": errorId() }
+      : { "aria-invalid": undefined, "aria-describedby": undefined };
+  const errorText = () => (
+    <Show when={props.error}>
+      <p id={errorId()} class="louise-field-error">
+        {props.error}
+      </p>
+    </Show>
+  );
   return (
     <Switch
       fallback={
@@ -375,8 +477,10 @@ export function SettingsField(props: {
             class="louise-input"
             placeholder={props.def.placeholder}
             value={String(props.value ?? "")}
+            {...invalid()}
             onInput={(e) => props.onChange(e.currentTarget.value)}
           />
+          {errorText()}
         </div>
       }
     >
@@ -392,8 +496,10 @@ export function SettingsField(props: {
             rows={3}
             placeholder={props.def.placeholder}
             value={String(props.value ?? "")}
+            {...invalid()}
             onInput={(e) => props.onChange(e.currentTarget.value)}
           />
+          {errorText()}
         </div>
       </Match>
       <Match when={props.def.type === "color"}>
@@ -411,9 +517,11 @@ export function SettingsField(props: {
               class="louise-input"
               placeholder="#1481ef"
               value={String(props.value ?? "")}
+              {...invalid()}
               onInput={(e) => props.onChange(e.currentTarget.value)}
             />
           </div>
+          {errorText()}
         </div>
       </Match>
       <Match when={props.def.type === "toggle"}>
@@ -423,6 +531,7 @@ export function SettingsField(props: {
               id={id()}
               type="checkbox"
               checked={Boolean(props.value)}
+              {...invalid()}
               onChange={(e) => props.onChange(e.currentTarget.checked)}
             />
             {props.def.label}
@@ -430,6 +539,7 @@ export function SettingsField(props: {
           <Show when={props.def.hint}>
             <p class="louise-muted louise-settings-hint">{props.def.hint}</p>
           </Show>
+          {errorText()}
         </div>
       </Match>
       <Match when={props.def.type === "image"}>
@@ -440,6 +550,7 @@ export function SettingsField(props: {
           hint={props.def.hint}
           value={String(props.value ?? "")}
           onChange={props.onChange}
+          invalid={props.error}
           upload
         />
       </Match>
@@ -449,7 +560,12 @@ export function SettingsField(props: {
           <Show when={props.def.hint}>
             <p class="louise-muted louise-settings-hint">{props.def.hint}</p>
           </Show>
-          <LinkListEditor rows={asLinks(props.value)} setRows={(rows) => props.onChange(rows)} />
+          <LinkListEditor
+            rows={asLinks(props.value)}
+            setRows={(rows) => props.onChange(rows)}
+            rowErrors={props.rowErrors}
+          />
+          {errorText()}
         </div>
       </Match>
     </Switch>

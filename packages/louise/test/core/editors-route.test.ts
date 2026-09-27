@@ -81,6 +81,48 @@ describe("editorsRoute", () => {
     expect(d1.ids()).toEqual(["c1", "e1"]);
   });
 
+  const invite = (body: unknown) =>
+    new Request(BASE, {
+      method: "POST",
+      headers: { origin: "https://site.example", "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const nameOf = (db: D1Database, email: string) =>
+    db.prepare(`SELECT name, firstName, lastName FROM "user" WHERE email = ?`).bind(email).first();
+
+  it("invites an editor with one name (#592)", async () => {
+    const { db } = mixedTable();
+    const res = await route(invite({ name: "Kai", email: "kai@example.com" }), { DB: db }, ctx);
+    expect(res?.status).toBe(200);
+    expect(await nameOf(db, "kai@example.com")).toEqual({
+      name: "Kai",
+      firstName: null,
+      lastName: null,
+    });
+  });
+
+  it("still takes the two name parts, and falls back to the email with neither", async () => {
+    const { db } = mixedTable();
+    await route(
+      invite({ firstName: "Alex", lastName: "Doe", email: "alex@example.com" }),
+      { DB: db },
+      ctx,
+    );
+    expect(await nameOf(db, "alex@example.com")).toMatchObject({
+      name: "Alex Doe",
+      firstName: "Alex",
+    });
+    await route(invite({ email: "quinn@example.com" }), { DB: db }, ctx);
+    expect(await nameOf(db, "quinn@example.com")).toMatchObject({ name: "quinn" });
+  });
+
+  it("asks for the email in words the owner can act on", async () => {
+    const { db } = mixedTable();
+    const res = await route(invite({ name: "Kai" }), { DB: db }, ctx);
+    expect(res?.status).toBe(400);
+    expect(await res?.json()).toEqual({ error: "Enter the editor’s email address." });
+  });
+
   it("401s without an editor session, before any query", async () => {
     const { db, ids } = mixedTable();
     const guarded = editorsRoute({ resolveEditor: () => null });
