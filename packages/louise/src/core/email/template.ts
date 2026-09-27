@@ -74,7 +74,22 @@ export function escapeHtml(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** The schemes a link in an email may use. A mail client can't follow a
+ *  relative URL, and a `javascript:` or `data:` one has no business in mail. */
+const MAIL_LINK_SCHEME = /^(?:https?:|mailto:)/i;
+
+/**
+ * The `href` attribute for a link in an email, escaped, or an empty string when
+ * the URL's scheme isn't `https:`, `http:`, or `mailto:` (#703). An `<a>` with
+ * no `href` renders its text and goes nowhere.
+ */
+function mailHref(url: string): string {
+  const trimmed = url.trim();
+  return MAIL_LINK_SCHEME.test(trimmed) ? ` href="${escapeHtml(trimmed)}"` : "";
 }
 
 /** Escape user text and preserve its line breaks for an HTML email body. */
@@ -107,14 +122,14 @@ export interface MailButtonOptions {
 export function mailButton(theme: MailTheme, opts: MailButtonOptions): string {
   const { palette, fonts } = theme;
   const shape = opts.shape ?? theme.buttonShape ?? "rounded";
-  const href = escapeHtml(opts.href);
+  const href = mailHref(opts.href);
   const radius = shape === "pill" ? "999px" : `${theme.radius ?? 6}px`;
   const font = shape === "pill" ? fonts.sans : fonts.mono;
   const size = shape === "pill" ? "13px" : "11px";
   const tracking = shape === "pill" ? "0.1em" : "0.12em";
   const pad = shape === "pill" ? "15px 32px" : "16px 34px";
   return `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:${radius};background:${palette.ink};">
-<a href="${href}" style="display:inline-block;padding:${pad};color:${palette.bg};font-family:${font};font-size:${size};letter-spacing:${tracking};text-transform:uppercase;text-decoration:none;border-radius:${radius};">${opts.label}</a>
+<a${href} style="display:inline-block;padding:${pad};color:${palette.bg};font-family:${font};font-size:${size};letter-spacing:${tracking};text-transform:uppercase;text-decoration:none;border-radius:${radius};">${opts.label}</a>
 </td></tr></table>`;
 }
 
@@ -125,10 +140,10 @@ export function mailButton(theme: MailTheme, opts: MailButtonOptions): string {
  */
 export function mailFallbackLink(theme: MailTheme, url: string): string {
   const { palette, fonts } = theme;
-  const href = escapeHtml(url);
+  const href = mailHref(url);
   return `<div style="margin-top:32px;padding-top:24px;border-top:1px solid ${palette.ruleSoft};">
 <p style="font-family:${fonts.mono};font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:${palette.inkMute};margin:0 0 10px;">Button not working? Paste this link</p>
-<p style="font-family:${fonts.mono};font-size:12px;line-height:1.6;color:${palette.accent};word-break:break-all;margin:0;padding:12px 14px;background:${palette.bgSoft};border:1px solid ${palette.rule};border-radius:6px;"><a href="${href}" style="color:${palette.accent};text-decoration:none;">${href}</a></p>
+<p style="font-family:${fonts.mono};font-size:12px;line-height:1.6;color:${palette.accent};word-break:break-all;margin:0;padding:12px 14px;background:${palette.bgSoft};border:1px solid ${palette.rule};border-radius:6px;"><a${href} style="color:${palette.accent};text-decoration:none;">${escapeHtml(url.trim())}</a></p>
 </div>`;
 }
 
