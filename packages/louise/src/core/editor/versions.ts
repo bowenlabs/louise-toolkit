@@ -7,21 +7,29 @@
 //   POST /api/louise/pages/:id/versions   save a draft (merged over the live row);
 //                                         `$base` holds the revs it started from,
 //                                         and `softLocks` refuses a held field
-//   POST /api/louise/pages/:id/publish    publish a draft (body.versionId | latest)
-//   POST /api/louise/pages/:id/unpublish  clear the live pointer
+//   POST /api/louise/pages/:id/publish    publish a draft (body.versionId | latest),
+//                                         or show a hidden page again
+//   POST /api/louise/pages/:id/unpublish  hide the page from visitors
 //
-// The main table row stays the LIVE document (find/render read it); drafts live
-// in `${slug}_versions` until published. `published_version_id` (nullable) is the
-// authoritative "is live" signal, maintained by publish()/unpublish()—the site
-// filters on it, so no separate status column write is needed here.
+// The main table row holds the current version's snapshot (find/render read it);
+// drafts live in `${slug}_versions` until published. ADR 0021 gives each fact one
+// source: the row's `status` is visibility, `published_version_id` is which
+// version the row holds, and a version's state comes from `versionState`
+// (louise-toolkit/content), measured against the highest version ever promoted.
 
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { EditorSession } from "../auth/types.js";
 import { type PageId, parsePageId, parseVersionId, toVersionId } from "../content/ids.js";
+import {
+  type LifecycleVersion,
+  pageState,
+  promotedHighWater,
+  versionState,
+} from "../content/lifecycle.js";
 import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.js";
 import { type CollectionConfig, flattenFields } from "../content/types.js";
-import { LouiseValidationError } from "../errors.js";
+import { LouiseContentError, LouiseValidationError } from "../errors.js";
 import {
   d1Bookmark,
   db,
@@ -268,10 +276,7 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   const cur = current as Record<string, unknown>;
   const pending = buffered
     ? undefined
-    : latestPendingDraft(
-        (await api.findVersions(context, id)) as Record<string, unknown>[],
-        (cur.publishedVersionId as number | null) ?? null,
-      );
+    : latestPendingDraft((await api.findVersions(context, id)) as Record<string, unknown>[]);
   // The merge base is the freshest pending work: the KV buffer (if buffering is
   // on and one exists—it's always ≥ the D1 draft), then the D1 draft, then the
   // live row. So a partial save from a second surface still layers onto the
@@ -426,10 +431,12 @@ function violationsOf(err: unknown): { message: string; violations?: unknown } {
 /**
  * The newest still-*pending* draft among `versions` (which {@link findVersions}
  * returns newest-first, so the first match is the newest), or `undefined` when
- * there is none. A draft is pending only if it's newer than the live pointer
- * (`id > publishedVersionId`); a draft at or below `publishedVersionId` is
- * *superseded*—publishing has already moved the live row past it, so it must
- * not be resumed or auto-published as if it were current work.
+ * there is none. A draft is pending only if it's newer than every version ever
+ * promoted (ADR 0021's high-water mark); a draft at or below it is
+ * *superseded*—publishing has already moved past it, so it must not be resumed
+ * or auto-published as if it were current work. The mark, not the live pointer,
+ * because the pointer moves back when an older version is republished, and
+ * that mustn't bring stale drafts back.
  *
  * This backs two behaviours:
  *  - **Concurrent surfaces (draft merge base):** a versioned page may mount more
@@ -443,12 +450,10 @@ function violationsOf(err: unknown): { message: string; violations?: unknown } {
  */
 export function latestPendingDraft(
   versions: readonly Record<string, unknown>[],
-  publishedVersionId: number | null,
 ): Record<string, unknown> | undefined {
+  const highWater = promotedHighWater(versions as unknown as LifecycleVersion[]);
   return versions.find(
-    (v) =>
-      v.status === "draft" &&
-      (publishedVersionId === null || (v.id as number) > publishedVersionId),
+    (v) => v.status === "draft" && (highWater === null || (v.id as number) > highWater),
   );
 }
 
@@ -523,11 +528,10 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       }
     };
 
-    // GET /:id/versions—history, newest first, plus the live pointer so the
-    // editor can flag which version is currently published. Publishing never
-    // demotes a prior version's `status`, so several rows can read "published"
-    // over time; `published_version_id` on the live row is the only authoritative
-    // "this one is live" signal.
+    // GET /:id/versions—history, newest first, each version with its `state`
+    // (ADR 0021: pending, scheduled, superseded, current, or earlier), plus the
+    // pointer and the page's own state (new, live, or hidden). A version's stored
+    // `status` only records that it was promoted once; read `state` instead.
     //
     // `revs` are the field revisions of the work a save would build on (the
     // buffer, else the newest pending draft, else the live row), so the editor
@@ -538,7 +542,7 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const live = row as Record<string, unknown> | undefined;
       const publishedVersionId = (live?.publishedVersionId as number | null) ?? null;
       const buffered = kv ? await readDraftBuffer(kv, bufferKey) : null;
-      const pending = latestPendingDraft(versions as Record<string, unknown>[], publishedVersionId);
+      const pending = latestPendingDraft(versions as Record<string, unknown>[]);
       const mergeBase =
         (buffered?.data as Record<string, unknown> | undefined) ??
         (pending?.versionData as Record<string, unknown> | undefined) ??
@@ -547,7 +551,17 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const fieldKeys = Object.keys(flattenFields(cfg.config.fields));
       const current: Record<string, unknown> = {};
       for (const key of fieldKeys) current[key] = key in mergeBase ? mergeBase[key] : live?.[key];
-      return json({ versions, publishedVersionId, revs: await fieldRevs(current, fieldKeys) });
+      const page = live ?? {};
+      const highWater = promotedHighWater(versions as unknown as LifecycleVersion[]);
+      return json({
+        versions: (versions as unknown as LifecycleVersion[]).map((v) => ({
+          ...v,
+          state: versionState(v, page, highWater),
+        })),
+        publishedVersionId,
+        pageState: pageState(page),
+        revs: await fieldRevs(current, fieldKeys),
+      });
     }
 
     // POST /:id/versions—save a draft. Merge the edit (config fields only) over
@@ -658,12 +672,42 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (versionId === undefined) {
         const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
         const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
-        const publishedVersionId =
-          ((row as Record<string, unknown> | undefined)?.publishedVersionId as number | null) ??
-          null;
-        const latestDraft = latestPendingDraft(versions, publishedVersionId);
-        if (!latestDraft) return json({ error: "No draft to publish" }, 400);
-        versionId = toVersionId(latestDraft.id as number);
+        if (!row) return json({ error: "Not found" }, 404);
+        const latestDraft = latestPendingDraft(versions);
+        const state = pageState(row as Record<string, unknown>);
+        if (latestDraft) {
+          versionId = toVersionId(latestDraft.id as number);
+        } else if (state === "hidden") {
+          // Nothing newer to publish, so show the page again as it stands
+          // (ADR 0021). No snapshot is copied, so an edit made while it was
+          // hidden stays.
+          try {
+            return json({ page: await api.republish(context, id) });
+          } catch (err) {
+            if (err instanceof LouiseContentError) return json({ error: err.message }, 422);
+            throw err;
+          }
+        } else if (state === "new") {
+          // Never published and no draft: publish the page as it stands, by
+          // saving it as the first version.
+          const snapshot: Record<string, unknown> = {};
+          const row0 = row as Record<string, unknown>;
+          for (const key of Object.keys(flattenFields(cfg.config.fields))) {
+            if (key in row0) snapshot[key] = row0[key];
+          }
+          try {
+            const first = (await api.saveDraft(context, id, snapshot as never)) as Record<
+              string,
+              unknown
+            >;
+            versionId = toVersionId(first.id as number);
+          } catch (err) {
+            const { message, violations } = violationsOf(err);
+            return json({ error: message, ...(violations ? { violations } : {}) }, 422);
+          }
+        } else {
+          return json({ error: "No draft to publish" }, 400);
+        }
       }
       try {
         const slugBefore = cfg.redirects ? await liveSlug() : undefined;
@@ -680,10 +724,15 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       }
     }
 
-    // POST /:id/unpublish—clear the live pointer (the row's data is untouched).
+    // POST /:id/unpublish—hide the page. Its data and pointer stay (ADR 0021),
+    // so publishing again brings the same content back.
     if (action === "unpublish" && method === "POST") {
-      const page = await api.unpublish(context, id);
-      return json({ page });
+      try {
+        return json({ page: await api.unpublish(context, id) });
+      } catch (err) {
+        if (err instanceof LouiseContentError) return json({ error: err.message }, 422);
+        throw err;
+      }
     }
 
     // POST /:id/discard—delete a draft version from history. Body: { versionId }.
@@ -734,7 +783,5 @@ export async function hasPendingDraft<Env extends EditorRouteEnv = EditorRouteEn
   if (!row) return false;
   const api = createVersionedLocalApi(database, deps.table, deps.versionsTable, deps.config);
   const versions = (await api.findVersions({ session: editor }, id)) as Record<string, unknown>[];
-  const publishedVersionId =
-    ((row as Record<string, unknown>).publishedVersionId as number | null) ?? null;
-  return latestPendingDraft(versions, publishedVersionId) !== undefined;
+  return latestPendingDraft(versions) !== undefined;
 }

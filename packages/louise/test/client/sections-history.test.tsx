@@ -34,7 +34,9 @@ interface Call {
   keepalive: boolean;
 }
 
-function stubFetch(): Call[] {
+function stubFetch(
+  history: Record<string, unknown> = { versions: VERSIONS, publishedVersionId: 2 },
+): Call[] {
   const calls: Call[] = [];
   vi.stubGlobal(
     "fetch",
@@ -45,7 +47,7 @@ function stubFetch(): Call[] {
       calls.push({ url, method, body, keepalive: init?.keepalive === true });
       const payload =
         method === "GET"
-          ? { versions: VERSIONS, publishedVersionId: 2 }
+          ? history
           : method === "POST" && url.endsWith("/versions")
             ? { version: { id: 4 } }
             : { ok: true };
@@ -83,9 +85,11 @@ const flush = async () => {
   for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(0);
 };
 
-async function openHistory(): Promise<{ calls: Call[]; reload: ReturnType<typeof vi.fn> }> {
+async function openHistory(
+  history?: Record<string, unknown>,
+): Promise<{ calls: Call[]; reload: ReturnType<typeof vi.fn> }> {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  const calls = stubFetch();
+  const calls = stubFetch(history);
   const reload = vi.fn();
   vi.spyOn(window.location, "reload").mockImplementation(reload);
   dispose = mountSections(pageHost(), {
@@ -197,5 +201,51 @@ describe("version history—undoing a draft delete", () => {
     button(undoLine() as HTMLElement, "Undo")?.click();
     await flush();
     expect(rowIds()).toContain(3);
+  });
+});
+
+describe("version history—lifecycle states (ADR 0021)", () => {
+  const label = (id: number) => row(id)?.querySelector(".louise-version-text > span")?.textContent;
+
+  it("reads the current version as Hidden on a hidden page", async () => {
+    await openHistory({
+      versions: [
+        { id: 2, status: "published", state: "current", versionData: { sections: INITIAL } },
+        { id: 1, status: "published", state: "earlier", versionData: { sections: OLD } },
+      ],
+      publishedVersionId: 2,
+      pageState: "hidden",
+    });
+    expect(label(2)).toMatch(/^Hidden/);
+    expect(row(2)?.hasAttribute("data-live")).toBe(false);
+    expect(label(1)).toMatch(/^Earlier/);
+  });
+
+  it("offers a superseded draft as Open as draft, and doesn't count it as work to publish", async () => {
+    await openHistory({
+      versions: [
+        { id: 3, status: "published", state: "current", versionData: { sections: INITIAL } },
+        { id: 2, status: "draft", state: "superseded", versionData: { sections: OLD } },
+      ],
+      publishedVersionId: 3,
+      pageState: "live",
+    });
+    expect(label(2)).toMatch(/^Superseded/);
+    expect(button(row(2), "Open as draft")).toBeDefined();
+    expect(button(row(2), "Edit")).toBeUndefined();
+    expect(button(row(2), "Delete draft")).toBeDefined();
+    // Nothing pending, so the bar's Publish has nothing to do.
+    expect(document.querySelector(".louise-publish")?.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("lets a hidden page publish with nothing pending, since that's how it comes back", async () => {
+    await openHistory({
+      versions: [
+        { id: 2, status: "published", state: "current", versionData: { sections: INITIAL } },
+      ],
+      publishedVersionId: 2,
+      pageState: "hidden",
+    });
+    expect(document.querySelector(".louise-publish")?.getAttribute("aria-disabled")).toBe("false");
   });
 });

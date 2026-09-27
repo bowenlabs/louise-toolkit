@@ -4,6 +4,7 @@ export * from "./blocks.js";
 export * from "./codegen.js";
 export * from "./defineCollection.js";
 export * from "./ids.js";
+export * from "./lifecycle.js";
 export * from "./localApi.js";
 export * from "./meta.js";
 export * from "./migrate.js";

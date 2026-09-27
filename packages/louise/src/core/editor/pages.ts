@@ -139,8 +139,20 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * when the page uses the draft/publish workflow. DELETE then cascades to it
    * (`WHERE parent_id = :id`)—those snapshots have no FK to the page row, so
    * without this they orphan. Omit for an unversioned collection.
+   *
+   * With it, `status` is refused on create and update with a `422` (ADR 0021):
+   * on a versioned page, only publish and unpublish change who sees it.
    */
   versionsTable?: SQLiteTable;
+  /**
+   * Remember a page's old URL when its slug changes (#574). Pass the
+   * `pageRedirects` table from `louise-toolkit/db`, added to your schema. An
+   * update that changes a slug records `/old → /new` in the same batch as the
+   * write, and a page created or renamed onto an old path clears the redirect
+   * away from it, so a redirect never shadows a page. Serve them with
+   * `resolvePageRedirect`.
+   */
+  redirects?: typeof pageRedirects;
   /**
    * Keep an update in the page's pending draft (#530). An update writes the
    * live row, but publish copies the whole draft snapshot onto that row, so
@@ -152,15 +164,6 @@ export interface PagesRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
    * A page with no pending work gets no draft. Pass the same `config` and
    * `bufferKv` as `versionsRoute`; it needs {@link versionsTable}.
    */
-  /**
-   * Remember a page's old URL when its slug changes (#574). Pass the
-   * `pageRedirects` table from `louise-toolkit/db`, added to your schema. An
-   * update that changes a slug records `/old → /new` in the same batch as the
-   * write, and a page created or renamed onto an old path clears the redirect
-   * away from it, so a redirect never shadows a page. Serve them with
-   * `resolvePageRedirect`.
-   */
-  redirects?: typeof pageRedirects;
   drafts?: {
     /** The collection config; its fields are the ones a draft snapshot holds. */
     config: CollectionConfig;
@@ -253,6 +256,19 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     }
   };
 
+  /** Refuse `status` on a versioned page (ADR 0021): visibility belongs to
+   *  publish and unpublish, which keep it in step with the published version. */
+  const statusRejection = (input: Record<string, unknown>): Response | null =>
+    versionsTable && "status" in input
+      ? json(
+          {
+            error:
+              "A page with drafts goes live or hidden through Publish and Unpublish, not its status.",
+          },
+          422,
+        )
+      : null;
+
   /** Reject a write whose (transformed) slug is a reserved path. */
   const reservedSlugRejection = (data: Record<string, unknown>): Response | null => {
     if ("slug" in data && reserved.has(String(data.slug ?? ""))) {
@@ -292,6 +308,8 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (method === "POST") {
         const parsed = await standardValidate(s.record(), await request.json().catch(() => null));
         if (!parsed.ok) return json({ error: "Invalid JSON" }, 400);
+        const statusRefused = statusRejection(parsed.value);
+        if (statusRefused) return statusRefused;
         let data = pickFields(parsed.value, fields, richFields, sanitize);
         if (config.transform) data = await config.transform(data, { operation: "create" });
         const reservedRejection = reservedSlugRejection(data);
@@ -337,6 +355,8 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     if (method === "PATCH") {
       const parsed = await standardValidate(s.record(), await request.json().catch(() => null));
       if (!parsed.ok) return json({ error: "Invalid JSON" }, 400);
+      const statusRefused = statusRejection(parsed.value);
+      if (statusRefused) return statusRefused;
       let data = pickFields(parsed.value, fields, richFields, sanitize);
       if (config.transform) data = await config.transform(data, { operation: "update", id });
       if (Object.keys(data).length === 0) return json({ error: "Nothing to update" }, 400);

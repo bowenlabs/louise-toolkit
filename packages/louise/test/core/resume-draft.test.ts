@@ -26,7 +26,8 @@ interface Version {
  * A D1 stand-in that records each statement and answers the resume query by
  * actually applying its binds to `versions`—so the test checks behaviour
  * (which row comes back), not just a SQL string. The bind order is what
- * drizzle emits for this query: parentId, status, [publishedVersionId], limit.
+ * drizzle emits for this query: parentId, "draft", then the high-water
+ * subquery's parentId and "published", then the limit.
  */
 function fakeD1(versions: Version[]) {
   const statements: { sql: string; params: unknown[] }[] = [];
@@ -35,13 +36,16 @@ function fakeD1(versions: Version[]) {
       return {
         bind(...params: unknown[]) {
           statements.push({ sql, params });
-          const [parentId, status, ...rest] = params;
-          const floor = rest.length > 1 ? (rest[0] as number) : null;
+          const [parentId, status, promotedParent, promotedStatus] = params;
+          // coalesce((select max(id) … status = 'published'), 0)
+          const floor = Math.max(
+            0,
+            ...versions
+              .filter((v) => v.parentId === promotedParent && v.status === promotedStatus)
+              .map((v) => v.id),
+          );
           const match = versions
-            .filter(
-              (v) =>
-                v.parentId === parentId && v.status === status && (floor === null || v.id > floor),
-            )
+            .filter((v) => v.parentId === parentId && v.status === status && v.id > floor)
             .sort((a, b) => b.id - a.id)
             .slice(0, 1);
           const rows = match.map((v) => [JSON.stringify(v.versionData)]);
@@ -75,7 +79,7 @@ const VERSIONS: Version[] = [
 ];
 
 describe("resumeDraft", () => {
-  it("returns the newest draft newer than the live pointer", async () => {
+  it("returns the newest draft newer than every promoted version", async () => {
     const { d1 } = fakeD1(VERSIONS);
     const draft = await resumeDraft(
       d1,
@@ -100,31 +104,42 @@ describe("resumeDraft", () => {
   it("agrees with latestPendingDraft, the rule applySaveDraft builds on", async () => {
     // The two must pick the same draft, or the editor sees one snapshot and
     // their next save layers onto another.
-    for (const publishedVersionId of [null, 2, 5, 8, 9]) {
-      const { d1 } = fakeD1(VERSIONS);
-      const read = await resumeDraft(
-        d1,
-        { versionsTable, collection: "pages" },
-        { id: 7, publishedVersionId },
-      );
-      const newestFirst = VERSIONS.filter((v) => v.parentId === 7)
+    const cases: Version[][] = [
+      VERSIONS,
+      VERSIONS.filter((v) => v.status === "draft"),
+      VERSIONS.filter((v) => v.id <= 5),
+      [...VERSIONS, { id: 11, parentId: 7, status: "published", versionData: {} }],
+    ];
+    for (const versions of cases) {
+      const { d1 } = fakeD1(versions);
+      const read = await resumeDraft(d1, { versionsTable, collection: "pages" }, { id: 7 });
+      const newestFirst = versions
+        .filter((v) => v.parentId === 7)
         .sort((a, b) => b.id - a.id)
         .map((v) => ({ ...v }) as Record<string, unknown>);
-      const rule = latestPendingDraft(newestFirst, publishedVersionId);
-      expect(read).toEqual(rule?.versionData ?? null);
+      expect(read).toEqual(latestPendingDraft(newestFirst)?.versionData ?? null);
     }
   });
 
-  it("with no live pointer, any draft counts as pending", async () => {
-    const { d1, statements } = fakeD1(VERSIONS);
-    const draft = await resumeDraft(
-      d1,
-      { versionsTable, collection: "pages" },
-      { id: 7, publishedVersionId: null },
-    );
+  it("with nothing promoted, any draft counts as pending", async () => {
+    const { d1 } = fakeD1(VERSIONS.filter((v) => v.status === "draft"));
+    const draft = await resumeDraft(d1, { versionsTable, collection: "pages" }, { id: 7 });
     expect(draft).toMatchObject({ title: "newest pending" });
-    // parentId, status, limit—no id floor.
-    expect(statements[0]?.params).toEqual([7, "draft", 1]);
+  });
+
+  it("ignores the pointer: an unpublish or a republish can't revive a superseded draft", async () => {
+    // Version 5 was promoted; the row's pointer now reads null (an old
+    // unpublish) or 2 (a republish). Draft 3 stays superseded either way.
+    const { d1 } = fakeD1(VERSIONS.filter((v) => v.id <= 5));
+    for (const publishedVersionId of [null, 2]) {
+      expect(
+        await resumeDraft(
+          d1,
+          { versionsTable, collection: "pages" },
+          { id: 7, publishedVersionId },
+        ),
+      ).toBeNull();
+    }
   });
 
   it("asks D1 for exactly one row, newest first", async () => {
@@ -132,7 +147,7 @@ describe("resumeDraft", () => {
     await resumeDraft(d1, { versionsTable, collection: "pages" }, { id: 7, publishedVersionId: 5 });
     expect(statements).toHaveLength(1);
     expect(statements[0]?.sql).toMatch(/order by "pages_versions"\."id" desc limit \?/i);
-    expect(statements[0]?.params).toEqual([7, "draft", 5, 1]);
+    expect(statements[0]?.params).toEqual([7, "draft", 7, "published", 1]);
   });
 
   it("prefers the KV buffer, which is always ahead of D1, and skips the query", async () => {

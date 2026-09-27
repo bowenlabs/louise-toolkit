@@ -1,6 +1,6 @@
 # ADR 0021: One meaning for "published," and the page lifecycle
 
-- **Status:** Proposed (2026-09-27)
+- **Status:** Accepted (2026-09-27)
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0009 (the MCP server), ADR 0010 (the editable-node model), ADR 0018 (editor design principles), issues #534, #537, #236, #540
 

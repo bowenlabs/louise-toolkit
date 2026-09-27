@@ -264,6 +264,67 @@ describe("PagesPanel—the published page link (#598)", () => {
   });
 });
 
+describe("PagesPanel—visibility on a page with drafts (ADR 0021)", () => {
+  const hidden = { id: 3, title: "Terms", slug: "terms", status: "draft", publishedVersionId: 4 };
+  const openForm = async () => {
+    mountPanel(() => <PagesPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Terms"));
+    expect(host.textContent).toContain("/terms · Hidden");
+    host.querySelector<HTMLButtonElement>('button[aria-label="Page settings"]')!.click();
+    await vi.waitFor(() =>
+      expect(host.querySelector<HTMLInputElement>("#pg-slug")?.value).toBe("terms"),
+    );
+  };
+  const buttonNamed = (name: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (b) => b.textContent?.trim() === name,
+    );
+
+  it("publishes and unpublishes instead of offering a status select", async () => {
+    let live = false;
+    const mock = stubFetch((url, method) => {
+      if (url.endsWith("/publish")) live = true;
+      if (url.endsWith("/unpublish")) live = false;
+      const page = { ...hidden, status: live ? "published" : "draft" };
+      if (url.endsWith("/api/louise/pages") && method === "GET")
+        return jsonResponse({ pages: [page] });
+      return jsonResponse({ page });
+    });
+    await openForm();
+    expect(host.querySelector("#pg-status")).toBeNull();
+    expect(host.textContent).toContain("Visibility");
+
+    buttonNamed("Publish")!.click();
+    await vi.waitFor(() => expect(buttonNamed("Unpublish")).toBeDefined());
+    expect(host.querySelector('[role="status"]')?.textContent).toContain("Live");
+    buttonNamed("Unpublish")!.click();
+    await vi.waitFor(() => expect(buttonNamed("Publish")).toBeDefined());
+
+    const posts = mock.mock.calls
+      .filter((c) => (c[1]?.method ?? "GET").toUpperCase() === "POST")
+      .map((c) => String(c[0]));
+    expect(posts).toEqual(["/api/louise/pages/3/publish", "/api/louise/pages/3/unpublish"]);
+  });
+
+  it("leaves status out of a Save", async () => {
+    const mock = stubFetch((url, method) =>
+      url.endsWith("/api/louise/pages") && method === "GET"
+        ? jsonResponse({ pages: [hidden] })
+        : jsonResponse({ page: hidden }),
+    );
+    await openForm();
+    type(host.querySelector<HTMLInputElement>("#pg-slug")!, "terms-of-use");
+    footSave().click();
+    await vi.waitFor(() =>
+      expect(mock.mock.calls.some((c) => (c[1]?.method ?? "").toUpperCase() === "PATCH")).toBe(
+        true,
+      ),
+    );
+    const patch = mock.mock.calls.find((c) => (c[1]?.method ?? "").toUpperCase() === "PATCH")!;
+    expect(JSON.parse(String(patch[1]!.body))).not.toHaveProperty("status");
+  });
+});
+
 describe("LinkListEditor", () => {
   function mountLinks(initial: LinkRow[]) {
     const [rows, setRows] = createSignal(initial);

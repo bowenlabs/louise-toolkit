@@ -11,6 +11,7 @@ import {
   inArray,
   isNotNull,
   lte,
+  max,
   type SQL,
   sql,
 } from "drizzle-orm";
@@ -865,8 +866,10 @@ export interface VersionedLocalApi<
     scheduledAt: Date,
   ): Promise<InferSelectModel<TVersionsTable>>;
   /**
-   * Copies a version's snapshot onto the main row it belongs to and marks it
-   * published. The version's own `parentId` names that row, so when
+   * Copies a version's snapshot onto the main row it belongs to, points
+   * `publishedVersionId` at it, marks the version promoted, and makes the row
+   * live (`status = 'published'`, when the table has a `status` column), all in
+   * one batch (ADR 0021). The version's own `parentId` names that row, so when
    * `versionId` comes from a request about a particular page, check that the
    * version belongs to that page first, as `versionsRoute` does.
    */
@@ -875,15 +878,31 @@ export interface VersionedLocalApi<
    * Publishes every still-draft version whose `scheduledAt` is at or before
    * `now` (default: the current time), oldest first. Returns the published main
    * rows. Intended to be driven by a scheduled worker (for example, a Cloudflare cron
-   * trigger). A single access check (`publish`) covers the whole batch.
+   * trigger). A single access check (`publish`) covers the whole batch. A due
+   * draft that a later publish superseded is skipped (ADR 0021), so a schedule
+   * can't put older content back over newer.
    */
   publishScheduled(context: TContext, now?: Date): Promise<InferSelectModel<TTable>[]>;
-  /** Clears the main row's published pointer; the row's data is untouched. */
+  /**
+   * Hides the main row from visitors (`status = 'draft'`). The row's data and
+   * its `publishedVersionId` stay, so publishing again restores the same
+   * content (ADR 0021). Throws {@link LouiseContentError} when the table has no
+   * `status` column, since there's then no visibility to change.
+   */
   unpublish(context: TContext, id: PageId): Promise<InferSelectModel<TTable>>;
   /**
+   * Makes a hidden row live again as it stands (`status = 'published'`),
+   * without copying a snapshot over it, so an edit made to the row while it
+   * was hidden stays. Throws {@link LouiseContentError} when the row has never
+   * been published (publish a version instead) or the table has no `status`
+   * column.
+   */
+  republish(context: TContext, id: PageId): Promise<InferSelectModel<TTable>>;
+  /**
    * Delete a single version row from the history (for example, discarding a draft).
-   * Refuses to delete the currently-live version—its snapshot backs the live
-   * row—throwing {@link LouiseContentError}; unpublish first if that's intended.
+   * Refuses to delete the current version, whose snapshot backs the row even
+   * while it's hidden, throwing {@link LouiseContentError}; publish another
+   * version first if that's intended.
    * Access: `update` (same gate as saving a draft).
    */
   discardVersion(context: TContext, versionId: VersionId): Promise<void>;
@@ -931,6 +950,20 @@ export function createVersionedLocalApi<
   const versionsParentIdColumn = versionsTable.parentId;
   const versionsStatusColumn = versionsTable.status;
   const versionsScheduledAtColumn = versionsTable.scheduledAt;
+  // The visibility column (ADR 0021). A collection's table may not have one; then
+  // publish only promotes, and unpublish has nothing to hide.
+  const hasStatus = (table as unknown as Record<string, unknown>).status !== undefined;
+
+  // The highest version of `parentId` ever promoted: a draft at or below it is
+  // superseded, however the pointer has moved since.
+  async function promotedHighWaterFor(parentId: number): Promise<number | null> {
+    const [row] = await db
+      .select({ high: max(versionsIdColumn) })
+      .from(versionsTable)
+      .where(and(eq(versionsParentIdColumn, parentId), eq(versionsStatusColumn, "published")));
+    const high = (row as { high?: unknown } | undefined)?.high;
+    return typeof high === "number" ? high : null;
+  }
 
   // Core publish path, shared by publish() and publishScheduled(). Access is
   // checked by the public methods, not here.
@@ -964,13 +997,17 @@ export function createVersionedLocalApi<
     if (!existing) notFound(config, parentId);
 
     // The two writes that make a publish: promote the snapshot onto the live row
-    // (+ point `publishedVersionId` at this version) and mark the version row
-    // "published". Built as (unexecuted) statements so they can either batch or
-    // run sequentially.
+    // (+ point `publishedVersionId` at this version, and make the row live), and
+    // mark the version row promoted. Built as (unexecuted) statements so they can
+    // either batch or run sequentially.
     const promoteLiveRow = db
       .update(table)
-      // oxlint-disable-next-line typescript/no-explicit-any -- see createLocalApi.update's .set() cast
-      .set({ ...data, publishedVersionId: versionId } as any)
+      .set({
+        ...data,
+        publishedVersionId: versionId,
+        ...(hasStatus ? { status: "published" } : {}),
+        // oxlint-disable-next-line typescript/no-explicit-any -- see createLocalApi.update's .set() cast
+      } as any)
       .where(eq(idColumn, parentId))
       .returning();
     const markVersionPublished = db
@@ -1078,18 +1115,51 @@ export function createVersionedLocalApi<
         .orderBy(asc(versionsIdColumn));
       const published: InferSelectModel<TTable>[] = [];
       for (const version of due) {
-        const versionId = (version as Record<string, unknown>).id as VersionId;
-        published.push(await doPublish(versionId));
+        const record = version as Record<string, unknown>;
+        // Read per draft, not once: an earlier draft in this batch may have just
+        // raised its page's high-water mark.
+        const highWater = await promotedHighWaterFor(record.parentId as number);
+        if (highWater !== null && (record.id as number) <= highWater) continue;
+        published.push(await doPublish(record.id as VersionId));
       }
       return published;
     },
 
     async unpublish(context, id) {
       await checkAccess(config, "publish", context);
+      if (!hasStatus) {
+        throw new LouiseContentError(
+          `"${config.slug}" has no status column, so it can't be hidden; add one to unpublish`,
+        );
+      }
       const [row] = await db
         .update(table)
-        // oxlint-disable-next-line typescript/no-explicit-any -- publishedVersionId is a bookkeeping column generated by codegen, not part of InferInsertModel<TTable>
-        .set({ publishedVersionId: null } as any)
+        // oxlint-disable-next-line typescript/no-explicit-any -- status is the visibility column (ADR 0021), not part of InferInsertModel<TTable> for every table
+        .set({ status: "draft" } as any)
+        .where(eq(idColumn, id))
+        .returning();
+      if (!row) notFound(config, id);
+      return row as InferSelectModel<TTable>;
+    },
+
+    async republish(context, id) {
+      await checkAccess(config, "publish", context);
+      if (!hasStatus) {
+        throw new LouiseContentError(
+          `"${config.slug}" has no status column, so it's always live once published`,
+        );
+      }
+      const [current] = await db.select().from(table).where(eq(idColumn, id));
+      if (!current) notFound(config, id);
+      if ((current as Record<string, unknown>).publishedVersionId == null) {
+        throw new LouiseContentError(
+          `"${config.slug}" ${id} has never been published; publish a version instead`,
+        );
+      }
+      const [row] = await db
+        .update(table)
+        // oxlint-disable-next-line typescript/no-explicit-any -- status is the visibility column (ADR 0021), not part of InferInsertModel<TTable> for every table
+        .set({ status: "published" } as any)
         .where(eq(idColumn, id))
         .returning();
       if (!row) notFound(config, id);
@@ -1105,11 +1175,12 @@ export function createVersionedLocalApi<
       if (!version) notFoundVersion(config, versionId);
       const parentId = (version as Record<string, unknown>).parentId as number;
       const [parent] = await db.select().from(table).where(eq(idColumn, parentId));
-      // The live row renders from the published version's snapshot, so deleting
-      // it would orphan the pointer—refuse and let the caller unpublish first.
+      // The row holds the current version's snapshot, live or hidden, so deleting
+      // it would orphan the pointer. Unpublishing keeps the pointer (ADR 0021),
+      // so the only way past this is publishing another version.
       if (parent && (parent as Record<string, unknown>).publishedVersionId === versionId) {
         throw new LouiseContentError(
-          `Cannot discard the live "${config.slug}" version ${versionId}; unpublish it first`,
+          `Cannot discard the current "${config.slug}" version ${versionId}; publish another version first`,
         );
       }
       await db.delete(versionsTable).where(eq(versionsIdColumn, versionId));

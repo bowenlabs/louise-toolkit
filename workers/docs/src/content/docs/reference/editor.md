@@ -149,18 +149,23 @@ pagesCollection, id)` to keep that one row searchable, rather than rebuilding
   the whole index with `reindexSearch` after every edit. For a versioned
   collection, pass `versionsTable` and `drafts: { config, bufferKv? }`, so an
   update also lands in the page's pending draft and the next publish doesn't
-  undo it; see [Writing to the live row directly](/guide/drafts/#writing-to-the-live-row-directly). Pass
+  undo it; see [Writing to the live row directly](/guide/drafts/#writing-to-the-live-row-directly).
+  With `versionsTable`, a create or update that sends `status` gets a `422`:
+  on a page with drafts, only publish and unpublish change who sees it. Pass
   `redirects: pageRedirects` and a slug change remembers the old URL; see
   [`pageRedirects`](/reference/db/#pageredirects-a-renamed-page-keeps-its-old-url).
 - **`versionsRoute`**—the [draft/publish + version history](/guide/drafts/)
   surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
   (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest
   draft; a `versionId` that isn't a version of page `:id` gets a `404`), `POST …/:id/unpublish`.
+  With no pending draft, `publish` shows a hidden page again, or publishes a
+  never-published page as it stands. The `GET` gives each version its `state`
+  and the page its `pageState` ([the page lifecycle](/guide/drafts/#the-model)).
   Only an absent `versionId` (an empty body or `{}`) means the latest draft. A
   `versionId` that's present but isn't a positive JSON integer, such as `"7"`,
   `1.5`, or `null`, gets a `400`, and so does a body that isn't a JSON object. A save merges the edit over the current row and
   stores a full snapshot in `${slug}_versions`; publish promotes it onto the live
-  row and sets `published_version_id`. Takes `{ table, versionsTable, config,
+  row, sets `published_version_id`, and sets `status = 'published'`. Takes `{ table, versionsTable, config,
 resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
   `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher. The
   versions `GET` returns the current field revisions as `revs`, a save returns
@@ -306,8 +311,8 @@ longer exempts it by default: add the new path to `apiGate.isPublic`.
 ## Resuming a draft
 
 `resumeDraft(d1, { versionsTable, collection, bufferKv? }, row)` returns the
-editor's work-in-progress for a versioned row (`{ id, publishedVersionId }`), or
-`null`: the KV buffer first, then the newest draft newer than the live pointer.
+editor's work-in-progress for a versioned row (`{ id }`), or `null`: the KV
+buffer first, then the newest draft newer than every version ever promoted.
 That is the same base `applySaveDraft` layers a save onto, so edit mode shows what
 the next save builds on. See [Drafts → Rendering](/guide/drafts/#rendering).
 

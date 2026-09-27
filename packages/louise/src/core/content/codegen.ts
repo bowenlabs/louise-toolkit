@@ -143,8 +143,9 @@ export function collectionToTable(config: CollectionConfig) {
   }
   // Bookkeeping column, not a content field—absent from config.fields so
   // admin-UI introspection (meta.ts) never sees it. Null until the first
-  // publish; createVersionedLocalApi.publish() sets it, .unpublish() clears
-  // it. See collectionVersionsTable below for the table it points into.
+  // publish; createVersionedLocalApi.publish() moves it, and nothing clears it:
+  // it names the version the row holds, live or hidden (ADR 0021). See
+  // collectionVersionsTable below for the table it points into.
   if (config.versions?.drafts) {
     columns.publishedVersionId = integer("published_version_id");
   }
