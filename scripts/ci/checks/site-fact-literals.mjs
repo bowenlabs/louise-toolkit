@@ -87,7 +87,10 @@ const ALLOWED = {
   },
   "packages/louise/src/core/dates/index.ts": {
     "en-CA": "parse-only: `isoDateIn` reads YYYY-MM-DD parts out of Intl; never shown",
-    "en-US": "overridable `formatDate` default, and parse-only in `offsetAt`",
+    "en-US": "overridable `formatDate` default",
+  },
+  "packages/louise/src/core/dates/clock.ts": {
+    "en-US": "parse-only: `offsetAt` and `wallMinutes` read numeric wall-clock parts out of Intl; never shown",
   },
 };
 
