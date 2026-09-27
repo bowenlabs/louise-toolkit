@@ -3,7 +3,7 @@
 // louise-toolkit/commerce/square: team members (employees).
 
 import type { SquareConfig } from "./client.js";
-import { sqGet, sqPost, sqPut } from "./request.js";
+import { orNotFound, sqGet, sqPost, sqPut } from "./request.js";
 
 export interface SquareTeamMember {
   id: string;
@@ -101,11 +101,14 @@ export async function retrieveTeamMember(
   config: SquareConfig,
   teamMemberId: string,
 ): Promise<SquareTeamMember | null> {
-  const res = await sqGet<{ team_member?: RawTeamMember }>(
-    config,
-    `/v2/team-members/${encodeURIComponent(teamMemberId)}`,
+  // A 404 is an answer, not a failure (#700), like the other retrieves.
+  const res = await orNotFound(() =>
+    sqGet<{ team_member?: RawTeamMember }>(
+      config,
+      `/v2/team-members/${encodeURIComponent(teamMemberId)}`,
+    ),
   );
-  return res.team_member ? mapTeamMember(res.team_member) : null;
+  return res?.team_member ? mapTeamMember(res.team_member) : null;
 }
 
 /**

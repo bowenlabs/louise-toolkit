@@ -122,7 +122,9 @@ export async function sqFetch<T>(
           text,
         );
       }
-      return json as T;
+      // An empty 2xx (a 204) reads as an empty object, so a caller that
+      // reads a field gets `undefined`, not a TypeError (#700).
+      return (json ?? {}) as T;
     }
 
     lastError = new SquareApiError(
