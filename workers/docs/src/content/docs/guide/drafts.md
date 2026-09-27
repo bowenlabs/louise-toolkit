@@ -69,6 +69,47 @@ names so publish's write maps straight onto columns. Merging over the pending
 draft (not always the live row) is what lets a partial save layer onto
 work-in-progress instead of reverting it (see below).
 
+## When someone else saved first
+
+A save can overtake another: the same page open in two tabs, or an agent saving
+while the owner types. Each field the server stores or shows has a revision, a
+short hash of its value. `GET /:id/versions` returns the revisions of the work a
+save would build on as `revs`, and every save returns the revisions of the
+fields it stored. The editor sends back the revisions a save started from under
+`$base`:
+
+```json
+{ "title": "New title", "$base": { "title": "3f9c0a1b2d4e5f60" } }
+```
+
+When a field in the save has changed since its revision in `$base`, the save
+answers `409` with the current values instead of overwriting them:
+
+```json
+{
+  "error": "Someone else changed this since you opened it.",
+  "conflicts": [{ "field": "title", "value": "Their title", "rev": "8a7b6c5d4e3f2a10" }]
+}
+```
+
+The edit bar and the sections dock show that as a choice. **Keep mine** saves
+again with their revision as the base, which replaces exactly what the owner was
+shown. **Reload** drops the unsaved edits and loads theirs. Auto-save holds off
+until the owner picks.
+
+The check is per field, so a second surface saving other fields still layers
+on, and it isn't a conflict when both ended up at the same value. A save
+without `$base`, or a field with no revision in it, isn't checked, which keeps
+older clients and scripts working unchanged. Two things to know:
+
+- **The KV buffer narrows the window; it doesn't close it.** With `bufferKv`
+  on, the check reads the buffer and then writes it, and KV isn't atomic, so two
+  saves that land in the same moment can both pass.
+- **The realtime session and the MCP tools don't send `$base`.** Inside a
+  realtime session, the Durable Object's field-level last-writer-wins is the
+  design ([ADR 0002](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0002-realtime-collab-durable-object.md)),
+  and the agent write tools save the way they always have.
+
 ## One versioned surface per page
 
 A save sends only the fields it changed, and the route backfills the rest. That

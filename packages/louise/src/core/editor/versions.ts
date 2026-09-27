@@ -3,8 +3,9 @@
 // louise-toolkit/editor—the draft/publish/versions route. Exposes a collection's
 // `createVersionedLocalApi` (louise-toolkit/content) over HTTP, so the editor can stage
 // edits as drafts and promote them on publish without the change going live:
-//   GET  /api/louise/pages/:id/versions   list versions (newest first)
-//   POST /api/louise/pages/:id/versions   save a draft (merged over the live row)
+//   GET  /api/louise/pages/:id/versions   list versions (newest first) + field revs
+//   POST /api/louise/pages/:id/versions   save a draft (merged over the live row);
+//                                         `$base` holds the revs it started from
 //   POST /api/louise/pages/:id/publish    publish a draft (body.versionId | latest)
 //   POST /api/louise/pages/:id/unpublish  clear the live pointer
 //
@@ -32,6 +33,7 @@ import {
   shouldFlushBuffer,
   writeDraftBuffer,
 } from "./draft-buffer.js";
+import { DRAFT_BASE_KEY, type DraftConflict, fieldRev, fieldRevs, parseDraftBase } from "./revs.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "./shared.js";
 
 // Bodies for the version actions. `publish` may omit `versionId` (it falls back
@@ -94,7 +96,34 @@ export interface VersionsRouteConfig<
  *  per-field `violations` from a `validate` throw). */
 export type SaveDraftResult =
   | { ok: true; status: number; body: Record<string, unknown>; bookmark?: string }
-  | { ok: false; status: number; error: string; violations?: unknown };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      violations?: unknown;
+      /** On a 409: the fields someone else changed since `base`. */
+      conflicts?: DraftConflict[];
+    };
+
+/** Options for {@link applySaveDraft}. */
+export interface SaveDraftOptions {
+  /**
+   * The field revisions the save started from, from the `revs` of an earlier
+   * save or of `GET /:id/versions`. A field in the save whose stored value
+   * has moved since its revision here is a conflict, and the save answers 409
+   * with the current values instead of merging, unless the new value already
+   * equals the stored one. A field with no revision here isn't checked, so a
+   * save without `base` merges as it always has.
+   *
+   * With the KV buffer on, the check reads the buffer and then writes it, and
+   * KV isn't atomic, so two saves that land together can both pass. The check
+   * narrows that window; it doesn't close it.
+   */
+  base?: Record<string, string>;
+}
+
+/** The message a 409 conflict carries. */
+const CONFLICT_MESSAGE = "Someone else changed this since you opened it.";
 
 /**
  * Save an already-validated draft for a versioned row: merge the edit (config
@@ -111,6 +140,7 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   editor: EditorSession,
   id: PageId,
   input: Record<string, unknown>,
+  options: SaveDraftOptions = {},
 ): Promise<SaveDraftResult> {
   // Run this save's D1 work through a `first-primary` session: the write hits
   // the primary and the session's bookmark advances past it, so a later resume
@@ -187,6 +217,25 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
     (buffered?.data as Record<string, unknown> | undefined) ??
     (pending?.versionData as Record<string, unknown> | undefined) ??
     cur;
+  // The optimistic check (#572): a field this save sets, whose stored value has
+  // moved since the revision the client started from, is someone else's edit.
+  // Report it rather than overwrite it, unless both ended up at the same value.
+  const savedKeys = fieldKeys.filter((key) => key in input);
+  if (options.base) {
+    const conflicts: DraftConflict[] = [];
+    for (const key of savedKeys) {
+      const expected = options.base[key];
+      if (expected === undefined) continue;
+      const stored = key in mergeBase ? mergeBase[key] : cur[key];
+      const rev = await fieldRev(stored);
+      if (rev !== expected && (await fieldRev(input[key])) !== rev) {
+        conflicts.push({ field: key, value: stored, rev });
+      }
+    }
+    if (conflicts.length > 0) {
+      return { ok: false, status: 409, error: CONFLICT_MESSAGE, conflicts };
+    }
+  }
   const merged: Record<string, unknown> = {};
   for (const key of fieldKeys) {
     // Prefer this save's fields, then the base snapshot, then the live row—so a
@@ -213,15 +262,12 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
       if (!saved.ok) return saved.result;
       // Buffer what D1 stored (after the hooks), not the raw merge.
       const stored = (saved.value as { versionData?: unknown }).versionData;
-      await writeDraftBuffer(kv, bufferKey, {
-        data: isRecord(stored) ? stored : merged,
-        updatedAt: now,
-        flushedAt: now,
-      });
+      const data = isRecord(stored) ? stored : merged;
+      await writeDraftBuffer(kv, bufferKey, { data, updatedAt: now, flushedAt: now });
       return {
         ok: true,
         status: 201,
-        body: { version: saved.value, buffered: false },
+        body: { version: saved.value, buffered: false, revs: await fieldRevs(data, savedKeys) },
         bookmark: d1Bookmark(session) ?? undefined,
       };
     }
@@ -237,17 +283,21 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
     return {
       ok: true,
       status: 200,
-      body: { buffered: true },
+      body: { buffered: true, revs: await fieldRevs(prepared.value, savedKeys) },
       bookmark: d1Bookmark(session) ?? undefined,
     };
   }
 
   const saved = await saveDraft(merged);
   if (!saved.ok) return saved.result;
+  const stored = (saved.value as { versionData?: unknown }).versionData;
   return {
     ok: true,
     status: 201,
-    body: { version: saved.value },
+    body: {
+      version: saved.value,
+      revs: await fieldRevs(isRecord(stored) ? stored : merged, savedKeys),
+    },
     bookmark: d1Bookmark(session) ?? undefined,
   };
 }
@@ -348,12 +398,26 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // demotes a prior version's `status`, so several rows can read "published"
     // over time; `published_version_id` on the live row is the only authoritative
     // "this one is live" signal.
+    //
+    // `revs` are the field revisions of the work a save would build on (the
+    // buffer, else the newest pending draft, else the live row), so the editor
+    // can send them back as a save's `$base` (#572).
     if (action === "versions" && method === "GET") {
       const versions = await api.findVersions(context, id);
       const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
-      const publishedVersionId =
-        ((row as Record<string, unknown> | undefined)?.publishedVersionId as number | null) ?? null;
-      return json({ versions, publishedVersionId });
+      const live = row as Record<string, unknown> | undefined;
+      const publishedVersionId = (live?.publishedVersionId as number | null) ?? null;
+      const buffered = kv ? await readDraftBuffer(kv, bufferKey) : null;
+      const pending = latestPendingDraft(versions as Record<string, unknown>[], publishedVersionId);
+      const mergeBase =
+        (buffered?.data as Record<string, unknown> | undefined) ??
+        (pending?.versionData as Record<string, unknown> | undefined) ??
+        live ??
+        {};
+      const fieldKeys = Object.keys(flattenFields(cfg.config.fields));
+      const current: Record<string, unknown> = {};
+      for (const key of fieldKeys) current[key] = key in mergeBase ? mergeBase[key] : live?.[key];
+      return json({ versions, publishedVersionId, revs: await fieldRevs(current, fieldKeys) });
     }
 
     // POST /:id/versions—save a draft. Merge the edit (config fields only) over
@@ -367,10 +431,18 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
         await request.json().catch(() => null),
       );
       if (!parsedInput.ok) return json({ error: "Invalid JSON" }, 400);
-      const result = await applySaveDraft(env, cfg, g.editor, id, parsedInput.value);
+      // The fields, plus the revisions they started from under `$base` (#572).
+      const { [DRAFT_BASE_KEY]: rawBase, ...fields } = parsedInput.value;
+      const result = await applySaveDraft(env, cfg, g.editor, id, fields, {
+        base: parseDraftBase(rawBase),
+      });
       if (!result.ok) {
         return json(
-          { error: result.error, ...(result.violations ? { violations: result.violations } : {}) },
+          {
+            error: result.error,
+            ...(result.violations ? { violations: result.violations } : {}),
+            ...(result.conflicts ? { conflicts: result.conflicts } : {}),
+          },
           result.status,
         );
       }

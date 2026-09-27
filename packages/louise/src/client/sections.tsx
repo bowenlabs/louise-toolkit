@@ -29,6 +29,7 @@
 // updates only that leaf—no row teardown, no focus loss.
 
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { DRAFT_BASE_KEY } from "../core/editor/revs.js";
 import { describeNode, SHARED_PATH_HEAD } from "./describe-node.js";
 import { createFieldOptions } from "./field-options.js";
 import { mountNodeChrome } from "./node-chrome.js";
@@ -571,7 +572,7 @@ function blankRecord(fields: Record<string, SectionField>): Record<string, unkno
 }
 
 type StoreSetter = (...args: unknown[]) => void;
-type Status = "idle" | "saving" | "saved" | "publishing" | "published" | "error";
+type Status = "idle" | "saving" | "saved" | "publishing" | "published" | "error" | "conflict";
 
 /** A row from `GET /api/louise/pages/:id/versions`. */
 interface VersionRow {
@@ -877,6 +878,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
   // makes the strict overloads resolve to `never`).
   const set = setState as unknown as StoreSetter;
   const [status, setStatus] = createSignal<Status>("idle");
+  // The revision of the stored `sections` as this dock last saw it: from the
+  // versions listing, then from each save. A save sends it as `$base`, so the
+  // server refuses to overwrite sections someone else changed (#572).
+  let sectionsRev: string | undefined;
+  // Their revision while a conflict waits for the owner's choice.
+  const [conflictRev, setConflictRev] = createSignal<string | undefined>(undefined);
   const [dirty, setDirty] = createSignal(false);
   // The add-section type-picker: null when closed, else the insert index (the new
   // section takes it, pushing the clicked one down → "insert above") + the anchor
@@ -944,9 +951,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       const body = (await res.json().catch(() => null)) as {
         versions?: VersionRow[];
         publishedVersionId?: number | null;
+        revs?: Record<string, string>;
       } | null;
       setVersions(body?.versions ?? []);
       setLiveVersionId(body?.publishedVersionId ?? null);
+      sectionsRev ??= body?.revs?.sections;
     } catch {
       setVersions([]);
       setLiveVersionId(null);
@@ -1101,32 +1110,63 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     body?.violations?.[0]?.message ?? body?.error;
 
   // Save the current sections as a DRAFT (the live page is untouched until
-  // publish). Returns the new version id, or null on failure.
-  const saveDraft = async (): Promise<number | null> => {
+  // publish). Resolves with the new version's id when the save wrote one (a
+  // save the KV buffer absorbed doesn't), or null on failure. A 409 opens the
+  // conflict choice (#572) and also resolves null.
+  const saveDraft = async (): Promise<{ versionId?: number } | null> => {
     setErrorDetail("");
+    if (conflictRev() !== undefined) return null;
     try {
       const res = await fetch(`/api/louise/pages/${props.pageId}/versions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sections: unwrap(state.items) }),
+        body: JSON.stringify({
+          sections: unwrap(state.items),
+          [DRAFT_BASE_KEY]: sectionsRev === undefined ? {} : { sections: sectionsRev },
+        }),
         // Survive a flush fired during page-hide / unload.
         keepalive: true,
       });
       const body = (await res.json().catch(() => null)) as {
         version?: { id: number };
+        revs?: Record<string, string>;
+        conflicts?: { field: string; rev: string }[];
         error?: string;
         violations?: { message: string }[];
       } | null;
+      const conflict = body?.conflicts?.find((c) => c.field === "sections");
+      if (res.status === 409 && conflict) {
+        auto?.cancel();
+        setConflictRev(conflict.rev);
+        return null;
+      }
       if (!res.ok) {
         const detail = detailFrom(body);
         if (detail) setErrorDetail(detail);
         throw new Error(`draft failed: ${res.status}`);
       }
-      return body?.version?.id ?? null;
+      if (body?.revs?.sections) sectionsRev = body.revs.sections;
+      return { versionId: body?.version?.id };
     } catch (err) {
       console.error("[louise] save draft failed", err);
       return null;
     }
+  };
+
+  // A save that resolved null: a conflict waiting for the owner, or an error.
+  const failSave = () => setStatus(conflictRev() !== undefined ? "conflict" : "error");
+
+  // The conflict's two ways out (#572). Keep mine saves again with their
+  // revision as the base, so it replaces exactly what the owner was shown;
+  // Reload drops the unsaved sections and loads theirs.
+  const keepMine = () => {
+    sectionsRev = conflictRev();
+    setConflictRev(undefined);
+    void save();
+  };
+  const takeTheirs = () => {
+    setDirty(false);
+    location.reload();
   };
 
   // Save button / auto-save: stage a draft (no reload; the DOM already shows the
@@ -1140,7 +1180,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       setStatus("saved");
       void loadVersions();
     } else {
-      setStatus("error");
+      failSave();
     }
   };
 
@@ -1161,10 +1201,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     if (vid === undefined && dirty()) {
       const saved = await saveDraft();
       if (saved === null) {
-        setStatus("error");
+        failSave();
         return;
       }
-      vid = saved;
+      // A buffered save names no version; publishing "the latest draft" then
+      // flushes the buffer first, so it still goes live.
+      vid = saved.versionId;
       setDirty(false);
     }
     try {
@@ -1220,7 +1262,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     mutate();
     setStatus("saving");
     if ((await saveDraft()) !== null) location.reload();
-    else setStatus("error");
+    else failSave();
   };
 
   // Resume editing a draft from history: load its snapshot as the working copy,
@@ -1292,7 +1334,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       auto?.cancel();
       setStatus("saving");
       if ((await saveDraft()) !== null) location.reload();
-      else setStatus("error");
+      else failSave();
       return;
     }
     replaceNodeElement([], i, el);
@@ -1347,7 +1389,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       auto?.cancel();
       setStatus("saving");
       if ((await saveDraft()) !== null) location.reload();
-      else setStatus("error");
+      else failSave();
       return;
     }
     insertNodeElement(el, [], index, props.host);
@@ -1746,6 +1788,19 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       <Show when={status() === "error"}>
         <span class="louise-sections-status" data-status="error" title={errorDetail()}>
           {errorDetail() || "Couldn’t save"}
+        </span>
+      </Show>
+      <Show when={status() === "conflict"}>
+        <span class="louise-sections-status" data-status="error" aria-live="polite">
+          Someone else changed these sections since you opened them.
+        </span>
+        <span class="louise-conflict">
+          <button class="louise-conflict-keep" type="button" onClick={keepMine}>
+            Keep mine
+          </button>
+          <button class="louise-conflict-reload" type="button" onClick={takeTheirs}>
+            Reload
+          </button>
         </span>
       </Show>
       {/* History moved into the Settings drawer's top strip—the
