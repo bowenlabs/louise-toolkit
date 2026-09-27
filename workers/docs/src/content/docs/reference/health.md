@@ -49,12 +49,31 @@ function readHealthSummary(kv, key?): Promise<HealthSummary | null>;
 
 ```ts
 // in a scheduled handler
-const broken = await checkLinks({ base, paths });
+const crawl = await crawlSite({
+  base,
+  paths: ["/"],
+  crawl: { maxPages: 50, maxDepth: 3 },
+  maxRequests: 200,
+});
 await writeHealthSummary(
   env.HEALTH_KV,
-  summarizeHealth({ brokenLinks: broken, missingAlt, seoGaps }),
+  summarizeHealth({
+    brokenLinks: crawl.brokenLinks,
+    redirects: crawl.redirects,
+    indexing: crawl.indexing,
+    duplicateTitles: crawl.duplicateTitles,
+    missingAlt,
+    seoGaps,
+  }),
 );
 ```
+
+The origin, the start paths, and the caps are the site's. `redirects`,
+`indexing`, and `duplicateTitles` are optional: a scan that passes them stores a
+count and a capped sample of each, which the Health panel lists, and one that
+doesn't stores neither, so the panel hides those sections. Count `seoGaps` over
+published pages that aren't `noindex`, since those don't need a title or
+description for search.
 
 Count `missingAlt` with `MEDIA_ALT_MISSING_SQL` from `louise-toolkit/editor`,
 `("alt" IS NULL)`. An empty alt is an image the owner marked decorative, which
@@ -63,9 +82,10 @@ HTML says to skip, so it isn't missing a description.
 Counts are guarded to non-negative integers, so a bad input can't skew the traffic
 light. `now` is injectable for deterministic tests.
 
-`brokenLinkDetails` is capped at `MAX_BROKEN_LINK_DETAILS` (50)—**the counts
-stay exact**, the details are a sample for a list view, so one badly broken deploy
-can't bloat the stored blob.
+`brokenLinkDetails`, `redirectDetails`, `indexingDetails`, and
+`duplicateTitleDetails` are each capped at `MAX_BROKEN_LINK_DETAILS` (50)—**the
+counts stay exact**, the details are a sample for a list view, so one badly
+broken deploy can't bloat the stored blob.
 
 Omit `ttlSeconds` to keep the summary until the next scan overwrites it. A stale
 snapshot is more useful than none, and `checkedAt` tells the dashboard how old it
@@ -79,7 +99,8 @@ dashboard request.
 
 `HealthSummary.cwv` holds a [`CwvSummary`](/reference/analytics/) once a scan adds
 one. Absent means "not measured yet" and the panel says so—distinct from
-measured-and-poor, which is a real result.
+measured-and-poor, which is a real result. Its `slowestPaths`, from a `byPath`
+query, is the panel's "Slowest pages" list.
 
 ## Reading it
 
@@ -88,7 +109,7 @@ function healthIssueCount(summary: HealthSummary): number;
 ```
 
 The "N things need attention" number: broken links + missing alt + SEO gaps +
-pending migrations. CWV
+redirects + indexing findings + shared titles + pending migrations. CWV
 is deliberately **not** in it—a slow LCP is not a countable defect the way a
 404 is, and adding it would make the number jump for something you can't fix by
 editing one page.

@@ -14,7 +14,12 @@
 import type { CwvSummary } from "../analytics/index.js";
 import { reportDegraded } from "../degraded.js";
 import { timestampAge } from "./age.js";
-import type { BrokenLink } from "../browser/link-check.js";
+import type {
+  BrokenLink,
+  DuplicateTitleFinding,
+  IndexingFinding,
+  RedirectFinding,
+} from "../browser/link-check.js";
 
 /** The KV surface the health store needs—structural so the real `KVNamespace`
  *  fits without importing Workers types (mirrors `DraftBufferKV`). */
@@ -26,8 +31,9 @@ export interface HealthKV {
 /** Default KV key the summary is stored under. */
 export const HEALTH_KV_KEY = "louise:health:summary";
 
-/** Cap on stored broken-link details, so the persisted blob stays small even if a
- *  crawl finds many (the counts are exact; the details are a sample for a list). */
+/** Cap on each list of stored details (broken links, redirects, indexing, shared
+ *  titles), so the persisted blob stays small even if a crawl finds many (the
+ *  counts are exact; the details are a sample for a list). */
 export const MAX_BROKEN_LINK_DETAILS = 50;
 
 /**
@@ -44,6 +50,18 @@ export interface HealthSummary {
   checkedAt: string;
   /** A capped sample of the broken links found, for a detail view. */
   brokenLinkDetails?: BrokenLink[];
+  /** Internal links that redirect (from `crawlSite`). Absent when the scan didn't crawl. */
+  redirects?: number;
+  /** A capped sample, each against the page that holds the link. */
+  redirectDetails?: RedirectFinding[];
+  /** Crawled pages whose robots directive or canonical keeps them out of search. */
+  indexing?: number;
+  /** A capped sample of the indexing findings. */
+  indexingDetails?: IndexingFinding[];
+  /** Titles more than one crawled page shares. */
+  duplicateTitles?: number;
+  /** A capped sample of the shared titles and their pages. */
+  duplicateTitleDetails?: DuplicateTitleFinding[];
   /** Real-visitor Core Web Vitals (#106 CWV)—present once the scan folds in a
    *  p75 snapshot from Analytics Engine; absent → the panel shows "not measured yet". */
   cwv?: CwvSummary;
@@ -60,8 +78,15 @@ export interface HealthInput {
   brokenLinks: BrokenLink[];
   /** Count of media assets / images with no alt text. */
   missingAlt: number;
-  /** Count of published pages missing an SEO title or description. */
+  /** Count of published, indexable pages missing an SEO title or description.
+   *  Leave `noindex` pages out: they don't need either for search. */
   seoGaps: number;
+  /** From `crawlSite`: internal links that redirect. Omit when the scan didn't crawl. */
+  redirects?: readonly RedirectFinding[];
+  /** From `crawlSite`: pages whose robots directive or canonical keeps them out of search. */
+  indexing?: readonly IndexingFinding[];
+  /** From `crawlSite`: titles more than one page shares. */
+  duplicateTitles?: readonly DuplicateTitleFinding[];
   /** Pending schema migrations, from `migrationStatus`. Omit if the site doesn't check. */
   pendingMigrations?: readonly string[];
   /** Scan time (defaults to now)—injectable so tests are deterministic. */
@@ -80,6 +105,18 @@ export function summarizeHealth(input: HealthInput): HealthSummary {
     seoGaps: asCount(input.seoGaps),
     checkedAt: (input.now ?? new Date()).toISOString(),
     brokenLinkDetails: input.brokenLinks.slice(0, MAX_BROKEN_LINK_DETAILS),
+    ...(input.redirects && {
+      redirects: input.redirects.length,
+      redirectDetails: input.redirects.slice(0, MAX_BROKEN_LINK_DETAILS),
+    }),
+    ...(input.indexing && {
+      indexing: input.indexing.length,
+      indexingDetails: input.indexing.slice(0, MAX_BROKEN_LINK_DETAILS),
+    }),
+    ...(input.duplicateTitles && {
+      duplicateTitles: input.duplicateTitles.length,
+      duplicateTitleDetails: input.duplicateTitles.slice(0, MAX_BROKEN_LINK_DETAILS),
+    }),
     ...(input.pendingMigrations?.length ? { pendingMigrations: [...input.pendingMigrations] } : {}),
   };
 }
@@ -90,6 +127,9 @@ export function healthIssueCount(summary: HealthSummary): number {
     summary.brokenLinks +
     summary.missingAlt +
     summary.seoGaps +
+    (summary.redirects ?? 0) +
+    (summary.indexing ?? 0) +
+    (summary.duplicateTitles ?? 0) +
     (summary.pendingMigrations?.length ?? 0)
   );
 }

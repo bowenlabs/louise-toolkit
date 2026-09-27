@@ -9,8 +9,9 @@
 // reachable from the card's action, not a top-strip button.
 
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/solid-query";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, type JSX, Show } from "solid-js";
 import type { CwvSummary } from "../../../core/analytics/index.js";
+import type { IndexingFinding } from "../../../core/browser/link-check.js";
 import { HEALTH_STALE_AFTER_MS, type HealthSummary, isStale } from "../../../core/health/index.js";
 import { Icon } from "../../icons.jsx";
 import { EmptyState, ErrorState, Skeleton } from "../../states.jsx";
@@ -332,6 +333,36 @@ export function HealthPanel(props: {
                   </Show>
                 </section>
 
+                <FindingsSection
+                  heading="Links that redirect"
+                  count={s().redirects}
+                  details={s().redirectDetails}
+                  allClear="No links go through a redirect."
+                  hint="Point each link straight at the page it ends up on."
+                  item={(r) => ({
+                    title: r.url,
+                    sub: `${r.finalStatus === "error" || r.finalStatus >= 400 ? "Ends at a broken page" : `Moves to ${r.to}`}${r.hops > 1 ? ` in ${r.hops} steps` : ""} · on ${r.from}`,
+                  })}
+                />
+
+                <FindingsSection
+                  heading="Hidden from search"
+                  count={s().indexing}
+                  details={s().indexingDetails}
+                  allClear="Every page the check reached can appear in search results."
+                  hint="If a page should appear in search results, ask your developer to look at its settings."
+                  item={(f) => ({ title: f.url, sub: indexingMessage(f) })}
+                />
+
+                <FindingsSection
+                  heading="Shared page titles"
+                  count={s().duplicateTitles}
+                  details={s().duplicateTitleDetails}
+                  allClear="Every page has its own title."
+                  hint="Give each page its own title in Pages, so search results can tell them apart."
+                  item={(d) => ({ title: d.title, sub: d.pages.join(" · ") })}
+                />
+
                 <AiFixSection
                   heading="Image descriptions"
                   count={s().missingAlt}
@@ -384,6 +415,60 @@ function LastChecked(props: { checkedAt: string; staleAfterMs: number }) {
   );
 }
 
+/** Owner wording for why a page is kept out of search. */
+function indexingMessage(finding: IndexingFinding): string {
+  if (finding.issue === "noindex") return "Set to stay out of search results.";
+  if (finding.issue === "canonical-off-origin") {
+    return `Tells search engines the page lives on another site: ${finding.canonical ?? ""}`;
+  }
+  return `Tells search engines to show ${finding.canonical ?? "another page"} instead.`;
+}
+
+/**
+ * One list of crawl findings. Hidden when the scan didn't crawl (`count` is
+ * absent), an all-clear line when it found nothing, and otherwise the capped
+ * details, the rest as a count, and a hint that says what to do.
+ */
+function FindingsSection<T>(props: {
+  heading: string;
+  count: number | undefined;
+  details: readonly T[] | undefined;
+  allClear: string;
+  hint: string;
+  item: (detail: T) => { title: string; sub: string };
+}): JSX.Element {
+  return (
+    <Show when={props.count !== undefined}>
+      <section class="louise-settings-group">
+        <h3 class="louise-settings-title">{props.heading}</h3>
+        <Show
+          when={(props.details ?? []).length > 0}
+          fallback={<p class="louise-muted">{props.allClear}</p>}
+        >
+          <p class="louise-muted louise-settings-hint">{props.hint}</p>
+          <div class="louise-list">
+            <For each={props.details}>
+              {(detail) => (
+                <div class="louise-list-item">
+                  <div class="louise-item-main">
+                    <div class="louise-item-title">{props.item(detail).title}</div>
+                    <div class="louise-item-sub">{props.item(detail).sub}</div>
+                  </div>
+                </div>
+              )}
+            </For>
+          </div>
+          <Show when={(props.count ?? 0) > (props.details ?? []).length}>
+            <p class="louise-muted louise-settings-hint">
+              …and {(props.count ?? 0) - (props.details ?? []).length} more.
+            </p>
+          </Show>
+        </Show>
+      </section>
+    </Show>
+  );
+}
+
 /** Owner wording for pending schema migrations: what it means and who fixes it. */
 const pendingMessage = (n: number) =>
   n === 1
@@ -423,6 +508,23 @@ function PerformanceSection(props: { cwv?: CwvSummary }) {
               <span>Responsiveness: {fmtTime(cwv().inp)}</span>
               <span>Visual stability: {cwv().cls == null ? "—" : cwv().cls!.toFixed(2)}</span>
             </div>
+            <Show when={(cwv().slowestPaths ?? []).length > 0}>
+              <p class="louise-muted louise-settings-hint">Slowest pages:</p>
+              <div class="louise-list">
+                <For each={cwv().slowestPaths}>
+                  {(page) => (
+                    <div class="louise-list-item">
+                      <div class="louise-item-main">
+                        <div class="louise-item-title">{page.path}</div>
+                        <div class="louise-item-sub">
+                          {RATING_LABEL[page.rating]} · Loading: {fmtTime(page.lcp)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
           </>
         )}
       </Show>

@@ -7,6 +7,7 @@ import {
   type AnalyticsEngineLike,
   cwvBeaconScript,
   cwvSqlQuery,
+  parseCwvPathRows,
   parseCwvRows,
   parseVital,
   rateMetric,
@@ -87,6 +88,39 @@ describe("AE query", () => {
     expect(sql).toContain("quantileWeighted(0.75)(double1, _sample_interval)");
     expect(sql).toContain("INTERVAL '48' HOUR");
     expect(sql).toContain("GROUP BY metric");
+  });
+
+  it("groups by page on request, with a floor on readings per page", () => {
+    const sql = cwvSqlQuery("louise_web_vitals", 24, { byPath: true, minSamples: 50 });
+    expect(sql).toContain("blob1 AS path");
+    expect(sql).toContain("GROUP BY metric, path HAVING samples >= 50");
+    expect(cwvSqlQuery("louise_web_vitals", 24, { byPath: true })).toContain("samples >= 20");
+  });
+
+  it("keeps the slowest pages, worst rating first, and drops the fast ones", () => {
+    const pages = parseCwvPathRows([
+      { metric: "LCP", path: "/", p75: 1800, samples: 300 },
+      { metric: "LCP", path: "/shop", p75: 5200, samples: 40 },
+      { metric: "INP", path: "/shop", p75: 150, samples: 40 },
+      { metric: "LCP", path: "/about", p75: 3000, samples: 25 },
+      { metric: "LCP", path: "/menu", p75: 4500, samples: 30 },
+      { metric: "LCP", path: "", p75: 9000, samples: 30 },
+    ]);
+    expect(pages.map((p) => [p.path, p.rating])).toEqual([
+      ["/shop", "poor"],
+      ["/menu", "poor"],
+      ["/about", "needs-improvement"],
+    ]);
+    expect(pages[0]).toMatchObject({ lcp: 5200, inp: 150, sampleSize: 40 });
+    expect(parseCwvPathRows([{ metric: "LCP", path: "/a", p75: 5000, samples: 9 }], 0)).toEqual([]);
+  });
+
+  it("carries the slowest pages through summarizeCwv", () => {
+    const slowestPaths = [{ path: "/shop", rating: "poor" as const, lcp: 5200, sampleSize: 40 }];
+    expect(summarizeCwv({ lcp: 3000, sampleSize: 100, slowestPaths }).slowestPaths).toEqual(
+      slowestPaths,
+    );
+    expect(summarizeCwv({ lcp: 3000, sampleSize: 100 })).not.toHaveProperty("slowestPaths");
   });
 
   it("rejects an unsafe dataset name (no injection)", () => {
