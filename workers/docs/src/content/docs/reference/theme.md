@@ -14,10 +14,10 @@ Two CSS assets—not JS—that style Louise's editor chrome. They ship as plain
 stylesheets (no build step, no peers); the package marks them as the only
 side-effectful files, so importing JS never accidentally pulls in CSS.
 
-| Export                            | Contents                                                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `louise-toolkit/theme/louise.css` | The `louise` / `louise-dark` daisyUI themes + chrome variables (`--louise-accent`, `--louise-ring`, `--louise-font-head`, `--louise-font-body`). |
-| `louise-toolkit/theme/fonts.css`  | The `.louise-type` typography contract (Roboto Flex for headings and body). See [Fonts](#fonts).                                                 |
+| Export                            | Contents                                                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `louise-toolkit/theme/louise.css` | The `louise` / `louise-dark` daisyUI themes + chrome variables (`--louise-accent`, `--louise-accent-soft`, `--louise-ring`).                          |
+| `louise-toolkit/theme/fonts.css`  | Roboto Flex, inlined; the font tokens `--louise-font-head` and `--louise-font-body`; and the `.louise-type` typography contract. See [Fonts](#fonts). |
 
 ## Wiring
 
@@ -37,7 +37,7 @@ declare the daisyUI themes:
 
 Apply `data-theme="louise"` (or `louise-dark`) to any editor surface's root so it
 never inherits the public site theme. See the [Theme guide](/guide/theme/)
-for the palette, typography, and the standalone `preview/index.html`.
+for the palette and typography.
 
 ## Fonts
 

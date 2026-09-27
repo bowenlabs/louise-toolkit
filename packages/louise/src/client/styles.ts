@@ -121,11 +121,9 @@ const CSS = `
   --louise-text-md: 0.875rem;
   --louise-text-lg: 1rem;
 
-  /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
-     the same family, just a heavier weight. The @font-face is bundled (base64)
-     via brandFontsCss in injectStyles() — only on Louise surfaces. */
-  --louise-font-head: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* The font tokens, --louise-font-head and --louise-font-body, are defined
+     once, in theme/fonts.css, which injectStyles() puts ahead of this CSS along
+     with its bundled @font-face. */
 }
 /* Dark roles follow the system setting, and a page can pin either scheme with
    data-louise-scheme on the root element (ADR 0019 §3). */

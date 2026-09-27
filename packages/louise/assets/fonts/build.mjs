@@ -39,6 +39,19 @@ const css = `/*
  * client style injector (src/client/styles.ts imports this file with \`?raw\`) and
  * by any markup that imports \`louise-toolkit/theme/fonts.css\` + opts in with the
  * \`.louise-type\` class. A \`data:\` font needs \`font-src data:\` under a strict CSP.
+ *
+ * This file owns the font tokens, \`--louise-font-head\` and \`--louise-font-body\`:
+ * the chrome reads them, and \`.louise-type\` does too, so one edit here changes
+ * both.
+ *
+ * WEIGHT — intended for EDITOR surfaces, not public pages. The inlined face makes
+ * this file ~45KB, and a stylesheet is render-blocking, so importing it on a
+ * public page delays first paint by the whole payload (\`font-display: swap\`
+ * doesn't help — it governs the font swap, not the stylesheet parse). That cost
+ * is fine behind the edit-mode-gated editor bundle, which is the only place the
+ * client injector pulls it. For public pages, self-host an external \`.woff2\` and
+ * \`@font-face\` it yourself so the font streams alongside the page instead of
+ * blocking it — that's what the docs site (workers/docs) does.
  */
 @font-face {
   font-family: "Roboto Flex";
@@ -49,16 +62,18 @@ const css = `/*
     format("woff2");
 }
 
+:root {
+  --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* The same family as the body: headings are just heavier. */
+  --louise-font-head: var(--louise-font-body);
+}
+
 .louise-type {
-  font-family:
-    "Roboto Flex",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--louise-font-body);
 }
 /* Titles a little thicker than body; subheadings medium. */
 .louise-type :is(h1, h2, h3, .louise-heading) {
+  font-family: var(--louise-font-head);
   font-weight: 800;
 }
 .louise-type :is(h4, h5, h6, .louise-subheading) {
