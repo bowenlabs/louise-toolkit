@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Accepted (2026-09-27)
+- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
@@ -87,12 +87,42 @@ Only the site knows which failures matter most, so it's a parameter: `onIncident
 
 A Sentry sink lives in astroidjs, behind a per-site setting, never in the zero-dependency core (ADR 0016 § 7). It sends the redacted report with `sendDefaultPii` off and request bodies and headers scrubbed. The site's D1 stays the record; Sentry gets a copy for stack traces and release tracking.
 
+## Amendment (2026-09-27, before § 4)
+
+Sentry Team is already paid for, inside the tier fee (ADR 0016 § 7). It groups errors, counts them per release, marks a resolved issue that comes back, runs alert rules that can post to Discord, and opens a GitHub issue with the commits it suspects. § 5 and part of § 6 would have rebuilt that in louise-ops. This amendment lands before § 4's code, so nothing built is thrown away.
+
+### Sentry is the operator's issue system
+
+For a Monitored or Supported site, Sentry is where Baylee triages an incident, replacing § 9's "a copy." The Sentry sink stays in astroidjs, never in the core, with `sendDefaultPii` off and request bodies and headers scrubbed. Two things change:
+
+- **It sends the original error.** A stack is what makes a Sentry issue useful, and an `IncidentReport` doesn't carry one. `IncidentSink` gains a second argument, `{ cause }`: the value that was thrown, in memory only and never serialized. The D1 sink ignores it.
+- **It shares the report's fingerprint.** The sink sets the Sentry event's fingerprint to the report's, and tags it with `kind`, `critical`, and the site. So one row in the site's D1 is one Sentry issue, and Watchtower joins the two on the fingerprint. Sentry's stack-based grouping would split and merge differently from the site's record.
+
+Sentry doesn't become the record. The site's D1 still is (ADR 0016 § 1): owners never see Sentry, a site on the Included tier has no Sentry project, and a client who leaves keeps their incident history.
+
+### Watchtower pulls; sites don't push
+
+§ 5 is withdrawn: there's no `httpIncidents` sink, no `/ingest/incident`, and no per-site ingest token. Watchtower reads with credentials it already has:
+
+- **Every site's `incidents` table,** through Cloudflare's D1 query API on its cron, with the read-only account token ADR 0017 gives it for each site. That token's `D1 Read` permission covers a `SELECT`.
+- **Sentry's organization issues endpoint,** filtered to the site's project, for a Monitored or Supported site. It uses an internal integration's token with `event:read`. The same integration's issue webhooks (created, resolved, unresolved, assigned, and archived) update the dashboard between polls. A regression arrives as `unresolved`.
+
+Watchtower keeps, for the monthly report: the fingerprint, `kind`, `name`, count, first and last times seen, `critical`, and the Sentry issue's ID and link. An incident's message or a Sentry issue's title is read when a page shows it, and isn't stored. The first three are ADR 0016 § 1's list; `name`, the count, and the times are the additions § 5 proposed, now held by Watchtower instead of an ingest endpoint.
+
+### `incidentsRoute` serves editors only
+
+§ 4 gave `incidentsRoute` to a scoped read-only token for Watchtower. ADR 0009's amendment of the same date keeps agent tokens to the MCP route, and Watchtower now reads the table through D1, so the route takes the editor session only. The Health panel and #480 read it. An agent that needs incidents can get an MCP tool later, through `mcpRoute` and its scopes.
+
+### Alerts come from Sentry where there is Sentry
+
+§ 6 stands: `critical` is a site parameter, stored on the row and sent as a Sentry tag. A Sentry alert rule on that tag posts a site's critical incidents to Discord. For a site without Sentry, Watchtower alerts when its poll finds a new or reopened critical row. A failed probe alerts from Watchtower, as it already does.
+
 ## Consequences
 
-- **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and route (§ 4), the queue changes (§ 7), the AI reasons (§ 8), and the HTTP and Analytics Engine sinks (§ 5). Each is a `minor` changeset with no new dependency.
+- **Six PRs in this repository, in order:** the report and fingerprint (§ 1 and § 2), capture in `composeWorker` (§ 3), the table, sink, and editor route (§ 4, as amended), the queue changes (§ 7), the AI reasons (§ 8), and the sink's `{ cause }` argument with an Analytics Engine sink (the amendment). Each is a `minor` changeset with no new dependency.
 - **`@louise-toolkit/astro`** passes `onIncident` through its middleware, so an Astro site's route errors are captured too.
-- **astroidjs** wires the sinks by default in its scaffold, generates a dead-letter consumer for each declared dead-letter queue, and adds the Sentry opt-in.
-- **louise-ops** adds `/ingest/incident`, per-site tokens, and the `search_incidents`, `get_incident`, and `site_status` tools, and Watchtower reads the same summaries.
+- **astroidjs** wires the sinks by default in its scaffold, generates a dead-letter consumer for each declared dead-letter queue, and adds the Sentry sink as a per-site setting, turned on for every Monitored and Supported site.
+- **louise-ops** records each site's Sentry project in the site registry. Watchtower reads incidents from each site's D1 and from Sentry, and the `search_incidents`, `get_incident`, and `site_status` tools read the same two sources.
 - **Each site adds one migration** for the two tables, and its runbook names its dead-letter queue and how to replay it.
 - **Heartbeats stay separate.** A job that stops running never throws, so incident capture can't see it. #559's stale-job check and `statusRoute`'s age checks cover that.
 - **Done when:** the full check suite passes; 100 identical throws produce one incident with a count of 100; and a simulated retired model is its own incident, which Louise matches to the lesson about a model's end of life.
@@ -105,3 +135,6 @@ A Sentry sink lives in astroidjs, behind a per-site setting, never in the zero-d
 - **Coalescing repeats in the isolate before writing.** Rejected: an isolate can't flush reliably after its last request, so coalesced counts would be lost. The D1 upsert counts instead, and § 5's thresholds keep louise-ops quiet.
 - **A thrown `LouiseAiError`.** Rejected: `runAi` never throws, and every caller relies on that. The `reason` in the degrade details and the `502` body gives the same information without breaking the contract.
 - **The path or stack in the fingerprint.** Rejected: the path splits one bug into many incidents, and a bundled stack changes with every deploy.
+- **Sites pushing summaries to louise-ops (§ 5 as first written).** Withdrawn by the amendment: pulling with the tokens Watchtower already holds needs no ingest endpoint and no per-site token, and Sentry already counts and alerts.
+- **Sentry's own grouping.** Rejected by the amendment: it would group differently from the site's D1, so a row and an issue couldn't be matched.
+- **Sentry's user feedback for owner tickets.** Rejected: its widget is a browser script on the page, which ADR 0016 § 2 rules out; a ticket's body would sit in the Bowen Labs Sentry organization, which § 1 rules out; and it has no way to reply to the owner. Tickets stay in the site's D1, as the support module plans, and a ticket can link to a Sentry issue.
