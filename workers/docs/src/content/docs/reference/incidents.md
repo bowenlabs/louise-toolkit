@@ -1,6 +1,6 @@
 ---
 title: incidents
-description: "louise-toolkit/incidents—the report every failure becomes, and its fingerprint."
+description: "louise-toolkit/incidents—the report every failure becomes, its fingerprint, and the site's D1 record."
 sidebar:
   order: 7.25
 ---
@@ -8,28 +8,37 @@ sidebar:
 ```ts
 import {
   buildIncidentReport,
+  d1Incidents,
   fingerprintFailure,
+  getIncident,
   incidentFromDegraded,
+  incidents,
+  incidentsColumns,
   isCriticalIncident,
+  listIncidents,
   MAX_INCIDENT_MESSAGE,
   redactMessage,
+  resolveIncident,
+  upsertIncident,
+  type Incident,
   type IncidentInput,
   type IncidentKind,
   type IncidentReport,
   type IncidentSink,
+  type IncidentSinkContext,
 } from "louise-toolkit/incidents";
 ```
 
 A throw from a route, a queue handler, or a cron, and a fallback that fired
 ([`reportDegraded`](/reference/errors/)), each become one `IncidentReport`.
-Reports with the same fingerprint are one incident, so a sink can count them.
-This subpath is the pure part: the report's shape, the fingerprint, and the
-redaction. No bindings and no peers.
+Reports with the same fingerprint are one incident, and the site's own D1 keeps
+one row per incident, with a count. No peers.
 
 The design is [ADR 0022](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0022-incident-capture.md).
 [`composeWorker`'s `onIncident`](/reference/worker/#incident-capture-onincident)
-captures reports from a Worker's handlers. The sinks that store and forward them
-build on these pieces.
+captures reports from a Worker's handlers, and
+[`incidentsRoute`](/reference/editor/#routes) shows the rows to the site's
+editors.
 
 ## `IncidentReport`
 
@@ -132,9 +141,90 @@ for you when you pass `critical`.
 ## `IncidentSink`
 
 ```ts
-type IncidentSink = (report: IncidentReport) => void | Promise<void>;
+type IncidentSink<Env> = (
+  report: IncidentReport,
+  context: { env: Env; cause?: unknown },
+) => void | Promise<void>;
 ```
 
 Takes each report. Capture runs a sink after the response, and a sink that
 throws or rejects is logged and ignored, so it can't fail the request it's
 reporting on.
+
+`context.env` is the Worker's bindings, for a sink that writes somewhere.
+`context.cause` is the value that was thrown, or a degrade's cause, as it was:
+with its stack and unredacted. It lives in memory only. A sink that sends it
+anywhere, such as an error tracker, owns scrubbing it first.
+
+## The `incidents` table
+
+The site's D1 is the record: one row per fingerprint. Add the table to the
+schema drizzle-kit reads, and generate a migration:
+
+```ts
+// db/schema.ts
+export { incidents } from "louise-toolkit/incidents";
+```
+
+To add columns, spread `incidentsColumns` into your own `sqliteTable` and pass
+that table to each function below as its last argument.
+
+| Column        | What it holds                                          |
+| ------------- | ------------------------------------------------------ |
+| `fingerprint` | The primary key                                        |
+| `kind`        | `fetch`, `queue`, `scheduled`, or `degraded`           |
+| `name`        | The error's class or the degrade's name                |
+| `code`        | A `LouiseError`'s code, or `null`                      |
+| `message`     | The latest report's message, redacted                  |
+| `path`        | The latest report's path                               |
+| `host`        | The latest report's host                               |
+| `release`     | The latest report's release                            |
+| `critical`    | Whether the latest report was marked critical          |
+| `count`       | How many reports it has had                            |
+| `first_seen`  | When it was first seen, in epoch milliseconds          |
+| `last_seen`   | When it was last seen, in epoch milliseconds           |
+| `resolved_at` | When someone resolved it, or `null` while it's open    |
+| `reopened_at` | When it last came back after being resolved, or `null` |
+
+Times are plain epoch milliseconds, so a `SELECT` through Cloudflare's D1 API,
+as Watchtower runs, can compare them without a conversion.
+
+## `d1Incidents(database, table?)`
+
+```ts
+function d1Incidents<Env>(
+  database: (env: Env) => D1Database | D1DatabaseSession,
+  table?: IncidentTable,
+): IncidentSink<Env>;
+```
+
+The sink that keeps the record: each report is counted into the `incidents`
+table with `upsertIncident`. Put it first in `onIncident`'s list, so the record
+doesn't depend on any other sink.
+
+```ts
+export default composeWorker<Env>({
+  fetch: ssrHandler,
+  onIncident: {
+    sinks: [d1Incidents((env) => env.DB)],
+    critical: ["commerce.checkout", "/cart"],
+  },
+});
+```
+
+## `upsertIncident(d1, report, table?)`
+
+Counts one report into its incident and returns the row as it now stands. The
+first report for a fingerprint inserts the row. A later one adds to `count`,
+moves `lastSeen` forward (never back, for a report that arrives late), and takes
+the latest `message`, `path`, `host`, `release`, and `critical`. On a resolved
+row it also clears `resolvedAt` and sets `reopenedAt`, so a failure that comes
+back after a fix shows.
+
+## `listIncidents(d1, options?, table?)` · `getIncident(d1, fingerprint, table?)` · `resolveIncident(d1, fingerprint, now?, table?)`
+
+`listIncidents` returns incidents, most recently seen first. `status` is
+`"open"` (the default), `"resolved"`, or `"all"`, and `limit` defaults to 100.
+`getIncident` returns one row or `null`. `resolveIncident` marks an open
+incident resolved and returns it, or `null` when there's no open incident with
+that fingerprint; the next report for it reopens it.

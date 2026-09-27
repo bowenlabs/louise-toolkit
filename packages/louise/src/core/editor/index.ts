@@ -19,6 +19,7 @@ export {
 export { type EditorsRouteConfig, editorsRoute } from "./editors.js";
 export { type FormOutcome, type FormRouteConfig, type FormRouteEnv, formRoute } from "./form.js";
 export { type HealthRouteConfig, healthRoute } from "./health.js";
+export { incidentsRoute, type IncidentsRouteConfig } from "./incidents.js";
 export { inquiriesRoute, type InquiriesRouteConfig } from "./inquiries.js";
 export {
   ageCheck,
