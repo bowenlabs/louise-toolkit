@@ -90,6 +90,17 @@ export interface RichTextFieldOptions {
    *  element and lose its styling. */
   inline?: boolean;
   /**
+   * The text colors the format bubble offers, as theme tokens. Picking one
+   * stores `color: var(--color-<token>)`, so the text follows a re-theme, and
+   * any token works that the site's theme defines as `--color-<token>`, such
+   * as `brand-orange`. The palette is a brand fact, so the site passes it: on
+   * the field, or for every field on the `mountSections` `richText` default.
+   * Default: primary, secondary, accent, and neutral; the state colors (info,
+   * success, warning, error) aren't offered, since text in them reads as a
+   * message. An empty list hides the color button.
+   */
+  colors?: readonly RichTextColor[];
+  /**
    * Typographic input rules, off by default (#606). With `typography: {}`,
    * typing `--` gives an em dash and `...` an ellipsis. Add `quotes`, the four
    * marks your language uses as opening double, closing double, opening single,
@@ -104,6 +115,14 @@ export interface RichTextFieldOptions {
    * right (#606). Off by default.
    */
   language?: boolean;
+}
+
+/** One text color the rich-text editor offers: a label, and a theme token. */
+export interface RichTextColor {
+  /** What the swatch is called, such as `"Brand orange"`. */
+  label: string;
+  /** The theme token, lowercase with hyphens: `--color-<token>` must exist. */
+  token: string;
 }
 
 /** The typographic input rules a rich-text field turns on. */

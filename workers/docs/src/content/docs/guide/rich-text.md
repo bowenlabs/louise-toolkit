@@ -48,6 +48,32 @@ H2 / H3, bullet & numbered lists, quote, image, and brand text colors. Icons are
 Phosphor SVGs inlined raw, so they're CSP-safe (no external requests, no inline
 `<script>`).
 
+### Text colors
+
+A text color is stored as a theme token, `color: var(--color-<token>)`, so the
+text follows a re-theme with no content rewrite. By default the popover offers
+the brand roles: primary, secondary, accent, and neutral. The state colors
+(info, success, warning, error) aren't offered, because text in them reads as a
+message, and a theme can change what they look like.
+
+The palette is a brand fact, so pass your own as `colors`, a list of
+`{ label, token }`. Any token works that your theme defines as
+`--color-<token>`. Set it on a field, or for every field on the `mountSections`
+`richText` default; a field that names its own list wins, and an empty list
+hides the color button.
+
+```ts
+mountSections(host, {
+  catalog,
+  richText: {
+    colors: [
+      { label: "Brand orange", token: "brand-orange" },
+      { label: "Ink", token: "neutral" },
+    ],
+  },
+});
+```
+
 ### Punctuation and other languages
 
 Two options on a rich-text field, both off by default:
