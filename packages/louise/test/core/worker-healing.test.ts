@@ -267,7 +267,7 @@ describe("withHealing — pass-through & rethrow", () => {
 describe("describeFailure", () => {
   it("builds a flat, serializable report from the healing context", () => {
     const context: HealingContext = {
-      request: req("https://site.example/api/x", "POST"),
+      request: req("https://site.example/api/x?token=secret", "POST"),
       env: {},
       ctx: makeCtx().ctx,
       error: new LouiseDbError("connection reset"),
@@ -279,7 +279,8 @@ describe("describeFailure", () => {
       code: "DB_ERROR",
       message: "connection reset",
       method: "POST",
-      url: "https://site.example/api/x",
+      // The pathname only: the query string can carry a token.
+      url: "/api/x",
       attempts: 3,
       at: 1_700_000_000_000,
     });

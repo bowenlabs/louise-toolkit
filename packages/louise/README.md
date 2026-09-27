@@ -25,16 +25,16 @@ pnpm add louise-toolkit
 Louise's heavier dependencies are **optional peers**. Install only what the exports
 you use require:
 
-| If you use…                                                                                                                               | Install                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `louise-toolkit/db`, `/content`, `/media`, `/editor`, `/forms`, but **not** `/content/define`, which is drizzle-free                      | `drizzle-orm`                                       |
-| `louise-toolkit/client`                                                                                                                   | `solid-js prosekit @prosekit/pm`                    |
-| `louise-toolkit/client/settings`                                                                                                          | `@tanstack/solid-query` (+ the client peers)        |
-| `louise-toolkit/auth`                                                                                                                     | `better-auth` (`@better-auth/passkey` for passkeys) |
-| `louise-toolkit/browser`                                                                                                                  | `@cloudflare/puppeteer`                             |
-| `louise-toolkit/stega`                                                                                                                    | `@vercel/stega`                                     |
-| `louise-toolkit/astro`                                                                                                                    | `astro`                                             |
-| `/security`, `/worker`, `/email`, `/queues`, `/errors`, `/commerce`, `/ai`, `/analytics`, `/realtime`, `/workflows`, `/health`, `/schema` | _(no peers)_                                        |
+| If you use…                                                                                                                                             | Install                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `louise-toolkit/db`, `/content`, `/media`, `/editor`, `/forms`, but **not** `/content/define`, which is drizzle-free                                    | `drizzle-orm`                                       |
+| `louise-toolkit/client`                                                                                                                                 | `solid-js prosekit @prosekit/pm`                    |
+| `louise-toolkit/client/settings`                                                                                                                        | `@tanstack/solid-query` (+ the client peers)        |
+| `louise-toolkit/auth`                                                                                                                                   | `better-auth` (`@better-auth/passkey` for passkeys) |
+| `louise-toolkit/browser`                                                                                                                                | `@cloudflare/puppeteer`                             |
+| `louise-toolkit/stega`                                                                                                                                  | `@vercel/stega`                                     |
+| `louise-toolkit/astro`                                                                                                                                  | `astro`                                             |
+| `/security`, `/worker`, `/email`, `/queues`, `/errors`, `/incidents`, `/commerce`, `/ai`, `/analytics`, `/realtime`, `/workflows`, `/health`, `/schema` | _(no peers)_                                        |
 
 The core primitives are dependency-injected: you pass in your Cloudflare bindings
 (D1, R2, Queues, Email), and Louise never reaches for `cloudflare:workers` itself.
@@ -71,6 +71,7 @@ The core primitives are dependency-injected: you pass in your Cloudflare binding
 | `louise-toolkit/queues`                               | Cloudflare Queues producer + batch consumer                                                                                  |
 | `louise-toolkit/stega`                                | `@vercel/stega` visual-editing tagging + a dependency-free stripper                                                          |
 | `louise-toolkit/errors`                               | `LouiseError` and typed subclasses                                                                                           |
+| `louise-toolkit/incidents`                            | The report every failure becomes, its fingerprint, and its redaction (ADR 0022)                                              |
 | `louise-toolkit/theme/louise.css`, `/theme/fonts.css` | the daisyUI "louise" editor theme                                                                                            |
 
 ## Quick start

@@ -111,6 +111,7 @@ export default {
       // Drizzle-free Turnstile entry (both halves)—see turnstile-entry.ts.
       "src/core/forms/turnstile-entry.ts",
       "src/core/health/index.ts",
+      "src/core/incidents/index.ts",
       "src/core/media/index.ts",
       "src/core/qr/index.ts",
       "src/core/queues/index.ts",

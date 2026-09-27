@@ -176,6 +176,11 @@
       "import": "./dist/core/qr/index.js",
       "default": "./dist/core/qr/index.js"
     },
+    "./incidents": {
+      "types": "./dist/core/incidents/index.d.ts",
+      "import": "./dist/core/incidents/index.js",
+      "default": "./dist/core/incidents/index.js"
+    },
     "./queues": {
       "types": "./dist/core/queues/index.d.ts",
       "import": "./dist/core/queues/index.js",

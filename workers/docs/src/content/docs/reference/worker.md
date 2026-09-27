@@ -221,7 +221,8 @@ Safe for idempotent reads; a retried POST can double-write—`retries` defaults
 to `0`, opt in only per code. `TRANSIENT_CODES` (`DB_ERROR`, `CACHE_ERROR`,
 `STORAGE_ERROR`, `QUEUE_ERROR`) is exported as guidance for which codes are
 generally safe to retry. `describeFailure(ctx)` builds a flat, serializable
-`FailureReport` an `escalate` hook can enqueue across a queue boundary.
+`FailureReport` an `escalate` hook can enqueue across a queue boundary. Its
+`url` is the request's pathname only, because a query string can carry a token.
 :::
 
 ## Types

@@ -125,23 +125,35 @@ export function onDegraded(listener: DegradedListener): () => void {
 
 /** One line of text for any thrown value, without ever throwing itself. */
 function describeCause(cause: unknown): string {
-  if (cause === undefined) return "no cause given";
+  const { name, message } = causeParts(cause);
+  if (!name) return clip(message, MAX_MESSAGE);
+  return clip(message ? `${name}: ${message}` : name, MAX_MESSAGE);
+}
+
+/**
+ * A thrown value's name and message, each flattened to one line, without ever
+ * throwing. `name` is empty for a value that isn't an `Error`. Incident capture
+ * reads a cause the same way, so it's exported, but it's on no subpath.
+ */
+export function causeParts(cause: unknown): { name: string; message: string } {
+  if (cause === undefined) return { name: "", message: "no cause given" };
   if (isError(cause) && isUpstream(cause)) {
     // Its `message` is the user-safe summary; a log line wants the operation
     // and what the provider said, which `upstreamLogLine` adds.
     try {
       const name = safeText(read(cause, "name") ?? "UpstreamError", "UpstreamError");
-      return clip(safeText(`${name}: ${upstreamLogLine(cause)}`, name), MAX_MESSAGE);
+      return { name, message: safeText(upstreamLogLine(cause), "") };
     } catch {
       // Fall through to the plain `Error` path.
     }
   }
   if (isError(cause)) {
-    const name = safeText(read(cause, "name") ?? "Error", "Error");
-    const message = safeText(read(cause, "message") ?? "", "");
-    return clip(message ? `${name}: ${message}` : name, MAX_MESSAGE);
+    return {
+      name: safeText(read(cause, "name") ?? "Error", "Error"),
+      message: safeText(read(cause, "message") ?? "", ""),
+    };
   }
-  return clip(safeText(cause, "unprintable cause"), MAX_MESSAGE);
+  return { name: "", message: safeText(cause, "unprintable cause") };
 }
 
 /** `instanceof Error`, or `false` when a proxy's prototype trap throws. */
