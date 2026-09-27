@@ -184,6 +184,12 @@ and entirely on the canvas—there is no floating panel:
 - **Everything you can't point at is behind the wrench**—array items, images,
   and any `inline: false` field, plus a section's layout and settings. On a
   value node the wrench opens just that field.
+- **Structure undoes.** Deleting, moving, or adding a section or block is
+  instant, and Ctrl+Z or Cmd+Z reverses the newest one, up to 20. The same goes
+  for the array items and variants behind the wrench. A delete also puts
+  **Deleted Hero · Undo** in the edit bar for 8 seconds. Each undo reverses only
+  its own edit, so text typed since then stays. Inside a text field the
+  keystroke is the field's own undo, and inside a dialog it does nothing.
 
 Save draft, Publish, and the save status live on the shared
 [edit bar](/guide/inline-editing/), not on the sections editor.

@@ -82,25 +82,27 @@ export function MediaPanel() {
     }
   };
 
+  // One prompt per delete (#541): read what uses the file first, then ask once,
+  // naming those uses. A reference that appears between the prompt and the
+  // delete still comes back as a 409, and only then does a second prompt ask.
+  const referencesPrompt = (used: MediaReference[]) => {
+    const list = used
+      .map((u) => [u.collection, u.label].filter(Boolean).join(": "))
+      .filter(Boolean)
+      .join(", ");
+    return (
+      `This file is still used by ${used.length} item${used.length === 1 ? "" : "s"}` +
+      (list ? ` (${list})` : "") +
+      ". Deleting it shows a broken image there, and it can’t be undone. Delete anyway?"
+    );
+  };
   const deleteMutation = useMutation(() => ({
-    mutationFn: async (key: string) => {
+    mutationFn: async ({ key, force }: { key: string; force: boolean }) => {
       const url = `/api/louise/media?key=${encodeURIComponent(key)}`;
-      let res = await fetch(url, { method: "DELETE" });
-      // 409 = still referenced by content. Show exactly what would break, and
-      // only force the delete if the editor confirms.
+      let res = await fetch(force ? `${url}&force=1` : url, { method: "DELETE" });
       if (res.status === 409) {
         const body = (await res.json().catch(() => ({}))) as { references?: MediaReference[] };
-        const used = body.references ?? [];
-        const list = used
-          .map((u) => [u.collection, u.label].filter(Boolean).join(": "))
-          .filter(Boolean)
-          .join(", ");
-        const ok = confirm(
-          `This file is still used by ${used.length} item${used.length === 1 ? "" : "s"}` +
-            (list ? ` (${list})` : "") +
-            ". Deleting it will show a broken image there. Delete anyway?",
-        );
-        if (!ok) return { canceled: true };
+        if (!confirm(referencesPrompt(body.references ?? []))) return { canceled: true };
         res = await fetch(`${url}&force=1`, { method: "DELETE" });
       }
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);
@@ -109,10 +111,20 @@ export function MediaPanel() {
     onSuccess: () => qc.invalidateQueries({ queryKey: louiseQueryKeys.media }),
     onError: (err) => setError(err instanceof Error ? err.message : "Couldn’t delete."),
   }));
-  const del = (key: string) => {
-    if (!confirm("Delete this file from storage? This can’t be undone.")) return;
+  const del = async (key: string) => {
     setError(null);
-    deleteMutation.mutate(key);
+    // A server without the references read answers with the list instead, which
+    // has no `references`: ask the plain question, and let a 409 ask the second.
+    const used = await fetch(`/api/louise/media?references=${encodeURIComponent(key)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ references?: MediaReference[] }>) : null))
+      .then((b) => b?.references ?? [])
+      .catch(() => [] as MediaReference[]);
+    const prompt =
+      used.length > 0
+        ? referencesPrompt(used)
+        : "Delete this file from storage? This can’t be undone.";
+    if (!confirm(prompt)) return;
+    deleteMutation.mutate({ key, force: used.length > 0 });
   };
 
   return (
@@ -162,7 +174,7 @@ export function MediaPanel() {
                     onEdit={() => setEditingKey(m.key)}
                     onCloseEdit={() => setEditingKey((k) => (k === m.key ? null : k))}
                     onCopy={() => void copy(m.url)}
-                    onDelete={() => del(m.key)}
+                    onDelete={() => void del(m.key)}
                     onSaved={() => qc.invalidateQueries({ queryKey: louiseQueryKeys.media })}
                     onError={setError}
                   />

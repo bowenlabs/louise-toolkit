@@ -63,9 +63,10 @@ Delete a draft by mistake and **Undo** brings it back.
 
 ## A few things worth knowing
 
-**You cannot break the site by editing it.** The worst case is publishing
-something you'd rather not have; open an earlier version as a draft and publish
-it, or edit and publish again.
+**You cannot break the site by editing it.** Delete or move a section by
+mistake and Ctrl+Z (Cmd+Z on a Mac) or the edit bar's **Undo** puts it back.
+The worst case is publishing something you'd rather not have; open an earlier
+version as a draft and publish it, or edit and publish again.
 
 **Sign out when you're on a shared computer.** An editor session is a real
 session—anyone using that browser afterwards would be signed in as you.

@@ -239,6 +239,16 @@ const CSS = `
 .louise-status[data-status="locked"] {
   color: var(--louise-danger);
 }
+/* "Deleted Hero · Undo" after a structural delete (#541). Empty, it has no
+   size; it stays displayed, because a live region under display: none isn't
+   announced. */
+.louise-bar-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--louise-text-sm);
+  color: var(--louise-text-secondary);
+}
 /* A draft-save conflict's two ways out (#572), beside the status. */
 .louise-conflict {
   display: inline-flex;

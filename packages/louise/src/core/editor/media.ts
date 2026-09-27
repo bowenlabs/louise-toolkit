@@ -107,7 +107,8 @@ const MEDIA_PATCH_BODY = s.object({
 
 /**
  * Build the `media` editor route. GET lists the registry newest-first (each
- * item carries its public `url`), POST uploads + registers a verified image,
+ * item carries its public `url`), and `GET ?references=<key>` returns
+ * `{ references }` for one file. POST uploads + registers a verified image,
  * DELETE removes an asset after the reference scan (`409 in_use` unless
  * `?force=1`). Returns `undefined` for a non-matching path.
  */
@@ -130,6 +131,14 @@ export function mediaRoute<Env extends MediaRouteEnv = MediaRouteEnv>(
     if (method === "GET") {
       const g = await guardEditor(request, env, config.resolveEditor, false);
       if ("response" in g) return g.response;
+      // `?references=<key>`: what uses this file, so the Media panel can name
+      // it in its one delete prompt (#541) before anything is deleted.
+      const refKey = new URL(request.url).searchParams.get("references");
+      if (refKey !== null) {
+        return json({
+          references: sources.length > 0 ? await findMediaReferences(env.DB, refKey, sources) : [],
+        });
+      }
       const { results } = await env.DB.prepare(
         `SELECT * FROM ${ident(name)} ORDER BY "uploaded_at" DESC LIMIT ?1`,
       )

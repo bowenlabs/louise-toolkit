@@ -481,6 +481,69 @@ describe("MediaPanel — upload errors", () => {
   });
 });
 
+describe("MediaPanel — delete (#541)", () => {
+  const media = { media: [{ key: "web/a.jpg", url: "https://cdn/a.jpg" }] };
+  const deletes = (mock: ReturnType<typeof stubFetch>) =>
+    mock.mock.calls
+      .filter((c) => (c[1]?.method ?? "GET").toUpperCase() === "DELETE")
+      .map((c) => String(c[0]));
+
+  it("asks once, naming what uses the file, then force-deletes", async () => {
+    const fetchMock = stubFetch((url, method) => {
+      if (method === "GET" && url.includes("references=")) {
+        return jsonResponse({ references: [{ collection: "Pages", label: "Home" }] });
+      }
+      if (method === "GET") return jsonResponse(media);
+      return jsonResponse({ ok: true });
+    });
+    mount(() => <MediaPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("a.jpg"));
+
+    host.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!.click();
+    await vi.waitFor(() => expect(deletes(fetchMock)).toHaveLength(1));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(confirm).mock.calls[0][0]).toContain("still used by 1 item (Pages: Home)");
+    expect(deletes(fetchMock)[0]).toContain("force=1");
+  });
+
+  it("asks the plain question for an unused file, and sends no force", async () => {
+    const fetchMock = stubFetch((url, method) => {
+      if (method === "GET" && url.includes("references=")) return jsonResponse({ references: [] });
+      if (method === "GET") return jsonResponse(media);
+      return jsonResponse({ ok: true });
+    });
+    mount(() => <MediaPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("a.jpg"));
+
+    host.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!.click();
+    await vi.waitFor(() => expect(deletes(fetchMock)).toHaveLength(1));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(confirm).mock.calls[0][0]).toContain("Delete this file from storage?");
+    expect(deletes(fetchMock)[0]).not.toContain("force=1");
+  });
+
+  it("falls back to a second prompt when the delete still meets a reference", async () => {
+    const fetchMock = stubFetch((url, method) => {
+      // An older server: the references read answers with the list.
+      if (method === "GET") return jsonResponse(media);
+      if (method === "DELETE" && !url.includes("force=1")) {
+        return jsonResponse(
+          { error: "in_use", references: [{ collection: "Pages", label: "About" }] },
+          409,
+        );
+      }
+      return jsonResponse({ ok: true });
+    });
+    mount(() => <MediaPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("a.jpg"));
+
+    host.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!.click();
+    await vi.waitFor(() => expect(deletes(fetchMock)).toHaveLength(2));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(confirm).mock.calls[1][0]).toContain("(Pages: About)");
+  });
+});
+
 describe("MediaPanel — list", () => {
   it("lists the media library from the generic { media } response", async () => {
     stubFetch((url, method) => {
