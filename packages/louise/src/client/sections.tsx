@@ -44,7 +44,7 @@ import { formatNodePath, NODE_MARKER_ATTR, type NodePath } from "./node.js";
 import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Portal, render } from "solid-js/web";
 import { stegaClean } from "../core/content/stega-clean.js";
-import { nameEditable, wireDialogA11y, wirePopoverDismiss } from "./a11y.js";
+import { CHROME_LANG, nameEditable, wireDialogA11y, wirePopoverDismiss } from "./a11y.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import {
   connectRealtime,
@@ -1885,6 +1885,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         <Portal>
           <div
             id={ADD_SECTION_PICKER_ID}
+            lang={CHROME_LANG}
             class="louise-sections-palette"
             role="group"
             aria-label="Add a section"
@@ -1926,6 +1927,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         {(picker) => (
           <Portal>
             <div
+              lang={CHROME_LANG}
               class="louise-sections-palette"
               role="group"
               aria-label="Add a block"
@@ -1991,6 +1993,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             aria-hidden="true"
           />
           <aside
+            lang={CHROME_LANG}
             class="louise-drawer louise-history-drawer"
             data-theme="louise"
             role="dialog"
@@ -2123,6 +2126,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
             <Portal>
               <div class="louise-inspector-scrim" onClick={closeInspector} aria-hidden="true" />
               <div
+                lang={CHROME_LANG}
                 class="louise-inspector"
                 role="dialog"
                 aria-modal="true"
@@ -2416,6 +2420,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 export function mountSections(el: HTMLElement, opts: SectionsEditorProps): () => void {
   injectStyles();
   const dock = document.createElement("div");
+  dock.lang = CHROME_LANG;
   document.body.appendChild(dock);
   const dispose = render(() => <SectionsRoot {...opts} host={el} />, dock);
   return () => {

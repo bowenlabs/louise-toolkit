@@ -57,7 +57,10 @@ const CSS = `
   position: relative;
   border-radius: 6px;
   transition: box-shadow 120ms ease, background-color 120ms ease;
-  outline: none;
+  /* Transparent, not none: invisible here, and painted in the system color
+     under forced colors, which drop the box-shadow ring (#598). */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
 }
 .louise-editable:hover {
   box-shadow: 0 0 0 2px rgba(20, 129, 239, 0.25);
@@ -76,7 +79,7 @@ const CSS = `
   display: none;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #fff;
   background: var(--louise-blue-strong);
   border-radius: 999px;
@@ -92,7 +95,7 @@ const CSS = `
   display: flex;
 }
 .louise-editable .ProseMirror:focus {
-  outline: none;
+  outline: 2px solid transparent;
 }
 
 /* Floating action bar — bottom center, glassy white card. */
@@ -112,7 +115,7 @@ const CSS = `
   border-radius: 999px;
   box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
   font-family: var(--louise-font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
 }
 /* Editor identity: a green "live" dot + the signed-in editor's name. Shown in
@@ -143,7 +146,7 @@ const CSS = `
 /* Transient save feedback trailing the bar's three actions. Empty at rest, so
    :empty collapses it and the bar shows only the buttons. */
 .louise-status {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
 }
 .louise-status:empty {
@@ -173,7 +176,7 @@ const CSS = `
   cursor: pointer;
   padding: 8px 18px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #fff;
   background: var(--louise-green);
@@ -195,7 +198,7 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
   transition: background 120ms ease;
@@ -226,7 +229,7 @@ const CSS = `
   border-radius: 999px;
   background: var(--louise-blue-strong);
   color: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   border: 2px solid #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -253,7 +256,7 @@ const CSS = `
   border-radius: 999px;
   background: var(--louise-orange-strong) ${iconUrl(icons.lock, "#fff")} no-repeat 8px center / 11px 11px;
   color: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -275,7 +278,7 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   transition: background 120ms ease;
 }
@@ -298,7 +301,7 @@ const CSS = `
   padding: 10px 18px;
   border-radius: 999px;
   font-family: var(--louise-font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #fff;
   background: var(--louise-blue-strong);
@@ -343,7 +346,7 @@ const CSS = `
 }
 .louise-drawer-brand {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 1rem;
   letter-spacing: -0.01em;
 }
 /* Cog + close, grouped at the right of the drawer head. */
@@ -367,7 +370,7 @@ const CSS = `
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   color: #64748b;
   padding: 4px 8px;
@@ -394,7 +397,7 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #475569;
 }
@@ -442,7 +445,7 @@ html[data-louise-studio] body {
 }
 .louise-muted {
   color: #64748b;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 /* Visible failure feedback for drawer actions (create/save/delete/reorder). */
 .louise-alert {
@@ -452,7 +455,7 @@ html[data-louise-studio] body {
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #b91c1c;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 
@@ -477,7 +480,7 @@ html[data-louise-studio] body {
   align-items: center;
   cursor: grab;
   color: #cbd5e1;
-  font-size: 18px;
+  font-size: 1.125rem;
   user-select: none;
   flex: none;
   padding-right: 2px;
@@ -494,17 +497,17 @@ html[data-louise-studio] body {
 .louise-item-main { flex: 1; min-width: 0; }
 .louise-item-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.louise-item-sub { font-size: 12px; color: #64748b; }
+.louise-item-sub { font-size: 0.75rem; color: #64748b; }
 .louise-badge {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
 }
 .louise-badge.for_sale { background: rgba(22, 163, 74, 0.12); color: #15803d; }
@@ -523,7 +526,7 @@ html[data-louise-studio] body {
   width: 26px;
   height: 22px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1;
   color: #475569;
 }
@@ -540,7 +543,7 @@ html[data-louise-studio] body {
   cursor: pointer;
   padding: 9px 14px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0f172a;
 }
@@ -553,7 +556,7 @@ html[data-louise-studio] body {
 .louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 .louise-btn-block { width: 100%; justify-content: center; }
 /* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
-.louise-btn-ai { padding: 5px 10px; font-size: 12px; gap: 4px; }
+.louise-btn-ai { padding: 5px 10px; font-size: 0.75rem; gap: 4px; }
 .louise-btn-ai:disabled { opacity: 0.55; cursor: default; }
 .louise-btn-ai:disabled:hover { background: #fff; }
 /* Header row above the SEO fields: the "Search engine listing" label with the
@@ -589,13 +592,13 @@ html[data-louise-studio] body {
 }
 .louise-media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .louise-media-meta { padding: 8px 10px 4px; min-width: 0; }
-.louise-media-meta .louise-item-title { font-size: 12px; }
+.louise-media-meta .louise-item-title { font-size: 0.75rem; }
 .louise-media-actions { display: flex; align-items: center; gap: 6px; padding: 6px 10px 10px; }
 .louise-media-actions .louise-btn {
   flex: 1;
   justify-content: center;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 /* Asset-level alt shown under the filename (truncated) so the library reads as
    a real, described set of assets rather than a wall of filenames. */
@@ -607,7 +610,7 @@ html[data-louise-studio] body {
 }
 /* Inline alt/caption editor revealed by the card's Alt button. */
 .louise-media-edit { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 8px; }
-.louise-media-edit .louise-input { width: 100%; font-size: 12px; }
+.louise-media-edit .louise-input { width: 100%; font-size: 0.75rem; }
 
 /* ── Settings panel ───────────────────────────────────────────── */
 .louise-settings-group { margin-bottom: 26px; }
@@ -625,7 +628,7 @@ html[data-louise-studio] body {
   justify-content: space-between;
   gap: 8px;
   padding: 12px 14px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: #0f172a;
   cursor: pointer;
@@ -664,8 +667,8 @@ html[data-louise-studio] body {
   padding-top: 18px;
   border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
-.louise-settings-title { margin: 0 0 2px; font-size: 15px; font-weight: 600; color: #0f172a; }
-.louise-settings-hint { margin: 0 0 12px; font-size: 12px; }
+.louise-settings-title { margin: 0 0 2px; font-size: 0.9375rem; font-weight: 600; color: #0f172a; }
+.louise-settings-hint { margin: 0 0 12px; font-size: 0.75rem; }
 .louise-settings-row { align-items: center; gap: 8px; }
 .louise-settings-fields { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
 .louise-settings-fields .louise-input { width: 100%; }
@@ -678,8 +681,8 @@ html[data-louise-studio] body {
 .louise-field-inline { flex-direction: row; align-items: center; gap: 8px; }
 .louise-field-inline input { margin: 0; }
 .louise-field label,
-.louise-field-label { font-size: 12px; font-weight: 600; color: #475569; }
-.louise-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; }
+.louise-field-label { font-size: 0.75rem; font-weight: 600; color: #475569; }
+.louise-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 0.8125rem; color: #334155; }
 .louise-check input { width: 16px; height: 16px; accent-color: var(--louise-blue); cursor: pointer; }
 .louise-input,
 .louise-select {
@@ -687,15 +690,18 @@ html[data-louise-studio] body {
   padding: 9px 11px;
   border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #fff;
 }
 .louise-input:focus,
 .louise-select:focus {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   border-color: var(--louise-blue);
-  box-shadow: 0 0 0 3px rgba(20, 129, 239, 0.12);
+  /* With the border, a 2 px ring at 3.88:1 against white (#598); the old
+     12 percent tint read as a 1 px border change. */
+  box-shadow: 0 0 0 1px var(--louise-blue);
 }
 /* Dock textarea for textarea-typed fields (card bodies, FAQ answers, step/tier
    bodies) — multi-line + resizable so they can hold line breaks. Keeps the
@@ -720,9 +726,9 @@ html[data-louise-studio] body {
      edited, so the surface reads as the page/panel behind it. */
   background: transparent;
 }
-.louise-rt:focus-within { border-color: var(--louise-blue); box-shadow: 0 0 0 3px rgba(20, 129, 239, 0.12); }
-.louise-rt .ProseMirror:focus { outline: none; }
-.louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: 14px; }
+.louise-rt:focus-within { border-color: var(--louise-blue); box-shadow: 0 0 0 1px var(--louise-blue); }
+.louise-rt .ProseMirror:focus { outline: 2px solid transparent; }
+.louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: 0.875rem; }
 /* ── Builder blocks (#16): editing chrome ─────────────────────────
    Matches the editor look — no background fill, a border-only outline on
    the hovered/selected block. Controls are editor-only affordances. */
@@ -743,7 +749,7 @@ html[data-louise-studio] body {
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 999px;
   background: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #475569;
   cursor: pointer;
 }
@@ -764,7 +770,7 @@ html[data-louise-studio] body {
   padding: 0 6px;
   background: #fff;
   font-family: var(--louise-font-body);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #64748b;
@@ -819,7 +825,7 @@ html[data-louise-studio] body {
   padding: 5px 6px;
   border-radius: 7px;
   background: rgba(15, 23, 42, 0.04);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .louise-row:not(:hover):not(.is-selected) .louise-row-bar { opacity: 0.55; }
 .louise-row-presets,
@@ -830,7 +836,7 @@ html[data-louise-studio] body {
   border: 1px solid rgba(15, 23, 42, 0.14);
   border-radius: 999px;
   background: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-family: var(--louise-font-body);
   color: #475569;
   cursor: pointer;
@@ -844,7 +850,7 @@ html[data-louise-studio] body {
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
-.louise-btn-xs { padding: 1px 6px; font-size: 11px; line-height: 1.4; }
+.louise-btn-xs { padding: 1px 6px; font-size: 0.6875rem; line-height: 1.4; }
 .louise-row-sep { width: 1px; align-self: stretch; margin: 0 2px; background: rgba(15, 23, 42, 0.12); }
 .louise-row-count { color: #64748b; font-weight: 600; }
 
@@ -865,11 +871,11 @@ html[data-louise-studio] body {
   border-radius: 12px;
   box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
   font-family: var(--louise-font-body);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
 }
 .louise-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.louise-inspector-title { font-weight: 700; font-size: 13px; letter-spacing: -0.01em; }
+.louise-inspector-title { font-weight: 700; font-size: 0.8125rem; letter-spacing: -0.01em; }
 .louise-inspector-close {
   appearance: none;
   border: none;
@@ -881,7 +887,7 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
   color: #64748b;
   padding: 2px 6px;
@@ -891,10 +897,10 @@ html[data-louise-studio] body {
 .louise-inspector-group { display: flex; flex-direction: column; gap: 8px; }
 .louise-inspector-layouts { display: flex; flex-wrap: wrap; gap: 6px; }
 .louise-inspector-active { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
-.louise-inspector-empty { margin: 0; color: #64748b; font-size: 12px; }
+.louise-inspector-empty { margin: 0; color: #64748b; font-size: 0.75rem; }
 /* Source-settings group (Phase B): the caption carries the write-path warning —
    these values save immediately, unlike everything else in the popover. */
-.louise-inspector-note { margin: 2px 0 6px; color: #64748b; font-size: 11px; }
+.louise-inspector-note { margin: 2px 0 6px; color: #64748b; font-size: 0.6875rem; }
 /* The green panel's persistent warning band (#376) — tinted with the shared
    tone so the panel reads as the ring that opened it. Not a confirm(): the
    count is readable the whole time the panel is open. */
@@ -905,11 +911,11 @@ html[data-louise-studio] body {
   background: rgba(21, 128, 61, 0.12);
   border: 1px solid rgba(21, 128, 61, 0.35);
   color: var(--louise-shared, #15803d);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.4;
 }
 .louise-multiselect { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
-.louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -943,7 +949,7 @@ html[data-louise-studio] body {
   background: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
   padding: 4px 10px;
@@ -974,14 +980,14 @@ html[data-louise-studio] body {
 }
 /* Only shown on a failed save (auto-save makes the routine saved/unsaved status
    redundant); red so it reads as an error the editor must notice. */
-.louise-sections-status { font-size: 12px; font-weight: 600; }
+.louise-sections-status { font-size: 0.75rem; font-weight: 600; }
 .louise-sections-status[data-status="error"] { color: #dc2626; }
 .louise-arr { display: grid; gap: 6px; }
 .louise-arr-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
   padding: 4px 6px;
   border: 1px dashed rgba(15, 23, 42, 0.15);
@@ -992,7 +998,7 @@ html[data-louise-studio] body {
    variant switcher select. */
 .louise-variant-add { display: flex; flex-wrap: wrap; gap: 4px; }
 .louise-variant-switch {
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 2px 4px;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 6px;
@@ -1031,13 +1037,13 @@ html[data-louise-studio] body {
   background: rgba(15, 23, 42, 0.03);
 }
 .louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.louise-sections-img-error { font-size: 11px; color: #dc2626; }
+.louise-sections-img-error { font-size: 0.6875rem; color: #dc2626; }
 /* A picker whose choices come from an API and didn't arrive (#344). Same red as
    the image error above — it is the same kind of message: the thing you asked
    for isn't here, and here is why. */
-.louise-field-error { font-size: 11px; color: #dc2626; }
+.louise-field-error { font-size: 0.6875rem; color: #dc2626; }
 /* The visible labels on a link row's two inputs (#592), quieter than a field's. */
-.louise-field .louise-row-label { font-size: 11px; }
+.louise-field .louise-row-label { font-size: 0.6875rem; }
 /* A fieldset that groups inputs without drawing a box. */
 .louise-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* Version history drawer (#182) — a dedicated right-side drawer opened from the
@@ -1104,13 +1110,13 @@ html[data-louise-studio] body {
   display: block;
   padding: 7px 10px;
   border-radius: 7px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   cursor: pointer;
 }
 .louise-slash-item:hover,
 .louise-slash-item[data-focused] { background: rgba(20, 129, 239, 0.08); }
-.louise-slash-empty { display: block; padding: 7px 10px; font-size: 12px; color: #64748b; }
+.louise-slash-empty { display: block; padding: 7px 10px; font-size: 0.75rem; color: #64748b; }
 /* "+ Block" inserter button (deterministic path) below the editing surface. */
 .louise-block-add { position: relative; padding: 6px 8px 8px; border-top: 1px solid rgba(15, 23, 42, 0.08); }
 .louise-block-add-menu {
@@ -1162,7 +1168,7 @@ html[data-louise-studio] body {
   border-radius: 7px;
   background: transparent;
   color: #334155;
-  font-size: 17px;
+  font-size: 1.0625rem;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -1202,7 +1208,7 @@ html[data-louise-studio] body {
   justify-content: center;
   background: #fff;
   color: #64748b;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 /* AI rewrite menu (#75/#166) — same click-toggled popover as the color swatches,
    as a vertical list of rewrite modes. Anchored right so it stays on-screen at
@@ -1232,7 +1238,7 @@ html[data-louise-studio] body {
   background: transparent;
   color: #334155;
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-align: left;
   cursor: pointer;
 }
@@ -1240,7 +1246,7 @@ html[data-louise-studio] body {
 .louise-tb-ai-busy {
   padding: 6px 10px;
   color: #64748b;
-  font-size: 13px;
+  font-size: 0.8125rem;
   white-space: nowrap;
 }
 /* A failed rewrite's reason, such as a selection past the length cap. Fixed
@@ -1250,7 +1256,7 @@ html[data-louise-studio] body {
   margin: 0 0 4px;
   padding: 6px 10px;
   color: #dc2626;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 /* Hidden file input backing the toolbar image button. */
@@ -1295,7 +1301,7 @@ html[data-louise-studio] body {
   cursor: pointer;
   padding: 2px 7px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1.6;
   color: #fff;
@@ -1317,12 +1323,31 @@ html[data-louise-studio] body {
   outline: 2px solid var(--louise-blue);
   outline-offset: 2px;
 }
+/* Forced colors (a Windows contrast theme) drop box shadows and backgrounds, so
+   every state the chrome draws with one needs an outline or a border here
+   (#598). System colors, so the owner's theme picks them. */
+@media (forced-colors: active) {
+  .louise-editable:focus-within,
+  .louise-input:focus,
+  .louise-select:focus,
+  .louise-rt:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .louise-chip.is-active,
+  .louise-tab.is-active,
+  .louise-tb-btn.is-active,
+  .louise-drawer-close.is-active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
 .louise-rt-alt-input {
   width: min(320px, 60vw);
   padding: 3px 8px;
   border: 1px solid var(--louise-blue);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   background: #fff;
   color: #0f172a;
 }
@@ -1350,7 +1375,7 @@ html[data-louise-studio] body {
   border-radius: 6px;
   color: #64748b;
   cursor: grab;
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 .louise-rt-drag:hover { background: rgba(15, 23, 42, 0.06); color: #475569; }
 .louise-rt-drag:active { cursor: grabbing; }
@@ -1393,7 +1418,7 @@ html[data-louise-studio] body {
   position: absolute;
   bottom: 3px;
   left: 3px;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   color: #fff;
   background: var(--louise-blue-strong);
@@ -1409,7 +1434,7 @@ html[data-louise-studio] body {
   border: 1px dashed rgba(15, 23, 42, 0.25);
   border-radius: 10px;
   cursor: pointer;
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #64748b;
 }
 .louise-image-add:hover { border-color: var(--louise-blue); color: var(--louise-blue-strong); }
@@ -1427,7 +1452,7 @@ html[data-louise-studio] body {
 }
 .louise-crop-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .louise-crop-controls { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.louise-crop-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: 12px; color: #475569; }
+.louise-crop-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: 0.75rem; color: #475569; }
 .louise-crop-row input[type="range"] { width: 100%; accent-color: var(--louise-blue); }
 .louise-crop-controls .louise-btn { align-self: flex-start; }
 .louise-form-actions {
@@ -1453,7 +1478,7 @@ html[data-louise-studio] body {
 }
 /* Status on the left, actions pinned right (works with or without a status). */
 .louise-foot-actions { display: flex; gap: 8px; margin-left: auto; }
-.louise-foot-status { font-size: 13px; color: #64748b; }
+.louise-foot-status { font-size: 0.8125rem; color: #64748b; }
 .louise-foot-status[data-state="saved"] { color: var(--louise-green); }
 .louise-foot-status[data-state="error"] { color: #dc2626; }
 
@@ -1476,7 +1501,7 @@ html[data-louise-studio] body {
 .louise-dashboard-summary-text {
   font-family: var(--louise-font-head);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 0.9375rem;
   /* It's an <h2> for heading order — neutralize the UA margin so it still reads
      as the inline summary line it looks like. */
   margin: 0;
@@ -1504,7 +1529,7 @@ html[data-louise-studio] body {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #fff;
   background: #64748b;
@@ -1525,10 +1550,10 @@ html[data-louise-studio] body {
   background: rgba(234, 179, 8, 0.1);
   border: 1px solid rgba(234, 179, 8, 0.4);
   color: #854d0e;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
-.louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+.louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.8125rem; }
 .louise-card {
   display: flex;
   flex-direction: column;
@@ -1539,8 +1564,8 @@ html[data-louise-studio] body {
   background: #fff;
 }
 .louise-card-head { display: flex; align-items: center; gap: 8px; }
-.louise-card-title { font-size: 14px; margin: 0; }
-.louise-card-body { font-size: 14px; color: #334155; line-height: 1.45; }
+.louise-card-title { font-size: 0.875rem; margin: 0; }
+.louise-card-body { font-size: 0.875rem; color: #334155; line-height: 1.45; }
 /* One verb per card; sits at the bottom-left, self-sized. */
 .louise-card-action { align-self: flex-start; margin-top: auto; }
 
@@ -1557,9 +1582,9 @@ html[data-louise-studio] body {
   .louise-icon-btn { min-width: 36px; min-height: 36px; }
   /* Formatting toolbar, colour swatches, inspector ops and inputs were all
      below a comfortable tap size. */
-  .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 19px; }
+  .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 1.1875rem; }
   .louise-swatch { width: 32px; height: 32px; }
-  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: 0.8125rem; }
   .louise-input, .louise-select { min-height: 42px; }
   .louise-bar-history { min-height: 36px; }
 }
@@ -1657,7 +1682,7 @@ html[data-louise-studio] body {
    class hooks are here so the unstyled helper is still legible out of the box. */
 .louise-form { display: grid; gap: 14px; font-family: var(--louise-font-body); }
 .louise-form-row { display: grid; gap: 4px; }
-.louise-form-label { font-size: 13px; font-weight: 600; color: #334155; }
+.louise-form-label { font-size: 0.8125rem; font-weight: 600; color: #334155; }
 .louise-form-req { color: #dc2626; }
 .louise-form-input {
   width: 100%;
@@ -1669,9 +1694,9 @@ html[data-louise-studio] body {
   color: #0f172a;
 }
 .louise-form-input:focus { outline: 2px solid var(--louise-blue); outline-offset: 0; }
-.louise-form-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
-.louise-form-hint { font-size: 12px; color: #64748b; }
-.louise-form-error { font-size: 12px; color: #dc2626; }
+.louise-form-check { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; }
+.louise-form-hint { font-size: 0.75rem; color: #64748b; }
+.louise-form-error { font-size: 0.75rem; color: #dc2626; }
 .louise-form-submit {
   justify-self: start;
   appearance: none;
@@ -1684,7 +1709,7 @@ html[data-louise-studio] body {
   background: var(--louise-blue-strong);
 }
 .louise-form-submit:disabled { opacity: 0.5; cursor: default; }
-.louise-form-status { font-size: 14px; }
+.louise-form-status { font-size: 0.875rem; }
 .louise-form-status[data-status="success"] { color: var(--louise-green); }
 .louise-form-status[data-status="error"] { color: #dc2626; }
 
@@ -1722,9 +1747,9 @@ html[data-louise-studio] body {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
-.louise-grammar-popover-msg { padding: 4px 6px 6px; color: #475569; font-size: 12px; line-height: 1.35; }
+.louise-grammar-popover-msg { padding: 4px 6px 6px; color: #475569; font-size: 0.75rem; line-height: 1.35; }
 .louise-grammar-suggest {
   display: block;
   width: 100%;
@@ -1739,7 +1764,7 @@ html[data-louise-studio] body {
   cursor: pointer;
 }
 .louise-grammar-suggest:hover { background: #f1f5f9; }
-.louise-grammar-popover-none { padding: 4px 8px 6px; color: #64748b; font-size: 12px; }
+.louise-grammar-popover-none { padding: 4px 8px 6px; color: #64748b; font-size: 0.75rem; }
 `;
 
 export function injectStyles(): void {

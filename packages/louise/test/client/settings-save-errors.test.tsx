@@ -247,6 +247,23 @@ describe("PagesPanel—a refused save", () => {
   });
 });
 
+describe("PagesPanel—the published page link (#598)", () => {
+  it("says it opens a new tab, in words", async () => {
+    stubFetch((url) =>
+      url.endsWith("/api/louise/pages")
+        ? jsonResponse({ pages: [{ id: 3, title: "Terms", slug: "terms", status: "published" }] })
+        : jsonResponse({ page: { id: 3, title: "Terms", slug: "terms", status: "published" } }),
+    );
+    mountPanel(() => <PagesPanel />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Terms"));
+    host.querySelector<HTMLButtonElement>('button[aria-label="Page settings"]')!.click();
+    await vi.waitFor(() => expect(host.querySelector('a[target="_blank"]')).not.toBeNull());
+    const link = host.querySelector<HTMLAnchorElement>('a[target="_blank"]')!;
+    expect(link.textContent?.trim()).toBe("View published page (opens in a new tab)");
+    expect(link.querySelector("[aria-hidden='true']")).not.toBeNull();
+  });
+});
+
 describe("LinkListEditor", () => {
   function mountLinks(initial: LinkRow[]) {
     const [rows, setRows] = createSignal(initial);

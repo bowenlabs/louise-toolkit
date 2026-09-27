@@ -236,6 +236,14 @@ describe("mountLouise — auto-save via Astro Action (#138)", () => {
   });
 });
 
+describe("mountLouise—the edit bar's language (#598)", () => {
+  it("marks the bar as English", () => {
+    addField("pages", "5", "heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 } });
+    expect(document.querySelector<HTMLElement>(".louise-bar")?.lang).toBe("en");
+  });
+});
+
 describe("mountLouise — a draft save that someone else overtook (#572)", () => {
   const jsonResponse = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

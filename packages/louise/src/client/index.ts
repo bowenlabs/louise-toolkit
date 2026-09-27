@@ -12,7 +12,7 @@
 import { stegaClean } from "../core/content/stega-clean.js";
 import { mountStegaClipboardGuard } from "../core/content/visual-editing.js";
 import { DRAFT_BASE_KEY, type DraftConflict as DraftConflictBody } from "../core/editor/revs.js";
-import { humanizeFieldKey, nameEditable, wireToolbarRoving } from "./a11y.js";
+import { CHROME_LANG, humanizeFieldKey, nameEditable, wireToolbarRoving } from "./a11y.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import {
   connectRealtime,
@@ -243,6 +243,7 @@ function createChrome(opts: ChromeOptions): Chrome {
   // when both type libs are in scope.
   for (const el of [presence, saveDraft, publish, save, settings, exit, status, conflictActions])
     if (el) bar.appendChild(el);
+  bar.lang = CHROME_LANG;
   document.body.appendChild(bar);
 
   const savedText = opts.versioned ? "Draft saved" : "Saved";

@@ -11,6 +11,15 @@
 
 /** Turn a field key (`heroTitle`) into a human label ("Hero Title")—the fallback
  *  accessible name for an inline editable with no authored label. */
+/**
+ * The language of the editor chrome's own strings ("Sign out," "Version
+ * history"), set as `lang` on every root the chrome adds, so a screen reader
+ * reads them with English rules on a site whose pages aren't in English (#598).
+ * It describes the chrome, not the site, so it isn't a site fact; if the chrome
+ * is ever translated, it becomes the locale of the strings it renders.
+ */
+export const CHROME_LANG = "en";
+
 export function humanizeFieldKey(key: string): string {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 }

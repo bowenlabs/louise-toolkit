@@ -38,6 +38,8 @@ import link from "@phosphor-icons/core/assets/regular/link.svg?raw";
 import lock from "@phosphor-icons/core/assets/regular/lock-simple.svg?raw";
 // Version history—the conventional "rewind the clock" affordance.
 import history from "@phosphor-icons/core/assets/regular/clock-counter-clockwise.svg?raw";
+// A link that opens in a new tab.
+import arrowSquareOut from "@phosphor-icons/core/assets/regular/arrow-square-out.svg?raw";
 
 export const icons = {
   bold,
@@ -73,6 +75,7 @@ export const icons = {
   link,
   lock,
   history,
+  arrowSquareOut,
 } as const;
 
 export type IconName = keyof typeof icons;

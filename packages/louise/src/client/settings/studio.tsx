@@ -29,6 +29,7 @@
 import { QueryClientProvider } from "@tanstack/solid-query";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { render } from "solid-js/web";
+import { CHROME_LANG } from "../a11y.js";
 import { screenTitle, type StudioNavItem } from "../studio/navigation.js";
 import { injectStyles } from "../styles.js";
 import type { DashboardApi } from "./dashboard/types.js";
@@ -138,6 +139,7 @@ function resolveTarget(target: StudioMountOptions["target"]): HTMLElement | null
   if (typeof target === "string") return document.querySelector<HTMLElement>(target);
   const root = document.createElement("div");
   root.id = "louise-studio-root";
+  root.lang = CHROME_LANG;
   document.body.appendChild(root);
   return root;
 }

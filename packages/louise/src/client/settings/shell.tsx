@@ -22,7 +22,7 @@ import { QueryClientProvider } from "@tanstack/solid-query";
 import { createSignal, type JSX, onCleanup, Show } from "solid-js";
 import { render } from "solid-js/web";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
-import { wireDialogA11y } from "../a11y.js";
+import { CHROME_LANG, wireDialogA11y } from "../a11y.js";
 import { HISTORY_READY_ATTR, OPEN_HISTORY_EVENT, SETTINGS_READY_EVENT } from "../editor-events.js";
 import { Icon } from "../icons.jsx";
 import { onLouiseNavigate } from "../lifecycle.js";
@@ -209,6 +209,7 @@ export function mountSettings(config: SettingsConfig): void {
   injectStyles();
   const root = document.createElement("div");
   root.id = "louise-drawer-root";
+  root.lang = CHROME_LANG;
   document.body.appendChild(root);
   const queryClient = createSettingsQueryClient();
   const dispose = render(
