@@ -149,7 +149,9 @@ pagesCollection, id)` to keep that one row searchable, rather than rebuilding
   the whole index with `reindexSearch` after every edit. For a versioned
   collection, pass `versionsTable` and `drafts: { config, bufferKv? }`, so an
   update also lands in the page's pending draft and the next publish doesn't
-  undo it; see [Writing to the live row directly](/guide/drafts/#writing-to-the-live-row-directly).
+  undo it; see [Writing to the live row directly](/guide/drafts/#writing-to-the-live-row-directly). Pass
+  `redirects: pageRedirects` and a slug change remembers the old URL; see
+  [`pageRedirects`](/reference/db/#pageredirects-a-renamed-page-keeps-its-old-url).
 - **`versionsRoute`**—the [draft/publish + version history](/guide/drafts/)
   surface for a `versions` collection: `GET/POST /api/louise/pages/:id/versions`
   (list / save a draft), `POST …/:id/publish` (`{ versionId? }`, default the latest

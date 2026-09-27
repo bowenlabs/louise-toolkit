@@ -78,6 +78,40 @@ export const pages = sqliteTable("pages", {
 drizzle-kit still generates each site's migration from its composed schema, so
 sharing the column set costs no flexibility.
 
+## `pageRedirects`: a renamed page keeps its old URL
+
+A page's slug is its public URL, and renaming it from the Pages panel is the
+normal way to give a page its address. `pageRedirects` (`pageRedirectsColumns`,
+`PageRedirect`) remembers the old one, so inbound links, bookmarks, and search
+results keep working. Add the table to your schema, pass it to the routes that
+change slugs, and look it up when a page would otherwise 404:
+
+```ts
+// schema.ts, which drizzle-kit reads
+export { pageRedirects } from "louise-toolkit/db";
+
+// worker routes
+pagesRoute({ table: pages, resolveEditor, redirects: pageRedirects });
+versionsRoute({ ...pagesDraftDeps, resolveEditor, redirects: pageRedirects });
+
+// src/middleware.ts
+createLouiseMiddleware({
+  resolveEditor,
+  redirectFor: (path) => resolvePageRedirect(db(env.DB), pageRedirects, path),
+});
+```
+
+- **A rename records `/old → /new`** in the same batch as `pagesRoute`'s write.
+  A publish that changes the slug records it right after, since the publish runs
+  its own write.
+- **Chains stay one hop:** an earlier redirect that pointed at the old path now
+  points at the new one. `resolvePageRedirect` follows a chain anyway, up to five
+  hops, and stops on a loop.
+- **A redirect never shadows a page:** creating a page on an old path, or renaming
+  one onto it, removes the redirect away from that path. The middleware only asks
+  after the page answered 404, so a live page always wins.
+- The redirect is a `301`, and the visitor's query string carries over.
+
 :::tip
 `db()` stays schema-agnostic—the tables above are **opt-in building blocks**,
 not a schema Louise imposes. They exist so the core content tables (`pages`,

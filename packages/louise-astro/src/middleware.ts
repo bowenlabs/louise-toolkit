@@ -161,6 +161,25 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * resolved on every request regardless.
    */
   apiGate?: boolean | LouiseMiddlewareApiGate;
+  /**
+   * Where a path moved, for a GET or HEAD that would otherwise answer 404
+   * (#574). Return `{ location, status }` to redirect, or `null` to keep the 404.
+   * It runs only after the page answered 404, so a live page always wins. The
+   * visitor's query string carries over.
+   *
+   * ```ts
+   * redirectFor: (path) => resolvePageRedirect(db(env.DB), pageRedirects, path),
+   * ```
+   *
+   * A lookup that throws keeps the 404.
+   */
+  redirectFor?: (
+    pathname: string,
+    context: APIContext,
+  ) =>
+    | { location: string; status: number }
+    | null
+    | Promise<{ location: string; status: number } | null>;
   /** Edit-mode cookie name. Default {@link LOUISE_EDIT_COOKIE} (`"louise_edit"`).
    *  Change it and the `withEdgeCache` bypass predicate must be told too, or an
    *  editor gets served the cached public page. */
@@ -302,6 +321,27 @@ export function createLouiseMiddleware<TEditor = unknown>(
     const rewrite = await config.rewrite?.(context);
 
     const response = rewrite === undefined ? await next() : await next(rewrite);
+
+    // A page that moved: answer its old URL with a redirect instead of the 404.
+    if (
+      config.redirectFor &&
+      response.status === 404 &&
+      (context.request.method === "GET" || context.request.method === "HEAD")
+    ) {
+      // An async wrapper, so a lookup that throws before returning a promise
+      // keeps the 404 too.
+      const lookup = config.redirectFor;
+      const moved = await (async () => lookup(context.url.pathname, context))().catch(() => null);
+      if (moved) {
+        return finish(
+          context,
+          new Response(null, {
+            status: moved.status,
+            headers: { location: `${moved.location}${context.url.search}` },
+          }),
+        );
+      }
+    }
 
     // An editor's JSON must not land in a shared cache. A route that chose its
     // own policy keeps it.
