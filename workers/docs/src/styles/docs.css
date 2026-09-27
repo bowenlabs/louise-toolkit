@@ -9,10 +9,10 @@
    family the whole stack uses via @phosphor-icons/core), brand-colored
    asides, a refined sidebar, and the splash page's hero. The Louise icon, the
    Phosphor lightning bolt on a deep-green tile, is src/assets/louise-icon.svg,
-   and public/favicon.svg is a copy of it. Phosphor glyphs are inlined as
-   mask-image data URIs so they tint to any brand color and need no extra
-   dependency or component override: authentic Phosphor paths, delivered
-   through CSS.
+   and public/louise-icon.svg, the favicon, is a copy of it. Phosphor glyphs
+   are inlined as mask-image data URIs so they tint to any brand color and need
+   no extra dependency or component override: authentic Phosphor paths,
+   delivered through CSS.
 
    Everything here is UNLAYERED, so it wins over Starlight's own styles: Starlight
    ≥0.34 moves all of its CSS into cascade layers, and unlayered declarations take
