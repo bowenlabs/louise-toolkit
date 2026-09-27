@@ -20,21 +20,33 @@
 // core never takes a Zod dependency.
 
 import { z } from "astro/zod";
-import type { FormConfig, FormField } from "louise-toolkit/forms";
+import { coerceFormValue, type FormConfig, type FormField } from "louise-toolkit/forms";
+
+/** Coerce the way `formRoute` does, first, so an Action accepts what the route
+ *  accepts: a URL without a scheme, a number with the locale's separators. A
+ *  blank value becomes `undefined`, which an optional field allows. */
+function forgiving(field: FormField, locale: string | undefined, schema: z.ZodType): z.ZodType {
+  return z.preprocess((raw) => coerceFormValue(field, raw, { locale }) ?? undefined, schema);
+}
 
 /** Map one form field to its Zod type, including the type's built-in format
  *  check (email/url) and coercion (number/date/checkbox). */
-function formFieldToZod(field: FormField): z.ZodType {
+function formFieldToZod(field: FormField, locale?: string): z.ZodType {
   const required = field.required ?? false;
 
   switch (field.type) {
     case "email":
       return required ? z.email() : z.email().optional();
-    case "url":
-      return required ? z.url() : z.url().optional();
-    case "number":
-      // Form values arrive as strings; `coerce` turns "5" into 5.
-      return required ? z.coerce.number() : z.coerce.number().optional();
+    case "url": {
+      const url = z.url({ error: "Enter a web address, like example.com." });
+      return forgiving(field, locale, required ? url : url.optional());
+    }
+    case "number": {
+      // Form values arrive as strings; the shared coercion turns "1,200" into
+      // 1200 under the form's locale, and leaves anything else a string.
+      const number = z.number({ error: "Enter a number, like 1200." });
+      return forgiving(field, locale, required ? number : number.optional());
+    }
     case "date":
       // Accepts an ISO string, an epoch number, or a Date.
       return required ? z.coerce.date() : z.coerce.date().optional();
@@ -75,7 +87,7 @@ function formFieldToZod(field: FormField): z.ZodType {
 export function formToAstroSchema(form: FormConfig): z.ZodType {
   const shape: Record<string, z.ZodType> = {};
   for (const [key, field] of Object.entries(form.fields)) {
-    shape[key] = formFieldToZod(field);
+    shape[key] = formFieldToZod(field, form.locale);
   }
   return z.object(shape);
 }
