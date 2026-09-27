@@ -16,6 +16,24 @@ import { metaDescription } from "../security/text.js";
 import { filterQuery } from "./query.js";
 import { shareImageSource } from "./share.js";
 
+import { type JsonLd, jsonLdScript } from "./json-ld.js";
+
+export {
+  breadcrumbJsonLd,
+  type JsonLd,
+  type JsonLdAddress,
+  type JsonLdCrumb,
+  type JsonLdDay,
+  type JsonLdOpeningHours,
+  type JsonLdOptions,
+  type JsonLdProduct,
+  type JsonLdSettings,
+  jsonLdScript,
+  type LocalBusinessFacts,
+  localBusinessJsonLd,
+  organizationJsonLd,
+  productJsonLd,
+} from "./json-ld.js";
 export { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "./limits.js";
 export { type ShareImageInput, type ShareImageSource, shareImageSource } from "./share.js";
 
@@ -70,6 +88,12 @@ export interface PageHeadInput {
   icon?: string;
   /** `og:type`. Default `"website"`. */
   ogType?: string;
+  /**
+   * Structured data for the page, from the JSON-LD builders. Each node that
+   * isn't `undefined` prints as its own `<script type="application/ld+json">`.
+   * Mark up only what the page shows.
+   */
+  jsonLd?: readonly (JsonLd | undefined)[];
 }
 
 /** Everything a page's head declares. Serialize it with {@link renderHeadTags}. */
@@ -92,6 +116,8 @@ export interface PageHead {
     image?: string;
   };
   twitterCard: "summary" | "summary_large_image";
+  /** The page's JSON-LD nodes; absent when it has none. */
+  jsonLd?: readonly JsonLd[];
 }
 
 /** `value` trimmed, or `undefined` when it's empty. */
@@ -169,6 +195,7 @@ export function pageHead(input: PageHeadInput): PageHead {
 
   const noindex = Boolean(page.noindex) || Boolean(settings.disableIndexing);
   const icon = present(settings.faviconUrl) ?? present(input.icon);
+  const jsonLd = (input.jsonLd ?? []).filter((node): node is JsonLd => node !== undefined);
 
   return {
     title,
@@ -185,6 +212,7 @@ export function pageHead(input: PageHeadInput): PageHead {
       ...(image !== undefined && { image }),
     },
     twitterCard: image === undefined ? "summary" : "summary_large_image",
+    ...(jsonLd.length > 0 && { jsonLd }),
   };
 }
 
@@ -199,8 +227,9 @@ function escape(value: string): string {
 
 /**
  * {@link PageHead} as HTML: `<title>`, the description, robots, canonical,
- * icon, Open Graph, and Twitter tags, one per line, every value escaped. Print
- * it inside `<head>` as raw HTML; the charset and viewport stay the page's own.
+ * icon, Open Graph, and Twitter tags, then any JSON-LD scripts, one per line,
+ * every value escaped. Print it inside `<head>` as raw HTML; the charset and
+ * viewport stay the page's own.
  */
 export function renderHeadTags(head: PageHead): string {
   const meta = (attr: "name" | "property", key: string, content: string | undefined): string[] =>
@@ -218,5 +247,6 @@ export function renderHeadTags(head: PageHead): string {
     ...meta("property", "og:site_name", head.og.siteName),
     ...meta("property", "og:image", head.og.image),
     ...meta("name", "twitter:card", head.twitterCard),
+    ...(head.jsonLd ?? []).map(jsonLdScript),
   ].join("\n");
 }
