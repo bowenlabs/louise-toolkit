@@ -66,6 +66,7 @@ interface WorkflowPipelineStep<Env, Params, State extends object> {
     env: Env;
     payload: Readonly<Params>;
     state: Readonly<State>;
+    instanceId: string; // the same on every retry: an idempotency key
   }) => Promise<Partial<State> | void> | Partial<State> | void;
 }
 ```
@@ -85,7 +86,7 @@ runtime glue.
 // src/workflows/publish.ts
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { defineWorkflow } from "louise-toolkit/workflows";
-import { reindexDoc } from "louise-toolkit/content";
+import { deliverWebhook, reindexDoc } from "louise-toolkit/content";
 
 interface PublishParams {
   collection: string;
@@ -115,8 +116,14 @@ const runPublish = defineWorkflow<Env, PublishParams, PublishState>([
   },
   {
     name: "webhook",
-    run: async ({ env, payload }) => {
-      await fetch(env.PUBLISH_WEBHOOK, { method: "POST", body: JSON.stringify(payload) });
+    run: async ({ env, payload, instanceId }) => {
+      // Throws on a non-2xx status, so the step retries; the instance ID is the
+      // delivery ID, so the receiver can drop a retry it already has.
+      await deliverWebhook(
+        env.PUBLISH_WEBHOOK,
+        { event: "publish", ...payload },
+        { secret: env.PUBLISH_WEBHOOK_SECRET, deliveryId: instanceId },
+      );
       return { notified: true };
     },
   },

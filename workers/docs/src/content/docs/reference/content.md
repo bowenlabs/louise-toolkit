@@ -218,7 +218,13 @@ while returning warnings.
   webhooks. Delivery goes through [`fetchPublicUrl`](/reference/security/): the
   endpoint must be https on the default port, with a hostname rather than an IP
   address, and every redirect is checked the same way. Pass a policy as the
-  second argument to add your own site's host to `blockHosts`.
+  second argument to add your own site's host to `blockHosts`. Each event gets
+  a delivery ID when it's enqueued, sent as `X-Louise-Delivery` and as
+  `deliveryId` in the signed body, so a retry carries the same ID and a
+  receiver can drop the repeat.
+- `deliverWebhook(url, payload, { secret?, deliveryId?, policy? })`—the same
+  checked delivery for any other webhook, such as a publish Workflow's notify
+  step. It throws on a non-2xx status, so the caller's retry runs.
 - `defineMigration` / `runMigration`—content migrations over collections.
 - `buildEditorStructure`, `getCollectionsMeta`—drive the Louise Editor UI.
 - `mountVisualEditing` / `mountPreviewSync` / `editAttr`—live preview and
