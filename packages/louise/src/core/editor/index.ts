@@ -90,10 +90,13 @@ export { type SearchRouteConfig, type SearchVectorConfig, searchRoute } from "./
 export { DEFAULT_SEO_FIX_BATCH, type SeoFixRouteConfig, seoFixRoute } from "./seo-fix.js";
 export { type AiRouteConfig, aiRoute } from "./ai.js";
 export {
+  applyPublish,
   applySaveDraft,
   type DraftSoftLocks,
   type DraftSoftLockTarget,
   latestPendingDraft,
+  type PublishDeps,
+  type PublishResult,
   type SaveDraftDeps,
   type SaveDraftOptions,
   type SaveDraftResult,

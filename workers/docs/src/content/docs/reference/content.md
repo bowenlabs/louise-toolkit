@@ -60,6 +60,15 @@ autocomplete and a single greppable call site.
 [Local API](#the-local-api) call receives straight to the collection's `access`
 functions.
 
+`versions.provenance: true`, alongside `drafts`, records who wrote each
+version: `author` and `source` columns on the versions table, filled from the
+`{ session }` a draft save runs with. An editor's save records their user ID
+and `"editor"`, and an agent's records its token's ID and `"agent"`. It's
+opt-in because it adds two columns: apply their migration before the deploy
+that turns it on. The MCP write tools require it; see
+[Writes](/reference/mcp/#writes). `versionProvenance(context)` is the reading
+the Local API does.
+
 ## Codegen—schema from config
 
 ```ts

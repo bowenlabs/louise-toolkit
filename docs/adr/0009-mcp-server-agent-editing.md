@@ -1,6 +1,6 @@
 # ADR 0009: Louise MCP server, agent-editable content over the Local API
 
-- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice. **Amended 2026-09-26** (see _Amendment (2026-09-26)_ below) when slice 2 landed: the route serves both protocol eras, and the official SDK client tests it without shipping in it. **Amended 2026-09-27** (see _Amendment (2026-09-27, at slice 3)_ below) when slice 3 landed: tokens live in a dedicated table of hashes, act as their issuer narrowed to a scope, and reach only the MCP route.
+- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice. **Amended 2026-09-26** (see _Amendment (2026-09-26)_ below) when slice 2 landed: the route serves both protocol eras, and the official SDK client tests it without shipping in it. **Amended 2026-09-27** (see _Amendment (2026-09-27, at slice 3)_ below) when slice 3 landed: tokens live in a dedicated table of hashes, act as their issuer narrowed to a scope, and reach only the MCP route. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at slice 4)_ below) when slice 4 landed: writes run through the editor's own draft and publish paths, a collection without drafts gets a live create that takes `publish` scope, provenance is opt-in per collection and required for agent writes, and `add_block` defers again.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #103 (in the Platform features push milestone, epic #102)
 - **Related:** #75 / #99 (AI assists, which become MCP consumers), #16 (Local API + access), #10 (editor routes / `composeWorker`), ADR 0006 (keep hand-rolled `composeWorker`, zero-dep core)
@@ -226,6 +226,71 @@ because it would open every route to every token. ADR 0012's amendment of the
 same date moves it to the route: `mcpRoute` marks itself with `bearerRoute`,
 checks the token itself, and a bearer request anywhere else is refused.
 
+## Amendment (2026-09-27, at slice 4)
+
+Slice 4 serves the write tools. Decision 4 stands: every agent edit on a
+collection with drafts lands as a draft version, and going live is a separate
+tool gated by `publish` access. What the slice settles:
+
+### Writes run through the editor's paths, not the Local API alone
+
+Decision 4 named `applySaveDraft` or the versioned API's `saveDraft`. The route
+uses `applySaveDraft`, because the lower call skips what makes a draft safe
+next to a person editing the same page: the KV buffer's merge base, the
+optimistic conflict check, and soft-locks. Publish gets the same treatment. The
+route's publish logic moves into `applyPublish` in `louise-toolkit/editor`, and
+`versionsRoute` and `publish_<slug>` both call it, so there's one rule for
+"publish the latest draft."
+
+An agent's save always reaches D1, even with the KV buffer on, so the version
+it makes is the agent's. It builds on buffered work and leaves the buffer
+holding the result, so a person's next auto-save keeps the agent's edit.
+
+### A collection without drafts gets a live create, at `publish` scope
+
+This settles the open question. A collection without `versions.drafts` has
+nowhere to hold a draft, so it gets no update or section tool. It keeps
+`create_<slug>`, because a collection such as inquiries is written by creating
+rows. That create is live the moment it lands, so it takes `publish` scope,
+the level that already means "can change the live site." A draft-only token
+never sees it.
+
+### Provenance is opt-in, and agent writes require it
+
+The versions table gains `author` and `source` columns, behind
+`versions.provenance`. They can't be on by default. Sites build the table at
+runtime with `collectionVersionsTable`, and Drizzle reads it with every column
+it declares, so a default-on column would break every live site's next deploy
+until its migration ran.
+
+Opt-in would leave agent edits untraceable wherever a site forgot, so
+`mcpRoute` refuses a `drafts` store whose table lacks the columns, and the
+write tools exist only where provenance does. Once it's on, every version
+records its author, a person's included: the editor's user ID, or the token's
+ID for an agent, with `source` set to `editor`, `realtime`, or `agent`.
+
+The row stores the token's ID, not its name, which amends slice 3's note. A
+token's name is free text that its issuer chooses and that two tokens can
+share. The ID is unique, and revocation keeps the token's row, so a history
+view resolves the ID to the name, and to the editor who issued it, for as long
+as the site keeps tokens.
+
+### Visibility stays out of an agent's reach
+
+`status` and `publishedVersionId` aren't in any write tool's schema on a
+collection with drafts, and the route refuses them in a create. Under ADR
+0021, visibility moves only through publish and unpublish. HTML a model writes
+into a section goes through `sanitizeModelHtml` before the collection's own
+hooks run.
+
+### `add_block` defers again
+
+Inserting a block means naming a section inside a document and a block type
+that section's policy allows. That needs the site's `BlockCatalog` passed to
+`mcpRoute`, and an addressing scheme for a section within `sections`. Neither
+exists yet, and `add_<slug>_section` plus `update_<slug>_field` on `sections`
+cover the content an agent writes today. It's a follow-up, not part of slice 4.
+
 ## Consequences
 
 - Core stays zero-dep. The MCP server is a `WorkerRoute` that `composeWorker` mounts and `runEditorRoute` runs from Astro, with no new public transport contract.
@@ -236,5 +301,5 @@ checks the token itself, and a bearer request anywhere else is refused.
 ## Open questions
 
 - **Token model**: settled in slice 3, a dedicated table of hashed, scoped, expiring tokens (see _Amendment (2026-09-27, at slice 3)_).
-- **Non-versioned collections**: expose write tools at all, or stay read-only until a collection opts into `versions.drafts`?
+- **Non-versioned collections**: settled in slice 4, a live `create_<slug>` that takes `publish` scope, and no other write (see _Amendment (2026-09-27, at slice 4)_).
 - **Registry timing**: list publicly only after slices 1–4 are on `main`, to avoid advertising an incomplete server.

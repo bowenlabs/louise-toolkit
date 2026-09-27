@@ -126,6 +126,13 @@ describe("defineCollection", () => {
     rejects({ ...valid, realtime: true }, message);
     rejects({ ...valid, realtime: true, versions: { drafts: false } }, message);
   });
+
+  it("rejects provenance without draft versioning", () => {
+    rejects(
+      { ...valid, versions: { provenance: true } },
+      'Collection "pages" sets versions.provenance but not versions.drafts. Provenance is recorded on draft versions, so it requires draft versioning',
+    );
+  });
 });
 
 describe("defineContentConfig", () => {

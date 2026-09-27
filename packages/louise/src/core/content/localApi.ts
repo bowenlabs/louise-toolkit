@@ -929,6 +929,41 @@ export interface VersionedLocalApi<
   ): Promise<FieldChange[]>;
 }
 
+/** The surface a version came through, recorded when a collection sets `versions.provenance`. */
+export type VersionSource = "editor" | "realtime" | "agent";
+
+/** Who wrote a version: stored on its row when the collection records provenance. */
+export interface VersionProvenance {
+  /** The editor's user ID, or, for an agent, its token's public ID. */
+  author: string;
+  source: VersionSource;
+}
+
+/**
+ * The provenance a draft save records, read from its access context: the
+ * `{ session }` every editor route passes. An agent's session carries the
+ * token it used, which wins over any `source` the caller names, so an agent's
+ * edit is never recorded as a person's. A context with no session records
+ * nothing.
+ */
+export function versionProvenance(context: unknown): VersionProvenance | undefined {
+  const ctx = context as
+    | {
+        session?: { userId?: unknown; agent?: { tokenId?: unknown } };
+        source?: VersionSource;
+      }
+    | null
+    | undefined;
+  const session = ctx?.session;
+  const tokenId = session?.agent?.tokenId;
+  if (typeof tokenId === "string") return { author: tokenId, source: "agent" };
+  if (typeof session?.userId !== "string") return undefined;
+  return {
+    author: session.userId,
+    source: ctx?.source === "realtime" ? "realtime" : "editor",
+  };
+}
+
 /** A driver that exposes D1/libsql's atomic `batch([...])`. The generic
  *  `BaseSQLiteDatabase` type doesn't declare it (it's driver-specific), so the
  *  publish path and the search sync feature-detect it: batch atomically where
@@ -968,6 +1003,16 @@ export function createVersionedLocalApi<
   const versionsParentIdColumn = versionsTable.parentId;
   const versionsStatusColumn = versionsTable.status;
   const versionsScheduledAtColumn = versionsTable.scheduledAt;
+  // Provenance columns (#236), present when the collection sets
+  // `versions.provenance`. A versions table without them records nothing, so
+  // a site that hasn't migrated keeps working.
+  const recordsProvenance =
+    versionsTable.author !== undefined && versionsTable.source !== undefined;
+  const provenanceOf = (context: TContext) => {
+    if (!recordsProvenance) return {};
+    const p = versionProvenance(context);
+    return p ? { author: p.author, source: p.source } : {};
+  };
   // Group fields (#697): a draft may arrive nested (`{ seo: { title } }`), as
   // `create` accepts, or flat (`seo_title`), as a snapshot of the live row is.
   // Store it flat, like the row, and return a published row nested, like
@@ -1130,6 +1175,7 @@ export function createVersionedLocalApi<
         parentId: id,
         versionData: data,
         status: "draft",
+        ...provenanceOf(context),
         // oxlint-disable-next-line typescript/no-explicit-any -- TVersionsTable is abstract here, same rationale as createLocalApi.create's .values() cast
       } as any;
       const [row] = await db.insert(versionsTable).values(insertValues).returning();
@@ -1147,6 +1193,7 @@ export function createVersionedLocalApi<
         versionData: data,
         status: "draft",
         scheduledAt,
+        ...provenanceOf(context),
         // oxlint-disable-next-line typescript/no-explicit-any -- TVersionsTable is abstract here, same rationale as saveDraft above
       } as any;
       const [row] = await db.insert(versionsTable).values(insertValues).returning();

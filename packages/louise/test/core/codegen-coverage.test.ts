@@ -305,6 +305,20 @@ describe("collectionVersionsTable", () => {
     ]);
     expect(columns.find((c) => c.name === "status")?.enumValues).toEqual(["draft", "published"]);
   });
+
+  it("adds who wrote each version when the collection records provenance", () => {
+    const tracked = { ...events, versions: { drafts: true, provenance: true } };
+    const { columns } = getTableConfig(collectionVersionsTable(tracked));
+    expect(columns.slice(-2).map((c) => [c.name, c.notNull])).toEqual([
+      ["author", false],
+      ["source", false],
+    ]);
+    expect(columns.find((c) => c.name === "source")?.enumValues).toEqual([
+      "editor",
+      "realtime",
+      "agent",
+    ]);
+  });
 });
 
 describe("contentConfigToSchema", () => {

@@ -140,6 +140,10 @@ function versionsTableSource(config: CollectionConfig, usedBuilders: Set<string>
     '  status: text("status", { enum: ["draft", "published"] }).notNull(),\n' +
     '  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),\n' +
     '  scheduledAt: integer("scheduled_at", { mode: "timestamp" }),\n' +
+    (config.versions?.provenance
+      ? '  author: text("author"),\n' +
+        '  source: text("source", { enum: ["editor", "realtime", "agent"] }),\n'
+      : "") +
     "});"
   );
 }

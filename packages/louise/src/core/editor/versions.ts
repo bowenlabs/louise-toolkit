@@ -20,7 +20,13 @@
 import { eq } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { EditorSession } from "../auth/types.js";
-import { type PageId, parsePageId, parseVersionId, toVersionId } from "../content/ids.js";
+import {
+  type PageId,
+  parsePageId,
+  parseVersionId,
+  toVersionId,
+  type VersionId,
+} from "../content/ids.js";
 import {
   type LifecycleVersion,
   pageState,
@@ -188,6 +194,13 @@ export interface SaveDraftOptions<Env extends EditorRouteEnv = EditorRouteEnv> {
    * another editor wrote.
    */
   softLocks?: DraftSoftLocks<Env>;
+  /**
+   * The surface the save came through, recorded on the version when the
+   * collection sets `versions.provenance`. The realtime session's `persist`
+   * passes `"realtime"`. Leave it out for an editor route. An agent's save is
+   * recorded as `"agent"` from its session whatever this says.
+   */
+  source?: "realtime";
 }
 
 /** The message a 409 conflict carries. */
@@ -221,7 +234,7 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   const database = db(session);
   const pkCol = getTableConfig(deps.table).columns.find((c) => c.primary) as SQLiteColumn;
   const fieldKeys = Object.keys(flattenFields(deps.config.fields));
-  const context = { session: editor };
+  const context = { session: editor, ...(options.source ? { source: options.source } : {}) };
   const api = createVersionedLocalApi(
     database,
     deps.table,
@@ -383,6 +396,171 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   };
 }
 
+/** The outcome of {@link applyPublish}: the live row, or a status and message
+ *  (with per-field `violations` when a hook or validation refused it). */
+export type PublishResult =
+  | { ok: true; body: { page: unknown } }
+  | { ok: false; status: number; error: string; violations?: unknown };
+
+/** What {@link applyPublish} needs: the draft deps, plus the redirects table. */
+export interface PublishDeps<
+  Env extends EditorRouteEnv = EditorRouteEnv,
+> extends SaveDraftDeps<Env> {
+  /** See {@link VersionsRouteConfig.redirects}. */
+  redirects?: typeof pageRedirects;
+}
+
+/**
+ * Publish a versioned row, as `POST /:id/publish` does. With `versionId`, that
+ * version, which must belong to `id`. Without it, the newest still-pending
+ * draft, after flushing any buffered work into one. With no pending draft, a
+ * hidden row is shown again as it stands, and a row never published goes live
+ * as it stands. Otherwise there's nothing to publish.
+ *
+ * The collection's `publish` access function decides whether `editor` may, so
+ * the MCP route's `publish_<slug>` and the editor's own button share one rule.
+ */
+export async function applyPublish<Env extends EditorRouteEnv = EditorRouteEnv>(
+  env: Env,
+  deps: PublishDeps<Env>,
+  editor: EditorSession,
+  id: PageId,
+  explicitVersionId?: VersionId,
+): Promise<PublishResult> {
+  const database = db(env.DB);
+  const pkCol = getTableConfig(deps.table).columns.find((c) => c.primary) as SQLiteColumn;
+  // The columns `collectionVersionsTable` generates, which the ownership check reads.
+  const versionsCols = deps.versionsTable as unknown as {
+    id: SQLiteColumn;
+    parentId: SQLiteColumn;
+  };
+  const context = { session: editor };
+  const api = createVersionedLocalApi(
+    database,
+    deps.table,
+    deps.versionsTable,
+    deps.config,
+    undefined,
+    { deferReindex: deps.deferReindex?.(env) },
+  );
+  const kv = deps.bufferKv?.(env);
+  const bufferKey = draftBufferKey(deps.config.slug, id);
+  const refused = (status: number, err: unknown): PublishResult => {
+    const { message, violations } = violationsOf(err);
+    return { ok: false, status, error: message, ...(violations ? { violations } : {}) };
+  };
+
+  /** The live row's slug, read before a publish that may change it (#574). */
+  const liveSlug = async (): Promise<string | undefined> => {
+    const [row] = await database.select().from(deps.table).where(eq(pkCol, id)).limit(1);
+    const slug = (row as Record<string, unknown> | undefined)?.slug;
+    return typeof slug === "string" ? slug : undefined;
+  };
+  /** Record `/old → /new` when a publish changed the slug. Never fails the
+   *  publish, which has already gone live. */
+  const recordPublishedRename = async (before: string | undefined, after: unknown) => {
+    if (!deps.redirects || before === undefined || typeof after !== "string") return;
+    const writes = slugChangeStatements(database, deps.redirects, before, after);
+    if (writes.length === 0) return;
+    try {
+      await database.batch(writes as [(typeof writes)[number], ...typeof writes]);
+    } catch (err) {
+      reportDegraded("editor.redirects", err, { id });
+    }
+  };
+
+  // An explicit version must belong to the page in the path (#535).
+  // `api.publish` finds the page through the version row's `parentId`, so
+  // without this check a mismatched pair publishes a different page than the
+  // URL names. Check before the flush below, so a rejected publish leaves
+  // this page's buffered work where it was.
+  if (explicitVersionId !== undefined) {
+    const [version] = await database
+      .select({ parentId: versionsCols.parentId })
+      .from(deps.versionsTable)
+      .where(eq(versionsCols.id, explicitVersionId))
+      .limit(1);
+    if ((version as { parentId?: unknown } | undefined)?.parentId !== id) {
+      return { ok: false, status: 404, error: "Version not found" };
+    }
+  }
+  // Flush any buffered work to D1 first, so "publish the latest draft" sees
+  // the freshest edits (the buffer may hold writes not yet flushed)—this
+  // becomes the newest draft version.
+  //
+  // This flush runs the collection's `beforeChange` hook again. Every
+  // buffered save already ran it through `prepareDraft`, so this rarely
+  // throws, but a hook can still reject what it once accepted (a section
+  // type the site has since removed). That error must surface as a 422
+  // with its violations, not the raw 500 an uncaught throw before the
+  // try/catch below would produce.
+  if (kv) {
+    const buffered = await readDraftBuffer(kv, bufferKey);
+    if (buffered) {
+      try {
+        await api.saveDraft(context, id, buffered.data as never);
+      } catch (err) {
+        if (err instanceof LouiseValidationError) {
+          return refused(422, err);
+        }
+        throw err;
+      }
+    }
+  }
+  let versionId = explicitVersionId;
+  if (versionId === undefined) {
+    const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
+    const [row] = await database.select().from(deps.table).where(eq(pkCol, id)).limit(1);
+    if (!row) return { ok: false, status: 404, error: "Not found" };
+    const latestDraft = latestPendingDraft(versions);
+    const state = pageState(row as Record<string, unknown>);
+    if (latestDraft) {
+      versionId = toVersionId(latestDraft.id as number);
+    } else if (state === "hidden") {
+      // Nothing newer to publish, so show the page again as it stands
+      // (ADR 0021). No snapshot is copied, so an edit made while it was
+      // hidden stays.
+      try {
+        return { ok: true, body: { page: await api.republish(context, id) } };
+      } catch (err) {
+        if (err instanceof LouiseContentError) return refused(422, err);
+        throw err;
+      }
+    } else if (state === "new") {
+      // Never published and no draft: publish the page as it stands, by
+      // saving it as the first version.
+      const snapshot: Record<string, unknown> = {};
+      const row0 = row as Record<string, unknown>;
+      for (const key of Object.keys(flattenFields(deps.config.fields))) {
+        if (key in row0) snapshot[key] = row0[key];
+      }
+      try {
+        const first = (await api.saveDraft(context, id, snapshot as never)) as Record<
+          string,
+          unknown
+        >;
+        versionId = toVersionId(first.id as number);
+      } catch (err) {
+        return refused(422, err);
+      }
+    } else {
+      return { ok: false, status: 400, error: "No draft to publish" };
+    }
+  }
+  try {
+    const slugBefore = deps.redirects ? await liveSlug() : undefined;
+    const page = await api.publish(context, versionId);
+    await recordPublishedRename(slugBefore, (page as Record<string, unknown> | null)?.slug);
+    // Publishing the current work clears the buffer (its content is now
+    // live). An explicit historic republish leaves the buffer—the pending
+    // work-in-progress it holds is still newer than what just went live.
+    if (kv && explicitVersionId === undefined) await clearDraftBuffer(kv, bufferKey);
+    return { ok: true, body: { page } };
+  } catch (err) {
+    return refused(422, err);
+  }
+}
+
 /** The fields among `keys` this save changes that someone other than `editor`
  *  holds a soft-lock on. Reads the locks only when a lockable field changes. */
 async function lockedByOthers<Env extends EditorRouteEnv>(
@@ -466,8 +644,6 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 ): WorkerRoute<Env> {
   const base = cfg.path ?? "/api/louise/pages";
   const pkCol = getTableConfig(cfg.table).columns.find((c) => c.primary) as SQLiteColumn;
-  // The columns `collectionVersionsTable` generates, which the publish check reads.
-  const versionsCols = cfg.versionsTable as unknown as { id: SQLiteColumn; parentId: SQLiteColumn };
 
   return async (request, env) => {
     const path = new URL(request.url).pathname;
@@ -508,25 +684,6 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     // by the buffer and only periodically flushed to D1 (see the POST handler).
     const kv = cfg.bufferKv?.(env);
     const bufferKey = draftBufferKey(cfg.config.slug, id);
-
-    /** The live row's slug, read before a publish that may change it (#574). */
-    const liveSlug = async (): Promise<string | undefined> => {
-      const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
-      const slug = (row as Record<string, unknown> | undefined)?.slug;
-      return typeof slug === "string" ? slug : undefined;
-    };
-    /** Record `/old → /new` when a publish changed the slug. Never fails the
-     *  publish, which has already gone live. */
-    const recordPublishedRename = async (before: string | undefined, after: unknown) => {
-      if (!cfg.redirects || before === undefined || typeof after !== "string") return;
-      const writes = slugChangeStatements(database, cfg.redirects, before, after);
-      if (writes.length === 0) return;
-      try {
-        await database.batch(writes as [(typeof writes)[number], ...typeof writes]);
-      } catch (err) {
-        reportDegraded("editor.redirects", err, { id });
-      }
-    };
 
     // GET /:id/versions—history, newest first, each version with its `state`
     // (ADR 0021: pending, scheduled, superseded, current, or earlier), plus the
@@ -629,99 +786,16 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       if (requestedVersionId !== undefined && explicitVersionId === undefined) {
         return json({ error: "Bad versionId" }, 400);
       }
-      // An explicit version must belong to the page in the path (#535).
-      // `api.publish` finds the page through the version row's `parentId`, so
-      // without this check a mismatched pair publishes a different page than the
-      // URL names. Check before the flush below, so a rejected publish leaves
-      // this page's buffered work where it was.
-      if (explicitVersionId !== undefined) {
-        const [version] = await database
-          .select({ parentId: versionsCols.parentId })
-          .from(cfg.versionsTable)
-          .where(eq(versionsCols.id, explicitVersionId))
-          .limit(1);
-        if ((version as { parentId?: unknown } | undefined)?.parentId !== id) {
-          return json({ error: "Version not found" }, 404);
-        }
-      }
-      // Flush any buffered work to D1 first, so "publish the latest draft" sees
-      // the freshest edits (the buffer may hold writes not yet flushed)—this
-      // becomes the newest draft version.
-      //
-      // This flush runs the collection's `beforeChange` hook again. Every
-      // buffered save already ran it through `prepareDraft`, so this rarely
-      // throws, but a hook can still reject what it once accepted (a section
-      // type the site has since removed). That error must surface as a 422
-      // with its violations, not the raw 500 an uncaught throw before the
-      // try/catch below would produce.
-      if (kv) {
-        const buffered = await readDraftBuffer(kv, bufferKey);
-        if (buffered) {
-          try {
-            await api.saveDraft(context, id, buffered.data as never);
-          } catch (err) {
-            if (err instanceof LouiseValidationError) {
-              const { message, violations } = violationsOf(err);
-              return json({ error: message, ...(violations ? { violations } : {}) }, 422);
-            }
-            throw err;
-          }
-        }
-      }
-      let versionId = explicitVersionId;
-      if (versionId === undefined) {
-        const versions = (await api.findVersions(context, id)) as Record<string, unknown>[];
-        const [row] = await database.select().from(cfg.table).where(eq(pkCol, id)).limit(1);
-        if (!row) return json({ error: "Not found" }, 404);
-        const latestDraft = latestPendingDraft(versions);
-        const state = pageState(row as Record<string, unknown>);
-        if (latestDraft) {
-          versionId = toVersionId(latestDraft.id as number);
-        } else if (state === "hidden") {
-          // Nothing newer to publish, so show the page again as it stands
-          // (ADR 0021). No snapshot is copied, so an edit made while it was
-          // hidden stays.
-          try {
-            return json({ page: await api.republish(context, id) });
-          } catch (err) {
-            if (err instanceof LouiseContentError) return json({ error: err.message }, 422);
-            throw err;
-          }
-        } else if (state === "new") {
-          // Never published and no draft: publish the page as it stands, by
-          // saving it as the first version.
-          const snapshot: Record<string, unknown> = {};
-          const row0 = row as Record<string, unknown>;
-          for (const key of Object.keys(flattenFields(cfg.config.fields))) {
-            if (key in row0) snapshot[key] = row0[key];
-          }
-          try {
-            const first = (await api.saveDraft(context, id, snapshot as never)) as Record<
-              string,
-              unknown
-            >;
-            versionId = toVersionId(first.id as number);
-          } catch (err) {
-            const { message, violations } = violationsOf(err);
-            return json({ error: message, ...(violations ? { violations } : {}) }, 422);
-          }
-        } else {
-          return json({ error: "No draft to publish" }, 400);
-        }
-      }
-      try {
-        const slugBefore = cfg.redirects ? await liveSlug() : undefined;
-        const page = await api.publish(context, versionId);
-        await recordPublishedRename(slugBefore, (page as Record<string, unknown> | null)?.slug);
-        // Publishing the current work clears the buffer (its content is now
-        // live). An explicit historic republish leaves the buffer—the pending
-        // work-in-progress it holds is still newer than what just went live.
-        if (kv && explicitVersionId === undefined) await clearDraftBuffer(kv, bufferKey);
-        return json({ page });
-      } catch (err) {
-        const { message, violations } = violationsOf(err);
-        return json({ error: message, ...(violations ? { violations } : {}) }, 422);
-      }
+      const result = await applyPublish(env, cfg, g.editor, id, explicitVersionId);
+      return result.ok
+        ? json(result.body)
+        : json(
+            {
+              error: result.error,
+              ...(result.violations ? { violations: result.violations } : {}),
+            },
+            result.status,
+          );
     }
 
     // POST /:id/unpublish—hide the page. Its data and pointer stay (ADR 0021),
