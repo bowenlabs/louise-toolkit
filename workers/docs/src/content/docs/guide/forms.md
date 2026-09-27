@@ -69,8 +69,27 @@ ok: true }`; a validation failure returns `422 { error, violations }` (per-field
 failed Turnstile or cross-origin request returns `403`. Unknown keys in the body
 are ignored—only declared fields are read and stored.
 
-A plain HTML `<form method="POST">` works out of the box (it sends `Referer`, so
-the same-origin check passes); a `fetch` with a JSON body works too.
+A `fetch` with a JSON body gets the JSON answers above. A plain HTML
+`<form method="post">` works too, which is what a visitor gets when the script
+that enhances a form is slow, blocked, or broken. A form-encoded post from a
+browser that wants HTML gets a `303` back to the page the form was on (its
+`Referer`, or the site root when there's none), so a reload doesn't resubmit:
+
+```text
+/contact?form=inquiries&status=sent
+/contact?form=inquiries&status=invalid&invalid=email,message
+```
+
+`status` is `sent`, `invalid`, `limited` (rate-limited), or `refused` (the
+Turnstile check failed). For `invalid`, `invalid` lists the failing field keys,
+never the messages, so a server-rendered page can mark those fields. Read both
+in the page and show the result in the form's status region.
+
+For your own thank-you page, or to re-render the form with the messages, pass
+`respond(outcome, request)`. It gets `{ form, status, invalid?, violations? }`;
+return a `Response`, or `undefined` for the redirect. A file posted straight to
+the route is refused with a violation, since a `file` field stores a link to a
+file that's already uploaded.
 
 ## Render (headless `<Form>`)
 

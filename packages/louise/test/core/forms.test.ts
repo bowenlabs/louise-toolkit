@@ -496,3 +496,113 @@ describe("formRoute", () => {
     expect(mailed[0]).toMatchObject({ to: "me@x.co" });
   });
 });
+
+describe("formRoute, posted without a script", () => {
+  const form = defineForm({
+    name: "inquiries",
+    fields: {
+      email: { type: "email", label: "Email", required: true },
+      message: { type: "textarea", label: "Message", required: true },
+      resume: { type: "file", label: "Resume" },
+    },
+    spam: { rateLimit: { max: 1, windowSec: 60 } },
+  });
+  const url = "https://site.example/api/louise/forms/inquiries";
+  const plain = (
+    fields: Record<string, string | Blob>,
+    referer: string | null = "https://site.example/contact?utm=x#form",
+  ) => {
+    const body = new FormData();
+    for (const [k, v] of Object.entries(fields)) body.append(k, v);
+    return new Request(url, {
+      method: "POST",
+      headers: {
+        origin: "https://site.example",
+        accept: "text/html,application/xhtml+xml",
+        ...(referer ? { referer } : {}),
+      },
+      body,
+    });
+  };
+
+  it("redirects a sent message back to the form's page with its status", async () => {
+    const { db, inserts } = makeD1();
+    const res = await formRoute({ form })(
+      plain({ email: "a@example.com", message: "hello there" }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(303);
+    expect(res?.headers.get("location")).toBe(
+      "https://site.example/contact?utm=x&form=inquiries&status=sent",
+    );
+    expect(inserts).toHaveLength(1);
+  });
+
+  it("names the failing fields, never the messages, and refuses a file posted directly", async () => {
+    const { db, inserts } = makeD1();
+    const res = await formRoute({ form })(
+      plain({ email: "nope", message: "hi", resume: new File(["x"], "cv.pdf") }),
+      { DB: db },
+      ctx,
+    );
+    const location = new URL(res!.headers.get("location")!);
+    expect(location.searchParams.get("status")).toBe("invalid");
+    expect(location.searchParams.get("invalid")?.split(",").sort()).toEqual(["email", "resume"]);
+    expect(location.href).not.toContain("valid%20email");
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("says when the visitor is rate-limited", async () => {
+    const { db } = makeD1();
+    const kv = makeKv();
+    const limited = formRoute({ form, rateLimitKv: () => kv as never });
+    await limited(plain({ email: "a@example.com", message: "one" }), { DB: db }, ctx);
+    const res = await limited(plain({ email: "a@example.com", message: "two" }), { DB: db }, ctx);
+    expect(new URL(res!.headers.get("location")!).searchParams.get("status")).toBe("limited");
+  });
+
+  it("goes to the site root when the Referer is missing or from elsewhere", async () => {
+    const { db } = makeD1();
+    const route = formRoute({ form });
+    const fields = { email: "a@example.com", message: "hello there" };
+    const none = await route(plain(fields, null), { DB: db }, ctx);
+    expect(none?.headers.get("location")).toBe("https://site.example/?form=inquiries&status=sent");
+    const elsewhere = await route(plain(fields, "https://evil.example/x"), { DB: db }, ctx);
+    expect(new URL(elsewhere!.headers.get("location")!).origin).toBe("https://site.example");
+  });
+
+  it("lets the site answer with its own page", async () => {
+    const { db } = makeD1();
+    const respond = vi.fn(() => new Response("<p>Thanks</p>", { status: 200 }));
+    const res = await formRoute({ form, respond })(
+      plain({ email: "a@example.com", message: "hello there" }),
+      { DB: db },
+      ctx,
+    );
+    expect(await res?.text()).toBe("<p>Thanks</p>");
+    expect(respond).toHaveBeenCalledWith(
+      { form: "inquiries", status: "sent" },
+      expect.any(Request),
+    );
+  });
+
+  it("keeps answering JSON to a script's request", async () => {
+    const { db } = makeD1();
+    const res = await formRoute({ form })(
+      new Request(url, {
+        method: "POST",
+        headers: {
+          origin: "https://site.example",
+          accept: "text/html",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ email: "a@example.com", message: "hello there" }),
+      }),
+      { DB: db },
+      ctx,
+    );
+    expect(res?.status).toBe(201);
+    expect(await res?.json()).toEqual({ ok: true });
+  });
+});
