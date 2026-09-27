@@ -491,11 +491,11 @@ describe("inventory", () => {
           occurredAt: "2026-09-26T08:00:00Z",
         },
       ],
-      { idempotencyKey: "recount-2026-09-27" },
+      { idempotencyKey: "recount of 2026-09-27" },
     );
     expect(calls[0]).toMatchObject({ path: "/v2/inventory/changes/batch-create" });
     expect(calls[0]?.body).toEqual({
-      idempotency_key: "recount-2026-09-27",
+      idempotency_key: "recount of 2026-09-27",
       changes: [
         {
           type: "ADJUSTMENT",

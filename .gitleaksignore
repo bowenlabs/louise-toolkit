@@ -6,10 +6,16 @@
 # generic-api-key rule.
 29b5c1c5dcee7d7533a6e5f8e1e75fed2405bc28:packages/astroid/README.md:generic-api-key:71
 
-# False positives: the Square test fixtures pass readable idempotency keys
-# ("recount-2026-09-27", "enroll-C1-PLAN1") so a test can check the key is
-# sent as given. The `idempotencyKey:` label matches the generic-api-key rule.
-0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-coverage.test.ts:generic-api-key:494
-0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-coverage.test.ts:generic-api-key:498
-0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:645
-0dc07d48867afb48af91d0f149979d61193952f4:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:649
+# False positives: the Square test fixtures once passed readable idempotency
+# keys ("recount-2026-09-27", "enroll-C1-PLAN1") so a test could check the key
+# is sent as given. The `idempotencyKey:` label matches the generic-api-key
+# rule. The fixtures now use values with spaces, which the rule doesn't match,
+# so these entries only cover the commit that introduced them.
+#
+# A fingerprint carries the commit SHA, so an entry taken from a PR branch
+# stops matching once the PR is squash-merged. Take fingerprints from the
+# commit on main.
+3aad3bc5240112fcdef5d545c151525bdc48fc65:packages/louise/test/core/square-coverage.test.ts:generic-api-key:494
+3aad3bc5240112fcdef5d545c151525bdc48fc65:packages/louise/test/core/square-coverage.test.ts:generic-api-key:498
+3aad3bc5240112fcdef5d545c151525bdc48fc65:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:645
+3aad3bc5240112fcdef5d545c151525bdc48fc65:packages/louise/test/core/square-orders-coverage.test.ts:generic-api-key:649
