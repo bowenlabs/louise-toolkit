@@ -149,8 +149,17 @@ const CSS = `
 .louise-status:empty {
   display: none;
 }
-.louise-status[data-status="error"] {
+.louise-status[data-status="error"],
+.louise-status[data-status="conflict"] {
   color: #dc2626;
+}
+/* A draft-save conflict's two ways out (#572), beside the status. */
+.louise-conflict {
+  display: inline-flex;
+  gap: 6px;
+}
+.louise-conflict[hidden] {
+  display: none;
 }
 .louise-status[data-status="saved"] {
   color: #15803d;

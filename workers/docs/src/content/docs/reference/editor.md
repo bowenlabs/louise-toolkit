@@ -157,7 +157,11 @@ pagesCollection, id)` to keep that one row searchable, rather than rebuilding
   stores a full snapshot in `${slug}_versions`; publish promotes it onto the live
   row and sets `published_version_id`. Takes `{ table, versionsTable, config,
 resolveEditor, validate? }`; **mount it before `pagesRoute`** so its
-  `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher.
+  `/:id/versions` paths aren't claimed by `pagesRoute`'s `/:id` matcher. The
+  versions `GET` returns the current field revisions as `revs`, a save returns
+  the revisions of the fields it stored, and a save whose `$base` is stale for a
+  field someone else changed gets a `409` with `conflicts`; see
+  [When someone else saved first](/guide/drafts/#when-someone-else-saved-first).
 - **`searchRoute`**—full-text search over a collection with a `search` config:
   `GET /api/louise/pages/search?q=…&limit=…` returns ranked (published) rows from
   the FTS5 index; `POST …/reindex` rebuilds it from the table. A `json` field in
@@ -321,9 +325,12 @@ its own endpoint rather than using the `WorkerRoute`s above—an Astro Action, s
 
 - `applyFieldSave(env, config, session, input)`—one inline field write, the body
   of `saveRoute`.
-- `applySaveDraft(env, deps, session, id, snapshot)`—a versioned draft write, the
-  body of the draft route. `id` is a [`PageId`](/reference/content/#page-and-version-ids). This is also what the realtime Durable Object calls, so
-  there is exactly one write path rather than two that can drift.
+- `applySaveDraft(env, deps, session, id, snapshot, { base? })`—a versioned draft
+  write, the body of the draft route. `id` is a [`PageId`](/reference/content/#page-and-version-ids). `base` is the field revisions the save
+  started from; a stale one is a `409` with `conflicts`. This is also what the
+  realtime Durable Object calls, so there is exactly one write path rather than
+  two that can drift. `fieldRev(value)` and `fieldRevs(data, keys)` compute the
+  revisions, and `DRAFT_BASE_KEY` is the `$base` body key.
 - `applySettingsPatch(env, config, session, patch)`—a settings write, the body of
   `settingsRoute`.
 

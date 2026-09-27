@@ -11,6 +11,7 @@
 
 import { stegaClean } from "../core/content/stega-clean.js";
 import { mountStegaClipboardGuard } from "../core/content/visual-editing.js";
+import { DRAFT_BASE_KEY, type DraftConflict as DraftConflictBody } from "../core/editor/revs.js";
 import { humanizeFieldKey, nameEditable, wireToolbarRoving } from "./a11y.js";
 import { type AutoSaveOption, type Autosave, createAutosave, resolveAutoSave } from "./autosave.js";
 import {
@@ -115,7 +116,15 @@ async function signOut(): Promise<void> {
   location.assign(exitHref());
 }
 
-type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error";
+type ChromeStatus = "idle" | "saving" | "saved" | "publishing" | "error" | "conflict";
+
+/** What the bar offers when a draft save finds someone else's edit (#572). */
+interface ChromeConflict {
+  /** Save this editor's values over theirs. */
+  onKeepMine: () => void;
+  /** Drop this editor's unsaved edits and load theirs. */
+  onReload: () => void;
+}
 
 interface Chrome {
   setDirty: (dirty: boolean) => void;
@@ -124,6 +133,8 @@ interface Chrome {
   setHasDraft: (hasDraft: boolean) => void;
   /** Realtime only: render the other editors currently in the session (avatars). */
   setPresence: (peers: RealtimePeer[]) => void;
+  /** Show a draft-save conflict and its two ways out, or clear it with `null`. */
+  setConflict: (conflict: ChromeConflict | null) => void;
 }
 
 interface ChromeOptions {
@@ -220,10 +231,17 @@ function createChrome(opts: ChromeOptions): Chrome {
     status.setAttribute("aria-live", "polite");
   }
 
+  // A draft-save conflict's two ways out (#572), shown only while one is open.
+  const conflictActions = status ? document.createElement("span") : null;
+  if (conflictActions) {
+    conflictActions.className = "louise-conflict";
+    conflictActions.hidden = true;
+  }
+
   // appendChild (single node), not the variadic append(): the latter's DOM
   // signature collides with @cloudflare/workers-types' HTMLRewriter `append`
   // when both type libs are in scope.
-  for (const el of [presence, saveDraft, publish, save, settings, exit, status])
+  for (const el of [presence, saveDraft, publish, save, settings, exit, status, conflictActions])
     if (el) bar.appendChild(el);
   document.body.appendChild(bar);
 
@@ -258,7 +276,27 @@ function createChrome(opts: ChromeOptions): Chrome {
               ? "Publishing…"
               : s === "error"
                 ? "Couldn’t save"
-                : "";
+                : s === "conflict"
+                  ? "Someone else changed this since you opened it."
+                  : "";
+    },
+    setConflict: (conflict) => {
+      if (!conflictActions) return;
+      conflictActions.replaceChildren();
+      conflictActions.hidden = conflict === null;
+      if (!conflict) return;
+      const keep = document.createElement("button");
+      keep.type = "button";
+      keep.className = "louise-conflict-keep";
+      keep.textContent = "Keep mine";
+      keep.addEventListener("click", conflict.onKeepMine);
+      const reload = document.createElement("button");
+      reload.type = "button";
+      reload.className = "louise-conflict-reload";
+      reload.textContent = "Reload";
+      reload.addEventListener("click", conflict.onReload);
+      conflictActions.appendChild(keep);
+      conflictActions.appendChild(reload);
     },
     setPresence: (peers) => {
       presence.replaceChildren();
@@ -340,8 +378,13 @@ export interface MountLouiseOptions {
       field: string;
       value: unknown;
     }) => Promise<unknown>;
-    /** Versioned draft save—mirrors `louiseSaveDraftAction`'s input. */
-    saveDraft?: (input: { id: number; data: Record<string, unknown> }) => Promise<unknown>;
+    /** Versioned draft save—mirrors `louiseSaveDraftAction`'s input, and
+     *  resolves with its result, which carries `revs` or `conflicts`. */
+    saveDraft?: (input: {
+      id: number;
+      data: Record<string, unknown>;
+      base?: Record<string, string>;
+    }) => Promise<unknown>;
   };
 }
 
@@ -526,6 +569,14 @@ export function mountLouise(opts: MountLouiseOptions): void {
   // The save fns fall back to a raw `keepalive` fetch then—a framework action
   // can't keepalive, so its request would be aborted mid-navigation (#138).
   let unloading = false;
+  // The revision of each field's stored value, as this editor last saw it: from
+  // the versions listing on mount, then from each save. A draft save sends the
+  // revisions of the fields it sets, so the server can refuse to overwrite
+  // someone else's edit (#572). A field with no revision yet isn't checked.
+  const revs = new Map<string, string>();
+  // Set while a conflict waits for the owner's choice; auto-save holds off so
+  // it doesn't repeat the same refused save.
+  let conflictOpen = false;
 
   const markDirty = (fieldKey: string, getter: ValueGetter) => {
     editGen++;
@@ -589,30 +640,75 @@ export function mountLouise(opts: MountLouiseOptions): void {
     }
   };
 
+  // A save's outcome as the draft routes report it: the saved fields' `revs`,
+  // or the `conflicts` that refused it.
+  type DraftSaveBody = { revs?: Record<string, string>; conflicts?: DraftConflictBody[] };
+
+  // Show a conflict and hold auto-save until the owner picks a way out.
+  const openConflict = (conflicts: DraftConflictBody[]) => {
+    conflictOpen = true;
+    auto?.cancel();
+    chrome.setStatus("conflict");
+    chrome.setConflict({
+      // Adopt their revisions as this save's base, so the next save replaces
+      // exactly the values the owner was shown, then save again.
+      onKeepMine: () => {
+        for (const c of conflicts) revs.set(c.field, c.rev);
+        conflictOpen = false;
+        chrome.setConflict(null);
+        void saveDraft();
+      },
+      // Drop the unsaved edits first, so neither the leave guard nor the
+      // unload flush fires on the way out.
+      onReload: () => {
+        dirty.clear();
+        chrome.setDirty(false);
+        location.reload();
+      },
+    });
+  };
+
   // Versioned: snapshot every changed field into ONE draft (the live row is
   // untouched until publish). Returns success. No reload—the page already
   // shows the edit, and edit mode resumes this draft on the next load.
   const saveDraft = async (): Promise<boolean> => {
     if (dirty.size === 0) return true;
+    if (conflictOpen) return false;
     const gen = editGen;
     chrome.setStatus("saving");
     const changed: Record<string, unknown> = {};
     for (const [fieldKey, getter] of dirty) changed[fieldKey.split(":")[2]] = getter();
+    const base: Record<string, string> = {};
+    for (const field of Object.keys(changed)) {
+      const rev = revs.get(field);
+      if (rev !== undefined) base[field] = rev;
+    }
     try {
+      let result: DraftSaveBody | null;
       // Normal path → the typed Action when injected; unload path → the raw
       // `keepalive` fetch (the Action client can't keepalive) (#138).
       if (opts.actions?.saveDraft && pageId !== undefined && !unloading) {
-        await opts.actions.saveDraft({ id: pageId, data: changed });
+        result = (await opts.actions.saveDraft({
+          id: pageId,
+          data: changed,
+          base,
+        })) as DraftSaveBody | null;
       } else {
         const res = await fetch(`/api/louise/pages/${pageId}/versions`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(changed),
+          body: JSON.stringify({ ...changed, [DRAFT_BASE_KEY]: base }),
           // Survive a flush fired during page-hide / unload.
           keepalive: true,
         });
-        if (!res.ok) throw new Error(`draft failed: ${res.status}`);
+        if (!res.ok && res.status !== 409) throw new Error(`draft failed: ${res.status}`);
+        result = (await res.json().catch(() => null)) as DraftSaveBody | null;
       }
+      if (result?.conflicts?.length) {
+        openConflict(result.conflicts);
+        return false;
+      }
+      for (const [field, rev] of Object.entries(result?.revs ?? {})) revs.set(field, rev);
       // Leave dirty intact if an edit landed mid-save (auto-saver reschedules).
       if (editGen === gen) {
         dirty.clear();
@@ -708,8 +804,16 @@ export function mountLouise(opts: MountLouiseOptions): void {
     void fetch(`/api/louise/pages/${pageId}/versions`)
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => {
-        const body = b as { versions?: { status: string }[] } | null;
+        const body = b as {
+          versions?: { status: string }[];
+          revs?: Record<string, string>;
+        } | null;
         chrome.setHasDraft(Boolean(body?.versions?.some((v) => v.status === "draft")));
+        // The revisions of the work the page was rendered from, for the first
+        // save's base. A field saved before this lands keeps its own.
+        for (const [field, rev] of Object.entries(body?.revs ?? {})) {
+          if (!revs.has(field)) revs.set(field, rev);
+        }
       })
       .catch(() => {});
   }

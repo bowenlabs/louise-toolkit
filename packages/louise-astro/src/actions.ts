@@ -130,6 +130,8 @@ export interface LouiseSettingsActionConfig<Env extends EditorRouteEnv = EditorR
 export interface SaveDraftActionInput {
   id: number;
   data: Record<string, unknown>;
+  /** The field revisions the save started from (`SaveDraftOptions.base`). */
+  base?: Record<string, string>;
 }
 
 export interface LouiseSaveDraftActionConfig<Env extends EditorRouteEnv = EditorRouteEnv>
@@ -263,7 +265,13 @@ export function louiseSettingsAction<Env extends EditorRouteEnv = EditorRouteEnv
  * the id). The handler shares the raw `versionsRoute` store path via
  * {@link applySaveDraft}—the concurrent-surface merge base and the #70 KV
  * write-buffer—and returns that path's JSON body (a created `version`, or
- * `{ buffered: true }` when a write is coalesced into the buffer).
+ * `{ buffered: true }` when a write is coalesced into the buffer), with the
+ * saved fields' `revs`.
+ *
+ * A save whose `base` is stale for a field someone else changed returns
+ * `{ conflicts }` rather than throwing (#572). An Action's rejection reaches the
+ * client only as an error, which can't carry the current values the owner
+ * needs to choose between, so the conflict comes back as data.
  */
 export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEnv>(
   config: LouiseSaveDraftActionConfig<Env>,
@@ -276,6 +284,7 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
       // this schema accepted.
       id: z.number().int().positive(),
       data: z.record(z.string(), z.unknown()),
+      base: z.record(z.string(), z.string()).optional(),
     }),
     handler: async (
       input: SaveDraftActionInput,
@@ -288,7 +297,9 @@ export function louiseSaveDraftAction<Env extends EditorRouteEnv = EditorRouteEn
         editor,
         toPageId(input.id),
         input.data,
+        { base: input.base },
       );
+      if (!result.ok && result.conflicts) return { conflicts: result.conflicts };
       if (!result.ok) throwActionError(resolved.ActionError, result.status, result.error);
       // Persist the D1 bookmark so this Action's draft is read-your-writes on the
       // next edit-mode load behind read replication (#69). Mirrors the raw

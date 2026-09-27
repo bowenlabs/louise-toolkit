@@ -221,13 +221,113 @@ describe("mountLouise — auto-save via Astro Action (#138)", () => {
     await vi.advanceTimersByTimeAsync(50);
 
     expect(saveDraft).toHaveBeenCalledTimes(1);
-    expect(saveDraft.mock.calls[0][0]).toEqual({ id: 5, data: { heroHeadline: "draft text" } });
+    // No revisions came back from the mount GET, so the base is empty.
+    expect(saveDraft.mock.calls[0][0]).toEqual({
+      id: 5,
+      data: { heroHeadline: "draft text" },
+      base: {},
+    });
     // The Action handled the save—no POST to the raw versions route. (A GET to
     // load the draft-state for the Publish button on mount is fine.)
     const posts = fetchMock.mock.calls.filter(
       ([, init]) => ((init as RequestInit | undefined)?.method ?? "GET").toUpperCase() === "POST",
     );
     expect(posts).toHaveLength(0);
+  });
+});
+
+describe("mountLouise — a draft save that someone else overtook (#572)", () => {
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const posts = (mock: ReturnType<typeof stubFetch>) =>
+    mock.mock.calls.filter(
+      ([, init]) => ((init as RequestInit | undefined)?.method ?? "GET").toUpperCase() === "POST",
+    );
+
+  it("sends the revisions it read on mount, then the ones each save returns", async () => {
+    let n = 0;
+    const fetchMock = stubFetch((_url, method) =>
+      method === "GET"
+        ? jsonResponse({ versions: [], revs: { heroHeadline: "r-mount" } })
+        : jsonResponse({ buffered: true, revs: { heroHeadline: `r-save-${++n}` } }),
+    );
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 }, versionedPageId: 5 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    type(el, "first");
+    await vi.advanceTimersByTimeAsync(50);
+    type(el, "second");
+    await vi.advanceTimersByTimeAsync(50);
+
+    const [first, second] = posts(fetchMock);
+    expect(bodyOf(first![1])).toEqual({
+      heroHeadline: "first",
+      $base: { heroHeadline: "r-mount" },
+    });
+    expect(bodyOf(second![1])).toEqual({
+      heroHeadline: "second",
+      $base: { heroHeadline: "r-save-1" },
+    });
+  });
+
+  it("shows the conflict, holds auto-save, and keeps the owner's edit on Keep mine", async () => {
+    let conflicted = false;
+    const fetchMock = stubFetch((_url, method) => {
+      if (method === "GET") return jsonResponse({ versions: [], revs: { heroHeadline: "r-old" } });
+      if (!conflicted) {
+        conflicted = true;
+        return jsonResponse(
+          { conflicts: [{ field: "heroHeadline", value: "Theirs", rev: "r-theirs" }] },
+          409,
+        );
+      }
+      return jsonResponse({ buffered: true, revs: { heroHeadline: "r-mine" } });
+    });
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 }, versionedPageId: 5 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    type(el, "Mine");
+    await vi.advanceTimersByTimeAsync(50);
+    const status = document.querySelector<HTMLElement>(".louise-status")!;
+    expect(status.dataset.status).toBe("conflict");
+    expect(status.textContent).toContain("Someone else changed this");
+    const keep = document.querySelector<HTMLButtonElement>(".louise-conflict-keep")!;
+    expect(document.querySelector(".louise-conflict-reload")).not.toBeNull();
+
+    // Typing more doesn't resend the refused save while the choice is open.
+    type(el, "Mine!");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(posts(fetchMock)).toHaveLength(1);
+
+    keep.click();
+    await vi.advanceTimersByTimeAsync(0);
+    const resent = posts(fetchMock)[1]!;
+    expect(bodyOf(resent[1])).toEqual({
+      heroHeadline: "Mine!",
+      $base: { heroHeadline: "r-theirs" },
+    });
+    expect(status.dataset.status).toBe("saved");
+    expect(document.querySelector(".louise-conflict-keep")).toBeNull();
+  });
+
+  it("shows a conflict the saveDraft Action returns as data", async () => {
+    stubFetch(() => jsonResponse({ versions: [] }));
+    const saveDraft = vi.fn(async (_input: unknown) => ({
+      conflicts: [{ field: "heroHeadline", value: "Theirs", rev: "r-theirs" }],
+    }));
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({
+      onOpenSettings: () => {},
+      autoSave: { debounceMs: 50 },
+      versionedPageId: 5,
+      actions: { saveDraft },
+    });
+
+    type(el, "Mine");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector<HTMLElement>(".louise-status")!.dataset.status).toBe("conflict");
   });
 });
 

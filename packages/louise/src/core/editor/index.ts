@@ -91,10 +91,12 @@ export {
   applySaveDraft,
   latestPendingDraft,
   type SaveDraftDeps,
+  type SaveDraftOptions,
   type SaveDraftResult,
   type VersionsRouteConfig,
   versionsRoute,
 } from "./versions.js";
+export { DRAFT_BASE_KEY, type DraftConflict, fieldRev, fieldRevs, parseDraftBase } from "./revs.js";
 export { type ResumeDraftDeps, type ResumeDraftRow, resumeDraft } from "./resume.js";
 export {
   type BufferedDraft,

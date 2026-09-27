@@ -8,6 +8,7 @@ import {
 } from "../src/actions.js";
 import { collectionVersionsTable, defineCollection } from "louise-toolkit/content";
 import { pages, siteSettings } from "louise-toolkit/db";
+import { fieldRev } from "louise-toolkit/editor";
 
 // Fake D1 mirroring test/core/editor.test.ts's makeD1, plus `.raw()`: drizzle's
 // `update().set().where().returning()` reads its rows via `stmt.bind(...).raw()`
@@ -227,6 +228,44 @@ describe("louiseSaveDraftAction", () => {
     await expect(
       saveDraftActionFor(db).handler({ id: 999, data: { title: "x" } }, makeCtx()),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("accepts an optional base of field revisions", () => {
+    const action = saveDraftActionFor({} as D1Database);
+    expect(action.input.safeParse({ id: 5, data: {}, base: { title: "abc" } }).success).toBe(true);
+    expect(action.input.safeParse({ id: 5, data: {}, base: { title: 5 } }).success).toBe(false);
+  });
+
+  it("returns a stale save's conflicts as data rather than throwing", async () => {
+    // The live row, positional as drizzle reads it, and a buffer flushed a moment
+    // ago that holds someone else's title.
+    const liveRow = getTableConfig(pages).columns.map((c) =>
+      c.name === "id" ? 5 : c.name === "title" ? "Live" : null,
+    );
+    const { db } = makeD1(() => [liveRow]);
+    const store = new Map<string, string>();
+    const now = Date.now();
+    store.set(
+      "draft:v2:pages:5",
+      JSON.stringify({ data: { title: "Theirs" }, updatedAt: now, flushedAt: now }),
+    );
+    const action = louiseSaveDraftAction({
+      table: pages,
+      versionsTable: collectionVersionsTable(draftConfig),
+      config: draftConfig,
+      ActionError: FakeActionError,
+      getEnv: () => ({ DB: db }),
+      bufferKv: () => ({
+        get: async (key) => store.get(key) ?? null,
+        put: async (key, value) => void store.set(key, value),
+        delete: async (key) => void store.delete(key),
+      }),
+    });
+    const result = await action.handler(
+      { id: 5, data: { title: "Mine" }, base: { title: await fieldRev("Live") } },
+      makeCtx(),
+    );
+    expect(result).toMatchObject({ conflicts: [{ field: "title", value: "Theirs" }] });
   });
 });
 
