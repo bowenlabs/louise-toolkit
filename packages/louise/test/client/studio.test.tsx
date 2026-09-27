@@ -123,6 +123,12 @@ describe("mountStudio", () => {
     expect(document.getElementById("louise-studio-root")).toBeNull();
   });
 
+  it("marks its root as English, the language of its own strings (#598)", () => {
+    const dispose = mountStudio({});
+    expect(document.getElementById("louise-studio-root")?.lang).toBe("en");
+    dispose();
+  });
+
   it("marks the document while mounted, so page-level CSS can apply", () => {
     const dispose = mountStudio({});
     expect(document.documentElement.hasAttribute("data-louise-studio")).toBe(true);

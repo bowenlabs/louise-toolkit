@@ -14,6 +14,7 @@
 import { definePlugin } from "prosekit/core";
 import { Plugin, PluginKey } from "@prosekit/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@prosekit/pm/view";
+import { CHROME_LANG } from "../a11y.js";
 import { createGrammarLinter, type GrammarLinter } from "./linter.js";
 import {
   blockMatchesToDecorations,
@@ -102,6 +103,7 @@ function openPopover(view: EditorView, from: number, to: number, match: GrammarM
     el.appendChild(none);
   }
 
+  el.lang = CHROME_LANG;
   document.body.appendChild(el);
   activePopover = el;
 

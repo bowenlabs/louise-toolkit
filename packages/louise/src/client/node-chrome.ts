@@ -18,6 +18,7 @@
 // node—a shared value, an external source (Phase B)—is a change in the
 // EDITOR's resolve, and nothing here moves.
 
+import { CHROME_LANG } from "./a11y.js";
 import {
   NODE_MARKER_ATTR,
   parseNodePath,
@@ -112,6 +113,13 @@ const TONE_CSS = `
 }
 [${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="external"] {
   box-shadow: 0 0 0 2px var(--louise-external, #a16207);
+}
+@media (forced-colors: active) {
+  [${NODE_MARKER_ATTR}].louise-node-active {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .louise-chrome-toolbar { border: 1px solid CanvasText; }
 }
 .louise-chrome-toolbar { background: #475569; }
 .louise-chrome-toolbar[data-louise-tone="section"] { background: var(--louise-orange-strong, #b45309); }
@@ -286,6 +294,7 @@ export function mountNodeChrome(opts: NodeChromeActions, doc: Document = documen
   const addChild = button(listPlus, "Add the first one");
   const cog = button(wrench, "Layout & settings");
   for (const b of [up, down, del, addSibling, addChild, cog]) toolbar.appendChild(b);
+  toolbar.lang = CHROME_LANG;
   doc.body.appendChild(toolbar);
 
   let active: { path: NodePath; el: HTMLElement; desc: NodeDescriptor } | null = null;

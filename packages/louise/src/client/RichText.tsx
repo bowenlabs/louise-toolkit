@@ -44,7 +44,7 @@ import {
 import { ResizableHandle, ResizableRoot } from "prosekit/solid/resizable";
 import { InlinePopoverRoot } from "prosekit/solid/inline-popover";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
+import { CHROME_LANG, wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
 import { render } from "solid-js/web";
 import { Icon, type IconName } from "./icons.jsx";
 import { thumb } from "./thumb.js";
@@ -149,7 +149,7 @@ function ResizableImage(props: SolidNodeViewProps) {
       {/* Alt-text authoring (WCAG 1.1.1): without this an inline image ships to
           the published page with no description. `contentEditable={false}` keeps
           ProseMirror from treating the control as document content. */}
-      <div class="louise-rt-alt" contentEditable={false}>
+      <div class="louise-rt-alt" contentEditable={false} lang={CHROME_LANG}>
         <Show
           when={editingAlt()}
           fallback={

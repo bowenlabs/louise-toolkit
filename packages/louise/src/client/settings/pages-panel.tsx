@@ -526,8 +526,10 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       {/* Save/Delete live in the drawer footer; only the preview link stays inline. */}
       <Show when={status() === "published" && slug()}>
         <div class="louise-form-actions">
+          {/* Says it opens a new tab, in words (#598); the icon repeats it for
+              sighted owners and stays out of the accessible name. */}
           <a class="louise-btn" href={`/${slug()}`} target="_blank" rel="noreferrer">
-            View published page →
+            View published page (opens in a new tab) <Icon name="arrowSquareOut" />
           </a>
         </div>
       </Show>

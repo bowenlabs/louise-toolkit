@@ -207,6 +207,16 @@ describe("mountSections—the add-section picker's focus (#596)", () => {
     expect(document.activeElement).toBe(trailing());
   });
 
+  it("marks the dock and the picker as English (#598)", async () => {
+    stubFetch();
+    dispose = mount(pageHost(1), [{ _type: "promo", heading: "Sec 0" }]);
+    await flush();
+    expect(trailing().closest("[lang]")?.getAttribute("lang")).toBe("en");
+    click(trailing());
+    await flush();
+    expect(picker()?.lang).toBe("en");
+  });
+
   it("focuses the new section after an insert, named and in the tab order", async () => {
     stubFetch();
     const host = pageHost(1);
