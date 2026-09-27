@@ -100,6 +100,21 @@ export interface RichTextFieldOptions {
    * message. An empty list hides the color button.
    */
   colors?: readonly RichTextColor[];
+  /**
+   * Typographic input rules, off by default (#606). With `typography: {}`,
+   * typing `--` gives an em dash and `...` an ellipsis. Add `quotes`, the four
+   * marks your language uses as opening double, closing double, opening single,
+   * and closing single, such as `"“”‘’"` or `"«»‹›"`, and straight quotes become
+   * those. Quote marks differ by language, so there's no default pair. Only
+   * typing is converted, never a paste, and undo right after reverts it.
+   */
+  typography?: RichTextTypography;
+  /**
+   * Show a Language button in the format bubble, which marks the selection as
+   * another language with `<span lang="…">`, so a screen reader pronounces it
+   * right (#606). Off by default.
+   */
+  language?: boolean;
 }
 
 /** One text color the rich-text editor offers: a label, and a theme token. */
@@ -108,6 +123,12 @@ export interface RichTextColor {
   label: string;
   /** The theme token, lowercase with hyphens: `--color-<token>` must exist. */
   token: string;
+}
+
+/** The typographic input rules a rich-text field turns on. */
+export interface RichTextTypography {
+  /** Four quote marks: opening and closing double, then opening and closing single. */
+  quotes?: string;
 }
 
 export interface SectionField {

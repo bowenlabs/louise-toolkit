@@ -34,6 +34,8 @@ import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw";
 // SEO suggest, #75/#166).
 import sparkle from "@phosphor-icons/core/assets/regular/star-four.svg?raw";
 import link from "@phosphor-icons/core/assets/regular/link.svg?raw";
+// Mark a phrase as another language (#606).
+import translate from "@phosphor-icons/core/assets/regular/translate.svg?raw";
 // A field a peer is editing: the soft-lock badge.
 import lock from "@phosphor-icons/core/assets/regular/lock-simple.svg?raw";
 // Version history—the conventional "rewind the clock" affordance.
@@ -43,6 +45,7 @@ import arrowSquareOut from "@phosphor-icons/core/assets/regular/arrow-square-out
 
 export const icons = {
   bold,
+  translate,
   italic,
   underline,
   strike,

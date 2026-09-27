@@ -74,6 +74,22 @@ mountSections(host, {
 });
 ```
 
+### Punctuation and other languages
+
+Two options on a rich-text field, both off by default:
+
+- **`typography`** turns on input rules as the owner types: `--` becomes an em
+  dash and `...` an ellipsis. Add `quotes`, the four marks your language uses
+  (opening and closing double, then opening and closing single), and straight
+  quotes become them: `typography: { quotes: "“”‘’" }` for English,
+  `"«»‹›"` for French. There's no default pair, because quote marks differ by
+  language. A paste isn't converted, and undo right after reverts a rule.
+- **`language: true`** adds a Language button to the format bubble. It marks the
+  selection with `<span lang="…">`, so a screen reader pronounces the phrase in
+  its own language. The tag must look like BCP 47 (`fr`, `pt-BR`); the
+  sanitizer keeps `lang` on a `span` only in that shape. A stored
+  `<span lang>` survives editing whether or not the button is on.
+
 ## Images
 
 Paste, drop, or the toolbar button upload to your media endpoint (typically R2—see [Media](/guide/media/)) and insert an `<img>`. A
