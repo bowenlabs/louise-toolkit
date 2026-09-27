@@ -73,5 +73,7 @@ Everything else in this ADR applies with 90 in place of 80: lines and statements
 are gated, branches and functions are reported, and a package below the floor
 ratchets toward it with `autoUpdate` until it gets there, then pins.
 `@louise-toolkit/astro` measured above 90 once its catalog loader and edit-mode
-toggle got tests, so it pins at 90 now; `louise-toolkit` ratchets. The other repositories keep the 80 this
+toggle got tests, so it pins at 90 now. `louise-toolkit` ratcheted until the
+tests for #695 took it to 97% of lines and 96% of statements, and then pinned
+at 90 too. The other repositories keep the 80 this
 ADR set, until each one decides otherwise.
