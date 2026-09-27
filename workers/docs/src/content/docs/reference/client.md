@@ -101,7 +101,7 @@ import { RichText, type RichTextProps } from "louise-toolkit/client";
 <RichText
   value={html}
   onChange={(next) => save(next)}
-  // `blocks` turns on the builder slash menu; omit for plain prose.
+  // `builder` turns on the page builder's slash menu; omit for plain prose.
 />;
 ```
 
@@ -138,13 +138,16 @@ import {
   BlockInserterButton,
   defineBlock,
   defineBlocksExtension,
-  type BlockDef,
   type BlockEntry,
+  type BuilderBlockDef,
 } from "louise-toolkit/client";
 ```
 
 - `BLOCKS`—the registry that drives the `/` slash menu.
-- `defineBlock` / `defineBlocksExtension`—author blocks outside the core set.
+- `defineBlock` / `defineBlocksExtension`—author builder blocks outside the core
+  set. `BuilderBlockDef` is a builder block's schema; `BlockDef` is its
+  deprecated old name here, and a different type from a section's `BlockDef` in
+  `louise-toolkit/content`.
 - `BlockInserter` / `BlockInserterButton`—the inserter UI.
 
 ## `mountSections()`

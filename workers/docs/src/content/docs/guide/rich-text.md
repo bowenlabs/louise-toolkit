@@ -62,7 +62,7 @@ import { RichText } from "louise-toolkit/client";
 <RichText
   value={html}
   onChange={(next) => save(next)}
-  // `blocks` enables the builder slash menu; omit for plain prose fields.
+  // `builder` enables the page builder's slash menu; omit for plain prose fields.
 />;
 ```
 

@@ -69,8 +69,12 @@ export type SectionFieldType = FieldTypeName;
  * than with the ProseKit editor that reads it.
  */
 export interface RichTextFieldOptions {
-  /** The page-BUILDER palette (Hero/Columns/Gallery…). Meant for full page
-   *  bodies, not a one-line heading; leave it off for most section fields. */
+  /** The page builder's palette of builder blocks (Hero/Columns/Gallery…).
+   *  Meant for full page bodies, not a one-line heading; leave it off for most
+   *  section fields. */
+  builder?: boolean;
+  /** @deprecated Renamed {@link RichTextFieldOptions.builder} (#537): a
+   *  section's `blocks` are a different thing. Still read when `builder` is unset. */
   blocks?: boolean;
   /** Lazy-load Harper for grammar checking. */
   grammar?: boolean;

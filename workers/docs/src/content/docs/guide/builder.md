@@ -1,17 +1,24 @@
 ---
 title: Louise Builder
-description: Blocks, the slash menu, and defineBlock.
+description: Builder blocks, the slash menu, and defineBlock.
 sidebar:
   order: 5
 ---
 
-The rich-text editor has an optional **blocks** mode—the `blocks` prop on
-`RichText`, on for freeform content pages and off for inline prose fields.
+The rich-text editor has an optional **builder** mode—the `builder` prop on
+`RichText`, or `data-louise-builder="1"` on an inline field—on for freeform
+content pages and off for inline prose fields. What it inserts are **builder
+blocks**, which live inside one rich-text field's HTML. They're not a section's
+[blocks](/guide/sections/), which are items in a list your own
+components render; the [glossary](/reference/glossary/) keeps the two apart.
 `louise-toolkit/client`'s `blocks` module holds the framework.
 
-## Blocks are serialized HTML
+The prop was `blocks`, and the attribute `data-louise-blocks`, until #537. Both
+old names still work.
 
-A block is a ProseMirror node spec plus an optional Solid node view for its
+## Builder blocks are serialized HTML
+
+A builder block is a ProseMirror node spec plus an optional Solid node view for its
 editing chrome. Persistence is the same **sanitized-HTML** contract as every
 rich field:
 
@@ -31,10 +38,10 @@ children), **full-bleed**, **pull quote**, **CTA**, and **divider**.
 import { BLOCKS, BlockInserter } from "louise-toolkit/client";
 ```
 
-## Defining a block
+## Defining a builder block
 
-`defineBlock()` pairs the node spec with an optional node view, so new blocks can
-be authored outside the core module:
+`defineBlock()` pairs the node spec (a `BuilderBlockDef`) with an optional node
+view, so new builder blocks can be authored outside the core module:
 
 ```ts
 import { defineBlock } from "louise-toolkit/client";

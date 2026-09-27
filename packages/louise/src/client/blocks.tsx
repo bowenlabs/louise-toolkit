@@ -42,7 +42,10 @@ export interface BlockAttrSpec {
   attr: string;
 }
 
-export interface BlockDef {
+/** One builder block's schema: a ProseMirror node the page builder inserts
+ *  into a rich-text field (#537 named it apart from a section's `BlockDef` in
+ *  `louise-toolkit/content`, a different thing). */
+export interface BuilderBlockDef {
   /** Node name in the schema (for example, "dividerBlock"). */
   name: string;
   /** `data-block` token—the stable identity in serialized HTML. */
@@ -63,7 +66,7 @@ export interface BlockDef {
 }
 
 /** Serialize a block's attrs into its data-* attributes. */
-function dataAttrs(def: BlockDef, attrs: Attrs): Record<string, string> {
+function dataAttrs(def: BuilderBlockDef, attrs: Attrs): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, spec] of Object.entries(def.attrs ?? {})) {
     const v = attrs[name];
@@ -76,7 +79,11 @@ function dataAttrs(def: BlockDef, attrs: Attrs): Record<string, string> {
  * Define a builder block: node spec (persistence) + Solid node view
  * (editing chrome), mirroring how the resizable image is wired in RichText.
  */
-export function defineBlock(def: BlockDef): Extension {
+/** @deprecated Renamed {@link BuilderBlockDef} (#537). A section's `BlockDef`
+ *  in `louise-toolkit/content` is a different thing. */
+export type BlockDef = BuilderBlockDef;
+
+export function defineBlock(def: BuilderBlockDef): Extension {
   const attrSpecs = Object.fromEntries(
     Object.entries(def.attrs ?? {}).map(([name, spec]) => [name, { default: spec.default }]),
   );
@@ -603,7 +610,7 @@ function defineLegacyColumns(): Extension {
 
 /* ── Simple blocks (hero / full-bleed / pull quote / CTA / divider) ─────── */
 
-const SIMPLE_BLOCKS: BlockDef[] = [
+const SIMPLE_BLOCKS: BuilderBlockDef[] = [
   { name: "heroBlock", block: "hero", tag: "section", class: "pb-hero", content: "block+" },
   { name: "bleedBlock", block: "bleed", tag: "figure", class: "pb-bleed", content: "block+" },
   { name: "quoteBlock", block: "quote", tag: "blockquote", class: "pb-quote", content: "block+" },
