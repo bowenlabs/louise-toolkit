@@ -243,3 +243,65 @@ describe("aiRunner is usable as a route accessor", () => {
     expect(routes).toHaveLength(2);
   });
 });
+
+describe("aiRoute — the site's voice (#553)", () => {
+  /** A runner that records the messages it's sent. */
+  function recording(output: unknown) {
+    const sent: { role: string; content: string }[][] = [];
+    const runner: AiRunner = {
+      run: async (_model, inputs) => {
+        sent.push((inputs as { messages: { role: string; content: string }[] }).messages);
+        return output;
+      },
+    };
+    return { runner, sent };
+  }
+
+  it("passes the site's instructions and examples to rewrite", async () => {
+    const { runner, sent } = recording({ response: "Plainer." });
+    const r = aiRoute<{ DB: D1Database }>({
+      resolveEditor: () => editor,
+      ai: () => runner,
+      rewrite: {
+        instructions: "Warm and plain. British English.",
+        examples: [{ before: "Utilise it.", after: "Use it." }],
+      },
+    });
+    const res = (await r(
+      req("POST", "/api/louise/ai/rewrite", { text: "Utilize this." }),
+      env,
+      ctx,
+    )) as Response;
+    expect(res.status).toBe(200);
+    const messages = sent[0]!;
+    expect(messages[0]!.content).toContain(
+      "Follow this guidance for the site: Warm and plain. British English.",
+    );
+    expect(messages.slice(1)).toEqual([
+      { role: "user", content: "Utilise it." },
+      { role: "assistant", content: "Use it." },
+      { role: "user", content: "Utilize this." },
+    ]);
+  });
+
+  it("passes the site's instructions to SEO suggestions", async () => {
+    const { runner, sent } = recording({ response: { title: "T", description: "D" } });
+    const r = aiRoute<{ DB: D1Database }>({
+      resolveEditor: () => editor,
+      ai: () => runner,
+      seo: { instructions: "Audience: home cooks." },
+    });
+    await r(req("POST", "/api/louise/ai/seo", { content: "A page about bread." }), env, ctx);
+    expect(sent[0]![0]!.content).toContain(
+      "Follow this guidance for the site: Audience: home cooks.",
+    );
+  });
+
+  it("sends the fixed prompt alone when a site gives no voice", async () => {
+    const { runner, sent } = recording({ response: "Plainer." });
+    const r = aiRoute<{ DB: D1Database }>({ resolveEditor: () => editor, ai: () => runner });
+    await r(req("POST", "/api/louise/ai/rewrite", { text: "Utilize this." }), env, ctx);
+    expect(sent[0]![0]!.content).not.toContain("guidance");
+    expect(sent[0]).toHaveLength(2);
+  });
+});

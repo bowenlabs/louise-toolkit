@@ -300,6 +300,19 @@ describe("rewriteText", () => {
     );
   });
 
+  it("uses at most two examples", async () => {
+    const r = runner({ response: "x" });
+    await rewriteText(r.runner, "text", {
+      examples: [
+        { before: "a", after: "A" },
+        { before: "b", after: "B" },
+        { before: "c", after: "C" },
+      ],
+    });
+    // System, two example pairs, then the text.
+    expect(r.calls[0].inputs.messages as unknown[]).toHaveLength(6);
+  });
+
   it("strips a preamble and wrapping quotes the model may add", async () => {
     const r = runner({ response: 'Sure! Here is the rewrite: "A crisp sentence."' }).runner;
     expect(await rewriteText(r, "original")).toBe("A crisp sentence.");

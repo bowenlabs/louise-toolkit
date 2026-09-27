@@ -57,6 +57,30 @@ paragraphs, Replace is off and the menu says why. Two limits:
 - **Bold, italics, and other inline formatting don't carry over.** The preview says
   so when the selection has any.
 
+## The site's voice
+
+Rewrites and SEO suggestions use a fixed prompt, so on their own they don't know
+who the site writes for. A site's voice, audience, and locale are site facts, so
+you pass them; there's no default:
+
+```ts
+aiRoute({
+  resolveEditor,
+  ai: (env) => env.AI,
+  rewrite: {
+    instructions: "Warm and plain. Readers are neighbors, not experts. British English.",
+    examples: [{ before: "Utilise our services today.", after: "Come and see us." }],
+  },
+  seo: { instructions: "Audience: home cooks near Example City. British English." },
+});
+seoFixRoute({ ...config, seoOptions: { instructions: "…the same as above…" } });
+```
+
+`instructions` is appended to the fixed prompt as guidance for the site, and
+rewrite's `examples`, one or two before-and-after pairs, go ahead of the text as
+example turns. Past two, the rest are ignored. `rewriteText` and `suggestSeo`
+take the same options when you call them directly.
+
 ## Cost
 
 Workers AI is billed in **Neurons** with a **10,000/day free allocation**, then
