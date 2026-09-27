@@ -68,9 +68,18 @@ describe("the chrome's language", () => {
 describe("the chrome's tokens (#603)", () => {
   // The rules after the `:root` block, comments and `${…}` interpolations out.
   const rules = styles
-    .slice(styles.indexOf("}", styles.indexOf("--louise-font-body")))
+    .slice(styles.indexOf("}", styles.indexOf("--louise-text-lg")))
     .replaceAll(/\/\*[\s\S]*?\*\//g, "")
     .replaceAll(/\$\{[^}]*\}/g, "");
+
+  it("reads the font tokens from fonts.css, which defines them once (#601)", () => {
+    const fonts = read("../../src/theme/fonts.css");
+    const theme = read("../../src/theme/louise.css");
+    expect(fonts.match(/--louise-font-body:/g)).toHaveLength(1);
+    expect(fonts.match(/--louise-font-head:/g)).toHaveLength(1);
+    for (const source of [styles, theme]) expect(source).not.toMatch(/--louise-font[\w-]*:/);
+    expect(theme).not.toMatch(/Hepta Slab/);
+  });
 
   it("reads a role token for every color, never a literal", () => {
     expect(rules.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
