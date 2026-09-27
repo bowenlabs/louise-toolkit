@@ -82,6 +82,7 @@ import {
   type SectionItem,
 } from "../core/content/sections.js";
 import { onLouiseNavigate } from "./lifecycle.js";
+import { markPublished, PUBLISHED_MESSAGE, takePublished } from "./published-flag.js";
 import { apiGet, apiSend } from "./settings/query.js";
 export type { SectionCatalog, SectionDef, SectionField, SectionItem };
 
@@ -190,6 +191,10 @@ export interface SectionsEditorProps {
    *  is a follow-up). Off by default; degrades silently when the socket can't open. */
   realtime?: RealtimeOption;
 }
+
+/** The note beside Publish that says why it's unavailable, for its
+ *  `aria-describedby`. */
+const PUBLISH_REASON_ID = "louise-sections-publish-reason";
 
 /** The add-section picker's ID, for the trailing button's `aria-controls`. */
 const ADD_SECTION_PICKER_ID = "louise-add-section-picker";
@@ -935,6 +940,13 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
     (InspectTarget & { top: number; left: number }) | null
   >(null);
   const hasDraft = () => versions().some((v) => v.status === "draft");
+  // Publish needs something to publish, and nothing already in flight.
+  const nothingToPublish = () => !dirty() && !hasDraft();
+  const canPublish = () => status() !== "publishing" && !nothingToPublish();
+  // A publish just reloaded this page (#597). Set a tick after mount, so the
+  // status region is in the page before its text changes and gets announced.
+  const [justPublished, setJustPublished] = createSignal(false);
+  if (takePublished(props.pageId)) setTimeout(() => setJustPublished(true), 0);
 
   // A leading slot injected into the shared edit bar (`.louise-bar`) that hosts
   // the status line, History button and Save-draft / Publish actions, so the page
@@ -955,6 +967,7 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
 
   const touched = () => {
     editGen++;
+    setJustPublished(false);
     setDirty(true);
     if (status() !== "idle") setStatus("idle");
     if (autoCfg.enabled) auto?.schedule();
@@ -1239,6 +1252,8 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         if (detail) setErrorDetail(detail);
         throw new Error(`publish failed: ${res.status}`);
       }
+      // Say it went live once the reload lands (#597).
+      markPublished(props.pageId);
       location.reload();
     } catch (err) {
       console.error("[louise] publish failed", err);
@@ -1771,9 +1786,11 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       );
     });
 
-  // The page's primary save actions—Save draft (green) and Publish (yellow)—rendered
-  // onto the shared edit bar (or a fixed fallback strip). A component so
-  // the same markup mounts in either place.
+  // The page's save actions—Save draft (a green text button) and Publish (the
+  // one filled button)—rendered onto the shared edit bar (or a fixed fallback
+  // strip). A component so the same markup mounts in either place. An
+  // unavailable action is aria-disabled, not disabled, so it stays in the tab
+  // order and can say why; its click does nothing while it's set (#597).
   // With auto-save on, the manual Save draft button is dropped—edits stage a
   // draft on a debounce (flushed on navigation), so the routine saved/unsaved
   // status is just noise and is omitted; only a *failed* save surfaces (below).
@@ -1784,8 +1801,9 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
         <button
           class="louise-savedraft"
           type="button"
-          disabled={status() === "saving" || status() === "publishing" || !dirty()}
+          aria-disabled={status() === "saving" || status() === "publishing" || !dirty()}
           onClick={() => {
+            if (status() === "saving" || status() === "publishing" || !dirty()) return;
             auto?.cancel();
             void save();
           }}
@@ -1796,11 +1814,17 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
       <button
         class="louise-publish"
         type="button"
-        disabled={status() === "publishing" || (!dirty() && !hasDraft())}
-        onClick={() => void publish()}
+        aria-disabled={!canPublish()}
+        aria-describedby={nothingToPublish() ? PUBLISH_REASON_ID : undefined}
+        onClick={() => {
+          if (canPublish()) void publish();
+        }}
       >
         {status() === "publishing" ? "Publishing…" : "Publish"}
       </button>
+      <span id={PUBLISH_REASON_ID} class="louise-publish-reason" hidden={!nothingToPublish()}>
+        Nothing to publish yet
+      </span>
     </>
   );
 
@@ -1823,6 +1847,12 @@ function SectionsRoot(props: SectionsEditorProps & { host: HTMLElement }) {
           </For>
         </span>
       </Show>
+      {/* The bar's status region, always in the page so a message written into
+          it is announced. It says the page went live after a publish reloads it
+          (#597). */}
+      <span class="louise-status" data-status="published" role="status">
+        {justPublished() ? PUBLISHED_MESSAGE : ""}
+      </span>
       <Show when={status() === "error"}>
         <span class="louise-sections-status" data-status="error" title={errorDetail()}>
           {errorDetail() || "Couldn’t save"}

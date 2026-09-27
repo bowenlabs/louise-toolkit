@@ -159,7 +159,8 @@ describe("the editor chrome", () => {
   // A badge's text and fill can come from two rules: the Core Web Vitals badge
   // sets white text once and a fill per rating, so each pair is checked whole.
   const badges: Array<[string, string[]]> = [
-    ["the soft-lock badge", [".louise-editable.louise-locked::before"]],
+    ["the soft-lock badge", [".louise-lock-note"]],
+    ["the filled Publish button", [".louise-publish"]],
     ["the unrated performance badge", [".louise-cwv-badge"]],
     ...["good", "needs-improvement", "poor"].map((rating): [string, string[]] => [
       `the ${rating} performance badge`,
