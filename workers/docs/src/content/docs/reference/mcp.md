@@ -1,6 +1,6 @@
 ---
 title: mcp
-description: "louise-toolkit/mcp—a Model Context Protocol server over the Local API, so an agent reads a site's content under the same access rules as an editor, with a scoped token of its own."
+description: "louise-toolkit/mcp—a Model Context Protocol server over the Local API, so an agent reads and drafts a site's content under the same access rules as an editor, with a scoped token of its own."
 sidebar:
   order: 16
 ---
@@ -24,11 +24,6 @@ gets exactly the access, validation and hooks a person editing the site gets.
 [ADR 0009](https://github.com/bowenlabs/louise-toolkit/blob/main/docs/adr/0009-mcp-server-agent-editing.md)
 has the design. No runtime dependencies and no bindings beyond D1.
 
-:::caution[Read-only for now]
-`mcpRoute` serves the read tools. The write tools arrive with
-[#236](https://github.com/bowenlabs/louise-toolkit/issues/236).
-:::
-
 ## Mounting the endpoint
 
 ```ts
@@ -36,7 +31,15 @@ import { editorForUser } from "louise-toolkit/auth";
 import { agentTokensRoute, mcpRoute, resolveMcpSession } from "louise-toolkit/mcp";
 import { composeWorker } from "louise-toolkit/worker";
 
-const collections = [{ table: pages, config: pagesConfig }];
+const collections = [
+  {
+    table: pages,
+    config: pagesConfig,
+    // The same draft store the editor's versionsRoute uses. Leave it out and
+    // pages are read-only over MCP.
+    drafts: { versionsTable: pagesVersions, bufferKv: (env) => env.DRAFTS },
+  },
+];
 
 export default composeWorker({
   gate: { resolveEditor },
@@ -58,7 +61,7 @@ export default composeWorker({
 
 | Option          | Default           | What it does                                                                                       |
 | --------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
-| `collections`   | —                 | `{ table, config }` for each collection an agent may read.                                         |
+| `collections`   | —                 | `{ table, config, drafts? }` for each collection an agent may reach. See [Writes](#writes).        |
 | `resolveEditor` | —                 | The same resolver the other editor routes take. A call with no bearer token runs as this editor.   |
 | `resolveAgent`  | none              | Turns an agent token into the editor it acts for; normally `resolveMcpSession`. Omit it for none.  |
 | `server`        | —                 | `{ name, version, title? }`, the server's identity. The name is the site's, so there's no default. |
@@ -89,7 +92,7 @@ A token:
 - **Has a scope, and no default one.** The scope maps each collection slug to
   `read`, `draft`, or `publish`; each includes the one before. A collection it
   doesn't list gets no tools, and a call to one of its tools comes back as a
-  tool error. `draft` and `publish` matter once the write tools arrive.
+  tool error. `draft` saves drafts, and `publish` changes the live site.
 - **Expires.** 30 days unless the issuer says otherwise, and never more than 90.
 - **Is revocable, immediately.** The check reads D1's primary on every request,
   so a revoked token stops working on its next call.
@@ -160,7 +163,7 @@ A bad, expired, or revoked token gets `401` with a
 ## The tools
 
 For each collection, `mcpRoute` offers the read tools `collectionTools`
-generates:
+generates, and the write tools where the collection allows them:
 
 | Tool            | Arguments           | Returns                                               |
 | --------------- | ------------------- | ----------------------------------------------------- |
@@ -183,6 +186,73 @@ A bad argument, a missing document or a refused read comes back as a tool
 result with `isError: true` and a sentence the model can act on, not as a
 protocol error. An unknown tool is a protocol error (`-32602`).
 
+## Writes
+
+An agent's edit takes the path a person's takes. A draft save runs through
+`applySaveDraft` and a publish through `applyPublish`, both from
+`louise-toolkit/editor`. So the collection's hooks, its `validate`, soft-locks,
+conflict checks, and access functions all apply, and a pending draft is never
+reverted by an agent that didn't see it.
+
+| Tool                  | Arguments                  | Scope     | Access function | Result                                  |
+| --------------------- | -------------------------- | --------- | --------------- | --------------------------------------- |
+| `create_<slug>`       | the collection's fields    | `draft`   | `create`        | A new, unpublished document and a draft |
+| `update_<slug>_field` | `id`, `field`, `value`     | `draft`   | `update`        | A new draft version                     |
+| `add_<slug>_section`  | `id`, `section`, `values?` | `draft`   | `update`        | A new draft version                     |
+| `publish_<slug>`      | `id`                       | `publish` | `publish`       | The pending draft, live                 |
+
+These rules apply only to a collection with `versions.drafts` and a `drafts`
+store in its `collections` entry:
+
+- **Every edit is a draft.** The live row doesn't move until `publish_<slug>`,
+  which takes `publish` scope. A draft-only token can prepare changes for a
+  person to review, and can't put anything live.
+- **Every draft names its author.** The collection must set
+  `versions.provenance`, which adds `author` and `source` columns to its
+  versions table. An agent's version records its token's ID and
+  `source: "agent"`. `mcpRoute` throws at startup when a `drafts` store's table
+  lacks those columns, so an agent edit can't go unrecorded.
+- **An agent's save reaches D1 at once,** even with the KV buffer on, so the
+  version it makes is the agent's. It still builds on buffered work, and leaves
+  the buffer holding the result.
+- **Visibility isn't a field.** `status` and `publishedVersionId` aren't in
+  any write tool's schema. A new document starts unpublished.
+- **Model HTML is held to text structure.** Rich text in a section an agent
+  writes goes through `sanitizeModelHtml` from `louise-toolkit/security`, then
+  the collection's own hooks.
+- **Sections come from the catalog.** `add_<slug>_section` exists only when
+  you pass `sections` and the collection has a `sections` field. It validates
+  the new section against the catalog before saving, and a person's edit to the
+  sections in between is a conflict rather than something the append reverts. `update_<slug>_field` on `sections` runs the same catalog check over the
+  whole list.
+
+A collection **without drafts** has nowhere to hold a draft, so its only write
+is `create_<slug>`, which is live at once. It takes `publish` scope for that
+reason.
+
+### Recording provenance
+
+Set `versions.provenance` on the collection, build its versions table with
+`collectionVersionsTable`, and generate the migration:
+
+```ts
+const pagesConfig = defineCollection({
+  slug: "pages",
+  fields,
+  versions: { drafts: true, provenance: true },
+});
+export const pagesVersions = collectionVersionsTable(pagesConfig);
+```
+
+**Apply the migration before the deploy that turns it on.** The versions table
+is read with every column it declares, so code that knows the new columns fails
+against a database that doesn't have them yet.
+
+Once it's on, every version records who wrote it, not only an agent's: an
+editor's save records their user ID with `source: "editor"`. The realtime
+session's save records `"realtime"` when its `persist` passes
+`{ source: "realtime" }` to `applySaveDraft`.
+
 ## Protocol versions
 
 The route speaks both eras of MCP on the same endpoint:
@@ -203,5 +273,6 @@ JSON object; the route doesn't stream.
 `collectionTools(config, { sections? })` and `contentTools(contentConfig)`
 return the tool definitions as data: name, description, `inputSchema`,
 `annotations`, and the `collection` and `operation` a dispatcher routes on.
-They also generate the write tools (`create_<slug>`, `update_<slug>_field`,
-`add_<slug>_section` and `publish_<slug>`), which `mcpRoute` doesn't serve yet.
+They generate every tool a collection could have, including the write tools;
+`mcpRoute` serves the ones its configuration allows. `reservedAgentFields`
+names the fields the write schemas leave out.

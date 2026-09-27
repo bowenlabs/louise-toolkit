@@ -70,7 +70,8 @@ export interface CollectionToolsOptions {
    * The site's section catalog. Supplying it adds `add_<slug>_section` for
    * writable versioned collections, with `section` constrained to the catalog's
    * names—so an agent cannot insert a section the site does not render.
-   * Omit it and no section tool is generated.
+   * Omit it, or leave the collection without a `sections` field, and no
+   * section tool is generated.
    */
   sections?: SectionCatalog;
 }
@@ -120,7 +121,9 @@ function fieldSchema(field: FieldConfig | SectionField): JsonSchema {
       const sub = "fields" in field ? field.fields : undefined;
       return described({
         type: "array",
-        items: sub ? objectSchema(sub as Record<string, FieldConfig>) : { type: "object" },
+        items: sub
+          ? objectSchema(sub as Record<string, FieldConfig>, new Set())
+          : { type: "object" },
       });
     }
     case "upload":
@@ -135,11 +138,26 @@ function fieldSchema(field: FieldConfig | SectionField): JsonSchema {
 }
 
 /** JSON Schema object for a field map, with `required` derived from the fields. */
-function objectSchema(fields: Record<string, FieldConfig>): JsonSchema {
+/**
+ * Fields an agent never writes. The database assigns `id`. On a collection
+ * with drafts, `status` and `publishedVersionId` are visibility and the live
+ * pointer, which only publish and unpublish move (ADR 0021).
+ */
+export function reservedAgentFields(collection: CollectionConfig): ReadonlySet<string> {
+  return new Set(
+    collection.versions?.drafts === true ? ["id", "status", "publishedVersionId"] : ["id"],
+  );
+}
+
+function objectSchema(
+  fields: Record<string, FieldConfig>,
+  reserved: ReadonlySet<string>,
+): JsonSchema {
   const flat = flattenFields(fields);
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   for (const [key, field] of Object.entries(flat)) {
+    if (reserved.has(key)) continue;
     properties[key] = fieldSchema(field);
     if (field.required) required.push(key);
   }
@@ -294,7 +312,8 @@ export function collectionTools(
 
   if (collection.admin?.readOnly) return tools;
 
-  const fieldsSchema = objectSchema(collection.fields);
+  const reserved = reservedAgentFields(collection);
+  const fieldsSchema = objectSchema(collection.fields, reserved);
   tools.push({
     ...base,
     operation: "create",
@@ -310,7 +329,9 @@ export function collectionTools(
   // draft—so these exist only where there is a version history to land in.
   if (!drafts) return tools;
 
-  const editable = Object.keys(flattenFields(collection.fields));
+  const editable = Object.keys(flattenFields(collection.fields)).filter(
+    (key) => !reserved.has(key),
+  );
   tools.push({
     ...base,
     operation: "update_field",
@@ -331,7 +352,9 @@ export function collectionTools(
     },
   });
 
-  if (options.sections) {
+  // The section tool appends to the collection's `sections` field, so a
+  // collection without one gets none.
+  if (options.sections && Object.hasOwn(collection.fields, "sections")) {
     const names = Object.keys(options.sections);
     tools.push({
       ...base,

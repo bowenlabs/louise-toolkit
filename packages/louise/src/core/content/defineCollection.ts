@@ -98,6 +98,13 @@ function validateCollectionConfig(config: CollectionConfig): void {
       `Collection "${config.slug}" sets realtime: true but not versions.drafts. Realtime persists as drafts, so it requires draft versioning`,
     );
   }
+
+  // Provenance is recorded on version rows, which only a drafts collection has.
+  if (config.versions?.provenance && !config.versions.drafts) {
+    throw new LouiseContentError(
+      `Collection "${config.slug}" sets versions.provenance but not versions.drafts. Provenance is recorded on draft versions, so it requires draft versioning`,
+    );
+  }
 }
 
 function validateUniqueSlugs(collections: readonly CollectionConfig[]): void {

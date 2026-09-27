@@ -467,6 +467,17 @@ export interface CollectionConfig {
    */
   versions?: {
     drafts?: boolean;
+    /**
+     * Record who authored each version: an `author` column (the editor's user
+     * ID, or an agent token's ID) and a `source` column (`editor`, `realtime`,
+     * or `agent`) on `${slug}_versions`. Requires `drafts`.
+     *
+     * Opt-in because it adds two columns, so turning it on needs a migration
+     * applied before the deploy that reads them. `mcpRoute` offers write tools
+     * only on a collection that records provenance, so every agent edit can be
+     * traced.
+     */
+    provenance?: boolean;
     /** Reserved for future pruning of old versions; not enforced yet. */
     maxPerDoc?: number;
   };

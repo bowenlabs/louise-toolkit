@@ -49,4 +49,5 @@ export {
   type McpTool,
   type McpToolAnnotations,
   type McpToolOperation,
+  reservedAgentFields,
 } from "./tools.js";

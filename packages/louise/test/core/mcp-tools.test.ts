@@ -18,6 +18,7 @@ const pages: CollectionConfig = {
     hero: { type: "upload" },
     meta: { type: "json" },
     seo: { type: "group", fields: { description: { type: "text" } } },
+    sections: { type: "json" },
   },
   versions: { drafts: true },
   search: { fields: ["title", "body"] },
@@ -95,13 +96,26 @@ describe("argument schemas derived from fields", () => {
   it("maps each field type to its JSON Schema equivalent", () => {
     const p = props(create());
     expect(p.title).toEqual({ type: "string" });
-    expect(p.status).toEqual({ type: "string", enum: ["draft", "published"] });
     expect(p.views).toEqual({ type: "number" });
     expect(p.featured).toEqual({ type: "boolean" });
     expect(p.publishedAt).toEqual({ type: "string", format: "date-time" });
     expect(p.author).toEqual({ type: ["string", "number"] });
     expect(p.tags).toEqual({ type: "array", items: { type: ["string", "number"] } });
     expect(p.body?.type).toBe("object");
+  });
+
+  it("keeps visibility out of an agent's reach on a collection with drafts", () => {
+    // `status` and the live pointer move only through publish and unpublish.
+    expect(props(create())).not.toHaveProperty("status");
+    const update = byName(collectionTools(pages), "update_pages_field") as McpTool;
+    expect(props(update).field.enum).not.toContain("status");
+    expect(props(update).field.enum).toContain("title");
+  });
+
+  it("lets a collection without drafts take `status` as an ordinary field", () => {
+    const { versions: _versions, ...live } = pages;
+    const tool = byName(collectionTools(live), "create_pages") as McpTool;
+    expect(props(tool).status).toEqual({ type: "string", enum: ["draft", "published"] });
   });
 
   it("leaves a json field unconstrained rather than forcing an object", () => {
@@ -156,6 +170,13 @@ describe("section catalog wiring", () => {
     expect(variants.map((v) => v.title)).toEqual(["hero", "columns"]);
     expect(variants[0]?.properties).toHaveProperty("heading");
     expect(variants[1]?.properties).toHaveProperty("count");
+  });
+
+  it("adds no section tool to a collection without a `sections` field", () => {
+    const { sections: _sections, ...fields } = pages.fields;
+    expect(names(collectionTools({ ...pages, fields }, { sections }))).not.toContain(
+      "add_pages_section",
+    );
   });
 
   it("adds no section tool to a read-only collection", () => {

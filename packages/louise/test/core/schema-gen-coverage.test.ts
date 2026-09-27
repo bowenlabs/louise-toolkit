@@ -166,6 +166,21 @@ describe("generateSchemaSource", () => {
     expect(peopleBlock).not.toContain("publishedVersionId");
   });
 
+  it("adds the provenance columns codegen adds, when the collection records provenance", () => {
+    const tracked = {
+      collections: [{ ...articles, versions: { drafts: true, provenance: true } }],
+    };
+    const text = generateSchemaSource(tracked);
+    expect(text).toContain('  author: text("author"),\n');
+    expect(text).toContain(
+      '  source: text("source", { enum: ["editor", "realtime", "agent"] }),\n',
+    );
+    expect(source).not.toContain('text("author")');
+    const generated = evaluate(text);
+    const runtime = contentConfigToSchema(tracked);
+    expect(shape(generated.articles_versions)).toEqual(shape(runtime.articles_versions));
+  });
+
   it("builds the same tables codegen builds at runtime", () => {
     const generated = evaluate(source);
     const runtime = contentConfigToSchema(config);

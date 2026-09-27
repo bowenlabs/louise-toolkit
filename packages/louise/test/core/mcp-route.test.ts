@@ -126,7 +126,7 @@ describe.each(["legacy", "auto"] as const)("mcpRoute with the SDK client (%s)", 
     expect(client.getInstructions()).toBe("Posts are the site's news items.");
   });
 
-  it("lists the read tools, and no write tools until slice 4", async () => {
+  it("lists only the read tools for a collection with no draft store", async () => {
     const client = await connect(mode);
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual([

@@ -168,6 +168,15 @@ export function collectionVersionsTable(config: CollectionConfig) {
     // When set on a draft, createVersionedLocalApi.publishScheduled() promotes
     // it once the time arrives. Null = not scheduled. Cleared once published.
     scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
+    // Who wrote the version, when the collection records it (#236): an
+    // editor's user ID or an agent token's ID, and the surface it came through.
+    // Null on a version saved before provenance was on.
+    ...(config.versions?.provenance
+      ? {
+          author: text("author"),
+          source: text("source", { enum: ["editor", "realtime", "agent"] }),
+        }
+      : {}),
   });
 }
 

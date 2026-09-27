@@ -396,13 +396,20 @@ its own endpoint rather than using the `WorkerRoute`s above—an Astro Action, s
 
 - `applyFieldSave(env, config, session, input)`—one inline field write, the body
   of `saveRoute`.
-- `applySaveDraft(env, deps, session, id, snapshot, { base?, softLocks? })`—a versioned draft
+- `applySaveDraft(env, deps, session, id, snapshot, { base?, softLocks?, source? })`—a versioned draft
   write, the body of the draft route. `id` is a [`PageId`](/reference/content/#page-and-version-ids). `base` is the field revisions the save
   started from; a stale one is a `409` with `conflicts`. `softLocks` is where the
   held soft-locks come from; changing a held field is a `423` with `locked`. This is also what the
   realtime Durable Object calls, so there is exactly one write path rather than
-  two that can drift. `fieldRev(value)` and `fieldRevs(data, keys)` compute the
-  revisions, and `DRAFT_BASE_KEY` is the `$base` body key.
+  two that can drift. It passes `source: "realtime"`, which a collection with
+  `versions.provenance` records on the version. `fieldRev(value)` and
+  `fieldRevs(data, keys)` compute the revisions, and `DRAFT_BASE_KEY` is the
+  `$base` body key.
+- `applyPublish(env, deps, session, id, versionId?)`—a publish, the body of
+  `POST /:id/publish`: the given version, else the newest pending draft, else
+  the page as it stands. `deps` is the draft deps plus `redirects`. It answers
+  `{ ok: true, body: { page } }`, or `{ ok: false, status, error, violations? }`.
+  The MCP route's `publish_<slug>` runs it too.
 - `applySettingsPatch(env, config, session, patch)`—a settings write, the body of
   `settingsRoute`.
 

@@ -22,7 +22,9 @@
 //       fields: Object.keys(pagesCollection.fields),
 //       lockFields: ["body"],
 //       persist: (snapshot, editor, target) =>
-//         applySaveDraft(this.env, pagesDraftDeps, editor, target.id, snapshot),
+//         applySaveDraft(this.env, pagesDraftDeps, editor, target.id, snapshot, {
+//           source: "realtime",
+//         }),
 //     });
 //     fetch(r: Request) { return this.#s.fetch(r); }
 //     webSocketMessage(ws, m) { return this.#s.webSocketMessage(ws, m); }
