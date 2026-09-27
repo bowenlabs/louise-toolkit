@@ -131,6 +131,13 @@ export interface FormConfig {
   notify?: FormNotifyConfig;
   /** Submit button label for the render helper. Default `"Send"`. */
   submitLabel?: string;
+  /**
+   * The site's BCP 47 locale, such as `"en-US"` or `"de-DE"`. A `number` field
+   * reads its grouping and decimal separators, so a visitor can type `1,000`.
+   * A site fact, so there's no default: without it, a number must be written
+   * without separators, because a comma is a decimal point in some locales.
+   */
+  locale?: string;
 }
 
 /** A review column derived from a form field—key + label for the panel. */

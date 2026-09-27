@@ -34,6 +34,7 @@ Returns the config plus everything derived from it—the Drizzle `columns`/
 | `spam?`        | opt-in anti-spam (below)                                              |
 | `notify?`      | `{ webhook?, email? }`—where a submission is announced (below)        |
 | `submitLabel?` | button label for the render helper (default `"Send"`)                 |
+| `locale?`      | the site's BCP 47 locale, which a `number` field reads separators by  |
 
 `notify.webhook` is fetched with [`fetchPublicUrl`](/reference/security/), so it
 must be a public https URL; a target the policy refuses is skipped, and the
@@ -46,7 +47,13 @@ to the browser's autofill token (`"name"`, `"email"`, `"postal-code"`), and use
 `inputmode: "numeric"` on a `text` field for digits that aren't a quantity. `type` is `text | email | tel | url | textarea | number | select
 | checkbox | date | file`. `required` drives a `NOT NULL` column **and** a
 required check. `validation` is the shared `(r) => Rule` builder. `email`/`url`/
-`select`/`number` carry a built-in format/coercion check; `file` stores the URL
+`select`/`number` carry a built-in format/coercion check, and forgive what
+people type: a `url` without a scheme, such as `example.com`, gains `https://`,
+and under the form's `locale` a `number` reads that locale's grouping and
+decimal separators (`1,200` in `en-US`, `1.200,5` in `de-DE`). Without a locale,
+a number must be written without separators, since a comma is a decimal point in
+some locales. The two failures read "Enter a web address, like example.com." and
+"Enter a number, like 1200."; `file` stores the URL
 that `<Form>`'s `mediaAction`, a public upload route of the site's own, answers
 with.
 
