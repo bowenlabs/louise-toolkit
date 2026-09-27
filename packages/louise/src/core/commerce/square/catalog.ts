@@ -76,11 +76,24 @@ export function priceAtLocation(variation: SquareVariation, locationId: string):
   return { amount: variation.priceCents, currency: variation.currency };
 }
 
+/** One of an item's catalog images. */
+export interface SquareItemImage {
+  /** The catalog IMAGE object's id. */
+  id: string;
+  /** Square's CDN URL, or `null` when the response didn't carry the IMAGE
+   *  object, as on a batch upsert or when the image was deleted. */
+  url: string | null;
+}
+
 export interface SquareCatalogItem extends SquarePresence {
   id: string;
   name: string;
   description: string;
+  /** The primary image's URL: the first entry in {@link images}. */
   imageUrl: string | null;
+  /** Every image on the item, in Square's order, primary first. Lets a site
+   *  show an image other than the primary, which is also the register's tile. */
+  images: SquareItemImage[];
   variations: SquareVariation[];
   /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
@@ -114,7 +127,7 @@ export function mapCatalogItem(
   images: Map<string, string>,
 ): SquareCatalogItem {
   const data = obj.item_data ?? {};
-  const firstImageId = data.image_ids?.[0];
+  const itemImages = (data.image_ids ?? []).map((id) => ({ id, url: images.get(id) ?? null }));
   const variations: SquareVariation[] = (data.variations ?? [])
     .filter((v) => v.type === "ITEM_VARIATION")
     .map((v) => ({
@@ -131,7 +144,8 @@ export function mapCatalogItem(
     id: obj.id,
     name: data.name ?? "",
     description: data.description ?? "",
-    imageUrl: firstImageId ? (images.get(firstImageId) ?? null) : null,
+    imageUrl: itemImages[0]?.url ?? null,
+    images: itemImages,
     variations,
     version: obj.version ?? 0,
     ...mapPresence(obj),

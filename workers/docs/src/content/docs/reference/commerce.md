@@ -455,6 +455,12 @@ The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 client returns. `SquareMoney` is an alias of the shared `Money`, and
 `centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)—both still import from `louise-toolkit/commerce/square`.
 
+A `SquareCatalogItem` carries its primary image as `imageUrl` and every image
+as `images` (`SquareItemImage`: `id` and `url`), in Square's order with the
+primary first. The primary is also the item's tile on the register, so a site
+that wants a different picture online can store an image id of its own and look
+it up in `images`, falling back to `imageUrl` when that image is gone.
+
 :::note[Verify prices before charging]
 `createOrder` takes catalog variation ids, not prices—Square computes the total.
 Pair it with `retrieveVariationPrices` at checkout to reject a tampered cart, then
