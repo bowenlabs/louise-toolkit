@@ -13,7 +13,8 @@
   (#347). Amended below where building it changed the answer, including three
   passages that described Phase B as future work and are now marked with what
   actually happened. **Amended 2026-09-27:** the sibling add inserts below for
-  every kind, and the toolbar names its node (#542).
+  every kind, and the toolbar names its node (#542); every node rings in one color
+  (#603).
 - **Deciders:** Baylee (solo maintainer)
 - **Supersedes:** ADR 0005 §2 (the three-attribute marker contract) and §3 (the
   per-layer chrome). The rest of 0005 (the fragment-render contract, instant
@@ -428,3 +429,11 @@ pre-empted here.
 > can't disagree. The move and delete tooltips carry their keyboard shortcuts,
 > which `aria-keyshortcuts` had given only to screen readers. None of this changes
 > the model: the chrome still reads only the descriptor's tone and label.
+
+> **Amendment (2026-09-27): one ring color (#603, ADR 0019 §4).** Tone no longer
+> picks a ring or toolbar color. Every node rings in `--louise-node-ring`, the
+> brand blue, with one toolbar color, `--louise-node-bar`, and the toolbar's tag
+> says what the node is, so the five per-tone palette rules are gone. Tone still
+> reaches the DOM as `data-louise-tone`, and the tag reads it. The earlier
+> amendment's lesson, that CSS needs a default arm where TypeScript is
+> exhaustive, is now moot: there's one arm.

@@ -73,47 +73,22 @@ const SELECTOR = `[${NODE_MARKER_ATTR}]`;
 const CHROME_STYLE_ID = "louise-chrome-style";
 const CHROME_KEYSHORTCUTS = "Enter Alt+ArrowUp Alt+ArrowDown Delete";
 
-/** Ring + toolbar palettes, keyed by {@link NodeDescriptor.tone}.
+/** One ring and one toolbar color for every node (ADR 0018 §2, ADR 0019 §4).
  *
- *  Toolbar backgrounds are one stop darker than their ring: the bar carries white
- *  glyphs, which need 4.5:1 (WCAG 1.4.3), while the ring is a non-text graphic and
- *  stays on brand at 3:1. Each `--*-strong` below is measured against white.
- *  (Pre-0010 the link layer had no background rule at all and its bar rendered
- *  orange—a defect that could only happen because each layer hand-built its own
- *  chrome.)
+ *  Five tones used to paint five rings, "ring color equals what it is," which
+ *  was accurate and too much to learn. The toolbar's tag now says what a node is
+ *  in words ("Section · Hero"), so the ring only has to say "this one." Tone
+ *  still reaches the DOM as `data-louise-tone`, for the tag and for tests; it no
+ *  longer picks a color.
  *
- *  The Phase B tones (`shared` green, `external` yellow—ADR 0010) each use ONE
- *  value for both roles: `#15803d` is 5.02:1 and `#a16207` is 4.92:1 against
- *  white, so both clear the toolbar's 4.5:1 without a darker variant. Yellow is
- *  deliberately NOT `--louise-yellow` (`#ca8a04`): that value is 2.94:1—it
- *  fails the ring's 3:1 as well as the bar's 4.5:1—and the token is already
- *  loaded with save/publish semantics. Same reasoning gives `shared` its own
- *  token rather than `--louise-green`.
- *
- *  The base rules carry a slate fallback so a tone this palette doesn't know
- *  degrades to a visible neutral ring and a legible bar (slate-500 4.76:1 /
- *  slate-600 7.0:1)—without it, an unhandled tone rendered NO ring and white
- *  glyphs on transparent, which reads as a resolver bug and sends you debugging
- *  the wrong file. */
+ *  The ring is the brand blue, a non-text graphic at 3:1; the bar carries white
+ *  glyphs, so it takes the accent stop at 5.08:1. Both read the stylesheet's
+ *  role tokens, with literal fallbacks for a page where the main stylesheet
+ *  isn't injected. */
 const TONE_CSS = `
 [${NODE_MARKER_ATTR}].louise-node-active {
   border-radius: 4px;
-  box-shadow: 0 0 0 2px #64748b;
-}
-[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="section"] {
-  box-shadow: 0 0 0 2px var(--louise-orange, #ea7317);
-}
-[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="block"] {
-  box-shadow: 0 0 0 2px var(--louise-blue, #1481ef);
-}
-[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="value"] {
-  box-shadow: 0 0 0 2px var(--louise-violet, #7c3aed);
-}
-[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="shared"] {
-  box-shadow: 0 0 0 2px var(--louise-shared, #15803d);
-}
-[${NODE_MARKER_ATTR}].louise-node-active[data-louise-tone="external"] {
-  box-shadow: 0 0 0 2px var(--louise-external, #a16207);
+  box-shadow: 0 0 0 2px var(--louise-node-ring, #1481ef);
 }
 @media (forced-colors: active) {
   [${NODE_MARKER_ATTR}].louise-node-active {
@@ -122,12 +97,7 @@ const TONE_CSS = `
   }
   .louise-chrome-toolbar { border: 1px solid CanvasText; }
 }
-.louise-chrome-toolbar { background: #475569; }
-.louise-chrome-toolbar[data-louise-tone="section"] { background: var(--louise-orange-strong, #b45309); }
-.louise-chrome-toolbar[data-louise-tone="block"] { background: var(--louise-blue-strong, #0f6ecd); }
-.louise-chrome-toolbar[data-louise-tone="value"] { background: var(--louise-violet-strong, #6d28d9); }
-.louise-chrome-toolbar[data-louise-tone="shared"] { background: var(--louise-shared, #15803d); }
-.louise-chrome-toolbar[data-louise-tone="external"] { background: var(--louise-external, #a16207); }
+.louise-chrome-toolbar { background: var(--louise-node-bar, #0f6ecd); }
 `;
 
 const CHROME_CSS = `
@@ -139,14 +109,14 @@ ${TONE_CSS}
   gap: 2px;
   padding: 3px;
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 6px 18px color-mix(in oklch, var(--louise-text, #0f172a) 28%, transparent);
 }
 .louise-chrome-toolbar[data-open="1"] { display: inline-flex; }
 .louise-chrome-btn {
   appearance: none;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--louise-on-accent, #fff);
   cursor: pointer;
   width: 26px;
   height: 26px;
@@ -159,14 +129,14 @@ ${TONE_CSS}
 .louise-chrome-btn svg { width: 15px; height: 15px; }
 .louise-chrome-tag {
   padding: 0 6px 0 4px;
-  font: 600 0.75rem/1 var(--louise-font-body, ui-sans-serif, system-ui, sans-serif);
-  color: #fff;
+  font: 600 var(--louise-text-xs, 0.75rem)/1 var(--louise-font-body, ui-sans-serif, system-ui, sans-serif);
+  color: var(--louise-on-accent, #fff);
   white-space: nowrap;
 }
-.louise-chrome-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+.louise-chrome-btn:hover:not(:disabled) { background: color-mix(in oklch, var(--louise-on-accent, #fff) 18%, transparent); }
 .louise-chrome-btn:disabled { opacity: 0.4; cursor: default; }
 [${NODE_MARKER_ATTR}][data-louise-kbd]:focus-visible {
-  outline: 2px solid var(--louise-blue, #1481ef);
+  outline: 2px solid var(--louise-ring, #1481ef);
   outline-offset: 2px;
 }
 `;

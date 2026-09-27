@@ -18,33 +18,76 @@ const iconUrl = (svg: string, color: string) =>
 
 const CSS = `
 :root {
+  /* ── Palette: raw values, named for what they are. Rules don't read these;
+     they read the roles below, so a palette change moves every rule that
+     means the same thing, and a dark set (ADR 0019 §3) only has to redefine
+     roles. ── */
   --louise-blue: ${LOUISE_BLUE};
-  --louise-green: #15803d;
-  --louise-orange: #ea7317;
-  --louise-yellow: #ca8a04;
-  --louise-violet: #7c3aed;
   /* Text stops, one stop darker than their ring—text needs 4.5:1 (WCAG 1.4.3)
-     where a ring, border, or focus outline only needs 3:1. Any rule that puts
-     text on the blue, or colors text with it, uses --louise-blue-strong (5.08:1
-     against white); --louise-blue stays for rings, borders, and outlines
-     (3.88:1). The orange works the same way: --louise-orange-strong (5.02:1)
-     for text, --louise-orange (3.02:1) for rings. --louise-yellow (2.94:1) is
-     too light for white text at all, so text on it is dark ink. Blue text on a
-     blue tint takes --louise-blue-deep, one stop darker again, because the tint
-     costs the strong stop its margin (4.39:1 on a 12% tint and 4.49:1 on a 10%
-     one; 5.76:1 and 5.89:1 for the deep stop). test/client/contrast.test.ts holds the line. node-chrome.ts reads these with matching literal fallbacks; they're declared here so the
-     whole palette is one overridable block rather than half tokens, half
-     literals buried in TONE_CSS. */
-  --louise-orange-strong: #b45309;
+     where a ring, border, or focus outline only needs 3:1. The brand blue is
+     3.88:1 against white, so it's a ring color; --louise-blue-strong (5.08:1)
+     carries text and fills, and --louise-blue-deep (5.89:1 on a 10% tint) is
+     blue text on a blue tint. test/client/contrast.test.ts holds the line. */
   --louise-blue-strong: #0f6ecd;
   --louise-blue-deep: #0b5cad;
-  --louise-violet-strong: #6d28d9;
-  /* ADR 0010 Phase B ring tones. Distinct from --louise-green/--louise-yellow
-     on purpose: those carry save/publish semantics, and #ca8a04 fails contrast
-     as a ring (2.94:1). One value serves ring AND bar for both of these
-     (5.02:1 / 4.92:1 against white). */
-  --louise-shared: #15803d;
-  --louise-external: #a16207;
+  --louise-green: #15803d;
+  /* The theme's error orange (louise.css), 4.99:1 on white. Orange means
+     danger and nothing else in the chrome, so it isn't a ring or a tone
+     (#603). The deep stop is text on an orange tint, 5.7:1 on 10%. */
+  --louise-orange: #b8501f;
+  --louise-orange-deep: #9a4219;
+  /* Amber: white on it is 4.92:1; the deep stop is text on its tint. */
+  --louise-amber: #a16207;
+  --louise-amber-deep: #854d0e;
+  --louise-amber-ink: #231903;
+  --louise-ink: #0f172a;
+  --louise-slate-700: #334155;
+  --louise-slate-600: #475569;
+  --louise-slate-500: #64748b;
+  --louise-slate-300: #cbd5e1;
+  --louise-slate-200: #e2e8f0;
+  --louise-slate-100: #f1f5f9;
+  --louise-white: #ffffff;
+  --louise-black: #000000;
+
+  /* ── Roles: what every rule reads (#603). ── */
+  --louise-surface: var(--louise-white);
+  --louise-surface-muted: var(--louise-slate-100);
+  --louise-text: var(--louise-ink);
+  --louise-text-body: var(--louise-slate-700);
+  --louise-text-secondary: var(--louise-slate-600);
+  --louise-text-muted: var(--louise-slate-500);
+  --louise-border: var(--louise-slate-200);
+  --louise-border-strong: var(--louise-slate-300);
+  --louise-shadow: var(--louise-black);
+  /* The one accent: fills, links, and the primary action. Text on it is
+     --louise-on-accent. */
+  --louise-accent: var(--louise-blue-strong);
+  --louise-accent-deep: var(--louise-blue-deep);
+  --louise-on-accent: var(--louise-white);
+  /* Focus rings, borders, and outlines: 3:1 is enough, so the brand blue. */
+  --louise-ring: var(--louise-blue);
+  --louise-success: var(--louise-green);
+  --louise-warning: var(--louise-amber);
+  --louise-warning-deep: var(--louise-amber-deep);
+  --louise-warning-ink: var(--louise-amber-ink);
+  --louise-danger: var(--louise-orange);
+  --louise-danger-deep: var(--louise-orange-deep);
+  /* Every editable node rings in one color, and the toolbar's tag says what the
+     node is (ADR 0018 §2, ADR 0019 §4). Tone stays a semantic the tag reads;
+     it no longer picks a color. */
+  --louise-node-ring: var(--louise-ring);
+  --louise-node-bar: var(--louise-accent);
+
+  /* ── Type scale (#603): five text steps in rem, so they follow the browser's
+     text size (#598). Glyph boxes (toolbar icons, drag handles, the close
+     button) size their icon, not text, and keep their own values. ── */
+  --louise-text-2xs: 0.6875rem;
+  --louise-text-xs: 0.75rem;
+  --louise-text-sm: 0.8125rem;
+  --louise-text-md: 0.875rem;
+  --louise-text-lg: 1rem;
+
   /* BowenLabs brand type: Roboto Flex throughout (variable font). Headings are
      the same family, just a heavier weight. The @font-face is bundled (base64)
      via brandFontsCss in injectStyles() — only on Louise surfaces. */
@@ -63,11 +106,11 @@ const CSS = `
   outline-offset: 2px;
 }
 .louise-editable:hover {
-  box-shadow: 0 0 0 2px rgba(20, 129, 239, 0.25);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--louise-ring) 25%, transparent);
 }
 .louise-editable:focus-within {
-  box-shadow: 0 0 0 2px var(--louise-blue);
-  background-color: rgba(20, 129, 239, 0.03);
+  box-shadow: 0 0 0 2px var(--louise-ring);
+  background-color: color-mix(in oklch, var(--louise-ring) 3%, transparent);
 }
 .louise-editable::after {
   content: "\\270E";
@@ -79,11 +122,11 @@ const CSS = `
   display: none;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  color: #fff;
-  background: var(--louise-blue-strong);
+  font-size: var(--louise-text-xs);
+  color: var(--louise-on-accent);
+  background: var(--louise-accent);
   border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--louise-shadow) 20%, transparent);
   pointer-events: none;
 }
 .louise-editable:hover::after {
@@ -109,18 +152,18 @@ const CSS = `
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in oklch, var(--louise-surface) 92%, transparent);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   border-radius: 999px;
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 8px 30px color-mix(in oklch, var(--louise-text) 16%, transparent);
   font-family: var(--louise-font-body);
-  font-size: 0.875rem;
-  color: #0f172a;
+  font-size: var(--louise-text-md);
+  color: var(--louise-text);
 }
 /* Editor identity: a green "live" dot + the signed-in editor's name. Shown in
    the drawer header (it used to sit on the edit bar). Edits save live to D1, so
-   green = live is accurate; a draft/orange state would need a publish workflow
+   green = live is accurate; a draft state would need a publish workflow
    first. */
 .louise-who {
   display: inline-flex;
@@ -134,8 +177,8 @@ const CSS = `
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #15803d;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+  background: var(--louise-success);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--louise-success) 18%, transparent);
   flex: none;
 }
 .louise-who-name {
@@ -146,8 +189,8 @@ const CSS = `
 /* Transient save feedback trailing the bar's three actions. Empty at rest, so
    :empty collapses it and the bar shows only the buttons. */
 .louise-status {
-  font-size: 0.8125rem;
-  color: #64748b;
+  font-size: var(--louise-text-sm);
+  color: var(--louise-text-muted);
 }
 .louise-status:empty {
   display: none;
@@ -155,7 +198,7 @@ const CSS = `
 .louise-status[data-status="error"],
 .louise-status[data-status="conflict"],
 .louise-status[data-status="locked"] {
-  color: #dc2626;
+  color: var(--louise-danger);
 }
 /* A draft-save conflict's two ways out (#572), beside the status. */
 .louise-conflict {
@@ -167,25 +210,25 @@ const CSS = `
 }
 .louise-status[data-status="saved"],
 .louise-status[data-status="published"] {
-  color: #15803d;
+  color: var(--louise-success);
 }
-/* Three text actions: Save (green, filled primary), Settings (blue), Done
-   (orange). No icons. */
+/* The live Save is the bar's filled action on a page without versions; Settings
+   and Sign out are accent text. No icons. */
 .louise-save {
   appearance: none;
   border: none;
   cursor: pointer;
   padding: 8px 18px;
   border-radius: 999px;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 600;
-  color: #fff;
-  background: var(--louise-green);
+  color: var(--louise-on-accent);
+  background: var(--louise-success);
   transition: opacity 120ms ease, transform 80ms ease, background 120ms ease;
 }
 .louise-save:hover:not(:disabled):not([aria-disabled="true"]) {
   transform: translateY(-1px);
-  background: #15803d;
+  background: var(--louise-success);
 }
 .louise-save:disabled {
   opacity: 0.45;
@@ -199,19 +242,18 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 999px;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 600;
   text-decoration: none;
   transition: background 120ms ease;
 }
-/* Both hover tints stay light enough to keep the text over 4.5:1: 4.61:1 for
-   Settings and 4.62:1 for Done. At 10% the blue tint was 4.49:1. */
-.louise-settings { color: var(--louise-blue-strong); }
-.louise-settings:hover { background: rgba(20, 129, 239, 0.08); }
-/* Done is text, so it takes the orange text stop: --louise-orange is 3.02:1 on
-   the bar's white, and --louise-orange-strong 5.02:1. */
-.louise-exit { color: var(--louise-orange-strong); }
-.louise-exit:hover { background: rgba(234, 115, 23, 0.08); }
+/* Settings and Sign out are both accent text, over 4.5:1 on their 8% hover
+   tint (4.61:1). At 10% the tint was 4.49:1. Orange means danger only, so Sign
+   out no longer takes it (#603). */
+.louise-settings { color: var(--louise-accent); }
+.louise-settings:hover { background: color-mix(in oklch, var(--louise-ring) 8%, transparent); }
+.louise-exit { color: var(--louise-accent); }
+.louise-exit:hover { background: color-mix(in oklch, var(--louise-ring) 8%, transparent); }
 
 /* Realtime presence (ADR 0002 / #71): a compact strip of the OTHER editors in the
    session, leading the bar. Empty at rest, so a solo editor sees nothing. */
@@ -228,21 +270,21 @@ const CSS = `
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: var(--louise-blue-strong);
-  color: #fff;
-  font-size: 0.6875rem;
+  background: var(--louise-accent);
+  color: var(--louise-on-accent);
+  font-size: var(--louise-text-2xs);
   font-weight: 700;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  border: 2px solid var(--louise-surface);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--louise-shadow) 15%, transparent);
 }
 
 /* A rich field a peer holds (soft-lock): dimmed + non-interactive + a badge naming
    the holder. Advisory only — the server also drops a non-holder's change. The
    badge is a real text element (#597), so the editable's aria-describedby can
    point at it; generated content never reached a screen reader. It fills with
-   the orange text stop: white on it is 5.02:1, and on --louise-orange 3.02:1.
-   Only the field's content dims: opacity on the field itself would fade the
-   badge too, and white on the faded orange is 2.49:1. */
+   the warning amber, since a held field is a caution, not an error: white on it
+   is 4.92:1. Only the field's content dims: opacity on the field itself would
+   fade the badge too, and take white on it under 3:1. */
 .louise-editable.louise-locked {
   position: relative;
   pointer-events: none;
@@ -255,9 +297,9 @@ const CSS = `
   z-index: 2;
   padding: 2px 8px 2px 22px;
   border-radius: 999px;
-  background: var(--louise-orange-strong) ${iconUrl(icons.lock, "#fff")} no-repeat 8px center / 11px 11px;
-  color: #fff;
-  font-size: 0.6875rem;
+  background: var(--louise-warning) ${iconUrl(icons.lock, "#fff")} no-repeat 8px center / 11px 11px;
+  color: var(--louise-on-accent);
+  font-size: var(--louise-text-2xs);
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -281,19 +323,19 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 999px;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 600;
   transition: background 120ms ease;
 }
-.louise-savedraft { color: var(--louise-green); }
-.louise-savedraft:hover:not(:disabled):not([aria-disabled="true"]) { background: rgba(22, 163, 74, 0.1); }
+.louise-savedraft { color: var(--louise-success); }
+.louise-savedraft:hover:not(:disabled):not([aria-disabled="true"]) { background: color-mix(in oklch, var(--louise-success) 10%, transparent); }
 .louise-publish {
   padding: 8px 18px;
   font-weight: 700;
-  color: #fff;
-  background: var(--louise-blue-strong);
+  color: var(--louise-on-accent);
+  background: var(--louise-accent);
 }
-.louise-publish:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--louise-blue-deep); }
+.louise-publish:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--louise-accent-deep); }
 .louise-savedraft:disabled,
 .louise-publish:disabled,
 .louise-savedraft[aria-disabled="true"],
@@ -301,8 +343,8 @@ const CSS = `
 .louise-save[aria-disabled="true"] { opacity: 0.55; cursor: default; }
 /* Why Publish is unavailable, beside it and tied to it with aria-describedby. */
 .louise-publish-reason {
-  font-size: 0.75rem;
-  color: #64748b;
+  font-size: var(--louise-text-xs);
+  color: var(--louise-text-muted);
 }
 .louise-publish-reason[hidden] { display: none; }
 
@@ -318,12 +360,12 @@ const CSS = `
   padding: 10px 18px;
   border-radius: 999px;
   font-family: var(--louise-font-body);
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 600;
-  color: #fff;
-  background: var(--louise-blue-strong);
+  color: var(--louise-on-accent);
+  background: var(--louise-accent);
   text-decoration: none;
-  box-shadow: 0 8px 30px rgba(20, 129, 239, 0.35);
+  box-shadow: 0 8px 30px color-mix(in oklch, var(--louise-ring) 35%, transparent);
 }
 
 /* ── Explorer drawer (slice 2) ─────────────────────────────────────────── */
@@ -333,7 +375,7 @@ const CSS = `
   position: fixed;
   inset: 0;
   z-index: 2147483001;
-  background: rgba(15, 23, 42, 0.28);
+  background: color-mix(in oklch, var(--louise-text) 28%, transparent);
 }
 .louise-drawer {
   position: fixed;
@@ -344,10 +386,10 @@ const CSS = `
   width: min(440px, 94vw);
   display: flex;
   flex-direction: column;
-  background: #fff;
-  box-shadow: -12px 0 40px rgba(15, 23, 42, 0.2);
+  background: var(--louise-surface);
+  box-shadow: -12px 0 40px color-mix(in oklch, var(--louise-text) 20%, transparent);
   font-family: var(--louise-font-body);
-  color: #0f172a;
+  color: var(--louise-text);
   animation: louise-slide-in 180ms ease;
 }
 @keyframes louise-slide-in {
@@ -359,11 +401,11 @@ const CSS = `
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
 }
 .louise-drawer-brand {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: var(--louise-text-lg);
   letter-spacing: -0.01em;
 }
 /* Cog + close, grouped at the right of the drawer head. */
@@ -389,24 +431,24 @@ const CSS = `
   cursor: pointer;
   font-size: 1.25rem;
   line-height: 1;
-  color: #64748b;
+  color: var(--louise-text-muted);
   padding: 4px 8px;
   border-radius: 8px;
 }
 .louise-drawer-close:hover {
-  background: rgba(15, 23, 42, 0.05);
+  background: color-mix(in oklch, var(--louise-text) 5%, transparent);
 }
 /* Cog while the Settings view is open. Blue on a blue tint takes the deep stop
    (5.89:1 on the 10% tint), as the active drawer tab does. */
 .louise-drawer-close.is-active {
-  color: var(--louise-blue-deep);
-  background: rgba(20, 129, 239, 0.1);
+  color: var(--louise-accent-deep);
+  background: color-mix(in oklch, var(--louise-ring) 10%, transparent);
 }
 .louise-drawer-tabs {
   display: flex;
   gap: 4px;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
 }
 .louise-tab {
   border: none;
@@ -414,15 +456,15 @@ const CSS = `
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 8px;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 500;
-  color: #475569;
+  color: var(--louise-text-secondary);
 }
 /* The tab's text label on the 10% tint: --louise-blue-strong is 4.49:1 here,
    the deep stop 5.89:1. */
 .louise-tab.is-active {
-  background: rgba(20, 129, 239, 0.1);
-  color: var(--louise-blue-deep);
+  background: color-mix(in oklch, var(--louise-ring) 10%, transparent);
+  color: var(--louise-accent-deep);
 }
 .louise-drawer-body {
   flex: 1;
@@ -439,9 +481,9 @@ const CSS = `
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--louise-surface);
   font-family: var(--louise-font-body);
-  color: #0f172a;
+  color: var(--louise-text);
 }
 .louise-studio-head {
   position: sticky;
@@ -461,18 +503,18 @@ html[data-louise-studio] body {
   margin: 0;
 }
 .louise-muted {
-  color: #64748b;
-  font-size: 0.875rem;
+  color: var(--louise-text-muted);
+  font-size: var(--louise-text-md);
 }
 /* Visible failure feedback for drawer actions (create/save/delete/reorder). */
 .louise-alert {
   margin-bottom: 12px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  font-size: 0.8125rem;
+  background: color-mix(in oklch, var(--louise-danger) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--louise-danger) 30%, transparent);
+  color: var(--louise-danger-deep);
+  font-size: var(--louise-text-sm);
   line-height: 1.45;
 }
 
@@ -484,19 +526,19 @@ html[data-louise-studio] body {
   align-items: center;
   gap: 12px;
   padding: 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   border-radius: 12px;
-  background: #fff;
+  background: var(--louise-surface);
 }
 .louise-list-item.is-dragover {
-  border-color: var(--louise-blue);
-  box-shadow: 0 0 0 2px rgba(20, 129, 239, 0.2);
+  border-color: var(--louise-ring);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--louise-ring) 20%, transparent);
 }
 .louise-drag-handle {
   display: inline-flex;
   align-items: center;
   cursor: grab;
-  color: #cbd5e1;
+  color: var(--louise-border-strong);
   font-size: 1.125rem;
   user-select: none;
   flex: none;
@@ -508,28 +550,28 @@ html[data-louise-studio] body {
   height: 44px;
   border-radius: 8px;
   object-fit: cover;
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in oklch, var(--louise-text) 6%, transparent);
   flex: none;
 }
 .louise-item-main { flex: 1; min-width: 0; }
 .louise-item-title {
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.louise-item-sub { font-size: 0.75rem; color: #64748b; }
+.louise-item-sub { font-size: var(--louise-text-xs); color: var(--louise-text-muted); }
 .louise-badge {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.6875rem;
+  font-size: var(--louise-text-2xs);
   font-weight: 600;
 }
-.louise-badge.for_sale { background: rgba(22, 163, 74, 0.12); color: #15803d; }
-.louise-badge.sold { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
-.louise-badge.draft { background: rgba(100, 116, 139, 0.14); color: #475569; }
+.louise-badge.for_sale { background: color-mix(in oklch, var(--louise-success) 12%, transparent); color: var(--louise-success); }
+.louise-badge.sold { background: color-mix(in oklch, var(--louise-danger) 10%, transparent); color: var(--louise-danger); }
+.louise-badge.draft { background: color-mix(in oklch, var(--louise-text-muted) 14%, transparent); color: var(--louise-text-secondary); }
 
 .louise-row { display: flex; align-items: center; gap: 8px; }
 .louise-reorder { display: flex; flex-direction: column; gap: 2px; }
@@ -537,17 +579,17 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #fff;
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
+  background: var(--louise-surface);
   cursor: pointer;
   width: 26px;
   height: 22px;
   border-radius: 6px;
-  font-size: 0.8125rem;
+  font-size: var(--louise-text-sm);
   line-height: 1;
-  color: #475569;
+  color: var(--louise-text-secondary);
 }
-.louise-icon-btn:hover:not(:disabled) { background: rgba(15, 23, 42, 0.05); }
+.louise-icon-btn:hover:not(:disabled) { background: color-mix(in oklch, var(--louise-text) 5%, transparent); }
 .louise-icon-btn:disabled { opacity: 0.35; cursor: default; }
 
 .louise-btn {
@@ -555,27 +597,27 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #fff;
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
+  background: var(--louise-surface);
   cursor: pointer;
   padding: 9px 14px;
   border-radius: 10px;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--louise-text);
 }
-.louise-btn:hover { background: rgba(15, 23, 42, 0.04); }
+.louise-btn:hover { background: color-mix(in oklch, var(--louise-text) 4%, transparent); }
 /* White 14px labels need 4.5:1 (WCAG 1.4.3), so the fill is the text stop,
    --louise-blue-strong (5.08:1), the same blue as every other filled control,
    and the hover goes one stop darker again (6.67:1). */
-.louise-btn-primary { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
-.louise-btn-primary:hover { background: var(--louise-blue-deep); }
-.louise-btn-danger { color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+.louise-btn-primary { background: var(--louise-accent); color: var(--louise-on-accent); border-color: transparent; }
+.louise-btn-primary:hover { background: var(--louise-accent-deep); }
+.louise-btn-danger { color: var(--louise-danger); border-color: color-mix(in oklch, var(--louise-danger) 30%, transparent); }
 .louise-btn-block { width: 100%; justify-content: center; }
 /* Compact AI-assist button — the SEO "Suggest" affordance (#75/#166). */
-.louise-btn-ai { padding: 5px 10px; font-size: 0.75rem; gap: 4px; }
+.louise-btn-ai { padding: 5px 10px; font-size: var(--louise-text-xs); gap: 4px; }
 .louise-btn-ai:disabled { opacity: 0.55; cursor: default; }
-.louise-btn-ai:disabled:hover { background: #fff; }
+.louise-btn-ai:disabled:hover { background: var(--louise-surface); }
 /* Header row above the SEO fields: the "Search engine listing" label with the
    Suggest button pushed to the trailing edge. */
 .louise-seo-head {
@@ -598,24 +640,24 @@ html[data-louise-studio] body {
 .louise-media-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   border-radius: 12px;
   overflow: hidden;
-  background: #fff;
+  background: var(--louise-surface);
 }
 .louise-media-thumb {
   aspect-ratio: 1 / 1;
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in oklch, var(--louise-text) 6%, transparent);
 }
 .louise-media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .louise-media-meta { padding: 8px 10px 4px; min-width: 0; }
-.louise-media-meta .louise-item-title { font-size: 0.75rem; }
+.louise-media-meta .louise-item-title { font-size: var(--louise-text-xs); }
 .louise-media-actions { display: flex; align-items: center; gap: 6px; padding: 6px 10px 10px; }
 .louise-media-actions .louise-btn {
   flex: 1;
   justify-content: center;
   padding: 6px 10px;
-  font-size: 0.75rem;
+  font-size: var(--louise-text-xs);
 }
 /* Asset-level alt shown under the filename (truncated) so the library reads as
    a real, described set of assets rather than a wall of filenames. */
@@ -627,7 +669,7 @@ html[data-louise-studio] body {
 }
 /* Inline alt/caption editor revealed by the card's Alt button. */
 .louise-media-edit { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 8px; }
-.louise-media-edit .louise-input { width: 100%; font-size: 0.75rem; }
+.louise-media-edit .louise-input { width: 100%; font-size: var(--louise-text-xs); }
 
 /* ── Settings panel ───────────────────────────────────────────── */
 .louise-settings-group { margin-bottom: 26px; }
@@ -635,7 +677,7 @@ html[data-louise-studio] body {
    One section per concern keeps the growing panel scannable. */
 .louise-accordion {
   margin-bottom: 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   border-radius: 12px;
   background: transparent;
 }
@@ -645,15 +687,15 @@ html[data-louise-studio] body {
   justify-content: space-between;
   gap: 8px;
   padding: 12px 14px;
-  font-size: 0.9375rem;
+  font-size: var(--louise-text-lg);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--louise-text);
   cursor: pointer;
   list-style: none;
   user-select: none;
 }
 .louise-accordion-summary::-webkit-details-marker { display: none; }
-.louise-accordion-caret { color: #64748b; transition: transform 0.15s ease; }
+.louise-accordion-caret { color: var(--louise-text-muted); transition: transform 0.15s ease; }
 .louise-accordion[open] > .louise-accordion-summary .louise-accordion-caret { transform: rotate(180deg); }
 .louise-accordion-body { padding: 0 14px 14px; }
 .louise-textarea { width: 100%; resize: vertical; font: inherit; }
@@ -668,24 +710,24 @@ html[data-louise-studio] body {
 }
 .louise-media-pick {
   padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 10%, transparent);
   border-radius: 8px;
   background: none;
   cursor: pointer;
   overflow: hidden;
   aspect-ratio: 1;
 }
-.louise-media-pick:hover { border-color: var(--louise-blue); }
+.louise-media-pick:hover { border-color: var(--louise-ring); }
 .louise-media-pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .louise-ui-strings { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
 /* Sign-out lives at the foot of Settings (it replaced the drawer-head button). */
 .louise-settings-session {
   margin-bottom: 0;
   padding-top: 18px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
 }
-.louise-settings-title { margin: 0 0 2px; font-size: 0.9375rem; font-weight: 600; color: #0f172a; }
-.louise-settings-hint { margin: 0 0 12px; font-size: 0.75rem; }
+.louise-settings-title { margin: 0 0 2px; font-size: var(--louise-text-lg); font-weight: 600; color: var(--louise-text); }
+.louise-settings-hint { margin: 0 0 12px; font-size: var(--louise-text-xs); }
 .louise-settings-row { align-items: center; gap: 8px; }
 .louise-settings-fields { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
 .louise-settings-fields .louise-input { width: 100%; }
@@ -698,27 +740,27 @@ html[data-louise-studio] body {
 .louise-field-inline { flex-direction: row; align-items: center; gap: 8px; }
 .louise-field-inline input { margin: 0; }
 .louise-field label,
-.louise-field-label { font-size: 0.75rem; font-weight: 600; color: #475569; }
-.louise-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 0.8125rem; color: #334155; }
-.louise-check input { width: 16px; height: 16px; accent-color: var(--louise-blue); cursor: pointer; }
+.louise-field-label { font-size: var(--louise-text-xs); font-weight: 600; color: var(--louise-text-secondary); }
+.louise-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: var(--louise-text-sm); color: var(--louise-text-body); }
+.louise-check input { width: 16px; height: 16px; accent-color: var(--louise-ring); cursor: pointer; }
 .louise-input,
 .louise-select {
   width: 100%;
   padding: 9px 11px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 10px;
-  font-size: 0.875rem;
-  color: #0f172a;
-  background: #fff;
+  font-size: var(--louise-text-md);
+  color: var(--louise-text);
+  background: var(--louise-surface);
 }
 .louise-input:focus,
 .louise-select:focus {
   outline: 2px solid transparent;
   outline-offset: 2px;
-  border-color: var(--louise-blue);
+  border-color: var(--louise-ring);
   /* With the border, a 2 px ring at 3.88:1 against white (#598); the old
      12 percent tint read as a 1 px border change. */
-  box-shadow: 0 0 0 1px var(--louise-blue);
+  box-shadow: 0 0 0 1px var(--louise-ring);
 }
 /* Dock textarea for textarea-typed fields (card bodies, FAQ answers, step/tier
    bodies) — multi-line + resizable so they can hold line breaks. Keeps the
@@ -737,24 +779,24 @@ html[data-louise-studio] body {
    borders double up.) */
 .louise-rt {
   position: relative;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 10px;
   /* No fill — the editor look is just the border around the item being
      edited, so the surface reads as the page/panel behind it. */
   background: transparent;
 }
-.louise-rt:focus-within { border-color: var(--louise-blue); box-shadow: 0 0 0 1px var(--louise-blue); }
+.louise-rt:focus-within { border-color: var(--louise-ring); box-shadow: 0 0 0 1px var(--louise-ring); }
 .louise-rt .ProseMirror:focus { outline: 2px solid transparent; }
-.louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: 0.875rem; }
+.louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: var(--louise-text-md); }
 /* ── Builder blocks (#16): editing chrome ─────────────────────────
    Matches the editor look — no background fill, a border-only outline on
    the hovered/selected block. Controls are editor-only affordances. */
 .louise-block { position: relative; border: 1px solid transparent; border-radius: 6px; }
-.louise-block:hover { border-color: rgba(15, 23, 42, 0.14); }
+.louise-block:hover { border-color: color-mix(in oklch, var(--louise-text) 14%, transparent); }
 .louise-block.is-selected,
 .louise-rt .ProseMirror-selectednode .louise-block,
 .louise-rt .louise-block.ProseMirror-selectednode {
-  border-color: var(--louise-blue);
+  border-color: var(--louise-ring);
   background: transparent;
 }
 .louise-block-control {
@@ -763,52 +805,52 @@ html[data-louise-studio] body {
   right: 4px;
   display: none;
   padding: 2px 8px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 999px;
-  background: #fff;
-  font-size: 0.6875rem;
-  color: #475569;
+  background: var(--louise-surface);
+  font-size: var(--louise-text-2xs);
+  color: var(--louise-text-secondary);
   cursor: pointer;
 }
 .louise-block:hover .louise-block-control,
 .louise-block.is-selected .louise-block-control { display: inline-flex; }
 /* Editor-side rendering of serialized block elements. */
-.louise-rt .pb-hr { border: 0; border-top: 1px solid rgba(15, 23, 42, 0.18); margin: 18px 0; }
+.louise-rt .pb-hr { border: 0; border-top: 1px solid color-mix(in oklch, var(--louise-text) 18%, transparent); margin: 18px 0; }
 .louise-rt .pb-hr[data-size="lg"] { margin: 38px 0; }
 /* Container blocks: CSS-only chrome (no node view) — dashed border + a small
    name tag on hover, border-only per the editor look. */
 .louise-rt [data-block] { position: relative; border: 1px dashed transparent; border-radius: 6px; padding: 8px; margin: 10px 0; }
-.louise-rt [data-block]:hover { border-color: rgba(15, 23, 42, 0.22); }
+.louise-rt [data-block]:hover { border-color: color-mix(in oklch, var(--louise-text) 22%, transparent); }
 .louise-rt [data-block]:hover::before {
   content: attr(data-block);
   position: absolute;
   top: -9px;
   left: 8px;
   padding: 0 6px;
-  background: #fff;
+  background: var(--louise-surface);
   font-family: var(--louise-font-body);
-  font-size: 0.625rem;
+  font-size: var(--louise-text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--louise-text-muted);
 }
 .louise-rt .pb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .louise-rt .pb-col {
   min-width: 0;
-  outline: 1px dashed rgba(219, 99, 39, 0.3);
+  outline: 1px dashed color-mix(in oklch, var(--louise-node-ring) 30%, transparent);
   outline-offset: 2px;
   border-radius: 4px;
   padding: 6px;
 }
-/* Editing outlines (brand orange #db6327) so block/component boundaries are
-   clear while editing. View mode (public page) is untouched. */
+/* Editing outlines in the node ring color, so block and component boundaries
+   are clear while editing. View mode (public page) is untouched. */
 .louise-rt .pb-hero,
 .louise-rt .pb-bleed,
 .louise-rt .pb-quote,
 .louise-rt .pb-cta,
 .louise-rt .louise-row,
 .louise-rt .louise-block {
-  outline: 1px dashed rgba(219, 99, 39, 0.4);
+  outline: 1px dashed color-mix(in oklch, var(--louise-node-ring) 40%, transparent);
   outline-offset: 3px;
   border-radius: 3px;
 }
@@ -818,10 +860,10 @@ html[data-louise-studio] body {
 .louise-rt .pb-cta:hover,
 .louise-rt .louise-row:hover,
 .louise-rt .louise-block:hover {
-  outline-color: rgba(219, 99, 39, 0.85);
+  outline-color: color-mix(in oklch, var(--louise-node-ring) 85%, transparent);
 }
 .louise-rt .pb-hero h1, .louise-rt .pb-hero h2 { font-size: 1.5em; margin: 0 0 6px; }
-.louise-rt .pb-quote { border-top: 1px solid rgba(15, 23, 42, 0.14); border-bottom: 1px solid rgba(15, 23, 42, 0.14); padding: 10px 4px; font-style: italic; }
+.louise-rt .pb-quote { border-top: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent); border-bottom: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent); padding: 10px 4px; font-style: italic; }
 .louise-rt .pb-cta { text-align: center; }
 .louise-rt .pb-bleed img { max-width: 100%; }
 /* Adjustable grid (rowBlock) + gallery — editor preview + chrome. */
@@ -832,7 +874,7 @@ html[data-louise-studio] body {
 .louise-rt .pb-grid img { width: 100%; height: auto; border-radius: 6px; }
 .louise-row { position: relative; border: 1px solid transparent; border-radius: 8px; }
 .louise-row.is-selected,
-.louise-rt .ProseMirror-selectednode.louise-row { border-color: rgba(20, 129, 239, 0.5); }
+.louise-rt .ProseMirror-selectednode.louise-row { border-color: color-mix(in oklch, var(--louise-ring) 50%, transparent); }
 .louise-row-bar {
   display: flex;
   flex-wrap: wrap;
@@ -841,8 +883,8 @@ html[data-louise-studio] body {
   margin-bottom: 8px;
   padding: 5px 6px;
   border-radius: 7px;
-  background: rgba(15, 23, 42, 0.04);
-  font-size: 0.6875rem;
+  background: color-mix(in oklch, var(--louise-text) 4%, transparent);
+  font-size: var(--louise-text-2xs);
 }
 .louise-row:not(:hover):not(.is-selected) .louise-row-bar { opacity: 0.55; }
 .louise-row-presets,
@@ -850,26 +892,26 @@ html[data-louise-studio] body {
 .louise-row-presets { margin-right: auto; }
 .louise-chip {
   padding: 2px 7px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 999px;
-  background: #fff;
-  font-size: 0.6875rem;
+  background: var(--louise-surface);
+  font-size: var(--louise-text-2xs);
   font-family: var(--louise-font-body);
-  color: #475569;
+  color: var(--louise-text-secondary);
   cursor: pointer;
 }
-.louise-chip:hover { background: rgba(20, 129, 239, 0.08); }
-.louise-chip.is-active { background: var(--louise-blue-strong); border-color: transparent; color: #fff; }
+.louise-chip:hover { background: color-mix(in oklch, var(--louise-ring) 8%, transparent); }
+.louise-chip.is-active { background: var(--louise-accent); border-color: transparent; color: var(--louise-on-accent); }
 .louise-col-adj { display: inline-flex; align-items: center; gap: 2px; }
 .louise-col-w {
   min-width: 12px;
   text-align: center;
-  color: #0f172a;
+  color: var(--louise-text);
   font-variant-numeric: tabular-nums;
 }
-.louise-btn-xs { padding: 1px 6px; font-size: 0.6875rem; line-height: 1.4; }
-.louise-row-sep { width: 1px; align-self: stretch; margin: 0 2px; background: rgba(15, 23, 42, 0.12); }
-.louise-row-count { color: #64748b; font-weight: 600; }
+.louise-btn-xs { padding: 1px 6px; font-size: var(--louise-text-2xs); line-height: 1.4; }
+.louise-row-sep { width: 1px; align-self: stretch; margin: 0 2px; background: color-mix(in oklch, var(--louise-text) 12%, transparent); }
+.louise-row-count { color: var(--louise-text-muted); font-weight: 600; }
 
 /* ── Inspector popover (#182 Phase 4) — contextual layout + settings ──────── */
 .louise-inspector-scrim { position: fixed; inset: 0; z-index: 2147483300; }
@@ -883,16 +925,16 @@ html[data-louise-studio] body {
   flex-direction: column;
   gap: 12px;
   padding: 12px 14px;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--louise-surface);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 10%, transparent);
   border-radius: 12px;
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 12px 34px color-mix(in oklch, var(--louise-text) 22%, transparent);
   font-family: var(--louise-font-body);
-  font-size: 0.8125rem;
-  color: #0f172a;
+  font-size: var(--louise-text-sm);
+  color: var(--louise-text);
 }
 .louise-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.louise-inspector-title { font-weight: 700; font-size: 0.8125rem; letter-spacing: -0.01em; }
+.louise-inspector-title { font-weight: 700; font-size: var(--louise-text-sm); letter-spacing: -0.01em; }
 .louise-inspector-close {
   appearance: none;
   border: none;
@@ -904,20 +946,20 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: var(--louise-text-md);
   line-height: 1;
-  color: #64748b;
+  color: var(--louise-text-muted);
   padding: 2px 6px;
   border-radius: 6px;
 }
-.louise-inspector-close:hover { background: rgba(15, 23, 42, 0.06); }
+.louise-inspector-close:hover { background: color-mix(in oklch, var(--louise-text) 6%, transparent); }
 .louise-inspector-group { display: flex; flex-direction: column; gap: 8px; }
 .louise-inspector-layouts { display: flex; flex-wrap: wrap; gap: 6px; }
-.louise-inspector-active { background: var(--louise-blue-strong); color: #fff; border-color: transparent; }
-.louise-inspector-empty { margin: 0; color: #64748b; font-size: 0.75rem; }
+.louise-inspector-active { background: var(--louise-accent); color: var(--louise-on-accent); border-color: transparent; }
+.louise-inspector-empty { margin: 0; color: var(--louise-text-muted); font-size: var(--louise-text-xs); }
 /* Source-settings group (Phase B): the caption carries the write-path warning —
    these values save immediately, unlike everything else in the popover. */
-.louise-inspector-note { margin: 2px 0 6px; color: #64748b; font-size: 0.6875rem; }
+.louise-inspector-note { margin: 2px 0 6px; color: var(--louise-text-muted); font-size: var(--louise-text-2xs); }
 /* The green panel's persistent warning band (#376) — tinted with the shared
    tone so the panel reads as the ring that opened it. Not a confirm(): the
    count is readable the whole time the panel is open. */
@@ -925,14 +967,14 @@ html[data-louise-studio] body {
   margin: 0 0 8px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: rgba(21, 128, 61, 0.12);
-  border: 1px solid rgba(21, 128, 61, 0.35);
-  color: var(--louise-shared, #15803d);
-  font-size: 0.6875rem;
+  background: color-mix(in oklch, var(--louise-success) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--louise-success) 35%, transparent);
+  color: var(--louise-shared, var(--louise-success));
+  font-size: var(--louise-text-2xs);
   line-height: 1.4;
 }
 .louise-multiselect { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
-.louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
+.louise-multiselect .louise-field-inline { display: flex; align-items: center; gap: 6px; font-size: var(--louise-text-xs); }
 /* "New page from template" chooser (Pages panel). */
 .louise-tpl-row { margin-top: 10px; }
 .louise-tpl-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -947,7 +989,7 @@ html[data-louise-studio] body {
   content: attr(data-louise-placeholder);
   /* 0.6 alpha ≈ 4.7:1 on white — this hint doubles as the only cue that an empty
      field is there to click, so it has to clear AA like body text (WCAG 1.4.3). */
-  color: rgba(15, 23, 42, 0.6);
+  color: color-mix(in oklch, var(--louise-text) 60%, transparent);
   pointer-events: none;
 }
 
@@ -961,19 +1003,19 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in oklch, var(--louise-surface) 80%, transparent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--louise-text-sm);
   font-weight: 600;
-  color: #334155;
+  color: var(--louise-text-body);
   padding: 4px 10px;
 }
 .louise-bar-history:hover {
-  background: #fff;
-  border-color: rgba(15, 23, 42, 0.24);
+  background: var(--louise-surface);
+  border-color: color-mix(in oklch, var(--louise-text) 24%, transparent);
 }
 /* Fixed fallback strip hosting the bar controls when the page has no .louise-bar
    to inject into (e.g. a standalone harness / test host). */
@@ -987,27 +1029,27 @@ html[data-louise-studio] body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 10%, transparent);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in oklch, var(--louise-surface) 96%, transparent);
   backdrop-filter: blur(8px);
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 12px 40px color-mix(in oklch, var(--louise-text) 18%, transparent);
   font-family: var(--louise-font-body);
-  color: #0f172a;
+  color: var(--louise-text);
 }
 /* Only shown on a failed save (auto-save makes the routine saved/unsaved status
-   redundant); red so it reads as an error the editor must notice. */
-.louise-sections-status { font-size: 0.75rem; font-weight: 600; }
-.louise-sections-status[data-status="error"] { color: #dc2626; }
+   redundant); the danger color, so it reads as an error the editor must notice. */
+.louise-sections-status { font-size: var(--louise-text-xs); font-weight: 600; }
+.louise-sections-status[data-status="error"] { color: var(--louise-danger); }
 .louise-arr { display: grid; gap: 6px; }
 .louise-arr-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: #475569;
+  font-size: var(--louise-text-xs);
+  color: var(--louise-text-secondary);
   padding: 4px 6px;
-  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border: 1px dashed color-mix(in oklch, var(--louise-text) 15%, transparent);
   border-radius: 8px;
 }
 .louise-arr-ops { display: inline-flex; gap: 4px; align-items: center; }
@@ -1015,20 +1057,20 @@ html[data-louise-studio] body {
    variant switcher select. */
 .louise-variant-add { display: flex; flex-wrap: wrap; gap: 4px; }
 .louise-variant-switch {
-  font-size: 0.75rem;
+  font-size: var(--louise-text-xs);
   padding: 2px 4px;
-  border: 1px solid rgba(15, 23, 42, 0.2);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 20%, transparent);
   border-radius: 6px;
-  background: #fff;
-  color: #1e293b;
+  background: var(--louise-surface);
+  color: var(--louise-text);
 }
 /* The currently-live version in history — a solid success-green accent so it
    stands out from the other (also "published") rows. */
 .louise-arr-row[data-live] {
   border-style: solid;
-  border-color: rgba(22, 163, 74, 0.4);
-  background: rgba(22, 163, 74, 0.08);
-  color: #15803d;
+  border-color: color-mix(in oklch, var(--louise-success) 40%, transparent);
+  background: color-mix(in oklch, var(--louise-success) 8%, transparent);
+  color: var(--louise-success);
   font-weight: 600;
 }
 /* Add section (#182): relative so its palette anchors to it. The --floating
@@ -1043,24 +1085,24 @@ html[data-louise-studio] body {
   width: 190px;
   margin: 0;
   font-family: var(--louise-font-body);
-  color: #0f172a;
+  color: var(--louise-text);
 }
 .louise-sections-img {
   display: block;
   max-width: 100%;
   max-height: 84px;
   border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 10%, transparent);
+  background: color-mix(in oklch, var(--louise-text) 3%, transparent);
 }
 .louise-sections-img-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.louise-sections-img-error { font-size: 0.6875rem; color: #dc2626; }
-/* A picker whose choices come from an API and didn't arrive (#344). Same red as
+.louise-sections-img-error { font-size: var(--louise-text-2xs); color: var(--louise-danger); }
+/* A picker whose choices come from an API and didn't arrive (#344). Same color as
    the image error above — it is the same kind of message: the thing you asked
    for isn't here, and here is why. */
-.louise-field-error { font-size: 0.6875rem; color: #dc2626; }
+.louise-field-error { font-size: var(--louise-text-2xs); color: var(--louise-danger); }
 /* The visible labels on a link row's two inputs (#592), quieter than a field's. */
-.louise-field .louise-row-label { font-size: 0.6875rem; }
+.louise-field .louise-row-label { font-size: var(--louise-text-2xs); }
 /* A fieldset that groups inputs without drawing a box. */
 .louise-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* Version history drawer (#182) — a dedicated right-side drawer opened from the
@@ -1075,10 +1117,10 @@ html[data-louise-studio] body {
   z-index: 5;
   min-width: 180px;
   padding: 4px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  background: var(--louise-surface);
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 14%, transparent);
 }
 /* Button block — editor chrome (label/link popup). */
 .louise-button-block { position: relative; display: inline-block; margin: 8px 0; }
@@ -1086,8 +1128,8 @@ html[data-louise-studio] body {
   display: inline-block;
   padding: 10px 18px;
   border-radius: 10px;
-  background: var(--louise-blue-strong);
-  color: #fff;
+  background: var(--louise-accent);
+  color: var(--louise-on-accent);
   text-decoration: none;
   font-weight: 600;
 }
@@ -1101,10 +1143,10 @@ html[data-louise-studio] body {
   gap: 6px;
   width: 240px;
   padding: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  background: var(--louise-surface);
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 14%, transparent);
 }
 /* Open on selection (is-selected) or while a field inside has focus, so
    clicking into the label/link input keeps the popup open. */
@@ -1117,25 +1159,25 @@ html[data-louise-studio] body {
   display: block;
   min-width: 180px;
   padding: 4px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  background: var(--louise-surface);
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 14%, transparent);
   z-index: 2147483003;
 }
 .louise-slash-item {
   display: block;
   padding: 7px 10px;
   border-radius: 7px;
-  font-size: 0.8125rem;
-  color: #0f172a;
+  font-size: var(--louise-text-sm);
+  color: var(--louise-text);
   cursor: pointer;
 }
 .louise-slash-item:hover,
-.louise-slash-item[data-focused] { background: rgba(20, 129, 239, 0.08); }
-.louise-slash-empty { display: block; padding: 7px 10px; font-size: 0.75rem; color: #64748b; }
+.louise-slash-item[data-focused] { background: color-mix(in oklch, var(--louise-ring) 8%, transparent); }
+.louise-slash-empty { display: block; padding: 7px 10px; font-size: var(--louise-text-xs); color: var(--louise-text-muted); }
 /* "+ Block" inserter button (deterministic path) below the editing surface. */
-.louise-block-add { position: relative; padding: 6px 8px 8px; border-top: 1px solid rgba(15, 23, 42, 0.08); }
+.louise-block-add { position: relative; padding: 6px 8px 8px; border-top: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent); }
 .louise-block-add-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -1144,10 +1186,10 @@ html[data-louise-studio] body {
   max-height: 320px;
   overflow-y: auto;
   padding: 4px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  background: var(--louise-surface);
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 14%, transparent);
   z-index: 2147483003;
 }
 .louise-block-add-menu .louise-slash-item { width: 100%; text-align: left; border: none; background: none; }
@@ -1169,10 +1211,10 @@ html[data-louise-studio] body {
   /* Never wider than the viewport — on a phone the pill wraps to two rows
      instead of running off the edge (its left is set inline from the caret). */
   max-width: calc(100vw - 12px);
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  background: var(--louise-surface);
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--louise-text) 22%, transparent);
 }
 .louise-tb-btn {
   display: inline-flex;
@@ -1184,17 +1226,17 @@ html[data-louise-studio] body {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: #334155;
+  color: var(--louise-text-body);
   font-size: 1.0625rem;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.louise-tb-btn:hover { background: rgba(15, 23, 42, 0.06); }
+.louise-tb-btn:hover { background: color-mix(in oklch, var(--louise-text) 6%, transparent); }
 /* The icon buttons need 3:1 today; the deep stop clears 4.5:1 on the 12% tint
    (5.76:1), so a text label added later passes too. The tint stays at 12%, so
    the active state keeps its blue fill, apart from the gray hover. */
-.louise-tb-btn.is-active { background: rgba(20, 129, 239, 0.12); color: var(--louise-blue-deep); }
-.louise-tb-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: rgba(15, 23, 42, 0.12); }
+.louise-tb-btn.is-active { background: color-mix(in oklch, var(--louise-ring) 12%, transparent); color: var(--louise-accent-deep); }
+.louise-tb-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: color-mix(in oklch, var(--louise-text) 12%, transparent); }
 .louise-tb-color { position: relative; display: inline-flex; }
 /* Shown/hidden by <Show> (click-toggled state), so it defaults to flex — no
    :hover disclosure, which previously had a dead-zone gap (#14). */
@@ -1206,16 +1248,16 @@ html[data-louise-studio] body {
   display: flex;
   gap: 4px;
   padding: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  background: var(--louise-surface);
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--louise-text) 16%, transparent);
 }
 .louise-swatch {
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 15%, transparent);
   border-radius: 6px;
   cursor: pointer;
 }
@@ -1223,9 +1265,9 @@ html[data-louise-studio] body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  color: #64748b;
-  font-size: 0.8125rem;
+  background: var(--louise-surface);
+  color: var(--louise-text-muted);
+  font-size: var(--louise-text-sm);
 }
 /* AI rewrite menu (#75/#166) — same click-toggled popover as the color swatches,
    as a vertical list of rewrite modes. Anchored right so it stays on-screen at
@@ -1242,10 +1284,10 @@ html[data-louise-studio] body {
   flex-direction: column;
   min-width: 132px;
   padding: 5px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 14%, transparent);
   border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  background: var(--louise-surface);
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--louise-text) 16%, transparent);
 }
 .louise-tb-ai-item {
   width: 100%;
@@ -1253,17 +1295,17 @@ html[data-louise-studio] body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #334155;
+  color: var(--louise-text-body);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--louise-text-sm);
   text-align: left;
   cursor: pointer;
 }
-.louise-tb-ai-item:hover { background: rgba(15, 23, 42, 0.06); }
+.louise-tb-ai-item:hover { background: color-mix(in oklch, var(--louise-text) 6%, transparent); }
 .louise-tb-ai-busy {
   padding: 6px 10px;
-  color: #64748b;
-  font-size: 0.8125rem;
+  color: var(--louise-text-muted);
+  font-size: var(--louise-text-sm);
   white-space: nowrap;
 }
 /* A failed rewrite's reason, such as a selection past the length cap. Fixed
@@ -1272,8 +1314,8 @@ html[data-louise-studio] body {
   width: 220px;
   margin: 0 0 4px;
   padding: 6px 10px;
-  color: #dc2626;
-  font-size: 0.75rem;
+  color: var(--louise-danger);
+  font-size: var(--louise-text-xs);
   line-height: 1.4;
 }
 /* Hidden file input backing the toolbar image button. */
@@ -1318,16 +1360,16 @@ html[data-louise-studio] body {
   cursor: pointer;
   padding: 2px 7px;
   border-radius: 6px;
-  font-size: 0.6875rem;
+  font-size: var(--louise-text-2xs);
   font-weight: 600;
   line-height: 1.6;
-  color: #fff;
-  background: rgba(15, 23, 42, 0.75);
+  color: var(--louise-on-accent);
+  background: color-mix(in oklch, var(--louise-text) 75%, transparent);
 }
-.louise-rt-alt-btn.is-unset { background: #b45309; }
-.louise-rt-alt-btn:hover { background: rgba(15, 23, 42, 0.9); }
-.louise-rt-alt-btn.is-unset:hover { background: #92400e; }
-.louise-rt-alt-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.louise-rt-alt-btn.is-unset { background: var(--louise-warning); }
+.louise-rt-alt-btn:hover { background: color-mix(in oklch, var(--louise-text) 90%, transparent); }
+.louise-rt-alt-btn.is-unset:hover { background: var(--louise-warning-deep); }
+.louise-rt-alt-btn:focus-visible { outline: 2px solid var(--louise-on-accent); outline-offset: 2px; }
 /* Icon-only controls rely on the UA's default ring, which is easy to lose against
    the toolbar/drawer fills. Give them a deliberate, high-contrast one (WCAG 2.4.7
    / 2.4.11). Inputs and editables already pair outline:none with a box-shadow
@@ -1337,7 +1379,7 @@ html[data-louise-studio] body {
 .louise-drawer-close:focus-visible,
 .louise-icon-btn:focus-visible,
 .louise-media-upload:focus-within {
-  outline: 2px solid var(--louise-blue);
+  outline: 2px solid var(--louise-ring);
   outline-offset: 2px;
 }
 /* Forced colors (a Windows contrast theme) drop box shadows and backgrounds, so
@@ -1362,11 +1404,11 @@ html[data-louise-studio] body {
 .louise-rt-alt-input {
   width: min(320px, 60vw);
   padding: 3px 8px;
-  border: 1px solid var(--louise-blue);
+  border: 1px solid var(--louise-ring);
   border-radius: 6px;
-  font-size: 0.75rem;
-  background: #fff;
-  color: #0f172a;
+  font-size: var(--louise-text-xs);
+  background: var(--louise-surface);
+  color: var(--louise-text);
 }
 .louise-rt-resize {
   position: absolute;
@@ -1374,10 +1416,10 @@ html[data-louise-studio] body {
   bottom: -5px;
   width: 14px;
   height: 14px;
-  border: 2px solid #fff;
+  border: 2px solid var(--louise-surface);
   border-radius: 50%;
-  background: var(--louise-blue);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  background: var(--louise-ring);
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--louise-text) 30%, transparent);
   cursor: nwse-resize;
 }
 
@@ -1390,11 +1432,11 @@ html[data-louise-studio] body {
   height: 24px;
   margin-left: -6px;
   border-radius: 6px;
-  color: #64748b;
+  color: var(--louise-text-muted);
   cursor: grab;
   font-size: 1.125rem;
 }
-.louise-rt-drag:hover { background: rgba(15, 23, 42, 0.06); color: #475569; }
+.louise-rt-drag:hover { background: color-mix(in oklch, var(--louise-text) 6%, transparent); color: var(--louise-text-secondary); }
 .louise-rt-drag:active { cursor: grabbing; }
 .louise-dropzone {
   display: flex;
@@ -1406,7 +1448,7 @@ html[data-louise-studio] body {
   height: 64px;
   object-fit: cover;
   border-radius: 10px;
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in oklch, var(--louise-text) 6%, transparent);
 }
 .louise-image-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .louise-image-tile {
@@ -1415,9 +1457,9 @@ html[data-louise-studio] body {
   height: 72px;
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in oklch, var(--louise-text) 6%, transparent);
 }
-.louise-image-tile.is-cover { box-shadow: 0 0 0 2px var(--louise-blue); }
+.louise-image-tile.is-cover { box-shadow: 0 0 0 2px var(--louise-ring); }
 .louise-image-tile img { width: 100%; height: 100%; object-fit: cover; }
 .louise-image-actions {
   position: absolute;
@@ -1429,16 +1471,16 @@ html[data-louise-studio] body {
 .louise-image-actions .louise-icon-btn {
   width: 20px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in oklch, var(--louise-surface) 92%, transparent);
 }
 .louise-cover-tag {
   position: absolute;
   bottom: 3px;
   left: 3px;
-  font-size: 0.5625rem;
+  font-size: var(--louise-text-2xs);
   font-weight: 700;
-  color: #fff;
-  background: var(--louise-blue-strong);
+  color: var(--louise-on-accent);
+  background: var(--louise-accent);
   padding: 1px 5px;
   border-radius: 999px;
 }
@@ -1448,13 +1490,13 @@ html[data-louise-studio] body {
   justify-content: center;
   width: 72px;
   height: 72px;
-  border: 1px dashed rgba(15, 23, 42, 0.25);
+  border: 1px dashed color-mix(in oklch, var(--louise-text) 25%, transparent);
   border-radius: 10px;
   cursor: pointer;
   font-size: 1.5rem;
-  color: #64748b;
+  color: var(--louise-text-muted);
 }
-.louise-image-add:hover { border-color: var(--louise-blue); color: var(--louise-blue-strong); }
+.louise-image-add:hover { border-color: var(--louise-ring); color: var(--louise-accent); }
 /* Round-crop adjuster: live circular preview + position/zoom sliders. Preview
    uses the same object-position/scale technique as the public render. */
 .louise-crop { display: flex; gap: 16px; align-items: flex-start; }
@@ -1464,20 +1506,20 @@ html[data-louise-studio] body {
   height: 150px;
   border-radius: 50%;
   overflow: hidden;
-  background: #f1f5f9;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: var(--louise-surface-muted);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 12%, transparent);
 }
 .louise-crop-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .louise-crop-controls { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.louise-crop-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: 0.75rem; color: #475569; }
-.louise-crop-row input[type="range"] { width: 100%; accent-color: var(--louise-blue); }
+.louise-crop-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: var(--louise-text-xs); color: var(--louise-text-secondary); }
+.louise-crop-row input[type="range"] { width: 100%; accent-color: var(--louise-ring); }
 .louise-crop-controls .louise-btn { align-self: flex-start; }
 .louise-form-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding-top: 4px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   margin-top: 4px;
 }
 
@@ -1490,14 +1532,14 @@ html[data-louise-studio] body {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-  background: #fff;
+  border-top: 1px solid color-mix(in oklch, var(--louise-text) 10%, transparent);
+  background: var(--louise-surface);
 }
 /* Status on the left, actions pinned right (works with or without a status). */
 .louise-foot-actions { display: flex; gap: 8px; margin-left: auto; }
-.louise-foot-status { font-size: 0.8125rem; color: #64748b; }
-.louise-foot-status[data-state="saved"] { color: var(--louise-green); }
-.louise-foot-status[data-state="error"] { color: #dc2626; }
+.louise-foot-status { font-size: var(--louise-text-sm); color: var(--louise-text-muted); }
+.louise-foot-status[data-state="saved"] { color: var(--louise-success); }
+.louise-foot-status[data-state="error"] { color: var(--louise-danger); }
 
 /* ── Owner Home dashboard (#108) ──────────────────────────────────────
    Attention-first landing: a traffic-light summary over a grid of cards. */
@@ -1508,17 +1550,17 @@ html[data-louise-studio] body {
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(22, 163, 74, 0.08);
-  border: 1px solid rgba(22, 163, 74, 0.2);
+  background: color-mix(in oklch, var(--louise-success) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--louise-success) 20%, transparent);
 }
 .louise-dashboard-summary[data-state="attention"] {
-  background: rgba(234, 179, 8, 0.1);
-  border-color: rgba(234, 179, 8, 0.28);
+  background: color-mix(in oklch, var(--louise-warning) 10%, transparent);
+  border-color: color-mix(in oklch, var(--louise-warning) 28%, transparent);
 }
 .louise-dashboard-summary-text {
   font-family: var(--louise-font-head);
   font-weight: 700;
-  font-size: 0.9375rem;
+  font-size: var(--louise-text-lg);
   /* It's an <h2> for heading order — neutralize the UA margin so it still reads
      as the inline summary line it looks like. */
   margin: 0;
@@ -1530,10 +1572,10 @@ html[data-louise-studio] body {
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: var(--louise-border-strong);
 }
-.louise-card-dot[data-state="ok"] { background: var(--louise-green); }
-.louise-card-dot[data-state="attention"] { background: var(--louise-yellow); }
+.louise-card-dot[data-state="ok"] { background: var(--louise-success); }
+.louise-card-dot[data-state="attention"] { background: var(--louise-warning); }
 
 .louise-card-grid {
   display: grid;
@@ -1546,43 +1588,49 @@ html[data-louise-studio] body {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.8125rem;
+  font-size: var(--louise-text-sm);
   font-weight: 600;
-  color: #fff;
-  background: #64748b;
+  color: var(--louise-on-accent);
+  background: var(--louise-text-muted);
 }
-.louise-cwv-badge[data-rating="good"] { background: var(--louise-green); }
-/* White on the yellow is 2.94:1, so this one badge takes dark ink (5.90:1) and
-   keeps the yellow that says "could be faster". */
-.louise-cwv-badge[data-rating="needs-improvement"] {
-  background: var(--louise-yellow);
-  color: #231903;
-}
-.louise-cwv-badge[data-rating="poor"] { background: #dc2626; }
+.louise-cwv-badge[data-rating="good"] { background: var(--louise-success); }
+/* The three ratings are success, warning, and danger, each with white text over
+   4.5:1 (5.02:1, 4.92:1, 4.99:1); the badge's word says which, too. */
+.louise-cwv-badge[data-rating="needs-improvement"] { background: var(--louise-warning); }
+.louise-cwv-badge[data-rating="poor"] { background: var(--louise-danger); }
 /* A last check older than the threshold (#559). The text says "Out of date" too,
    so the amber isn't the only signal. Dark amber text keeps AA contrast. */
 .louise-health-stale {
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(234, 179, 8, 0.1);
-  border: 1px solid rgba(234, 179, 8, 0.4);
-  color: #854d0e;
-  font-size: 0.8125rem;
+  background: color-mix(in oklch, var(--louise-warning) 10%, transparent);
+  border: 1px solid color-mix(in oklch, var(--louise-warning) 40%, transparent);
+  color: var(--louise-warning-deep);
+  font-size: var(--louise-text-sm);
   line-height: 1.45;
 }
-.louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.8125rem; }
+.louise-cwv-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: var(--louise-text-sm); }
 .louise-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 8%, transparent);
   border-radius: 12px;
-  background: #fff;
+  background: var(--louise-surface);
+}
+/* Numbers that sit in columns or change in place take aligned digits, so a
+   reading doesn't shift as it updates (#603): the vitals, the dashboard's
+   counts, and the media panel's file sizes. */
+.louise-cwv-metrics,
+.louise-card-body,
+.louise-dashboard-summary-text,
+.louise-media-meta .louise-item-sub {
+  font-variant-numeric: tabular-nums;
 }
 .louise-card-head { display: flex; align-items: center; gap: 8px; }
-.louise-card-title { font-size: 0.875rem; margin: 0; }
-.louise-card-body { font-size: 0.875rem; color: #334155; line-height: 1.45; }
+.louise-card-title { font-size: var(--louise-text-md); margin: 0; }
+.louise-card-body { font-size: var(--louise-text-md); color: var(--louise-text-body); line-height: 1.45; }
 /* One verb per card; sits at the bottom-left, self-sized. */
 .louise-card-action { align-self: flex-start; margin-top: auto; }
 
@@ -1601,7 +1649,7 @@ html[data-louise-studio] body {
      below a comfortable tap size. */
   .louise-tb-btn { min-width: 40px; min-height: 40px; font-size: 1.1875rem; }
   .louise-swatch { width: 32px; height: 32px; }
-  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: 0.8125rem; }
+  .louise-btn-xs { min-height: 36px; padding: 6px 10px; font-size: var(--louise-text-sm); }
   .louise-input, .louise-select { min-height: 42px; }
   .louise-bar-history { min-height: 36px; }
 }
@@ -1621,7 +1669,7 @@ html[data-louise-studio] body {
     width: 100%;
     height: 88dvh;
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.25);
+    box-shadow: 0 -12px 40px color-mix(in oklch, var(--louise-text) 25%, transparent);
     animation: louise-sheet-up 200ms ease;
   }
   @keyframes louise-sheet-up {
@@ -1638,7 +1686,7 @@ html[data-louise-studio] body {
     width: 36px;
     height: 4px;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.15);
+    background: color-mix(in oklch, var(--louise-text) 15%, transparent);
   }
   .louise-drawer-head { position: relative; padding-top: 16px; }
   /* Tabs scroll horizontally instead of wrapping. */
@@ -1685,7 +1733,7 @@ html[data-louise-studio] body {
    faint persistent ring on editable regions so they're discoverable, and reveal
    in-editor block controls on focus instead of hover. */
 @media (hover: none) {
-  .louise-editable { box-shadow: 0 0 0 1px rgba(20, 129, 239, 0.20); }
+  .louise-editable { box-shadow: 0 0 0 1px color-mix(in oklch, var(--louise-ring) 20%, transparent); }
   .louise-block:focus-within .louise-block-control { display: inline-flex; }
 }
 
@@ -1699,21 +1747,21 @@ html[data-louise-studio] body {
    class hooks are here so the unstyled helper is still legible out of the box. */
 .louise-form { display: grid; gap: 14px; font-family: var(--louise-font-body); }
 .louise-form-row { display: grid; gap: 4px; }
-.louise-form-label { font-size: 0.8125rem; font-weight: 600; color: #334155; }
-.louise-form-req { color: #dc2626; }
+.louise-form-label { font-size: var(--louise-text-sm); font-weight: 600; color: var(--louise-text-body); }
+.louise-form-req { color: var(--louise-danger); }
 .louise-form-input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid rgba(15, 23, 42, 0.18);
+  border: 1px solid color-mix(in oklch, var(--louise-text) 18%, transparent);
   border-radius: 8px;
   font: inherit;
-  background: #fff;
-  color: #0f172a;
+  background: var(--louise-surface);
+  color: var(--louise-text);
 }
-.louise-form-input:focus { outline: 2px solid var(--louise-blue); outline-offset: 0; }
-.louise-form-check { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; }
-.louise-form-hint { font-size: 0.75rem; color: #64748b; }
-.louise-form-error { font-size: 0.75rem; color: #dc2626; }
+.louise-form-input:focus { outline: 2px solid var(--louise-ring); outline-offset: 0; }
+.louise-form-check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--louise-text-md); }
+.louise-form-hint { font-size: var(--louise-text-xs); color: var(--louise-text-muted); }
+.louise-form-error { font-size: var(--louise-text-xs); color: var(--louise-danger); }
 .louise-form-submit {
   justify-self: start;
   appearance: none;
@@ -1722,13 +1770,13 @@ html[data-louise-studio] body {
   padding: 9px 18px;
   border-radius: 8px;
   font-weight: 600;
-  color: #fff;
-  background: var(--louise-blue-strong);
+  color: var(--louise-on-accent);
+  background: var(--louise-accent);
 }
 .louise-form-submit:disabled { opacity: 0.5; cursor: default; }
-.louise-form-status { font-size: 0.875rem; }
-.louise-form-status[data-status="success"] { color: var(--louise-green); }
-.louise-form-status[data-status="error"] { color: #dc2626; }
+.louise-form-status { font-size: var(--louise-text-md); }
+.louise-form-status[data-status="success"] { color: var(--louise-success); }
+.louise-form-status[data-status="error"] { color: var(--louise-danger); }
 
 /* Live OG / social-card preview (pages drawer). The box holds the OG aspect
    ratio; the generated card is inline SVG (fills exactly, same ratio), a custom
@@ -1736,20 +1784,20 @@ html[data-louise-studio] body {
 .louise-og-preview {
   aspect-ratio: 1200 / 630;
   width: 100%;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--louise-border);
   border-radius: 8px;
   overflow: hidden;
-  background: #0f172a;
+  background: var(--louise-text);
 }
 .louise-og-card { display: block; width: 100%; height: 100%; line-height: 0; }
 .louise-og-card svg { display: block; width: 100%; height: 100%; }
 .louise-og-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
-/* Grammar/spelling checker (#110): a wavy red underline on issues + a small
+/* Grammar/spelling checker (#110): a wavy danger-colored underline on issues + a small
    suggestion popover (appended to <body>, so it needs a very high z-index to sit
    above the editor chrome). */
 .louise-grammar-issue {
-  text-decoration: underline wavy #dc2626;
+  text-decoration: underline wavy var(--louise-danger);
   text-decoration-skip-ink: none;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -1760,13 +1808,13 @@ html[data-louise-studio] body {
   min-width: 180px;
   max-width: 280px;
   padding: 6px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--louise-surface);
+  border: 1px solid var(--louise-border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
-  font-size: 0.8125rem;
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--louise-text) 14%, transparent);
+  font-size: var(--louise-text-sm);
 }
-.louise-grammar-popover-msg { padding: 4px 6px 6px; color: #475569; font-size: 0.75rem; line-height: 1.35; }
+.louise-grammar-popover-msg { padding: 4px 6px 6px; color: var(--louise-text-secondary); font-size: var(--louise-text-xs); line-height: 1.35; }
 .louise-grammar-suggest {
   display: block;
   width: 100%;
@@ -1777,11 +1825,11 @@ html[data-louise-studio] body {
   background: transparent;
   font: inherit;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--louise-text);
   cursor: pointer;
 }
-.louise-grammar-suggest:hover { background: #f1f5f9; }
-.louise-grammar-popover-none { padding: 4px 8px 6px; color: #64748b; font-size: 0.75rem; }
+.louise-grammar-suggest:hover { background: var(--louise-surface-muted); }
+.louise-grammar-popover-none { padding: 4px 8px 6px; color: var(--louise-text-muted); font-size: var(--louise-text-xs); }
 `;
 
 export function injectStyles(): void {

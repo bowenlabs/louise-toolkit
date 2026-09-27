@@ -38,18 +38,27 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** A translucent `rgba(…)` tint composited over white in sRGB, as a hex. */
-function tintOnWhite(rgba: string | undefined): string {
-  const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(rgba ?? "");
-  expect(m, `${rgba} isn't an rgba() tint`).not.toBeNull();
-  const alpha = Number(m![4]);
-  return `#${[m![1], m![2], m![3]]
+/** `r`, `g`, `b` at `alpha` composited over white in sRGB, as a hex. */
+function overWhite(rgb: number[], alpha: number): string {
+  return `#${rgb
     .map((c) =>
-      Math.round(Number(c) * alpha + 255 * (1 - alpha))
+      Math.round(c * alpha + 255 * (1 - alpha))
         .toString(16)
         .padStart(2, "0"),
     )
     .join("")}`;
+}
+
+/** A translucent tint composited over white, as a hex: an `rgba(…)`, or a
+ *  `color-mix(in oklch, <color> N%, transparent)`, which is that color at N%
+ *  alpha. `resolve` turns the mixed color into a hex. */
+function tintOnWhite(value: string | undefined, resolve: (v: string) => string = (v) => v): string {
+  const rgba = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(value ?? "");
+  if (rgba) return overWhite([rgba[1], rgba[2], rgba[3]].map(Number), Number(rgba[4]));
+  const mix = /^color-mix\(in oklch,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/.exec(value ?? "");
+  expect(mix, `${value} isn't a tint`).not.toBeNull();
+  const n = Number.parseInt(longHex(resolve(mix![1])).slice(1), 16);
+  return overWhite([(n >> 16) & 255, (n >> 8) & 255, n & 255], Number(mix![2]) / 100);
 }
 
 /** The `--color-*` tokens of one `@plugin "daisyui/theme"` block, keyed without the prefix. */
@@ -107,16 +116,20 @@ describe("the editor chrome", () => {
   const ringBlue = /const LOUISE_BLUE = "(#[0-9a-f]{6})";/i.exec(stylesSource)?.[1];
   const textBlue = /--louise-blue-strong:\s*(#[0-9a-f]{6});/i.exec(css)?.[1];
 
-  // The `:root` palette, so a rule's `var(--louise-*)` resolves to its hex.
+  // The `:root` tokens, palette and roles, so a rule's `var(--louise-*)`
+  // resolves through any role to its hex.
   const palette: Record<string, string> = { "--louise-blue": ringBlue ?? "" };
-  for (const m of css.slice(0, css.indexOf("}")).matchAll(/(--louise-[\w-]+):\s*(#[0-9a-f]{6});/gi))
-    palette[m[1]] = m[2];
+  for (const m of css.slice(0, css.indexOf("}")).matchAll(/(--louise-[\w-]+):\s*([^;]+);/g))
+    if (m[1] !== "--louise-blue") palette[m[1]] = m[2].trim();
   // The color that leads a value, so a `background` shorthand with an image
   // after the color resolves too.
   const resolve = (value: string): string => {
-    const [, token, hex] = /^(?:var\((--[\w-]+)\)|(#[0-9a-f]{3,6})\b)/i.exec(value) ?? [];
-    return token ? palette[token] : (hex ?? value);
+    const [, token, hex] =
+      /^(?:var\((--[\w-]+)(?:,[^)]*)?\)|(#[0-9a-f]{3,6})\b)/i.exec(value) ?? [];
+    if (token) return palette[token] ? resolve(palette[token]) : token;
+    return hex ? longHex(hex).toLowerCase() : value;
   };
+  const tint = (value: string | undefined) => tintOnWhite(value, resolve);
 
   /** `color` and `background` of every rule with exactly this selector, later rules winning. */
   function declarations(selector: string): { color?: string; background?: string } {
@@ -140,11 +153,11 @@ describe("the editor chrome", () => {
   });
 
   it("never sets white text on, or any text in, a ring-only color", () => {
-    // Blue and orange are ring colors with a -strong text stop; the yellow is too
-    // light for white text at all.
-    const onRing = /background:\s*var\(--louise-(?:blue|orange|yellow)\)/;
-    const whiteText = /(?<![-\w])color:\s*#fff(?:fff)?\b/i;
-    const inRing = /(?<![-\w])color:\s*var\(--louise-(?:blue|orange|yellow)\)/;
+    // The ring roles are 3:1 colors for outlines; text and fills take the
+    // accent stop.
+    const onRing = /background:\s*var\(--louise-(?:ring|node-ring|blue)\)/;
+    const whiteText = /(?<![-\w])color:\s*(?:#fff(?:fff)?\b|var\(--louise-on-accent)/i;
+    const inRing = /(?<![-\w])color:\s*var\(--louise-(?:ring|node-ring|blue)\)/;
     const offenders = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(([, , body]) => (onRing.test(body) && whiteText.test(body)) || inRing.test(body))
       .map(([, selector]) => selector.trim());
@@ -153,7 +166,8 @@ describe("the editor chrome", () => {
 
   it("fills white-text controls with a blue that clears 4.5:1", () => {
     // The primary button carried its own literal blue before #545; pin it to the stop.
-    expect(css).toMatch(/\.louise-btn-primary \{ background: var\(--louise-blue-strong\);/);
+    expect(css).toMatch(/\.louise-btn-primary \{ background: var\(--louise-accent\);/);
+    expect(resolve("var(--louise-accent)")).toBe(textBlue?.toLowerCase());
   });
 
   // A badge's text and fill can come from two rules: the Core Web Vitals badge
@@ -194,7 +208,7 @@ describe("the editor chrome", () => {
       // The tint is translucent over the bar's white, so composite it first.
       const { color } = declarations(selector);
       const { background } = declarations(`${selector}:hover`);
-      expect(contrast(resolve(color!), tintOnWhite(background))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(resolve(color!), tint(background))).toBeGreaterThanOrEqual(4.5);
     },
   );
 
@@ -206,7 +220,7 @@ describe("the editor chrome", () => {
 
   it.each(activeOnTint)("keeps active %s over 4.5:1 on its tint", (control) => {
     const { color, background } = declarations(`${control}.is-active`);
-    expect(contrast(resolve(color!), tintOnWhite(background))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(resolve(color!), tint(background))).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each(activeOnTint)("keeps active %s apart from hover and rest", (control) => {
@@ -219,14 +233,14 @@ describe("the editor chrome", () => {
     );
     if (hoverRule) {
       const hover = declarations(`${control}:hover`);
-      expect(tintOnWhite(active.background)).not.toBe(tintOnWhite(hover.background));
+      expect(tint(active.background)).not.toBe(tint(hover.background));
     }
-    expect(tintOnWhite(active.background)).not.toBe("#ffffff");
+    expect(tint(active.background)).not.toBe("#ffffff");
     expect(resolve(active.color!)).not.toBe(resolve(rest.color!));
   });
 
-  it("colors the Done action with a text stop", () => {
-    // The action bar is white; Done is orange text on it.
+  it("colors Sign out with a text stop", () => {
+    // The action bar is white; Sign out is accent text on it.
     const { color } = declarations(".louise-exit");
     expect(contrast(resolve(color!), "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
