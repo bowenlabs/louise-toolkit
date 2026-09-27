@@ -81,3 +81,67 @@ The two DST edge cases resolve as `Temporal`'s "compatible" mode does. A time
 that doesn't exist (2:30 AM on the spring-forward day) moves forward by the gap,
 to 3:30 AM. A time that happens twice (1:30 AM on the fall-back day) is the first
 occurrence, still on daylight time.
+
+## Opening hours and pickup times
+
+A shop's hours usually live as text an editor writes, one row per weekday. These
+functions read that text and answer on the shop's clock. A page and its server
+call the same ones, so the pickup times a page offers are the times the server
+accepts.
+
+```ts
+import {
+  openingHoursJsonLd,
+  openingState,
+  pickupProblem,
+  pickupSlots,
+  type PickupOptions,
+} from "louise-toolkit/dates";
+
+const rows = [
+  { day: "Monday", hours: "7a — 7p" },
+  { day: "Sunday", hours: "Closed" },
+];
+
+// The shop's policy, from its settings: no toolkit default.
+const pickup: PickupOptions = {
+  timeZone: SHOP_TZ,
+  prepMinutes: 10,
+  minLeadMinutes: 20,
+  stepMinutes: 15,
+  horizonMinutes: 120,
+  maxSlots: 6,
+  closeGraceMinutes: 2,
+  locale: SITE_LOCALE,
+  whenUnknown: "open",
+};
+
+openingState(rows, { timeZone: SHOP_TZ }); // { kind: "open", closesAt } …
+pickupSlots(rows, pickup); // [{ kind: "asap", readyAt }, { kind: "timed", readyAt, label: "6:30 PM" }, …]
+pickupProblem(rows, readyAt, pickup); // null, or "closed" | "after-close" | "too-far"
+```
+
+|                                      |                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------- |
+| `parseOpeningHours(text)`            | → `{ open, close }` in minutes after midnight, `"closed"`, or `null`            |
+| `openingState(rows, { timeZone })`   | → `open` with `closesAt`, `closed` with the next `opensAt`, or `unknown`        |
+| `pickupSlots(rows, options)`         | → an ASAP slot, then timed slots on the shop's clock, each with a UTC `readyAt` |
+| `pickupProblem(rows, readyAt, opts)` | → why to refuse a pickup, as a code, or `null`                                  |
+| `openingHoursJsonLd(rows)`           | → `openingHours` for `localBusinessJsonLd`, from the same parser                |
+
+**What it reads.** A row's `day` is an English weekday name, its first three
+letters, or a number from 0 (Sunday) to 6. The hours are a range split on an em
+dash, an en dash, a hyphen, or "to", with ends such as `7a`, `7 AM`,
+`7:30 p.m.`, `19:30`, `noon`, and `midnight`. "Closed" closes the day.
+
+**What it doesn't.** An overnight range such as `8p — 2a` is `null`, like any
+text it can't read. `openingState` reports a `null` day as `unknown`, and the
+pickup functions follow `whenUnknown`. Pass `"open"` so a typo in the hours can't
+stop every sale, or `"closed"` to take no pickups until the hours read cleanly.
+
+**Pickup slots.** Timed slots start `minLeadMinutes` out, or `prepMinutes` if
+that's longer. They land on the next `stepMinutes` mark of the shop's wall clock
+and stop at closing or `horizonMinutes`, whichever is sooner. A shop that's
+closed now, or that can't finish an order before closing, offers none. A timed
+slot's label is the time in `locale`. The ASAP slot has none, so the site words
+it. `pickupProblem` returns a code, not a message, for the same reason.
