@@ -1,3 +1,4 @@
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { EditorSession } from "../../src/core/auth/index.js";
@@ -16,6 +17,7 @@ import {
   type SaveCollectionConfig,
   sanitizeSettingsPatch,
   saveRoute,
+  applyFieldSave,
   seedRoute,
   settingsRoute,
   submissionsRoute,
@@ -620,6 +622,30 @@ describe("saveRoute (guard + dispatch)", () => {
       headers: { origin, "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+
+  it("refuses a collection with no primary key, at startup and on a direct save (#702)", async () => {
+    const keyless = sqliteTable("notes", { title: text("title") });
+    expect(() =>
+      saveRoute({
+        collections: { notes: { table: keyless, fields: ["title"] } },
+        resolveEditor: () => editor,
+      }),
+    ).toThrow('saveRoute: collection "notes" has no primary key.');
+
+    const { db, calls } = makeD1(() => []);
+    const result = await applyFieldSave(
+      { DB: db },
+      { notes: { table: keyless, fields: ["title"] } },
+      (html) => html,
+      { collection: "notes", key: "1", field: "title", value: "x" },
+    );
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: 'Collection "notes" has no primary key, so a field save can\'t find its row',
+    });
+    expect(calls).toHaveLength(0);
+  });
 
   it("passes through a non-matching path", async () => {
     const { db } = makeD1(() => []);
