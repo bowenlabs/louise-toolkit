@@ -7,6 +7,7 @@ sidebar:
 
 ```ts
 import {
+  analyticsIncidents,
   buildIncidentReport,
   d1Incidents,
   deadLetterConsumer,
@@ -14,12 +15,14 @@ import {
   fingerprintFailure,
   getIncident,
   incidentFromDegraded,
+  incidentCountsSqlQuery,
   incidents,
   incidentsColumns,
   isCriticalIncident,
   listDeadLetters,
   listIncidents,
   MAX_INCIDENT_MESSAGE,
+  parseIncidentCountRows,
   redactMessage,
   replayDeadLetter,
   resolveIncident,
@@ -293,3 +296,39 @@ dead-letter queue, and `limit` (default 100). `replayDeadLetter` sends one kept
 message back onto a queue, usually the one it first failed on, then deletes the
 row. It returns `false` when there's no row with that ID, and keeps the row if
 the send fails. Fix the cause first, or the message dead-letters again.
+
+## Counts over time: `analyticsIncidents(dataset)`
+
+```ts
+function analyticsIncidents<Env>(
+  dataset: (env: Env) => AnalyticsEngineDataset | undefined,
+): IncidentSink<Env>;
+```
+
+A row's `count` is a running total. Whether a failure is happening more often
+this week than last is a question for [Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/),
+which is first-party and lives in the client's account. This sink writes one
+data point per report: `index1` is the fingerprint, the blobs are the kind,
+name, path, host, release, and `"critical"` or `""`, and `double1` is 1.
+`incidentDataPoint(report)` builds that point, for a sink of your own.
+
+Give it a dataset of its own rather than the one [Core Web Vitals](/reference/analytics/)
+use, so neither query reads the other's rows. An unprovisioned dataset drops the
+report.
+
+```ts
+onIncident: [
+  d1Incidents((env) => env.DB),
+  analyticsIncidents((env) => env.INCIDENT_EVENTS),
+],
+```
+
+### `incidentCountsSqlQuery(dataset, options?)` · `parseIncidentCountRows(rows)`
+
+`incidentCountsSqlQuery` builds the Analytics Engine SQL for each incident's
+count per `"day"` (the default) or `"hour"`, over `sinceHours` (default 168, a
+week), weighted by `_sample_interval` for sampling. Days start at midnight UTC
+unless you pass the site's `timeZone`, since a time zone is a site fact. It
+refuses a dataset name or time zone that isn't a plain identifier.
+`parseIncidentCountRows` reads the result into
+`{ fingerprint, kind, name, bucket, count }` rows, skipping any that don't fit.
