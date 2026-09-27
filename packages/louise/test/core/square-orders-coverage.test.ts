@@ -642,11 +642,11 @@ describe("subscriptions", () => {
       planVariationId: "PLAN1",
       customerId: "C1",
       cardId: "CARD1",
-      idempotencyKey: "enroll-C1-PLAN1",
+      idempotencyKey: "enroll C1 in PLAN1",
     });
     expect(calls[0]).toMatchObject({ method: "POST", path: "/v2/subscriptions" });
     expect(calls[0]?.body).toEqual({
-      idempotency_key: "enroll-C1-PLAN1",
+      idempotency_key: "enroll C1 in PLAN1",
       location_id: "L1",
       plan_variation_id: "PLAN1",
       customer_id: "C1",
