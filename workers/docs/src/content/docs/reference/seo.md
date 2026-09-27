@@ -1,14 +1,19 @@
 ---
 title: seo
-description: "louise-toolkit/seo—a page row and site settings turned into head tags, plus sitemap.xml and robots.txt builders."
+description: "louise-toolkit/seo—a page row and site settings turned into head tags and JSON-LD, plus sitemap.xml and robots.txt builders."
 sidebar:
   order: 15.6
 ---
 
 ```ts
 import {
+  breadcrumbJsonLd,
   canonicalUrl,
+  jsonLdScript,
+  localBusinessJsonLd,
+  organizationJsonLd,
   pageHead,
+  productJsonLd,
   renderHeadTags,
   robotsTxt,
   SEO_DESCRIPTION_MAX,
@@ -111,6 +116,40 @@ Don't disallow a `noindex` page. A crawler that can't fetch a page never sees it
 To serve both from the published pages, mount
 [`sitemapRoute`](/reference/editor/#the-sitemap-route) from
 `louise-toolkit/editor`.
+
+## JSON-LD structured data
+
+Search engines read schema.org markup to learn outright what a page is about.
+Each builder takes its facts from the settings row or an argument, and supplies
+none of its own: no default business type, currency, or country. A missing fact
+is left out, not guessed.
+
+| Builder                                            | Node                                                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `organizationJsonLd(settings, { origin })`         | `Organization`: name, home URL, logo, tagline, email, phone, and social links as `sameAs`                      |
+| `localBusinessJsonLd(settings, facts, { origin })` | The organization's facts, plus `facts.type`, the address parts, opening hours, price range, and location       |
+| `productJsonLd(product, { origin })`               | `Product`, with an `Offer` in major units at the currency's own precision when it has a price                  |
+| `breadcrumbJsonLd(trail, { origin })`              | `BreadcrumbList` from `[{ name, path }]`                                                                       |
+| `jsonLdScript(node)`                               | The `<script type="application/ld+json">` element, with `<`, `>`, and `&` escaped so owner text can't close it |
+
+The two organization builders return `undefined` when the settings have no site
+name. Pass the nodes to `pageHead` as `jsonLd`, and `renderHeadTags` prints each
+one after the other tags, skipping an `undefined` one:
+
+```ts
+const head = pageHead({
+  page,
+  settings,
+  origin,
+  path,
+  jsonLd: [organizationJsonLd(settings, { origin })],
+});
+```
+
+Mark up only what the page visibly shows. A structured address, opening hours,
+and business type have no `site_settings` column yet: keep them in the row's
+`custom` JSON, and render the visible address and hours from the same values,
+so the text and the markup can't disagree.
 
 ## Limits
 
