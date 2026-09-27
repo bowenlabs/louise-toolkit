@@ -1,5 +1,40 @@
 # @louise-toolkit/astro
 
+## 0.5.0
+
+### Minor Changes
+
+- 76c5baa: Form fields accept a web address without a scheme and, under the form's locale, a number with grouping separators (#594).
+
+  - **`url`:** `example.com` or `www.example.com/menu` gains `https://` before the check, and the normalized value is what's stored.
+  - **`number`:** `FormConfig.locale` (new, no default) makes a number read that locale's grouping and decimal separators, so `1,200` is 1200 in `en-US` and `1.200,5` is 1200.5 in `de-DE`. Without a locale, nothing changes: a comma is a decimal point in some locales, so it isn't guessed.
+  - **Messages say what works:** "Enter a web address, like example.com." and "Enter a number, like 1200." replace "`<key>` must be a valid URL" and "`<label>` must be a number".
+  - **`<Form>` renders a number as a text input** with `inputmode="decimal"`, since `type="number"` drops `1,200`, adds spinners, and changes on a scroll.
+  - **`coerceFormValue(field, raw, { locale })`** and `tanstackFieldValidator(key, field, { locale })` take the locale; `tanstackFormValidators` passes the form's.
+  - **`formToAstroSchema`** (`@louise-toolkit/astro`) runs the same coercion first, so an Astro Action accepts what `formRoute` accepts, with the same two messages.
+
+  **Upgrading:** set `locale` on a form whose `number` fields should accept separators. A test that matched the old messages needs the new ones, and a stylesheet that targeted `input[type="number"]` in a `<Form>` needs `input[inputmode="decimal"]`.
+
+### Patch Changes
+
+- Updated dependencies [f1706b3]
+- Updated dependencies [0d7666c]
+- Updated dependencies [76c5baa]
+- Updated dependencies [b8252ca]
+- Updated dependencies [4a234fe]
+- Updated dependencies [1e95091]
+- Updated dependencies [20a09e9]
+- Updated dependencies [865521e]
+- Updated dependencies [8875199]
+- Updated dependencies [4892c0a]
+- Updated dependencies [a588c28]
+- Updated dependencies [b901cbe]
+- Updated dependencies [645efd5]
+- Updated dependencies [0f773fd]
+- Updated dependencies [f4c99d5]
+- Updated dependencies [d893984]
+  - louise-toolkit@0.36.0
+
 ## 0.4.0
 
 ### Minor Changes
