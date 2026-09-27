@@ -6,6 +6,7 @@
 
 import { sqliteTable } from "drizzle-orm/sqlite-core";
 import { deriveFormColumns } from "./columns.js";
+import { autofillProneName } from "./honeypot.js";
 import type { FormConfig, FormDefinition, FormReviewColumn } from "./types.js";
 
 const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -29,6 +30,12 @@ export function defineForm(config: FormConfig): FormDefinition {
   if (!IDENT_RE.test(config.name)) {
     throw new Error(
       `Invalid form name ${JSON.stringify(config.name)} (must be a bare SQL identifier)`,
+    );
+  }
+  const honeypot = config.spam?.honeypot;
+  if (honeypot !== undefined && autofillProneName(honeypot)) {
+    console.warn(
+      `[louise] form "${config.name}": the honeypot "${honeypot}" is a name browsers autofill, so a real visitor's message can be held as spam. Rename it to something no autofill matches, such as "louise_trap".`,
     );
   }
   const columns = deriveFormColumns(config.fields);

@@ -60,23 +60,38 @@ export async function notifySubmission(
   await Promise.all(jobs);
 }
 
+/** Which silent heuristic held a submission. */
+export type SpamVerdict = "honeypot" | "too-fast";
+
 /**
- * Silent anti-spam heuristics evaluated on the raw body: a filled honeypot field
- * or a too-fast submit (vs the render helper's `louise_ts` stamp). Returns `true`
- * when the submission looks like a bot—the route then returns a fake success
- * (so the bot can't tune) without inserting. Missing timestamp is NOT treated as
- * a bot (a plain HTML form without the render helper won't stamp one).
+ * Run the silent anti-spam heuristics on the raw body: a filled honeypot field,
+ * or a submit sooner than `spam.minSeconds` after the render helper's
+ * `louise_ts` stamp. Returns which one fired, or `null` when neither did. A
+ * missing timestamp isn't a bot: a plain HTML form without the render helper
+ * doesn't stamp one.
+ *
+ * A browser or password manager can fill a honeypot a person never sees, so a
+ * verdict isn't proof of a bot. `formRoute` logs each one (or hands it to
+ * `onSpam`) rather than dropping it without a trace.
  */
-export function looksLikeSpam(config: FormConfig, body: Record<string, unknown>): boolean {
+export function spamVerdict(config: FormConfig, body: Record<string, unknown>): SpamVerdict | null {
   const spam = config.spam;
-  if (!spam) return false;
+  if (!spam) return null;
   if (spam.honeypot) {
     const v = body[spam.honeypot];
-    if (typeof v === "string" && v.trim() !== "") return true;
+    if (typeof v === "string" && v.trim() !== "") return "honeypot";
   }
   if (spam.minSeconds) {
     const ts = Number(body.louise_ts);
-    if (Number.isFinite(ts) && ts > 0 && (Date.now() - ts) / 1000 < spam.minSeconds) return true;
+    if (Number.isFinite(ts) && ts > 0 && (Date.now() - ts) / 1000 < spam.minSeconds) {
+      return "too-fast";
+    }
   }
-  return false;
+  return null;
+}
+
+/** Whether {@link spamVerdict} holds the submission. The route answers a
+ *  held submission with a fake success, so a bot can't tune. */
+export function looksLikeSpam(config: FormConfig, body: Record<string, unknown>): boolean {
+  return spamVerdict(config, body) !== null;
 }

@@ -207,7 +207,8 @@ resolveEditor, validate? }`. The
   but not session-gated** (anyone may submit): validates + coerces against the
   form's fields (`422` with per-field `violations`), enforces the declared spam
   guard (KV rate limit via `rateLimitKv`, Turnstile via `turnstileSecret`, and
-  silent honeypot/timing heuristics), inserts the row, and fires the form's
+  silent honeypot/timing heuristics, each hold logged or passed to `onSpam`),
+  inserts the row, and fires the form's
   `notify` (webhook + email via a `mailer`) off the response path. Pass
   `genericTable` to store into the shared `submissions` table (`{ form, data }`)
   so an ad-hoc form needs no migration. Mounted at `/api/louise/forms/<name>`.
