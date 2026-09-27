@@ -262,6 +262,10 @@ function assertVariationPresence(
 }
 
 /** Both write-path guards, in the order a caller hits them. */
+/** Square's batch-upsert limits, counting items and variations alike. */
+const SQUARE_OBJECTS_PER_BATCH = 1_000;
+const SQUARE_OBJECTS_PER_REQUEST = 10_000;
+
 function assertWritableItem(input: {
   name: string;
   presence?: Partial<SquarePresence>;
@@ -436,9 +440,11 @@ export interface CatalogItemInput extends CatalogPresentationInput {
  * Upsert many ITEMs in one call. POST /v2/catalog/batch-upsert.
  *
  * The per-object {@link upsertCatalogItem} costs one request per item, which
- * turns a full catalog push into a rate-limit problem. This batches them—Square
- * allows up to 1,000 objects per request across at most 10 batches, and
- * this splits the input accordingly.
+ * turns a full catalog push into a rate-limit problem. This batches them. Square
+ * allows up to 1,000 objects per batch and 10,000 per request, counting each
+ * variation as an object, so this packs items into batches under that limit and
+ * refuses a write over the request limit before sending anything. An empty list
+ * sends nothing.
  *
  * The whole request is atomic: if any object is rejected, none are written. That
  * is usually what you want for a catalog push (no half-applied price change),
@@ -479,12 +485,32 @@ export async function batchUpsertCatalogObjects(
     };
   });
 
-  // Square: max 1,000 objects per request, max 10 batches per request.
-  const perBatch = Math.max(1, Math.ceil(objects.length / 10));
-  const batches: (typeof objects)[] = [];
-  for (let i = 0; i < objects.length; i += perBatch) {
-    batches.push(objects.slice(i, i + perBatch));
+  if (objects.length === 0) return { idMappings: {}, objects: [] };
+
+  // Square counts an item and each of its variations as objects: at most 1,000
+  // per batch and 10,000 per request (#700). An item never splits across
+  // batches, since its variations travel inside it.
+  const weight = (o: (typeof objects)[number]) => 1 + o.item_data.variations.length;
+  const total = objects.reduce((n, o) => n + weight(o), 0);
+  if (total > SQUARE_OBJECTS_PER_REQUEST) {
+    throw new Error(
+      `Square catalog write: ${total} objects (items and variations) is over Square's ` +
+        `limit of ${SQUARE_OBJECTS_PER_REQUEST} per request. Split the write.`,
+    );
   }
+  const batches: (typeof objects)[] = [];
+  let current: typeof objects = [];
+  let currentWeight = 0;
+  for (const object of objects) {
+    if (currentWeight + weight(object) > SQUARE_OBJECTS_PER_BATCH && current.length > 0) {
+      batches.push(current);
+      current = [];
+      currentWeight = 0;
+    }
+    current.push(object);
+    currentWeight += weight(object);
+  }
+  batches.push(current);
 
   const res = await sqPost<{
     objects?: RawCatalogObject[];

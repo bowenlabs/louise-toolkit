@@ -85,7 +85,7 @@ function validateCollectionConfig(config: CollectionConfig): void {
     }
     if (!SEARCHABLE_FIELD_TYPES.has(field.type)) {
       throw new LouiseContentError(
-        `Collection "${config.slug}" search.fields field "${key}" has type "${field.type}"; only "text", "richText", and "upload" fields can be indexed`,
+        `Collection "${config.slug}" search.fields field "${key}" has type "${field.type}"; only "text", "richText", "upload", and "json" fields can be indexed`,
       );
     }
   }
