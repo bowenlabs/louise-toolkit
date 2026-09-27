@@ -191,8 +191,8 @@ describe("reindexDoc", () => {
   });
 });
 
-// The route short-circuits (fall-through / auth / method) before any DB access;
-// the happy path (real FTS query) runs against a local D1 in the astro-preview E2E.
+// The route short-circuits (fall-through / auth / method) before any DB access,
+// so these need only a no-op D1; the happy path runs on real SQLite, below.
 const noopD1 = {
   prepare: () => ({
     bind: () => ({ all: async () => ({ results: [] }), run: async () => ({ success: true }) }),
@@ -256,6 +256,37 @@ describe("searchRoute — routing", () => {
     const res = await hybrid(req("GET", "/api/louise/pages/search?q=hello"), { DB: noopD1 }, ctx);
     expect(res?.status).toBe(200);
     expect(await res?.json()).toEqual({ results: [] }); // noopD1 → no FTS rows
+  });
+});
+
+describe("searchRoute — a real FTS query (#508)", () => {
+  const ftsRoute = searchRoute({ table: pages, config: pagesSearch, resolveEditor: () => editor });
+
+  it("returns the rows that match, best first, drafts included for editors", async () => {
+    const h = sqliteD1();
+    h.seed(1, "Fresh coffee beans");
+    h.seed(2, "Tea");
+    h.seed(3, "Coffee and more coffee");
+    const res = await ftsRoute(req("GET", "/api/louise/pages/search?q=coffee"), { DB: h.d1 }, ctx);
+    const { results } = (await res?.json()) as { results: { id: number; status: string }[] };
+    expect(results.map((r) => r.id).sort()).toEqual([1, 3]);
+    expect(results.every((r) => r.status === "draft")).toBe(true);
+  });
+
+  it("answers an unsearchable query with no results rather than a 500", async () => {
+    const h = sqliteD1({ failWhen: (sql) => /MATCH/i.test(sql) });
+    h.seed(1, "Fresh coffee beans");
+    const res = await ftsRoute(req("GET", "/api/louise/pages/search?q=coffee"), { DB: h.d1 }, ctx);
+    expect(res?.status).toBe(200);
+    expect(await res?.json()).toEqual({ results: [] });
+  });
+
+  it("rebuilds the index on POST reindex", async () => {
+    const h = sqliteD1();
+    h.seed(1, "Fresh coffee beans", { index: false });
+    const res = await ftsRoute(req("POST", "/api/louise/pages/reindex"), { DB: h.d1 }, ctx);
+    expect(await res?.json()).toEqual({ reindexed: 1 });
+    expect(h.indexed()).toEqual([1]);
   });
 });
 

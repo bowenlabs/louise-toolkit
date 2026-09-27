@@ -1,6 +1,6 @@
 # ADR 0014: A test-coverage floor in every repository
 
-- **Status:** Accepted (2026-09-24)
+- **Status:** Accepted (2026-09-24). **Amended 2026-09-27** (see _Amendment_ below): this repository's floor is 90.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0013 (the ratchet pattern, applied to prose), ADR 0009 (the Local API is the MCP server's substrate), epic #481 (burning site code down into the kit)
 
@@ -60,3 +60,18 @@ Writing tests for site code that epic #481 is about to pull into the kit or dele
 - **80% everywhere, today.** Rejected: three sites and the kit would go red at once, and the sites' gap is code the plan of record is removing.
 - **80% scoped to `src/lib/**` on the sites.** Rejected: a scoped floor hides the shape of the gap, and the ratchet shows it while still preventing regressions.
 - **All four metrics at 80.** Rejected: branch coverage fails first, on code whose branches are error handling, and the fix would be tests that exist to satisfy the metric.
+
+## Amendment (2026-09-27): 90 in this repository
+
+`louise-toolkit` passed 80% of lines and statements while its ratchet ran, and
+#508 gave the modules section 3 names their tests: the Local API, versions,
+visual editing, and the builder blocks. Rather than pin at 80, Baylee raised the
+floor to 90 for both packages in this repository, `louise-toolkit` and
+`@louise-toolkit/astro`.
+
+Everything else in this ADR applies with 90 in place of 80: lines and statements
+are gated, branches and functions are reported, and a package below the floor
+ratchets toward it with `autoUpdate` until it gets there, then pins.
+`@louise-toolkit/astro` measured above 90 once its catalog loader and edit-mode
+toggle got tests, so it pins at 90 now; `louise-toolkit` ratchets. The other repositories keep the 80 this
+ADR set, until each one decides otherwise.

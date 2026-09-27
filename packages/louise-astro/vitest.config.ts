@@ -34,17 +34,17 @@ export default defineConfig({
   test: {
     name: "louise-astro",
     include: ["test/**/*.test.ts"],
-    // The 80% floor from ADR 0014, fixed rather than ratcheting: this package
-    // measured 95% of lines when the floor was set. Branches and functions are
-    // reported, not gated.
+    // The 90% floor from ADR 0014 (as amended 2026-09-27), fixed rather than
+    // ratcheting: this package measured 97% of lines and 96% of statements
+    // when the floor rose. Branches and functions are reported, not gated.
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "json-summary"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.d.ts"],
       thresholds: {
-        lines: 80,
-        statements: 80,
+        lines: 90,
+        statements: 90,
       },
     },
   },

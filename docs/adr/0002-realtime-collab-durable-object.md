@@ -1,7 +1,7 @@
 # ADR 0002: Real-time multi-editor collaboration via a per-page Durable Object
 
 - **Status:** Implemented (2026-07-19). Proposed 2026-07-15. The build departs from
-  the decision in two places; see the amendment.
+  the decision in two places, and the E2E it names as a mitigation was never built; see the amendment.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #71 (milestone: Platform features push, epic #102)
 - **Related:** #68 (auto-save), #70 (KV write-buffer), #69 (D1 Sessions API), #109 (drawer action footer)
@@ -260,6 +260,14 @@ fields echo live.
 The sections surface is server-rendered, not bound to a client store, so applying
 a peer's whole-array change live needs a re-render pipeline. v1 shows presence on
 sections and keeps their persistence on the debounced-fetch draft path.
+
+### No astro-preview E2E exists
+
+The Consequences name "an E2E in the astro-preview harness" as the mitigation for
+the DO's WebSocket, hibernation, and alarm code. No such harness was built, and CI
+has no E2E job. The DO is covered by unit tests over its attachments and storage
+(`realtime.test.ts`), and the save path it calls, `applySaveDraft`, by tests on
+real SQLite (#508).
 
 The rest holds as decided: one write path (the DO's alarm calls `applySaveDraft`),
 opt-in per collection, and degrading to fetch auto-save when the socket drops.

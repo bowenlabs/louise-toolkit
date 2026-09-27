@@ -4,7 +4,7 @@
 // Exposes the Local API's FTS5-backed `search()` (and a one-shot `reindex`) over
 // HTTP, and—when a Vectorize index + Workers AI runner are wired (#86)—blends
 // in a semantic layer so a query matches intent, not just tokens:
-//   GET  /api/louise/pages/search?q=…&limit=…   ranked matches (published rows)
+//   GET  /api/louise/pages/search?q=…&limit=…   ranked matches, drafts included
 //   POST /api/louise/pages/reindex               rebuild the FTS index from the table
 //
 // The semantic layer is OPTIONAL and DEGRADES GRACEFULLY: absent the `vector`
