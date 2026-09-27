@@ -214,6 +214,10 @@ export interface FailureReport {
   readonly code: string;
   readonly message: string;
   readonly method: string;
+  /**
+   * The request's pathname only. A query string can carry a token, and this
+   * report is meant to leave the request: onto a queue, into a log.
+   */
   readonly url: string;
   /** Attempts made before giving up. */
   readonly attempts: number;
@@ -231,7 +235,7 @@ export function describeFailure(ctx: HealingContext, now: number = Date.now()): 
     code: ctx.code,
     message: ctx.error.message,
     method: ctx.request.method,
-    url: ctx.request.url,
+    url: new URL(ctx.request.url).pathname,
     attempts: ctx.attempts,
     at: now,
   };
