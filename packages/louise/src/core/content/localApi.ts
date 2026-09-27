@@ -963,6 +963,12 @@ export function createVersionedLocalApi<
   // The visibility column (ADR 0021). A collection's table may not have one; then
   // publish only promotes, and unpublish has nothing to hide.
   const hasStatus = (table as unknown as Record<string, unknown>).status !== undefined;
+  // A date-typed `updatedAt` column (the framework `pages` table has one): a
+  // publish changes what a visitor sees, so it moves the row's `updatedAt`,
+  // which a sitemap reads as the page's `<lastmod>`.
+  const hasUpdatedAt =
+    (table as unknown as Record<string, { dataType?: string } | undefined>).updatedAt?.dataType ===
+    "date";
 
   // The highest version of `parentId` ever promoted: a draft at or below it is
   // superseded, however the pointer has moved since.
@@ -1016,6 +1022,7 @@ export function createVersionedLocalApi<
         ...data,
         publishedVersionId: versionId,
         ...(hasStatus ? { status: "published" } : {}),
+        ...(hasUpdatedAt ? { updatedAt: new Date() } : {}),
         // oxlint-disable-next-line typescript/no-explicit-any -- see createLocalApi.update's .set() cast
       } as any)
       .where(eq(idColumn, parentId))

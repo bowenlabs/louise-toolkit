@@ -1,6 +1,6 @@
 ---
 title: seo
-description: "louise-toolkit/seo—a page row and site settings turned into head tags: title, description, robots, canonical, and share tags."
+description: "louise-toolkit/seo—a page row and site settings turned into head tags, plus sitemap.xml and robots.txt builders."
 sidebar:
   order: 15.6
 ---
@@ -10,9 +10,11 @@ import {
   canonicalUrl,
   pageHead,
   renderHeadTags,
+  robotsTxt,
   SEO_DESCRIPTION_MAX,
   SEO_TITLE_MAX,
   shareImageSource,
+  sitemapXml,
   type PageHead,
   type PageHeadInput,
 } from "louise-toolkit/seo";
@@ -94,6 +96,21 @@ The Pages panel's share preview uses the same function, so the preview shows
 what a share gets. Pass `ogCard: false` in the Settings config when your site
 renders no cards, and the preview falls back to the default image the way a
 share does.
+
+## `sitemapXml(entries)` and `robotsTxt(options?)`
+
+Two pure builders. `sitemapXml` turns `{ loc, lastmod? }` entries into a
+`sitemap.xml` document, in the order given, with every value escaped; a
+`lastmod` that isn't a valid date is left out. `robotsTxt({ sitemapUrl?,
+disallow? })` writes a `robots.txt` for every crawler, allowing everything
+unless you list paths.
+
+Don't disallow a `noindex` page. A crawler that can't fetch a page never sees its
+`noindex`, so the page can still be indexed from links to it.
+
+To serve both from the published pages, mount
+[`sitemapRoute`](/reference/editor/#the-sitemap-route) from
+`louise-toolkit/editor`.
 
 ## Limits
 

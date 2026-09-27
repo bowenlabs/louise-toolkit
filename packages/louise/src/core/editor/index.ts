@@ -35,6 +35,7 @@ export {
   type StatusRouteConfig,
   type StatusTimestamp,
 } from "./status.js";
+export { SITEMAP_MAX_AGE_SECONDS, sitemapRoute, type SitemapRouteConfig } from "./sitemap.js";
 export { type SubmissionsRouteConfig, submissionsRoute } from "./submissions.js";
 export {
   // `applySettingsPatch` + its config are the route-free core of a settings write.
