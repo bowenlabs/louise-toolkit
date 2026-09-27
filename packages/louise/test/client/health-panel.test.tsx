@@ -74,6 +74,61 @@ describe("HealthPanel", () => {
     expect(navigate).toHaveBeenCalledWith({ panel: "home" });
   });
 
+  it("lists a crawl's redirects, indexing findings, shared titles, and slowest pages", async () => {
+    stubHealth({
+      brokenLinks: 0,
+      missingAlt: 0,
+      seoGaps: 0,
+      checkedAt: new Date().toISOString(),
+      redirects: 2,
+      redirectDetails: [
+        {
+          url: "https://example.com/old",
+          from: "https://example.com/",
+          status: 301,
+          to: "https://example.com/new",
+          hops: 2,
+          finalStatus: 200,
+        },
+      ],
+      indexing: 1,
+      indexingDetails: [
+        {
+          url: "https://example.com/about",
+          issue: "canonical-off-origin",
+          canonical: "https://old.example.net/about",
+        },
+      ],
+      duplicateTitles: 0,
+      duplicateTitleDetails: [],
+      cwv: {
+        rating: "poor",
+        lcp: 4200,
+        sampleSize: 90,
+        slowestPaths: [{ path: "/shop", rating: "poor", lcp: 5100, sampleSize: 30 }],
+      },
+    });
+    mount(() => <HealthPanel navigate={vi.fn()} />);
+
+    await vi.waitFor(() => expect(host.textContent).toContain("Links that redirect"));
+    expect(host.textContent).toContain("Moves to https://example.com/new in 2 steps");
+    expect(host.textContent).toContain("…and 1 more.");
+    expect(host.textContent).toContain(
+      "Tells search engines the page lives on another site: https://old.example.net/about",
+    );
+    expect(host.textContent).toContain("Every page has its own title.");
+    expect(host.textContent).toContain("/shop");
+    expect(host.textContent).toContain("Slow · Loading: 5.1s");
+  });
+
+  it("hides the crawl sections when the scan didn't crawl", async () => {
+    stubHealth({ brokenLinks: 0, missingAlt: 0, seoGaps: 0, checkedAt: new Date().toISOString() });
+    mount(() => <HealthPanel navigate={vi.fn()} />);
+    await vi.waitFor(() => expect(host.textContent).toContain("Broken links"));
+    expect(host.textContent).not.toContain("Links that redirect");
+    expect(host.textContent).not.toContain("Shared page titles");
+  });
+
   it("shows all-clear rows and no broken links when the site is healthy", async () => {
     stubHealth({
       brokenLinks: 0,

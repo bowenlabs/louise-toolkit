@@ -12,6 +12,8 @@ import {
   ogImage,
   createResvgRenderer,
   checkLinks,
+  crawlSite,
+  pageSignals,
 } from "louise-toolkit/browser";
 ```
 
@@ -131,9 +133,37 @@ unit-tested without the network.
 request that threw (DNS, timeout) rather than returned. Feed the result to
 [`health`](/reference/health/), which folds it into the dashboard snapshot.
 
+### Crawling the site
+
+```ts
+function crawlSite(opts: CheckLinksOptions): Promise<CrawlReport>;
+function pageSignals(html: string, headers: Headers, url: string): PageSignals;
+```
+
+`checkLinks` returns `crawlSite`'s broken links. `crawlSite` reports what else a
+crawler trips on:
+
+- **`redirects`:** each internal link that answers with a redirect, against the
+  page that holds it, since that's where the fix goes. Every request uses
+  `redirect: "manual"` and the scan follows the hops itself, so each finding has
+  the first hop's `status`, where it ends (`to`), the number of `hops` (more than
+  one is a chain), and the `finalStatus`. A redirect to a live page isn't a
+  broken link; one that ends at an error is both.
+- **`indexing`:** a page that says `noindex` (the `robots` meta tag or
+  `X-Robots-Tag`), a canonical link to another origin, and a canonical link to
+  another page.
+- **`duplicateTitles`:** titles more than one indexable page shares.
+
+Pass `crawl: { maxPages, maxDepth }` to follow same-origin links from the start
+paths, breadth-first; without it, only the start paths are read. Set
+`maxRequests` below your Worker's subrequest limit, since every redirect hop
+counts; `truncated` says when the scan stopped early. `pageSignals` is the pure
+parser the crawl uses: robots directives, canonical, title, and description.
+
 ## Types
 
 `OgRenderer`, `OgImageCache`, `LouiseBrowserEnv`, `OgImageOptions`,
 `OgImageResult`, `OgCacheKeyOptions`, `OgCardOptions`, `WrapTitleOptions`,
 `ResvgRendererOptions`, `PuppeteerRendererOptions`, `CheckLinksOptions`,
-`BrokenLink`.
+`BrokenLink`, `CrawlReport`, `RedirectFinding`, `IndexingFinding`,
+`IndexingIssue`, `DuplicateTitleFinding`, `PageSignals`.

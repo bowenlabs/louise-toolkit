@@ -55,6 +55,36 @@ describe("summarizeHealth", () => {
     expect(s.seoGaps).toBe(2);
   });
 
+  it("carries a crawl's findings as counts and capped details, and counts them as issues", () => {
+    const redirect = {
+      url: "https://example.com/old",
+      from: "https://example.com/",
+      status: 301,
+      to: "https://example.com/new",
+      hops: 1,
+      finalStatus: 200,
+    };
+    const s = summarizeHealth({
+      brokenLinks: [],
+      missingAlt: 0,
+      seoGaps: 0,
+      redirects: Array.from({ length: MAX_BROKEN_LINK_DETAILS + 1 }, () => redirect),
+      indexing: [{ url: "https://example.com/a", issue: "noindex" }],
+      duplicateTitles: [],
+    });
+    expect(s).toMatchObject({
+      redirects: MAX_BROKEN_LINK_DETAILS + 1,
+      indexing: 1,
+      duplicateTitles: 0,
+    });
+    expect(s.redirectDetails).toHaveLength(MAX_BROKEN_LINK_DETAILS);
+    expect(healthIssueCount(s)).toBe(MAX_BROKEN_LINK_DETAILS + 2);
+    // A scan that didn't crawl stores no crawl fields at all.
+    expect(summarizeHealth({ brokenLinks: [], missingAlt: 0, seoGaps: 0 })).not.toHaveProperty(
+      "redirects",
+    );
+  });
+
   it("healthIssueCount sums every category", () => {
     const s = summarizeHealth({ brokenLinks: [link("/a")], missingAlt: 2, seoGaps: 3 });
     expect(healthIssueCount(s)).toBe(6);

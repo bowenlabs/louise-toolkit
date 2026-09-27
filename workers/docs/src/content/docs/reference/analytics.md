@@ -76,8 +76,13 @@ browser about your telemetry.
 ### 3. Query and summarize
 
 ```ts
-function cwvSqlQuery(dataset: string, sinceHours?: number): string; // default 24
+function cwvSqlQuery(
+  dataset: string,
+  sinceHours?: number, // default 24
+  options?: { byPath?: boolean; minSamples?: number },
+): string;
 function parseCwvRows(rows): { lcp?; inp?; cls?; sampleSize };
+function parseCwvPathRows(rows, limit?): CwvPathSummary[];
 function summarizeCwv(input): CwvSummary;
 ```
 
@@ -85,6 +90,13 @@ function summarizeCwv(input): CwvSummary;
 not the mean. It uses `quantileWeighted` with `_sample_interval` because Analytics
 Engine samples adaptively under load: ignoring that weight silently biases the
 result on exactly the busy days you most want to measure.
+
+With `byPath: true`, the query also groups by the page each beacon recorded,
+and leaves out a page with fewer than `minSamples` readings (default
+`CWV_MIN_PATH_SAMPLES`, 20), since a p75 over a handful of visits is noise.
+`parseCwvPathRows` turns those rows into a summary per page and keeps the
+slowest few (`CWV_SLOWEST_PATHS`, 5), worst rating first; a page rated good is
+left out. Pass them to `summarizeCwv` as `slowestPaths`.
 
 `summarizeCwv` rates the overall result as **the worst metric present**, matching
 how Core Web Vitals are assessed—a page is not "good" because two of three are.

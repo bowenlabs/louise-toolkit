@@ -23,5 +23,18 @@ export {
 } from "./og-image.js";
 export { type OgCardOptions, ogCardSvg, type WrapTitleOptions, wrapTitle } from "./og-card.js";
 export { createResvgRenderer, type ResvgRendererOptions } from "./resvg.js";
-export { type BrokenLink, checkLinks, type CheckLinksOptions, extractLinks } from "./link-check.js";
+export {
+  type BrokenLink,
+  checkLinks,
+  type CheckLinksOptions,
+  type CrawlReport,
+  crawlSite,
+  type DuplicateTitleFinding,
+  extractLinks,
+  type IndexingFinding,
+  type IndexingIssue,
+  type PageSignals,
+  pageSignals,
+  type RedirectFinding,
+} from "./link-check.js";
 export type { LouiseBrowserEnv, OgImageCache, OgRenderer } from "./types.js";
