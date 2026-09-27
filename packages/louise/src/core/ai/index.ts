@@ -11,6 +11,7 @@
 // later (#87) without touching callers.
 
 import { reportDegraded } from "../degraded.js";
+import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../seo/limits.js";
 
 /** The one capability these helpers need from a Workers AI binding: `run(model,
  *  inputs)`. `env.AI` satisfies this structurally—pass it directly. Hand-defined
@@ -469,9 +470,9 @@ export interface SeoOptions {
   gateway?: AiGatewayOptions;
 }
 
-/** Search engines truncate around these; keep suggestions within them. */
-export const SEO_TITLE_MAX = 60;
-export const SEO_DESCRIPTION_MAX = 155;
+/** Search engines truncate around these; keep suggestions within them. The
+ *  same limits are exported from `louise-toolkit/seo`. */
+export { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX };
 
 /**
  * Suggest an SEO title + meta description from page content via Workers AI.

@@ -28,6 +28,7 @@ export default defineConfig({
       "louise-toolkit/auth": new URL("../louise/src/core/auth/index.ts", import.meta.url).pathname,
       "louise-toolkit/forms": new URL("../louise/src/core/forms/index.ts", import.meta.url)
         .pathname,
+      "louise-toolkit/seo": new URL("../louise/src/core/seo/index.ts", import.meta.url).pathname,
     },
   },
   test: {

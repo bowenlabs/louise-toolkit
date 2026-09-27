@@ -214,7 +214,8 @@ interface SeoSuggestion {
 
 Suggest an SEO title + meta description from page content, using Workers AI JSON
 mode to force a `{ title, description }` object. Fields are length-capped
-(`SEO_TITLE_MAX` 60, `SEO_DESCRIPTION_MAX` 155); a missing field becomes `null`,
+(`SEO_TITLE_MAX` 60, `SEO_DESCRIPTION_MAX` 155, the same limits
+[`louise-toolkit/seo`](/reference/seo/) uses); a missing field becomes `null`,
 and a result with neither is `null` overall. `null` when the runner is absent,
 the content is blank, the output cap cut the reply off, or the reply can't be
 parsed.

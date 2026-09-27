@@ -73,21 +73,21 @@ describe("metaDescription", () => {
     expect(metaDescription(plain)).toBe(plain);
   });
 
-  it("clamps on a word boundary at 160 by default", () => {
+  it("clamps on a word boundary at 155 by default", () => {
     const out = metaDescription(`${"word ".repeat(80)}end`) ?? "";
-    expect(out.length).toBeLessThanOrEqual(160);
+    expect(out.length).toBeLessThanOrEqual(155);
     expect(out.endsWith("…")).toBe(true);
     expect(out).not.toMatch(/wor…$/);
   });
 
   it("keeps copy at exactly the limit whole", () => {
-    const exact = "x".repeat(160);
+    const exact = "x".repeat(155);
     expect(metaDescription(exact)).toBe(exact);
   });
 
   it("hard-cuts a single unbroken run", () => {
     const out = metaDescription("x".repeat(400)) ?? "";
-    expect(out.length).toBeLessThanOrEqual(160);
+    expect(out.length).toBeLessThanOrEqual(155);
     expect(out.endsWith("…")).toBe(true);
   });
 

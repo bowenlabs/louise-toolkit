@@ -14,11 +14,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import type { OgCardOptions } from "../../core/browser/og-card.js";
+import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../../core/seo/limits.js";
 import { Icon } from "../icons.jsx";
 import { MediaUrlPicker } from "./fields.jsx";
 import { OgPreview } from "./og-preview.jsx";
 import { usePanelActions } from "./panel-actions.jsx";
-import { apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
+import { apiGet, apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
 
 /** A code-defined route listed alongside the content pages. */
 export interface BuiltInPageRef {
@@ -58,8 +59,10 @@ export function PagesPanel(props: {
   builtInPages?: BuiltInPageRef[];
   pageTemplates?: PageTemplate[];
   /** Match the live share-card preview to the site's real OG card (brand,
-   *  colours, footer, font). Omit for the toolkit's default card. */
-  ogCard?: OgCardOptions;
+   *  colours, footer, font). Omit for the toolkit's default card; pass `false`
+   *  when the site renders no cards, so the preview falls back to the default
+   *  share image the way a real share does. */
+  ogCard?: OgCardOptions | false;
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = createSignal<PageRow | null>(null);
@@ -212,7 +215,13 @@ export function PagesPanel(props: {
   );
 }
 
-function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOptions }) {
+/** "12 of 60 characters", and past the limit, that search results cut it off. */
+function lengthHint(length: number, max: number): string {
+  const count = `${length} of ${max} characters`;
+  return length > max ? `${count}. Search results cut off the rest.` : count;
+}
+
+function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOptions | false }) {
   const p = props.page;
   const qc = useQueryClient();
   const actions = usePanelActions();
@@ -224,6 +233,17 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   const [ogImage, setOgImage] = createSignal(p.ogImage ?? "");
   const [noindex, setNoindex] = createSignal(Boolean(p.noindex));
   const [error, setError] = createSignal<string | null>(null);
+  // The site-wide default share image, so the preview falls back to it the way
+  // a real share does. Its own key under `settings`, so a Settings save, which
+  // invalidates that prefix, refreshes it too.
+  const shareDefaults = useQuery(() => ({
+    queryKey: [...louiseQueryKeys.settings, "share"],
+    queryFn: async () => {
+      const data = await apiGet<{ settings?: Record<string, unknown> }>("/api/louise/settings");
+      const image = data.settings?.defaultOgImageUrl;
+      return typeof image === "string" ? image : "";
+    },
+  }));
   // Page body HTML, kept only to feed the AI SEO suggestion (#75/#166)—not an
   // editable field here (content is edited on the canvas). Refreshed from the row.
   const [bodyHtml, setBodyHtml] = createSignal(p.body ?? "");
@@ -444,18 +464,26 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
           <input
             id="pg-seo-title"
             class="louise-input"
+            aria-describedby="pg-seo-title-count"
             value={seoTitle()}
             onInput={(e) => edited(setSeoTitle)(e.currentTarget.value)}
           />
+          <p id="pg-seo-title-count" class="louise-muted louise-settings-hint">
+            {lengthHint(seoTitle().length, SEO_TITLE_MAX)}
+          </p>
         </div>
         <div class="louise-field">
           <label for="pg-seo-desc">SEO description (optional)</label>
           <input
             id="pg-seo-desc"
             class="louise-input"
+            aria-describedby="pg-seo-desc-count"
             value={seoDescription()}
             onInput={(e) => edited(setSeoDescription)(e.currentTarget.value)}
           />
+          <p id="pg-seo-desc-count" class="louise-muted louise-settings-hint">
+            {lengthHint(seoDescription().length, SEO_DESCRIPTION_MAX)}
+          </p>
         </div>
       </div>
 
@@ -471,7 +499,12 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
         <MediaUrlPicker onPick={edited(setOgImage)} />
       </div>
 
-      <OgPreview customImage={ogImage()} title={seoTitle() || title()} cardOptions={props.ogCard} />
+      <OgPreview
+        customImage={ogImage()}
+        title={seoTitle() || title()}
+        cardOptions={props.ogCard || undefined}
+        share={{ cards: props.ogCard !== false, defaultImage: shareDefaults.data ?? "" }}
+      />
 
       <Show when={error()}>
         <div class="louise-alert" role="alert">

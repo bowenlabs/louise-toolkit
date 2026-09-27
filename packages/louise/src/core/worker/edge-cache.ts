@@ -28,6 +28,8 @@
 // decision reaches this layer as a response header, which the wrapper consumes as
 // the "cache me" signal rather than letting Cloudflare act on it.
 
+import { filterQuery } from "../seo/query.js";
+
 /** Default cacheability-signal header: Cloudflare's own CDN-Cache-Control, which
  *  is what a Cloudflare-targeting SSR adapter emits for a cacheable response.
  *  Consumed here as the route's signal, then stripped so Cloudflare's automatic
@@ -99,14 +101,7 @@ const TRACKING_PARAM =
  * page that reads its own query string is unaffected.
  */
 export function edgeCacheKeyUrl(url: string): string {
-  const u = new URL(url);
-  if (!u.search) return u.toString();
-  const kept = [...u.searchParams.entries()]
-    .filter(([k]) => !TRACKING_PARAM.test(k))
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  u.search = "";
-  for (const [k, v] of kept) u.searchParams.append(k, v);
-  return u.toString();
+  return filterQuery(new URL(url), (name) => !TRACKING_PARAM.test(name)).toString();
 }
 
 /**

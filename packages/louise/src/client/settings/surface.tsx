@@ -54,7 +54,7 @@ export interface SurfaceConfig {
   tabs?: CollectionTab[];
   builtInPages?: BuiltInPageRef[];
   pageTemplates?: PageTemplate[];
-  ogCard?: OgCardOptions;
+  ogCard?: OgCardOptions | false;
   settingsBaseGroups?: SettingsFieldGroup[];
   settingsExtension?: SettingsFieldGroup[];
   settingsExtras?: () => JSX.Element;

@@ -122,8 +122,9 @@ would any string.
   `<p>One</p><p>Two</p>` reads "One Two". Entities are decoded, including copy
   stored double-encoded (`&lt;p&gt;`). A literal `5 &lt; 6 and 7 &gt; 2` survives
   intact, because only tag-shaped text is removed.
-- **`metaDescription`** is `plainText` clamped on a word boundary—160 characters
-  by default, about where search results truncate. It returns `undefined`, not
+- **`metaDescription`** is `plainText` clamped on a word boundary—
+  `SEO_DESCRIPTION_MAX` (155) characters by default, about where search results
+  truncate. It returns `undefined`, not
   `""`, for markup-only input, so the caller falls back to a default instead of
   emitting `content=""`.
 - **`hasRichText`** is `false` for leftovers such as `<h3></h3>`, `<p><br></p>`,

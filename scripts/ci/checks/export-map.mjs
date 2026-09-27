@@ -86,6 +86,8 @@ const required = {
     "LOUISE_STATUS_PATH",
   ],
   "./security": ["sanitizeRichHtml"],
+  // The adapter's seoHead wraps these (#582).
+  "./seo": ["pageHead", "renderHeadTags", "PageHeadInput"],
   // Louise's knowledge search fuses its own FTS5 and Vectorize results with
   // these. They used to live in editor/search.ts, where no consumer could reach
   // them (#555).

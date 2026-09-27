@@ -13,6 +13,8 @@
 // Everything here returns TEXT, not HTML. It is not a sanitizer: escape the
 // result on output as you would any string (most template languages do this for you).
 
+import { SEO_DESCRIPTION_MAX } from "../seo/limits.js";
+
 /** A tag or a comment. Requires a letter right after `<` (or `</`), so a
  *  literal `a < b > c` in prose is left alone. */
 const TAG = /<!--[\s\S]*?-->|<\/?[a-zA-Z][^>]*>/g;
@@ -82,8 +84,8 @@ export function plainText(html: string | null | undefined, options: PlainTextOpt
 export interface MetaDescriptionOptions extends PlainTextOptions {
   /**
    * Clamp to this many characters, ellipsis included, cut on a word boundary.
-   * Default 160—about where search results truncate. Past it, the tag is
-   * bytes nobody reads.
+   * Default `SEO_DESCRIPTION_MAX` (155)—about where search results truncate.
+   * Past it, the tag is bytes nobody reads.
    */
   maxLength?: number;
 }
@@ -102,7 +104,7 @@ export function metaDescription(
 ): string | undefined {
   const text = plainText(html, options);
   if (!text) return undefined;
-  const max = options.maxLength ?? 160;
+  const max = options.maxLength ?? SEO_DESCRIPTION_MAX;
   if (text.length <= max) return text;
   // Cut at the last space inside the budget so the result never ends mid-word.
   // A single unbroken run has no space to cut at, so it is hard-cut instead.

@@ -27,6 +27,7 @@ export {
 } from "./content-loader.js";
 export { formToAstroSchema } from "./form-schema.js";
 export { type ResumeReadSession, resumeReadSession } from "./resume.js";
+export { type SeoHeadContext, type SeoHeadInput, seoHead } from "./seo.js";
 export {
   createLouiseMiddleware,
   type LouiseMiddlewareConfig,
