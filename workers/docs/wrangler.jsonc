@@ -18,4 +18,9 @@
   "routes": [{ "pattern": "docs.louisetoolkit.org", "custom_domain": true }],
 
   "observability": { "enabled": true },
+
+  // Workers Builds runs branch builds as Worker Previews (`wrangler preview`),
+  // which refuses a config without this block. Empty is enough: the docs need
+  // nothing different in a preview.
+  "previews": {},
 }
