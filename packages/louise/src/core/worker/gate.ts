@@ -134,6 +134,42 @@ export function isPublicRoute(route: WorkerRoute<never>): boolean {
   return (route as unknown as Record<symbol, unknown>)[PUBLIC] === true;
 }
 
+// ─── Bearer routes ──────────────────────────────────────────────────────────
+
+const BEARER = Symbol.for("louise-toolkit.bearerRoute");
+
+/** `mcpRoute`'s default mount, the one route that takes a bearer token. */
+export const LOUISE_MCP_PATH = `${LOUISE_API_PREFIX}/mcp`;
+
+/**
+ * Mark a route that authenticates a bearer token itself. A request that
+ * carries `Authorization: Bearer` reaches it without the gate's cookie check,
+ * and the route verifies the token and refuses the request if it's no good.
+ * Every other route under the prefix still turns a bearer-only request away,
+ * so a token reaches only the routes that declared they take one (ADR 0012).
+ *
+ * A request with no bearer token goes through the gate as usual, so a marked
+ * route still serves a signed-in editor in a browser under cookie rules.
+ */
+export function bearerRoute<Env>(route: WorkerRoute<Env>): WorkerRoute<Env> {
+  const marked: WorkerRoute<Env> = (request, env, ctx) => route(request, env, ctx);
+  Object.defineProperty(marked, BEARER, { value: true });
+  return marked;
+}
+
+/** Whether `route` was wrapped in {@link bearerRoute}. */
+export function isBearerRoute(route: WorkerRoute<never>): boolean {
+  return (route as unknown as Record<symbol, unknown>)[BEARER] === true;
+}
+
+/**
+ * Whether a request carries a bearer credential. Only the scheme counts here;
+ * the route the request reaches decides whether the token is any good.
+ */
+export function hasBearerCredential(request: Request): boolean {
+  return /^Bearer[ \t]/i.test(request.headers.get("authorization") ?? "");
+}
+
 // ─── The gate ───────────────────────────────────────────────────────────────
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -146,9 +182,10 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
  * Credentials are the session cookie, so every unsafe method is origin-checked
  * (CSRF). So is a WebSocket upgrade: it's a GET, and a cross-site page can open
  * a socket that carries the editor's cookie, so method alone would let it by.
- * Bearer tokens (ADR 0009) will skip the origin check—a browser can't attach
- * one cross-site—decided by which credential authenticated, never by a
- * missing `Origin`.
+ * A bearer token (ADR 0009) isn't a credential here: it reaches only a
+ * {@link bearerRoute}, which checks it itself and skips the origin check
+ * because a browser can't attach one cross-site. That's decided by which
+ * credential the route authenticated, never by a missing `Origin`.
  */
 export async function louiseApiGate<Env>(
   request: Request,

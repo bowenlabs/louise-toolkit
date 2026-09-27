@@ -23,7 +23,12 @@ export {
   resolveOrgEditor,
   type ResolveOrgEditorOptions,
 } from "./org.js";
-export { resolveEditorSession, resolveSession } from "./session.js";
+export {
+  editorForUser,
+  type EditorForUserOptions,
+  resolveEditorSession,
+  resolveSession,
+} from "./session.js";
 export { handleAuthRequest } from "./handler.js";
 export { authSchemaOptions, type AuthSchemaConfig, generateAuthSchemaSql } from "./schema-gen.js";
 export {
@@ -46,4 +51,10 @@ export {
   turnstileSecret,
   turnstileSiteKey,
 } from "./turnstile.js";
-export type { EditorSession, LouiseAuthEnv } from "./types.js";
+export type {
+  AgentAccess,
+  AgentScope,
+  EditorAgent,
+  EditorSession,
+  LouiseAuthEnv,
+} from "./types.js";

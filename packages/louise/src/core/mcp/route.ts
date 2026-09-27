@@ -12,13 +12,18 @@
 // opens the older handshake that most clients still send, and nothing here
 // keeps state between requests in either era, so no session is ever minted.
 //
-// The session comes from `resolveEditor` and `guardEditor`, like every other
-// editor route, so every call must be same-origin with a signed-in editor. The
-// bearer-token path for agents with no browser is slice 3; the write tools are
-// slice 4, and until then `tools/list` doesn't offer them.
+// Two credentials reach it. A browser sends the editor's session cookie, which
+// goes through `resolveEditor` and `guardEditor` like every other editor route,
+// same-origin check included. An agent with no browser sends an agent token in
+// `Authorization: Bearer`, which `resolveAgent` turns into the editor who issued
+// it, narrowed to the token's scope (slice 3). The token is the CSRF defense,
+// so that path skips the origin check; a request is judged by the credential it
+// authenticated with, and one with a bearer token is judged by the token alone.
+// The write tools are slice 4, and until then `tools/list` doesn't offer them.
 
 import { desc } from "drizzle-orm";
 import { getTableConfig, type SQLiteColumn, type SQLiteTable } from "drizzle-orm/sqlite-core";
+import type { AgentAccess, EditorSession } from "../auth/types.js";
 import { can, createLocalApi } from "../content/localApi.js";
 import type { SectionCatalog } from "../content/sections.js";
 import type { CollectionConfig } from "../content/types.js";
@@ -26,6 +31,7 @@ import { db } from "../db/index.js";
 import { toFtsQuery } from "../editor/search.js";
 import { type EditorRouteEnv, guardEditor, type ResolveEditor } from "../editor/shared.js";
 import { LouiseAccessDeniedError, LouiseContentError } from "../errors.js";
+import { bearerRoute, hasBearerCredential, resolveEditorOnce } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
   checkRoutingHeaders,
@@ -48,7 +54,9 @@ import {
   MCP_LIMIT_MAX,
   MCP_READ_OPERATIONS,
   type McpTool,
+  type McpToolOperation,
 } from "./tools.js";
+import { agentMay } from "./tokens.js";
 
 /** One collection the endpoint exposes: its main table and its config. */
 export interface McpCollection {
@@ -69,8 +77,15 @@ export interface McpRouteConfig<Env extends EditorRouteEnv = EditorRouteEnv> {
   /** The collections an agent may read. A collection marked `admin.hidden`
    *  gets no tools, as in {@link collectionTools}. */
   collections: McpCollection[];
-  /** Resolve the editor session. Every call runs as this editor. */
+  /** Resolve the editor session from the browser's cookie. A call with no
+   *  bearer token runs as this editor. */
   resolveEditor: ResolveEditor<Env>;
+  /**
+   * Resolve an agent token to the editor it acts for, with `agent` set—
+   * normally {@link resolveMcpSession}. Omit it and the route takes no bearer
+   * tokens, so only a signed-in editor on the site's own origin can call it.
+   */
+  resolveAgent?: ResolveEditor<Env>;
   /** The server's identity, sent in the handshake and on every modern result. */
   server: McpServerInfo;
   /**
@@ -125,15 +140,14 @@ export function mcpRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
   }
   const serverInfo = { ...config.server };
 
-  return async (request, env) => {
+  const route: WorkerRoute<Env> = async (request, env) => {
     if (new URL(request.url).pathname !== path) return undefined;
     // No GET stream and no session to DELETE, in either era.
     if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
     }
 
-    // Every call is a POST, so every call is origin-checked like a mutation.
-    const g = await guardEditor(request, env, config.resolveEditor, true);
+    const g = await authenticate(request, env, config);
     if ("response" in g) return g.response;
     const context = { session: g.editor };
 
@@ -224,6 +238,66 @@ export function mcpRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
 
     return notFound(message.id, message.method, modern);
   };
+  // Marked so `composeWorker`'s gate lets a bearer request through to it: the
+  // route checks the token itself, just above.
+  return config.resolveAgent ? bearerRoute(route) : route;
+}
+
+/**
+ * Who's calling. A request with a bearer token is authenticated by the token
+ * alone, and its cookie is never consulted, so skipping the origin check can't
+ * hand a cookie's identity to a cross-site request. Anything else is an editor
+ * route call: cookie, same-origin check, and all.
+ */
+async function authenticate<Env extends EditorRouteEnv>(
+  request: Request,
+  env: Env,
+  config: McpRouteConfig<Env>,
+): Promise<{ editor: EditorSession } | { response: Response }> {
+  if (!hasBearerCredential(request)) {
+    // Every call is a POST, so every call is origin-checked like a mutation.
+    return guardEditor(request, env, config.resolveEditor, true);
+  }
+  if (!config.resolveAgent) {
+    return { response: unauthorized("This server doesn't accept bearer tokens.") };
+  }
+  const editor = await resolveEditorOnce(request, env, config.resolveAgent);
+  // A resolver that returned a session with no scope would hand a token the
+  // editor's full reach, so a bearer session without `agent` is refused.
+  if (!editor?.agent) {
+    return {
+      response: unauthorized(
+        "The token isn't valid. It may have expired or been revoked, or its editor lost access.",
+      ),
+    };
+  }
+  return { editor };
+}
+
+/** A bearer request refused. The challenge names the scheme, as RFC 6750
+ *  asks; there's no OAuth server to point a client at. */
+function unauthorized(message: string): Response {
+  return Response.json(
+    { error: message },
+    {
+      status: 401,
+      headers: { "www-authenticate": 'Bearer realm="louise", error="invalid_token"' },
+    },
+  );
+}
+
+/** The access a token needs for an operation. */
+function accessFor(operation: McpToolOperation): AgentAccess {
+  if (MCP_READ_OPERATIONS.includes(operation)) return "read";
+  return operation === "publish" ? "publish" : "draft";
+}
+
+/** Whether the caller's token scope, if any, covers the tool. A person in a
+ *  browser has no token, and nothing narrows them but access functions. */
+function inScope(tool: McpTool, session: EditorSession): boolean {
+  return (
+    !session.agent || agentMay(session.agent.scope, tool.collection, accessFor(tool.operation))
+  );
 }
 
 /** The modern transport answers an unknown method with a 404 so a client can
@@ -236,15 +310,17 @@ function notFound(id: JsonRpcId, method: string, modern: boolean): Response {
  * The tools this editor can use. A collection whose `read` access function
  * refuses them contributes nothing, so an agent never picks a tool only to be
  * told no—the same `can()` the editor's own UI asks. The call still runs
- * through the Local API, which checks again.
+ * through the Local API, which checks again. A token's scope narrows the list
+ * further.
  */
 async function visibleTools(
   tools: Map<string, ToolEntry>,
-  context: { session: unknown },
+  context: { session: EditorSession },
 ): Promise<McpTool[]> {
   const allowed = new Map<CollectionConfig, boolean>();
   const out: McpTool[] = [];
   for (const { tool, collection } of tools.values()) {
+    if (!inScope(tool, context.session)) continue;
     let readable = allowed.get(collection.config);
     if (readable === undefined) {
       readable = await can(collection.config, "read", context);
@@ -343,14 +419,19 @@ async function callTool(
   { tool, collection }: ToolEntry,
   rawArgs: unknown,
   env: EditorRouteEnv,
-  context: { session: unknown },
+  context: { session: EditorSession },
 ): Promise<CallResult> {
+  const { table, config } = collection;
+  const label = config.admin?.label ?? config.slug;
+  if (!inScope(tool, context.session)) {
+    return toolError(
+      `This token doesn't cover ${tool.name}. Ask the person who issued it for one whose scope includes ${label}.`,
+    );
+  }
   const args = readArgs(tool, rawArgs);
   if (typeof args === "string") return toolError(args);
 
-  const { table, config } = collection;
   const api = createLocalApi(db(env.DB), table as Parameters<typeof createLocalApi>[1], config);
-  const label = config.admin?.label ?? config.slug;
   try {
     switch (tool.operation) {
       case "list": {

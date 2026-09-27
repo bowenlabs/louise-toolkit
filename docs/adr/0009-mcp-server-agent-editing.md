@@ -1,6 +1,6 @@
 # ADR 0009: Louise MCP server, agent-editable content over the Local API
 
-- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice. **Amended 2026-09-26** (see _Amendment (2026-09-26)_ below) when slice 2 landed: the route serves both protocol eras, and the official SDK client tests it without shipping in it.
+- **Status:** Accepted (2026-07-19). Design of record for issue #103. **Amended 2026-08-30** (see _Amendment_ below) when slice 1 landed: the hand-rolled transport stands, the target spec revision moves, and `add_block` defers to the write slice. **Amended 2026-09-26** (see _Amendment (2026-09-26)_ below) when slice 2 landed: the route serves both protocol eras, and the official SDK client tests it without shipping in it. **Amended 2026-09-27** (see _Amendment (2026-09-27, at slice 3)_ below) when slice 3 landed: tokens live in a dedicated table of hashes, act as their issuer narrowed to a scope, and reach only the MCP route.
 - **Deciders:** Baylee (solo maintainer)
 - **Issue:** #103 (in the Platform features push milestone, epic #102)
 - **Related:** #75 / #99 (AI assists, which become MCP consumers), #16 (Local API + access), #10 (editor routes / `composeWorker`), ADR 0006 (keep hand-rolled `composeWorker`, zero-dep core)
@@ -154,6 +154,78 @@ agent never chooses a tool only to be refused. The Local API still checks on
 the call. Because the list depends on who asks, a 2026-07-28 `tools/list` marks
 its result `cacheScope: "private"`.
 
+## Amendment (2026-09-27, at slice 3)
+
+Slice 3 settles decision 5's open question and fills in what "scoped and
+revocable" means. The design follows the least-privilege review on #235: a
+token issuer is now part of what has to be right for sign-in to be safe, so
+each choice below narrows what a token can do or how long it lasts.
+
+### A dedicated table, holding only hashes
+
+Tokens live in their own `agent_tokens` table, not in Better Auth's session
+store. A session is a browser's, lives for weeks on a rolling expiry, and
+carries no scope; a token is an agent's, has a fixed expiry, and carries a
+scope. Sharing a store would mean teaching one of them the other's rules. ADR
+0017 already expects per-site tokens hashed in the site's D1, and this is that
+table's first use.
+
+The row holds the SHA-256 of the token, never the token. A token carries 256
+random bits, so a fast hash is enough, and the lookup is by hash, so nothing
+compares the secret itself. The token starts with `louise_at_` so a secret
+scanner can recognize one. Revocation is a column on the row the check reads,
+on D1's primary, with no cache in between, so it takes effect on the next
+request. KV's convergence window, which moved verification values to D1 in
+#418, never applies.
+
+### A token is its issuer, narrowed
+
+A token belongs to the editor who issued it. On every request,
+`resolveMcpSession` re-derives that editor with the site's `resolveUser`, and
+`editorForUser` in `louise-toolkit/auth` is the default. It refuses a user who
+isn't an admin, is banned, or has left the sign-in allowlist. The allowlist
+check is new: taking an email off the list stops the next sign-in, which ends a
+session within its lifetime, but a token never signs in again.
+
+The resolved session is the editor's, with `agent` set to the token's ID,
+name, and scope. Decision 3 stands: every call runs through `can()` with that
+session, so an agent can never do what its editor can't. The scope then
+narrows it further:
+
+- It maps a collection slug to `read`, `draft`, or `publish`, and each includes
+  the one before. There's no default scope and no wildcard: a token names every
+  collection it reaches.
+- `tools/list` leaves out tools outside the scope, and `tools/call` refuses
+  them with a tool error.
+- `publish` is its own level, so a draft-only token is expressible, and slice
+  4's separate `publish_<slug>` tool means something.
+
+`agent` also gives slice 4 its provenance: the token's name is written for a
+person reading a version's history, such as "Claude Code on Kai's laptop," not
+an opaque ID.
+
+### Expiry is the control that always runs
+
+A token lasts 30 days unless its issuer says otherwise, and never more than 90.
+Revocation depends on someone remembering to revoke; expiry doesn't.
+
+### Only a person issues a token
+
+`agentTokensRoute` issues, lists, and revokes, and takes only the cookie
+session with the same-origin check. A request an agent token authenticated is
+refused there, and `issueAgentToken` refuses an owner with `agent` set, so a
+leaked token can't mint a longer-lived one. An editor sees and revokes only
+their own tokens. A studio panel for this is follow-up work; until then, the
+route is the interface.
+
+### Tokens reach only the MCP route
+
+Decision 5 bypassed the same-origin check for token requests, and ADR 0012
+placed that bypass in the gate. The gate turned out to be the wrong place,
+because it would open every route to every token. ADR 0012's amendment of the
+same date moves it to the route: `mcpRoute` marks itself with `bearerRoute`,
+checks the token itself, and a bearer request anywhere else is refused.
+
 ## Consequences
 
 - Core stays zero-dep. The MCP server is a `WorkerRoute` that `composeWorker` mounts and `runEditorRoute` runs from Astro, with no new public transport contract.
@@ -163,6 +235,6 @@ its result `cacheScope: "private"`.
 
 ## Open questions
 
-- **Token model**: reuse the existing session and auth store for agent tokens, or a dedicated scoped-token table? (Settled in slice 3.)
+- **Token model**: settled in slice 3, a dedicated table of hashed, scoped, expiring tokens (see _Amendment (2026-09-27, at slice 3)_).
 - **Non-versioned collections**: expose write tools at all, or stay read-only until a collection opts into `versions.drafts`?
 - **Registry timing**: list publicly only after slices 1–4 are on `main`, to avoid advertising an incomplete server.

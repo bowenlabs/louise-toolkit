@@ -11,6 +11,8 @@
 
 import {
   type ApiGateConfig,
+  hasBearerCredential,
+  isBearerRoute,
   isPublicRoute,
   LOUISE_API_PREFIX,
   louiseApiGate,
@@ -89,11 +91,13 @@ export function composeWorker<Env = unknown, QMessage = unknown>(
   }
 
   // Under the prefix, public routes answer first so an anonymous request can
-  // reach them at all; then the gate; then everything else in order. Public
+  // reach them at all; then, for a request with a bearer token, the routes that
+  // check one themselves; then the gate; then everything else in order. Public
   // routes' paths don't overlap guarded ones, so trying them first changes no
   // match. Outside the prefix, the original order stands.
   const prefix = gate.prefix ?? LOUISE_API_PREFIX;
   const publicRoutes = routes.filter(isPublicRoute);
+  const bearerRoutes = routes.filter(isBearerRoute);
   const guardedRoutes = routes.filter((r) => !isPublicRoute(r));
   return withQueueAndCron(options, {
     async fetch(request, env, ctx) {
@@ -104,6 +108,10 @@ export function composeWorker<Env = unknown, QMessage = unknown>(
       }
       const open = await first(publicRoutes, request, env, ctx);
       if (open) return withRouteHeaders(open, hostname, false);
+      if (bearerRoutes.length && hasBearerCredential(request)) {
+        const res = await first(bearerRoutes, request, env, ctx);
+        if (res) return withRouteHeaders(res, hostname, true);
+      }
       const denied = await louiseApiGate(request, env, gate);
       if (denied) return withRouteHeaders(denied, hostname, true);
       const res = await first(guardedRoutes, request, env, ctx);
@@ -125,13 +133,17 @@ function withQueueAndCron<Env, QMessage>(
 }
 
 // The deny-by-default editor API gate (ADR 0012): `composeWorker({ gate })`,
-// `publicRoute` for the routes an anonymous request may reach, and the pieces
-// a framework middleware needs to run the same gate.
+// `publicRoute` for the routes an anonymous request may reach, `bearerRoute`
+// for the routes that check a bearer token themselves, and the pieces a
+// framework middleware needs to run the same gate.
 export {
   type ApiGateConfig,
+  bearerRoute,
+  hasBearerCredential,
   isLouisePublicPath,
   LOUISE_API_PREFIX,
   LOUISE_FORMS_PATH,
+  LOUISE_MCP_PATH,
   LOUISE_STATUS_PATH,
   LOUISE_VITALS_PATH,
   louiseApiGate,

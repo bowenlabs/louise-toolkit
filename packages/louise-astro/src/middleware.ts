@@ -31,6 +31,7 @@ import {
 } from "louise-toolkit/security";
 import type { EditorSession } from "louise-toolkit/auth";
 import {
+  hasBearerCredential,
   isLouisePublicPath,
   LOUISE_API_PREFIX,
   LOUISE_EDIT_COOKIE,
@@ -73,6 +74,18 @@ export interface LouiseMiddlewareApiGate {
    * way `publicRoute` does for `composeWorker`.
    */
   isPublic?: (pathname: string) => boolean;
+  /**
+   * Paths under the prefix whose route checks a bearer token itself—in
+   * practice, an `mcpRoute` given `resolveAgent`, at `LOUISE_MCP_PATH`. A
+   * request that carries `Authorization: Bearer` skips the gate on these paths
+   * and nowhere else; one without a bearer token is gated as usual.
+   *
+   * Off unless you set it: the gate can't see whether the route at a path
+   * checks tokens, and a route that relies on the gate alone would be open to
+   * any request with a bearer header. `composeWorker` needs none of this; it
+   * reads `bearerRoute`'s mark instead.
+   */
+  takesBearer?: (pathname: string) => boolean;
 }
 
 export interface LouiseMiddlewareConfig<TEditor = unknown> {
@@ -283,7 +296,8 @@ export function createLouiseMiddleware<TEditor = unknown>(
       apiGate !== undefined &&
       underPrefix(pathname, apiPrefix) &&
       !isLouisePublicPath(pathname) &&
-      !apiGate.isPublic?.(pathname);
+      !apiGate.isPublic?.(pathname) &&
+      !(apiGate.takesBearer?.(pathname) && hasBearerCredential(context.request));
     if (gatedApi) {
       const denied = await louiseApiGate(context.request, undefined, {
         resolveEditor: () => locals.editor as EditorSession | null,

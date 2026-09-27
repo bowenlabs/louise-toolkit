@@ -87,6 +87,15 @@ const webhook = publicRoute(async (request, env) => {
 });
 ```
 
+A bearer token isn't a credential to the gate. It reaches only a route marked
+with `bearerRoute(route)`, which verifies the token itself: in the toolkit, that's
+`mcpRoute` given `resolveAgent` (see [mcp](/reference/mcp/)). For a request that
+carries `Authorization: Bearer`, `composeWorker` tries the marked routes before
+the gate, and skips the origin check for them, because a browser can't attach a
+bearer token to a cross-site request. Everywhere else under the prefix, a
+request with only a bearer token gets 401 or 403, so a token reaches only the
+routes that declared they take one.
+
 The gate doesn't replace the per-route checks. It decides whether a request may
 enter the API; the route still decides what this editor may do, and routes you
 mount without `composeWorker` (through `runEditorRoute`) are still protected.
