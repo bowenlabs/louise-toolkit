@@ -9,7 +9,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, Show } from "solid-js";
-import { apiGet, apiSend, louiseQueryKey } from "./query.js";
+import { apiErrorMessage, apiGet, apiSend, louiseQueryKey } from "./query.js";
 
 /** An editor row as returned by `editorsRoute` GET. */
 export interface EditorRow {
@@ -31,8 +31,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function UsersPanel(props: UsersPanelProps) {
   const endpoint = () => props.endpoint ?? "/api/louise/editors";
   const qc = useQueryClient();
-  const [firstName, setFirstName] = createSignal("");
-  const [lastName, setLastName] = createSignal("");
+  const [name, setName] = createSignal("");
   const [email, setEmail] = createSignal("");
   const [error, setError] = createSignal("");
 
@@ -44,33 +43,36 @@ export function UsersPanel(props: UsersPanelProps) {
   const invalidate = () => void qc.invalidateQueries({ queryKey: louiseQueryKey("editors") });
 
   const add = useMutation(() => ({
-    mutationFn: () =>
-      apiSend("POST", endpoint(), {
-        firstName: firstName().trim(),
-        lastName: lastName().trim(),
-        email: email().trim(),
-      }),
+    mutationFn: () => apiSend("POST", endpoint(), { name: name().trim(), email: email().trim() }),
     onSuccess: () => {
-      setFirstName("");
-      setLastName("");
+      setName("");
       setEmail("");
       setError("");
       invalidate();
     },
-    // apiSend throws on non-2xx; surface a friendly message.
-    onError: () => setError("Couldn't add that editor. Check that the email isn't already listed."),
+    // The route's reason, such as an email that's already an editor.
+    onError: (err) => setError(apiErrorMessage(err, "Couldn’t add that editor. Try again.")),
   }));
 
   const remove = useMutation(() => ({
     mutationFn: (id: string) => apiSend("DELETE", `${endpoint()}?id=${encodeURIComponent(id)}`),
     onSuccess: () => invalidate(),
-    onError: () => setError("Couldn't remove that editor."),
+    onError: (err) => setError(apiErrorMessage(err, "Couldn’t remove that editor.")),
   }));
 
   const editors = () => editorsQ.data ?? [];
   const label = (e: EditorRow) =>
     [e.firstName, e.lastName].filter(Boolean).join(" ") || e.name || e.email;
-  const canAdd = () => !!firstName().trim() && !!lastName().trim() && EMAIL_RE.test(email().trim());
+  // The button stays enabled and answers a missing email in words; a name is
+  // optional, since the route falls back to the email.
+  const invite = () => {
+    if (!EMAIL_RE.test(email().trim())) {
+      setError("Enter the editor’s email address.");
+      return;
+    }
+    setError("");
+    add.mutate();
+  };
 
   return (
     <div class="louise-form">
@@ -105,36 +107,32 @@ export function UsersPanel(props: UsersPanelProps) {
       </Show>
 
       <div style={{ height: "18px" }} />
-      <div class="louise-field">
-        <span class="louise-field-label">Invite an editor</span>
-        <div class="louise-row" style={{ gap: "8px" }}>
-          <input
-            class="louise-input"
-            aria-label="First name"
-            placeholder="First name"
-            value={firstName()}
-            onInput={(e) => setFirstName(e.currentTarget.value)}
-          />
-          <input
-            class="louise-input"
-            aria-label="Last name"
-            placeholder="Last name"
-            value={lastName()}
-            onInput={(e) => setLastName(e.currentTarget.value)}
-          />
-        </div>
+      <fieldset class="louise-field louise-fieldset">
+        <legend class="louise-field-label">Invite an editor</legend>
+        <label for="louise-invite-name">Name (optional)</label>
         <input
+          id="louise-invite-name"
+          class="louise-input"
+          autocomplete="off"
+          value={name()}
+          onInput={(e) => setName(e.currentTarget.value)}
+        />
+        <label for="louise-invite-email">Email</label>
+        <input
+          id="louise-invite-email"
           class="louise-input"
           type="email"
-          aria-label="Editor email"
-          placeholder="editor@email.com"
+          autocomplete="off"
+          placeholder="alex@example.com"
+          aria-invalid={error() ? "true" : undefined}
+          aria-describedby={error() ? "louise-invite-error" : undefined}
           value={email()}
           onInput={(e) => setEmail(e.currentTarget.value)}
         />
-      </div>
+      </fieldset>
 
       <Show when={error()}>
-        <p class="louise-muted" style={{ color: "var(--louise-danger, #dc2626)" }}>
+        <p id="louise-invite-error" class="louise-field-error" role="alert">
           {error()}
         </p>
       </Show>
@@ -143,8 +141,8 @@ export function UsersPanel(props: UsersPanelProps) {
         <button
           class="louise-btn louise-btn-primary"
           type="button"
-          disabled={!canAdd() || add.isPending}
-          onClick={() => add.mutate()}
+          disabled={add.isPending}
+          onClick={invite}
         >
           {add.isPending ? "Adding…" : "Add editor"}
         </button>

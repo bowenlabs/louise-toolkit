@@ -18,8 +18,8 @@ import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../../core/seo/limits.js";
 import { Icon } from "../icons.jsx";
 import { MediaUrlPicker } from "./fields.jsx";
 import { OgPreview } from "./og-preview.jsx";
-import { usePanelActions } from "./panel-actions.jsx";
-import { apiGet, apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
+import { type SaveStatus, usePanelActions } from "./panel-actions.jsx";
+import { apiErrorMessage, apiGet, apiSend, louiseQueryKey, louiseQueryKeys } from "./query.js";
 
 /** A code-defined route listed alongside the content pages. */
 export interface BuiltInPageRef {
@@ -285,8 +285,15 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
     gcTime: 0,
   }));
 
+  // A status for the footer pill: Save with nothing changed says so.
+  const [notice, setNotice] = createSignal<string | null>(null);
   const save = async () => {
     setError(null);
+    if (!dirty()) {
+      setNotice("No changes to save");
+      return;
+    }
+    setNotice(null);
     try {
       // Settings only—the body is edited (and saved) on the page canvas, so it
       // is intentionally omitted here to never clobber in-place content edits.
@@ -302,7 +309,9 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       setDirty(false);
       props.onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn’t save");
+      console.error("[louise]", err);
+      // The route's own reason, such as a reserved slug, never the request line.
+      setError(apiErrorMessage(err, "Couldn’t save"));
     }
   };
 
@@ -313,7 +322,8 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.pages });
       props.onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn’t delete");
+      console.error("[louise]", err);
+      setError(apiErrorMessage(err, "Couldn’t delete"));
     }
   };
 
@@ -362,17 +372,18 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
   // in the Pages panel), so they're always in reach while the form scrolls.
   onMount(() =>
     onCleanup(
-      actions.push([
-        {
-          id: "save",
-          label: "Save",
-          kind: "primary",
-          busyLabel: "Saving…",
-          disabled: () => !dirty(),
-          onClick: save,
+      actions.push(
+        [
+          // Enabled with nothing changed, so it stays in the tab order and
+          // Cmd+S answers; `save` says there's nothing to save.
+          { id: "save", label: "Save", kind: "primary", busyLabel: "Saving…", onClick: save },
+          { id: "delete", label: "Delete", kind: "danger", onClick: remove },
+        ],
+        (): SaveStatus => {
+          const message = notice();
+          return message ? { state: "notice", message } : { state: "idle" };
         },
-        { id: "delete", label: "Delete", kind: "danger", onClick: remove },
-      ]),
+      ),
     ),
   );
 

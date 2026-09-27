@@ -440,6 +440,8 @@ describe("validateSettingsLinks", () => {
     expect(v).toHaveLength(1);
     expect(v[0].path).toBe("navLinks[1].href");
     expect(v[0].severity).toBe("error");
+    // Written as the fix, for the owner who reads it under the field (#592).
+    expect(v[0].message).toBe("Enter a link that starts with https://, mailto:, or /.");
   });
 
   it("rejects the obfuscations the allowlist exists for", () => {

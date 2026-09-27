@@ -278,6 +278,7 @@ powers **Choose from media** on section `image` fields.
 ```ts
 import {
   createSettingsQueryClient,
+  apiErrorMessage,
   apiGet,
   apiSend,
   louiseQueryKey,
@@ -288,7 +289,13 @@ import {
 - `createSettingsQueryClient()`—a `QueryClient` tuned for the editor-only Settings
   (no window-focus refetch, 30 s stale, one retry).
 - `apiGet<T>(url)` / `apiSend<T>(method, url, body?)`—typed JSON fetch that
-  throws on a non-2xx status.
+  throws a `LouiseApiError` on a non-2xx status. The error carries `status` and
+  the server's JSON `body`: `error`, and `violations` (`{ path, message }`) on a
+  `422`. Its message is the request line, for logs.
+- `apiErrorMessage(error, fallback)`—the text to show an owner for a thrown
+  error. A `4xx` shows the route's own `error`, such as a reserved slug; a `5xx`,
+  a network failure, or a response with no message shows `fallback`. Use it
+  instead of `error.message`, which is the request line.
 - `louiseQueryKey(collection, …rest)`—namespaced query key; `louiseQueryKeys`
   holds the framework-generic ones (`pages`, `media`, `settings`, `inquiries`).
 

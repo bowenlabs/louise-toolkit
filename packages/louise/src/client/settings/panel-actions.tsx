@@ -43,11 +43,14 @@ export interface PanelAction {
   busyLabel?: string;
 }
 
-/** Status shown when a surface auto-saves (or after an explicit save settles). */
+/** Status shown when a surface auto-saves (or after an explicit save settles).
+ *  A `notice` answers an action that had nothing to do, such as Save with no
+ *  changes, so a button that stays enabled still says why nothing happened. */
 export type SaveStatus =
   | { state: "idle" }
   | { state: "saving" }
   | { state: "saved" }
+  | { state: "notice"; message: string }
   | { state: "error"; message: string };
 
 /** One stacked footer frame: the active view's actions + optional live status. */
@@ -119,6 +122,8 @@ function statusLabel(s: SaveStatus): string {
       return "Saving…";
     case "saved":
       return "Saved ✓";
+    case "notice":
+      return s.message;
     case "error":
       return s.message || "Couldn’t save";
     default:

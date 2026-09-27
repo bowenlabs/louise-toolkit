@@ -8,8 +8,11 @@
 
 // Data layer—the shared QueryClient, query keys, and typed fetch helpers.
 export {
+  apiErrorMessage,
+  type ApiErrorBody,
   apiGet,
   apiSend,
+  type ApiViolation,
   createSettingsQueryClient,
   louiseQueryKey,
   louiseQueryKeys,

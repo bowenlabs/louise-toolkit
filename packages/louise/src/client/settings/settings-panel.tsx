@@ -15,13 +15,53 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import {
+  normalizeLinkHref,
   Section,
   SettingsField,
   type SettingsFieldDef,
   type SettingsFieldGroup,
 } from "./fields.jsx";
 import { type SaveStatus, usePanelActions } from "./panel-actions.jsx";
-import { apiGet, apiSend, louiseQueryKeys } from "./query.js";
+import {
+  type ApiViolation,
+  apiErrorMessage,
+  apiGet,
+  apiSend,
+  LouiseApiError,
+  louiseQueryKeys,
+} from "./query.js";
+
+/** The server's violations, by field: a message for the field itself, and one
+ *  per row for a list such as `navLinks[1].href`. */
+interface FieldErrors {
+  field: Record<string, string>;
+  rows: Record<string, Record<number, string>>;
+}
+
+const NO_ERRORS: FieldErrors = { field: {}, rows: {} };
+
+/** Map each violation's `path` onto the field, and the row, it names. */
+export function fieldErrorsFrom(violations: readonly ApiViolation[]): FieldErrors {
+  const out: FieldErrors = { field: {}, rows: {} };
+  for (const v of violations) {
+    const match = /^([^.[\]]+)(?:\[(\d+)\])?/.exec(v.path);
+    if (!match) continue;
+    const [, key, row] = match;
+    if (row === undefined) out.field[key!] ??= v.message;
+    else (out.rows[key!] ??= {})[Number(row)] ??= v.message;
+  }
+  return out;
+}
+
+/** Add `https://` to each scheme-less link in a `links` value. */
+function normalizeLinks(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((row) =>
+    row && typeof row === "object" && typeof (row as { href?: unknown }).href === "string"
+      ? { ...row, href: normalizeLinkHref((row as { href: string }).href) }
+      : row,
+  );
+}
 
 /**
  * The framework-common settings groups—mapped 1:1 to the owner-facing
@@ -106,7 +146,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
   // and the baseline the dirty flag is measured against.
   const [loaded, setLoaded] = createSignal<Record<string, unknown>>({});
   const [dirty, setDirty] = createSignal(false);
-  const [status, setStatus] = createSignal<"idle" | "saving" | "saved" | "error">("idle");
+  const [status, setStatus] = createSignal<SaveStatus>({ state: "idle" });
+  const [errors, setErrors] = createSignal<FieldErrors>(NO_ERRORS);
+  let root: HTMLDivElement | undefined;
 
   const groups = () => [...(props.baseGroups ?? SETTINGS_BASE_GROUPS), ...(props.extension ?? [])];
   const allFields = () => groups().flatMap((g) => g.fields);
@@ -114,8 +156,24 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const setField = (key: string, value: unknown) => {
     setValues({ ...values(), [key]: value });
     setDirty(true);
-    setStatus("idle");
+    setStatus({ state: "idle" });
+    // An edit answers that field's message; the others stay until the next save.
+    const { field, rows } = errors();
+    if (key in field || key in rows) {
+      const { [key]: _field, ...restField } = field;
+      const { [key]: _rows, ...restRows } = rows;
+      setErrors({ field: restField, rows: restRows });
+    }
   };
+
+  // Show the first field the server refused: open its section, then focus it.
+  const revealFirstError = () =>
+    queueMicrotask(() => {
+      const first = root?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      const section = first?.closest("details");
+      if (section) section.open = true;
+      first?.focus();
+    });
 
   const query = useQuery(() => ({
     queryKey: louiseQueryKeys.settings,
@@ -137,31 +195,53 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
   const saveMutation = useMutation(() => ({
     mutationFn: () => {
+      // Links typed as `example.com/shop` get their scheme before they're sent,
+      // and the form shows the corrected value.
+      const fixed = { ...values() };
+      for (const def of allFields()) {
+        if (def.type === "links") fixed[def.key] = normalizeLinks(fixed[def.key]);
+      }
+      setValues(fixed);
       const patch: Record<string, unknown> = {};
-      for (const def of allFields()) patch[def.key] = values()[def.key];
+      for (const def of allFields()) patch[def.key] = fixed[def.key];
       return apiSend("POST", "/api/louise/settings", patch);
     },
     onSuccess: async () => {
-      setStatus("saved");
+      setStatus({ state: "saved" });
+      setErrors(NO_ERRORS);
       setLoaded({ ...values() });
       setDirty(false);
       await qc.invalidateQueries({ queryKey: louiseQueryKeys.settings });
     },
     onError: (err) => {
       console.error("[louise]", err);
-      setStatus("error");
+      const violations = err instanceof LouiseApiError ? (err.body.violations ?? []) : [];
+      setErrors(fieldErrorsFrom(violations));
+      setStatus({ state: "error", message: apiErrorMessage(err, "Couldn’t save") });
+      if (violations.length > 0) revealFirstError();
     },
   }));
+  // Save and Revert stay enabled, so they stay in the tab order and Cmd+S
+  // always answers. With nothing changed, the status pill says so.
   const save = async () => {
-    setStatus("saving");
+    if (!dirty()) {
+      setStatus({ state: "notice", message: "No changes to save" });
+      return;
+    }
+    setStatus({ state: "saving" });
     // mutateAsync rejects on error; onError already flips status → swallow so the
     // footer button's busy state just settles (the status pill shows the error).
     await saveMutation.mutateAsync().catch(() => {});
   };
   const revert = () => {
+    if (!dirty()) {
+      setStatus({ state: "notice", message: "No changes to revert" });
+      return;
+    }
     setValues({ ...loaded() });
+    setErrors(NO_ERRORS);
     setDirty(false);
-    setStatus("idle");
+    setStatus({ state: "idle" });
   };
 
   // The footer owns Save/Revert (the single, always-visible home for them). The
@@ -171,49 +251,36 @@ export function SettingsPanel(props: SettingsPanelProps) {
     onCleanup(
       actions.push(
         [
-          {
-            id: "save",
-            label: "Save",
-            kind: "primary",
-            busyLabel: "Saving…",
-            disabled: () => !dirty(),
-            onClick: save,
-          },
-          {
-            id: "revert",
-            label: "Revert",
-            kind: "ghost",
-            disabled: () => !dirty(),
-            onClick: revert,
-          },
+          { id: "save", label: "Save", kind: "primary", busyLabel: "Saving…", onClick: save },
+          { id: "revert", label: "Revert", kind: "ghost", onClick: revert },
         ],
-        (): SaveStatus =>
-          status() === "saved"
-            ? { state: "saved" }
-            : status() === "error"
-              ? { state: "error", message: "Couldn’t save" }
-              : { state: "idle" },
+        // "saving" shows as the button's busy label, so the pill stays quiet.
+        (): SaveStatus => (status().state === "saving" ? { state: "idle" } : status()),
       ),
     ),
   );
 
   return (
     <Show when={!query.isLoading} fallback={<p class="louise-muted">Loading…</p>}>
-      <For each={groups()}>
-        {(group) => (
-          <Section title={group.title} hint={group.hint} open={group.open}>
-            <For each={group.fields}>
-              {(def) => (
-                <SettingsField
-                  def={def}
-                  value={values()[def.key]}
-                  onChange={(v) => setField(def.key, v)}
-                />
-              )}
-            </For>
-          </Section>
-        )}
-      </For>
+      <div ref={root}>
+        <For each={groups()}>
+          {(group) => (
+            <Section title={group.title} hint={group.hint} open={group.open}>
+              <For each={group.fields}>
+                {(def) => (
+                  <SettingsField
+                    def={def}
+                    value={values()[def.key]}
+                    onChange={(v) => setField(def.key, v)}
+                    error={errors().field[def.key]}
+                    rowErrors={errors().rows[def.key]}
+                  />
+                )}
+              </For>
+            </Section>
+          )}
+        </For>
+      </div>
 
       {/* The "Session" group's Sign out moved to the edit bar:
           ending a session is an account action, not a site setting, and having it

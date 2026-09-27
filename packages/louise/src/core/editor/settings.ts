@@ -106,12 +106,18 @@ export function validateSettingsLinks(patch: Record<string, unknown>): Validatio
       if (href === undefined || isSafeLinkUrl(href)) return;
       violations.push({
         path: `${key}[${i}].href`,
-        message: `${key}[${i}].href must be an http(s) URL, a mailto: address, or a site path — got ${JSON.stringify(href)}`,
+        message: "Enter a link that starts with https://, mailto:, or /.",
         severity: "error",
       });
     });
   }
   return violations;
+}
+
+/** A 422's summary line: how many fields the owner has to fix. */
+function fieldsNeedAttention(violations: readonly ValidationViolation[]): string {
+  const count = new Set(violations.map((v) => v.path)).size;
+  return count === 1 ? "1 field needs attention." : `${count} fields need attention.`;
 }
 
 /**
@@ -132,7 +138,7 @@ export function validateSettingsImages(
     if (typeof value === "string" && value !== "" && !isMediaUrl(mediaBase, value)) {
       violations.push({
         path: key,
-        message: `${key} must be an uploaded media asset, not an external URL`,
+        message: "Choose an image from the media library.",
         severity: "error",
       });
     }
@@ -249,7 +255,12 @@ export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRout
   // behaviour.
   const linkViolations = validateSettingsLinks(patch);
   if (linkViolations.length > 0) {
-    return { ok: false, status: 422, error: "Invalid link field(s)", violations: linkViolations };
+    return {
+      ok: false,
+      status: 422,
+      error: fieldsNeedAttention(linkViolations),
+      violations: linkViolations,
+    };
   }
 
   // Media-strictness: image settings (logo, favicon, share image…) must point at
@@ -257,7 +268,7 @@ export async function applySettingsPatch<Env extends EditorRouteEnv = EditorRout
   if (config.imageKeys && config.imageKeys.length > 0 && config.mediaBase) {
     const violations = validateSettingsImages(patch, config.imageKeys, config.mediaBase);
     if (violations.length > 0) {
-      return { ok: false, status: 422, error: "Invalid image field(s)", violations };
+      return { ok: false, status: 422, error: fieldsNeedAttention(violations), violations };
     }
   }
 

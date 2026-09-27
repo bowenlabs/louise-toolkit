@@ -261,6 +261,11 @@ function MediaEditor(props: {
   const [dirty, setDirty] = createSignal(false);
 
   const save = async () => {
+    // Save stays enabled; with nothing changed there's nothing to write.
+    if (!dirty()) {
+      props.onClose();
+      return;
+    }
     try {
       const res = await fetch("/api/louise/media", {
         method: "PATCH",
@@ -282,14 +287,7 @@ function MediaEditor(props: {
   onMount(() =>
     onCleanup(
       actions.push([
-        {
-          id: "save",
-          label: "Save",
-          kind: "primary",
-          busyLabel: "Saving…",
-          disabled: () => !dirty(),
-          onClick: save,
-        },
+        { id: "save", label: "Save", kind: "primary", busyLabel: "Saving…", onClick: save },
         { id: "cancel", label: "Cancel", kind: "ghost", onClick: props.onClose },
       ]),
     ),
