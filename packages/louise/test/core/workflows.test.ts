@@ -118,6 +118,20 @@ describe("defineWorkflow", () => {
     expect(result).toEqual({ ogKey: "x" });
   });
 
+  it("passes the run's instance ID to each step, as an idempotency key", async () => {
+    const { step } = fakeStep();
+    const seen: string[] = [];
+    await defineWorkflow<Record<never, never>, PublishParams, PublishState>([
+      {
+        name: "webhook",
+        run: ({ instanceId }) => {
+          seen.push(instanceId);
+        },
+      },
+    ])({}, event({ collection: "pages", id: 1 }), step);
+    expect(seen).toEqual(["i"]);
+  });
+
   it("passes env to each step", async () => {
     const { step } = fakeStep();
     const result = await defineWorkflow<{ token: string }, PublishParams, PublishState>([

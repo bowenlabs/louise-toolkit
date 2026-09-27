@@ -77,12 +77,16 @@ export interface WorkflowPipelineStep<Env, Params, State extends object> {
   name: string;
   /** Per-step retries/backoff/timeout (Cloudflare's `WorkflowStepConfig`). */
   config?: WorkflowStepConfig;
-  /** The work: receives the runtime `env`, the event `payload`, and the state
-   *  accumulated from prior steps; returns a patch merged into that state. */
+  /** The work: receives the runtime `env`, the event `payload`, the state
+   *  accumulated from prior steps, and the run's `instanceId`; returns a patch
+   *  merged into that state. The `instanceId` is the same on every retry, so
+   *  it's the idempotency key for a side effect, such as a webhook's delivery
+   *  ID. */
   run: (ctx: {
     env: Env;
     payload: Readonly<Params>;
     state: Readonly<State>;
+    instanceId: string;
   }) => Promise<Partial<State> | void> | Partial<State> | void;
 }
 
@@ -123,7 +127,9 @@ export function defineWorkflow<Env, Params, State extends object = Record<string
     let state = { ...(initialState ?? ({} as State)) } as State;
     for (const s of steps) {
       const work = () =>
-        Promise.resolve(s.run({ env, payload: event.payload, state })).then((patch) => patch ?? {});
+        Promise.resolve(
+          s.run({ env, payload: event.payload, state, instanceId: event.instanceId }),
+        ).then((patch) => patch ?? {});
       const patch = (await (s.config
         ? doStep(s.name, s.config, work)
         : doStep(s.name, work))) as Partial<State>;

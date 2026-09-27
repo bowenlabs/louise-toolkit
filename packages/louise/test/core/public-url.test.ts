@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deliverWebhookMessage, type WebhookMessage } from "../../src/core/content/webhooks.js";
+import {
+  createWebhookHook,
+  deliverWebhook,
+  deliverWebhookMessage,
+  type WebhookMessage,
+} from "../../src/core/content/webhooks.js";
 import { defineForm } from "../../src/core/forms/index.js";
 import { notifySubmission } from "../../src/core/forms/notify.js";
 import {
@@ -189,6 +194,27 @@ describe("deliverWebhookMessage", () => {
     });
   });
 
+  it("sends the message's delivery ID in a header and in the signed body", async () => {
+    const calls = internet({
+      "https://hooks.example.com/in": () => new Response(null, { status: 200 }),
+    });
+    await deliverWebhookMessage({ ...message("https://hooks.example.com/in"), deliveryId: "d-1" });
+    expect(calls[0]?.headers.get("x-louise-delivery")).toBe("d-1");
+    expect(JSON.parse(String(calls[0]?.body))).toMatchObject({ deliveryId: "d-1" });
+  });
+
+  it("gives each enqueued event its own delivery ID, fixed before any retry", async () => {
+    const sent: WebhookMessage[] = [];
+    const queue = { send: async (m: WebhookMessage) => void sent.push(m) };
+    const hook = createWebhookHook(queue as unknown as Queue<WebhookMessage>, {
+      url: "https://hooks.example.com/in",
+    });
+    await hook({ doc: { id: 1 }, operation: "update" } as never);
+    await hook({ doc: { id: 1 }, operation: "update" } as never);
+    expect(sent[0]?.deliveryId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(sent[1]?.deliveryId).not.toBe(sent[0]?.deliveryId);
+  });
+
   it("names the origin in its errors, never the path — a hook path is often the credential", async () => {
     internet({
       "https://hooks.example.com/T0/B0/secretpath": () => new Response("no", { status: 500 }),
@@ -245,5 +271,36 @@ describe("notifySubmission webhook", () => {
       notifySubmission(form("https://169.254.169.254/latest"), { email: "a@b.co" }),
     ).resolves.toBeUndefined();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("deliverWebhook", () => {
+  it("fails on a non-2xx status, so a Workflow step retries it", async () => {
+    internet({ "https://hooks.example.com/publish": () => new Response("no", { status: 500 }) });
+    await expect(
+      deliverWebhook("https://hooks.example.com/publish", { event: "publish", id: 7 }),
+    ).rejects.toThrow("returned status 500");
+  });
+
+  it("sends the same delivery ID on a retry, and no header without one", async () => {
+    const calls = internet({
+      "https://hooks.example.com/publish": () => new Response(null, { status: 204 }),
+    });
+    const send = (deliveryId?: string) =>
+      deliverWebhook(
+        "https://hooks.example.com/publish",
+        { event: "publish", id: 7 },
+        { deliveryId, secret: "whsec" },
+      );
+    await send("publish-pages-7-v3");
+    await send("publish-pages-7-v3");
+    await send();
+    expect(calls.map((c) => c.headers.get("x-louise-delivery"))).toEqual([
+      "publish-pages-7-v3",
+      "publish-pages-7-v3",
+      null,
+    ]);
+    expect(JSON.parse(String(calls[2]?.body))).toEqual({ event: "publish", id: 7 });
+    expect(calls[0]?.headers.get("x-louise-signature")).toMatch(/^[0-9a-f]{64}$/);
   });
 });
