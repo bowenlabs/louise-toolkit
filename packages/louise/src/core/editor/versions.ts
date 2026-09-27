@@ -579,3 +579,28 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     return json({ error: "Method not allowed" }, 405);
   };
 }
+
+/**
+ * Whether a row has pending work a draft save would build on: a KV buffer, or
+ * a draft newer than the live pointer. `pagesRoute` checks this before it
+ * carries a live write into the draft (#530), so a plain rename in the Pages
+ * panel doesn't start a draft of its own.
+ */
+export async function hasPendingDraft<Env extends EditorRouteEnv = EditorRouteEnv>(
+  env: Env,
+  deps: SaveDraftDeps<Env>,
+  editor: EditorSession,
+  id: PageId,
+): Promise<boolean> {
+  const kv = deps.bufferKv?.(env);
+  if (kv && (await readDraftBuffer(kv, draftBufferKey(deps.config.slug, id)))) return true;
+  const database = db(env.DB);
+  const pkCol = getTableConfig(deps.table).columns.find((c) => c.primary) as SQLiteColumn;
+  const [row] = await database.select().from(deps.table).where(eq(pkCol, id)).limit(1);
+  if (!row) return false;
+  const api = createVersionedLocalApi(database, deps.table, deps.versionsTable, deps.config);
+  const versions = (await api.findVersions({ session: editor }, id)) as Record<string, unknown>[];
+  const publishedVersionId =
+    ((row as Record<string, unknown>).publishedVersionId as number | null) ?? null;
+  return latestPendingDraft(versions, publishedVersionId) !== undefined;
+}

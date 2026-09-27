@@ -183,6 +183,27 @@ To change a page that has a pending draft, do one of the following:
 - Discard the pending draft first with `POST /api/louise/pages/:id/discard` (body
   `{ versionId }`). Discarding also clears the KV buffer.
 
+`pagesRoute` writes the live row too, and it's the route behind the Pages panel,
+where an owner renames a page or edits its SEO fields. Pass it `drafts` with the
+same collection config and buffer as `versionsRoute`, and an update also saves
+the fields the draft snapshot holds into the page's pending work, so a rename
+made while a draft is pending survives the next publish:
+
+```ts
+pagesRoute({
+  table: pages,
+  versionsTable: pagesVersions,
+  drafts: { config: pagesCollection, bufferKv: (env) => env.DRAFTS },
+  resolveEditor,
+});
+```
+
+The change still goes live right away. A page with no pending work gets no
+draft, and a field outside the snapshot, such as `status`, stays on the live row
+only. If the draft refuses the change, the live write stands, and the route
+reports `editor.pages.draftCarry` through
+[`reportDegraded`](/reference/errors/#reportdegradedname-cause-details).
+
 ### Read-your-writes behind read replication
 
 Resuming a draft reads back what auto-save just wrote. On a default D1 database
