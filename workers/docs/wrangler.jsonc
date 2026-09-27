@@ -21,6 +21,7 @@
 
   // Workers Builds runs branch builds as Worker Previews (`wrangler preview`),
   // which refuses a config without this block. Empty is enough: the docs need
-  // nothing different in a preview.
+  // nothing different in a preview. The build reaches this file from the
+  // repository root through a redirect that scripts/ci-build.sh writes.
   "previews": {},
 }
