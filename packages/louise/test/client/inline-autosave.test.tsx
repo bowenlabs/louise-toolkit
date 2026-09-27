@@ -329,6 +329,47 @@ describe("mountLouise — a draft save that someone else overtook (#572)", () =>
     await vi.advanceTimersByTimeAsync(50);
     expect(document.querySelector<HTMLElement>(".louise-status")!.dataset.status).toBe("conflict");
   });
+
+  it("says someone else is editing on a 423, and saves the edit once they've released it", async () => {
+    let held = true;
+    const fetchMock = stubFetch((_url, method) => {
+      if (method === "GET") return jsonResponse({ versions: [] });
+      return held
+        ? jsonResponse({ error: "Someone else is editing this right now.", locked: ["x"] }, 423)
+        : jsonResponse({ buffered: true, revs: {} });
+    });
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({ onOpenSettings: () => {}, autoSave: { debounceMs: 50 }, versionedPageId: 5 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    type(el, "Mine");
+    await vi.advanceTimersByTimeAsync(50);
+    const status = document.querySelector<HTMLElement>(".louise-status")!;
+    expect(status.dataset.status).toBe("locked");
+    expect(status.textContent).toBe("Someone else is editing this right now.");
+
+    held = false;
+    type(el, "Mine!");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(bodyOf(posts(fetchMock)[1]![1])).toMatchObject({ heroHeadline: "Mine!" });
+    expect(status.dataset.status).toBe("saved");
+  });
+
+  it("says someone else is editing when the saveDraft Action returns locked", async () => {
+    stubFetch(() => jsonResponse({ versions: [] }));
+    const saveDraft = vi.fn(async (_input: unknown) => ({ locked: ["heroHeadline"] }));
+    const el = addField("pages", "5", "heroHeadline", "old");
+    mountLouise({
+      onOpenSettings: () => {},
+      autoSave: { debounceMs: 50 },
+      versionedPageId: 5,
+      actions: { saveDraft },
+    });
+
+    type(el, "Mine");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(document.querySelector<HTMLElement>(".louise-status")!.dataset.status).toBe("locked");
+  });
 });
 
 describe("mountLouise — view transitions (#74)", () => {

@@ -9,6 +9,7 @@ sidebar:
 import {
   createEditSession,
   realtimeRoute,
+  realtimeSoftLocks,
   REALTIME_PROTOCOL_VERSION,
 } from "louise-toolkit/realtime";
 ```
@@ -111,6 +112,23 @@ That is deliberate—it keeps raw rich-text markup off the wire between sockets
 rather than attempting to merge concurrent prose edits, which is the problem this
 design avoids rather than solves.
 
+The session enforces the lock only on its own socket. A save that reaches the
+draft route another way, such as an editor whose socket dropped, checks it
+through `realtimeSoftLocks`:
+
+```ts
+function realtimeSoftLocks<Env>(cfg: {
+  namespace: (env: Env) => DurableObjectNamespace | undefined;
+  fields: readonly string[]; // the session's lockFields
+}): DraftSoftLocks<Env>;
+```
+
+Pass the result to `versionsRoute`'s `softLocks`, or to `louiseSaveDraftAction`'s
+in the Astro adapter, and a save that changes a field another editor holds
+answers `423`. It reads the locks with a plain `GET` to the page's Durable Object,
+which `createEditSession` answers, so there's nothing to add to your subclass. See
+[When someone else is editing](/guide/drafts/#when-someone-else-is-editing).
+
 ### Coalesced persistence
 
 `persist` is site-injected so the write path stays in your DO subclass—this
@@ -141,7 +159,7 @@ everyone else on the page.
 
 `EditSession`, `EditSessionConfig`, `EditSessionPersist`, `EditSessionTarget`,
 `RealtimePeer`, `RealtimeLocks`, `RealtimeServerMessage`, `RealtimeClientMessage`,
-`RealtimeRouteConfig`. Constants: `REALTIME_PROTOCOL_VERSION`. Also
+`RealtimeRouteConfig`, `RealtimeSoftLocksConfig`. Constants: `REALTIME_PROTOCOL_VERSION`. Also
 `presenceMessage` and `parseClientMessage`.
 
 `EditSessionTarget.id` is a [`PageId`](/reference/content/#page-and-version-ids),

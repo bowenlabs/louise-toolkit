@@ -5,7 +5,8 @@
 // edits as drafts and promote them on publish without the change going live:
 //   GET  /api/louise/pages/:id/versions   list versions (newest first) + field revs
 //   POST /api/louise/pages/:id/versions   save a draft (merged over the live row);
-//                                         `$base` holds the revs it started from
+//                                         `$base` holds the revs it started from,
+//                                         and `softLocks` refuses a held field
 //   POST /api/louise/pages/:id/publish    publish a draft (body.versionId | latest)
 //   POST /api/louise/pages/:id/unpublish  clear the live pointer
 //
@@ -22,6 +23,7 @@ import { createVersionedLocalApi, type DeferReindex } from "../content/localApi.
 import { type CollectionConfig, flattenFields } from "../content/types.js";
 import { LouiseValidationError } from "../errors.js";
 import { d1Bookmark, db, openD1Session, serializeD1BookmarkCookie } from "../db/index.js";
+import { reportDegraded } from "../degraded.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
@@ -86,6 +88,35 @@ export interface VersionsRouteConfig<
   resolveEditor: ResolveEditor<Env>;
   /** Mount path (the collection base). Default `/api/louise/pages`. */
   path?: string;
+  /**
+   * The soft-locks a draft save respects (#572), from the site's realtime
+   * session: `realtimeSoftLocks` from `louise-toolkit/realtime`. See
+   * {@link SaveDraftOptions.softLocks}.
+   */
+  softLocks?: DraftSoftLocks<Env>;
+}
+
+/** The page a soft-lock read is for. */
+export interface DraftSoftLockTarget {
+  /** The collection slug. */
+  slug: string;
+  /** The row being saved. */
+  id: PageId;
+}
+
+/**
+ * Where a draft save finds the soft-locks another editor holds (#572). A
+ * realtime session only enforces its locks on its own socket, so a save that
+ * reaches the draft route another way (a surface whose socket dropped, a
+ * second tab without one, a script) checks them here.
+ */
+export interface DraftSoftLocks<Env extends EditorRouteEnv = EditorRouteEnv> {
+  /** The fields under a soft-lock: the session's `lockFields`. A save that
+   *  changes none of them never reads the locks. */
+  fields: readonly string[];
+  /** The held locks on a row, as field name → the holder's user ID. Throw when
+   *  they can't be read, and the save goes ahead unchecked and reports it. */
+  read: (env: Env, target: DraftSoftLockTarget) => Promise<Readonly<Record<string, string>>>;
 }
 
 /** The outcome of {@link applySaveDraft}: on success the exact JSON body + status
@@ -103,10 +134,12 @@ export type SaveDraftResult =
       violations?: unknown;
       /** On a 409: the fields someone else changed since `base`. */
       conflicts?: DraftConflict[];
+      /** On a 423: the fields this save changes that another editor holds. */
+      locked?: string[];
     };
 
 /** Options for {@link applySaveDraft}. */
-export interface SaveDraftOptions {
+export interface SaveDraftOptions<Env extends EditorRouteEnv = EditorRouteEnv> {
   /**
    * The field revisions the save started from, from the `revs` of an earlier
    * save or of `GET /:id/versions`. A field in the save whose stored value
@@ -120,10 +153,25 @@ export interface SaveDraftOptions {
    * narrows that window; it doesn't close it.
    */
   base?: Record<string, string>;
+  /**
+   * The soft-locks this save respects (#572). A save that changes a field
+   * another editor holds answers 423 with `locked`, and nothing is written. A
+   * field whose new value equals the stored one isn't a change, and the lock
+   * holder's own save goes through. When the locks can't be read, the save
+   * goes ahead and the failure is reported as `editor.softLocks`.
+   *
+   * The realtime session's own `persist` leaves this out: the session already
+   * enforces its locks, and its coalesced flush can carry a locked field
+   * another editor wrote.
+   */
+  softLocks?: DraftSoftLocks<Env>;
 }
 
 /** The message a 409 conflict carries. */
 const CONFLICT_MESSAGE = "Someone else changed this since you opened it.";
+
+/** The message a 423 carries. */
+const LOCKED_MESSAGE = "Someone else is editing this right now.";
 
 /**
  * Save an already-validated draft for a versioned row: merge the edit (config
@@ -140,7 +188,7 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   editor: EditorSession,
   id: PageId,
   input: Record<string, unknown>,
-  options: SaveDraftOptions = {},
+  options: SaveDraftOptions<Env> = {},
 ): Promise<SaveDraftResult> {
   // Run this save's D1 work through a `first-primary` session: the write hits
   // the primary and the session's bookmark advances past it, so a later resume
@@ -221,12 +269,25 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
   // moved since the revision the client started from, is someone else's edit.
   // Report it rather than overwrite it, unless both ended up at the same value.
   const savedKeys = fieldKeys.filter((key) => key in input);
+  const storedValue = (key: string) => (key in mergeBase ? mergeBase[key] : cur[key]);
+  // The soft-lock check (#572): a field another editor holds in the realtime
+  // session is theirs until they release it, whatever path this save took.
+  if (options.softLocks) {
+    const locked = await lockedByOthers(env, options.softLocks, editor, {
+      slug: deps.config.slug,
+      id,
+      keys: savedKeys,
+      input,
+      stored: storedValue,
+    });
+    if (locked.length > 0) return { ok: false, status: 423, error: LOCKED_MESSAGE, locked };
+  }
   if (options.base) {
     const conflicts: DraftConflict[] = [];
     for (const key of savedKeys) {
       const expected = options.base[key];
       if (expected === undefined) continue;
-      const stored = key in mergeBase ? mergeBase[key] : cur[key];
+      const stored = storedValue(key);
       const rev = await fieldRev(stored);
       if (rev !== expected && (await fieldRev(input[key])) !== rev) {
         conflicts.push({ field: key, value: stored, rev });
@@ -300,6 +361,41 @@ export async function applySaveDraft<Env extends EditorRouteEnv = EditorRouteEnv
     },
     bookmark: d1Bookmark(session) ?? undefined,
   };
+}
+
+/** The fields among `keys` this save changes that someone other than `editor`
+ *  holds a soft-lock on. Reads the locks only when a lockable field changes. */
+async function lockedByOthers<Env extends EditorRouteEnv>(
+  env: Env,
+  softLocks: DraftSoftLocks<Env>,
+  editor: EditorSession,
+  save: {
+    slug: string;
+    id: PageId;
+    keys: readonly string[];
+    input: Record<string, unknown>;
+    stored: (key: string) => unknown;
+  },
+): Promise<string[]> {
+  const changed: string[] = [];
+  for (const key of save.keys) {
+    if (!softLocks.fields.includes(key)) continue;
+    if ((await fieldRev(save.input[key])) !== (await fieldRev(save.stored(key)))) changed.push(key);
+  }
+  if (changed.length === 0) return [];
+  let locks: Readonly<Record<string, string>>;
+  try {
+    locks = await softLocks.read(env, { slug: save.slug, id: save.id });
+  } catch (err) {
+    // Fail open: a soft-lock is advisory, and an unreachable session mustn't
+    // stop every save. Reported, because while it lasts the lock isn't checked.
+    reportDegraded("editor.softLocks", err, { id: save.id });
+    return [];
+  }
+  return changed.filter((key) => {
+    const holder = locks[key];
+    return holder !== undefined && holder !== "" && holder !== editor.userId;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -435,6 +531,7 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       const { [DRAFT_BASE_KEY]: rawBase, ...fields } = parsedInput.value;
       const result = await applySaveDraft(env, cfg, g.editor, id, fields, {
         base: parseDraftBase(rawBase),
+        softLocks: cfg.softLocks,
       });
       if (!result.ok) {
         return json(
@@ -442,6 +539,7 @@ export function versionsRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
             error: result.error,
             ...(result.violations ? { violations: result.violations } : {}),
             ...(result.conflicts ? { conflicts: result.conflicts } : {}),
+            ...(result.locked ? { locked: result.locked } : {}),
           },
           result.status,
         );
