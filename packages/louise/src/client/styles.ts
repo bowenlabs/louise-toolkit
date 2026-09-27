@@ -1104,6 +1104,19 @@ html[data-louise-studio] body {
   background: var(--louise-surface);
   color: var(--louise-text);
 }
+/* A history row's text (#540): status and time over what the version holds. */
+.louise-version-text { display: grid; gap: 2px; min-width: 0; }
+.louise-version-summary {
+  color: var(--louise-text-muted);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "Draft deleted · Undo" above the history list. Empty, it takes no room; it
+   stays displayed, because a live region under display: none isn't announced. */
+.louise-undo-line { margin: 0 0 6px; font-size: var(--louise-text-xs); color: var(--louise-text-secondary); }
+.louise-undo-line:empty { margin: 0; }
 /* The currently-live version in history — a solid success-green accent so it
    stands out from the other (also "published") rows. */
 .louise-arr-row[data-live] {

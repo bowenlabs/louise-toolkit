@@ -57,13 +57,15 @@ visitor sees the work in progress.
 When you're happy, **publish**. The change goes live immediately.
 
 If your site keeps version history, you can look back at previous versions and
-restore one—useful when a change reads worse than what it replaced.
+open one as a draft—useful when a change reads worse than what it replaced. You
+see the old version on the page first, and it goes live only when you publish.
+Delete a draft by mistake and **Undo** brings it back.
 
 ## A few things worth knowing
 
 **You cannot break the site by editing it.** The worst case is publishing
-something you'd rather not have; restore an earlier version, or edit and publish
-again.
+something you'd rather not have; open an earlier version as a draft and publish
+it, or edit and publish again.
 
 **Sign out when you're on a shared computer.** An editor session is a real
 session—anyone using that browser afterwards would be signed in as you.

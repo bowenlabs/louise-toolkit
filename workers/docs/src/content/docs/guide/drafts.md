@@ -20,8 +20,15 @@ live in a companion `${slug}_versions` table until published; a nullable
   edits stage this draft automatically on an idle debounce—no button.
 - **Publish** copies a version's snapshot onto the live row and sets
   `published_version_id`, running full field validation.
-- **Unpublish** clears the pointer; **Restore** is just publishing an older
-  version again.
+- **Unpublish** clears the pointer. Publishing an older version by id puts it
+  live again.
+
+The sections editor's history drawer never publishes. A published row's **Open
+as draft** loads that version onto the page as a new draft, so the owner sees
+it in place and goes live through the usual **Publish**. Deleting a draft
+removes its row and shows **Draft deleted · Undo** for 8 seconds. The discard
+request goes out when that window ends, the drawer closes, or a publish starts.
+Each row names how many sections the version holds and the first two.
 
 Publishing is a distinct privilege from editing (`access.publish`), and is
 **always a manual, explicit action**—auto-save only ever stages drafts, it
