@@ -58,6 +58,20 @@ node is.
 Text sizes come from a five-step scale in `rem`, `--louise-text-2xs` (11 px at the
 default size) through `--louise-text-lg` (16 px).
 
+The chrome goes dark with the system setting. In dark mode only the roles change:
+the surface is `#0e141b`, and the brand fills keep their hue and take dark ink on
+top, as the `louise-dark` theme does (`#1481ef` under `#0e141b`, 4.77:1). To pin
+a scheme regardless of the system, set it on the root element:
+
+```html
+<html data-louise-scheme="light"></html>
+```
+
+The chrome doesn't read the site's daisyUI theme, so a site that shows
+`louise-dark` in a dark system setting and `louise` otherwise matches the chrome
+without doing anything. A site with its own theme switch sets
+`data-louise-scheme` to match it.
+
 ## Usage
 
 Import the theme into the stylesheet that Tailwind v4 processes for your editor

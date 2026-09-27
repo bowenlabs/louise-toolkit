@@ -16,6 +16,37 @@ const LOUISE_BLUE = "#1481ef";
 const iconUrl = (svg: string, color: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(svg.replace('fill="currentColor"', `fill="${color}"`))}")`;
 
+/**
+ * The chrome's roles in dark mode (#603, ADR 0019 §3). Only roles change; the
+ * light palette stays as it is. Dark follows the `louise-dark` theme's rule:
+ * the brand fills keep their hue and take dark ink (`--louise-on-accent`) on
+ * top, and the deep stops get lighter, not darker, so text on a tint still
+ * clears 4.5:1 against the dark surface. test/client/contrast.test.ts checks
+ * every pair.
+ */
+const DARK_ROLES = `
+  --louise-surface: #0e141b;
+  --louise-surface-muted: #1a2330;
+  --louise-text: #e6edf3;
+  --louise-text-body: #cbd5e1;
+  --louise-text-secondary: #a8b3c1;
+  --louise-text-muted: #94a3b8;
+  --louise-border: #2d3a4a;
+  --louise-border-strong: #5b6b80;
+  --louise-shadow: #000000;
+  --louise-accent: #1481ef;
+  --louise-accent-deep: #5eb0ff;
+  --louise-on-accent: #0e141b;
+  --louise-ring: #1481ef;
+  --louise-success: #8ebe59;
+  --louise-warning: #f3ae29;
+  --louise-warning-deep: #f3ae29;
+  --louise-warning-ink: #231903;
+  --louise-danger: #db6327;
+  --louise-danger-deep: #f0804a;
+  color-scheme: dark;
+`;
+
 const CSS = `
 :root {
   /* ── Palette: raw values, named for what they are. Rules don't read these;
@@ -52,6 +83,8 @@ const CSS = `
 
   /* ── Roles: what every rule reads (#603). ── */
   --louise-surface: var(--louise-white);
+  /* Muted text is for the surface; on the muted surface it's 4.34:1, so text
+     there takes --louise-text-secondary or darker. */
   --louise-surface-muted: var(--louise-slate-100);
   --louise-text: var(--louise-ink);
   --louise-text-body: var(--louise-slate-700);
@@ -94,6 +127,12 @@ const CSS = `
   --louise-font-head: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --louise-font-body: "Roboto Flex", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+/* Dark roles follow the system setting, and a page can pin either scheme with
+   data-louise-scheme on the root element (ADR 0019 §3). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-louise-scheme="light"]) {${DARK_ROLES}}
+}
+:root[data-louise-scheme="dark"] {${DARK_ROLES}}
 
 /* Editable region affordance — subtle until hovered/focused, Tina-style. */
 .louise-editable {

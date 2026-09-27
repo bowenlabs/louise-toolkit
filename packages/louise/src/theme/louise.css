@@ -68,11 +68,14 @@
 }
 
 /* SCOPE: this theme colours daisyUI-classed surfaces a *site* renders (and the
-   `data-theme="louise"` roots). It does NOT restyle the editor chrome — the edit
-   bar, on-canvas toolbars, and the Settings drawer inject their own stylesheet
-   (client/styles.ts) with fixed light values and no dark override, so those stay
-   light in dark mode by design. Wiring that chrome to these tokens is tracked
-   separately; until then, don't read `prefersdark` as "the editor goes dark". */
+   `data-theme="louise"` roots). The editor chrome (the edit bar, the on-canvas
+   toolbars, and the Settings drawer) injects its own stylesheet
+   (client/styles.ts) with its own role tokens, and since #603 those go dark on
+   their own: they follow `prefers-color-scheme`, and a page pins a scheme with
+   `data-louise-scheme="light"` or `"dark"` on the root element. The chrome's
+   dark values match this theme's `louise-dark` fills, but they don't read these
+   variables (ADR 0019 §3), so choosing `louise-dark` for a site doesn't switch
+   the chrome by itself. */
 @plugin "daisyui/theme" {
   name: "louise-dark";
   default: false;
