@@ -6,7 +6,14 @@ sidebar:
 ---
 
 ```ts
-import { runAi, runAiText, generateAltText, rewriteText, suggestSeo } from "louise-toolkit/ai";
+import {
+  classifyAiError,
+  generateAltText,
+  rewriteText,
+  runAi,
+  runAiText,
+  suggestSeo,
+} from "louise-toolkit/ai";
 ```
 
 Optional Workers AI editorial assists and semantic search. Every helper
@@ -102,9 +109,45 @@ function runAi(
 The low-level call: runs a model best-effort and returns its raw output, or
 `null` when `runner` is absent or the call throws (**never throws**—it reports
 the cause with [`reportDegraded`](/reference/errors/#reportdegradedname-cause-details)
-as `ai.run`, so it shows in `wrangler tail`). `env.AI` satisfies `AiRunner` structurally—pass it directly. `AiGatewayOptions` (`{ id, cacheKey?, cacheTtl?, skipCache? }`)
+as `ai.run.<reason>`, such as `ai.run.model-retired`, so it shows in
+`wrangler tail`). `env.AI` satisfies `AiRunner` structurally—pass it directly. `AiGatewayOptions` (`{ id, cacheKey?, cacheTtl?, skipCache? }`)
 routes a call through [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
 for response caching, cost caps, fallbacks, and logging.
+
+## Why a call failed: `classifyAiError(err)` and `onFailure`
+
+```ts
+type AiFailureReason =
+  | "unavailable" // no binding, or Workers AI refused the account or timed out
+  | "model-retired" // the model ID no longer exists: change the model
+  | "rate-limited" // capacity or the daily allocation ran out: try again later
+  | "invalid-output" // an empty reply, or JSON that doesn't parse
+  | "truncated" // the output token cap cut the answer off
+  | "error"; // anything else
+
+function classifyAiError(err: unknown): "unavailable" | "model-retired" | "rate-limited" | "error";
+```
+
+`classifyAiError` sorts a thrown Workers AI error by the error codes and
+messages Workers AI [documents](https://developers.cloudflare.com/workers-ai/platform/errors/),
+and counts a `status` of 429 as `rate-limited`. `runAi` uses it to name its
+degrade, so each reason is its own [incident](/reference/incidents/): a retired
+model reads as `ai.run.model-retired`, apart from a busy one. The reason is in
+the name, not only the details, because an incident report keeps the name.
+
+`generateAltText`, `rewriteText`, and `suggestSeo` take an `onFailure` option,
+called once with the reason when they return `null` for a failure. Blank input
+isn't a failure, so it isn't called then. `aiRoute` uses it to put the reason in
+its `502` body.
+
+```ts
+let why: AiFailureReason = "error";
+const tighter = await rewriteText(env.AI, draft, { onFailure: (reason) => (why = reason) });
+```
+
+A reply the helpers can't use (no text, a rewrite that was only a preamble, SEO
+JSON that doesn't parse or has neither field) is reported as the
+`ai.invalid-output` degrade, with the model ID.
 
 ## `runAiText(runner, model, inputs, options?)`
 
@@ -334,7 +377,7 @@ const top = fuseRankings([{ ids: keywordSlugs }, { ids: semanticSlugs, weight: 0
 
 ## Types
 
-`AiRunner`, `AiGatewayOptions`, `AiTextResult`, `AiUsage`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
+`AiRunner`, `AiGatewayOptions`, `AiFailureReason`, `AiFailureListener`, `AiTextResult`, `AiUsage`, `AltTextOptions`, `RewriteMode`, `RewriteOptions`,
 `SeoSuggestion`, `SeoOptions`, `EmbedOptions`, `EmbeddingPooling`, `VectorIndex`, `VectorRecord`,
 `VectorMatch`, `IndexContentOptions`, `SemanticSearchOptions`, `RankedList`,
 `FuseRankingsOptions`. Constants: `DEFAULT_ALT_TEXT_MODEL`, `MAX_ALT_TEXT_LENGTH`,

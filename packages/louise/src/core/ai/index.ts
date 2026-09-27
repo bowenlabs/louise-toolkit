@@ -10,7 +10,7 @@
 // model catalog. That keeps the door open for routing `run` through AI Gateway
 // later (#87) without touching callers.
 
-import { reportDegraded } from "../degraded.js";
+import { causeParts, reportDegraded } from "../degraded.js";
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../seo/limits.js";
 
 /** The one capability these helpers need from a Workers AI binding: `run(model,
@@ -105,10 +105,94 @@ export function aiUnavailableReason(env: unknown): "disabled" | "unconfigured" {
 }
 
 /**
+ * Why an AI call gave nothing usable (ADR 0022 § 8):
+ *
+ * - `unavailable`: no binding, or Workers AI refused the account or timed out.
+ * - `model-retired`: the model ID no longer exists. Change the model.
+ * - `rate-limited`: capacity or the daily allocation ran out. Try again later.
+ * - `invalid-output`: the model answered, but with nothing usable, such as an
+ *   empty reply or JSON that doesn't parse.
+ * - `truncated`: the output token cap cut the answer off.
+ * - `error`: anything else.
+ */
+export type AiFailureReason =
+  | "unavailable"
+  | "model-retired"
+  | "rate-limited"
+  | "invalid-output"
+  | "truncated"
+  | "error";
+
+/** Called once with the reason when a helper returns `null` for a failure.
+ *  Blank input isn't a failure, so it doesn't call this. */
+export type AiFailureListener = (reason: AiFailureReason) => void;
+
+// Workers AI's documented error codes and their messages, matched either way,
+// since the docs don't fix how a thrown error spells them.
+const RETIRED = /\b(?:5007|3042)\b|no such model|invalid model id|deprecated|retired|end of life/i;
+const LIMITED =
+  /\b(?:3036|3040)\b|capacity temporarily exceeded|daily free allocation|rate limit|too many requests/i;
+const REFUSED =
+  /\b(?:3007|3008|3023|3041|5016|5018|5035)\b|service unavailable|not allowed to access|requires workers paid|has not agreed|request timeout|request was aborted/i;
+
+/**
+ * Sort a thrown Workers AI error into an {@link AiFailureReason}, from the
+ * error codes and messages Workers AI documents. A `status` of 429 counts as
+ * `rate-limited`. It never throws.
+ */
+export function classifyAiError(
+  err: unknown,
+): "unavailable" | "model-retired" | "rate-limited" | "error" {
+  const { name, message } = causeParts(err);
+  const text = `${name} ${message}`;
+  if (RETIRED.test(text)) return "model-retired";
+  if (LIMITED.test(text) || statusOf(err) === 429) return "rate-limited";
+  if (REFUSED.test(text)) return "unavailable";
+  return "error";
+}
+
+function statusOf(err: unknown): number | undefined {
+  try {
+    const status: unknown = (err as { status?: unknown } | null)?.status;
+    return typeof status === "number" ? status : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** What an attempt gives: the output, or why there isn't one. */
+type Attempt<T> = { ok: true; value: T } | { ok: false; reason: AiFailureReason };
+
+/** {@link runAi}, keeping the reason. The helpers use it to tell a caller why. */
+async function attemptAi(
+  runner: AiRunner | undefined,
+  model: string,
+  inputs: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<Attempt<unknown>> {
+  if (!runner) return { ok: false, reason: "unavailable" };
+  try {
+    return { ok: true, value: await runner.run(model, inputs, options) };
+  } catch (err) {
+    // Best-effort still, but not *silent*: a bare swallow hid two real prod
+    // failures (a retired model; an unmet JSON schema). Report so the cause shows
+    // in `wrangler tail`—the return contract (null on failure) is unchanged. The
+    // reason is part of the name, because an incident report keeps the name and
+    // not the details: `ai.run.model-retired` is its own incident.
+    const reason = classifyAiError(err);
+    reportDegraded(`ai.run.${reason}`, err, { model, reason });
+    return { ok: false, reason };
+  }
+}
+
+/**
  * Run a model best-effort: returns its raw output, or `null` when `runner` is
  * absent (binding not provisioned) or the call throws. **Never throws**—AI is
  * an assist, never a gate—so callers wire it inline and keep their non-AI
  * fallback (empty alt, the original prose, no SEO suggestion).
+ *
+ * A thrown error is reported with `reportDegraded` as `ai.run.<reason>`, such
+ * as `ai.run.model-retired`, where the reason is {@link classifyAiError}'s.
  */
 export async function runAi(
   runner: AiRunner | undefined,
@@ -116,16 +200,8 @@ export async function runAi(
   inputs: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): Promise<unknown> {
-  if (!runner) return null;
-  try {
-    return await runner.run(model, inputs, options);
-  } catch (err) {
-    // Best-effort still, but not *silent*: a bare swallow hid two real prod
-    // failures (a retired model; an unmet JSON schema). Report so the cause shows
-    // in `wrangler tail`—the return contract (null on failure) is unchanged.
-    reportDegraded("ai.run", err, { model });
-    return null;
-  }
+  const attempt = await attemptAi(runner, model, inputs, options);
+  return attempt.ok ? attempt.value : null;
 }
 
 /** Token counts a model reported for one call. A count the model didn't report
@@ -182,8 +258,20 @@ export async function runAiText(
   inputs: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): Promise<AiTextResult | null> {
-  const output = await runAi(runner, model, inputs, options);
-  if (output === null) return null;
+  const attempt = await attemptAiText(runner, model, inputs, options);
+  return attempt.ok ? attempt.value : null;
+}
+
+/** {@link runAiText}, keeping the reason when the call failed. */
+async function attemptAiText(
+  runner: AiRunner | undefined,
+  model: string,
+  inputs: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<Attempt<AiTextResult>> {
+  const attempt = await attemptAi(runner, model, inputs, options);
+  if (!attempt.ok) return attempt;
+  const output = attempt.value;
   const finishReason = readFinishReason(output);
   const usage = readUsage(output);
   const maxTokens = typeof inputs.max_tokens === "number" ? inputs.max_tokens : null;
@@ -202,7 +290,32 @@ export async function runAiText(
       maxTokens,
     });
   }
-  return { output, text: extractText(output), truncated, finishReason, usage };
+  return { ok: true, value: { output, text: extractText(output), truncated, finishReason, usage } };
+}
+
+/**
+ * Why a text result can't be used, or `null` when it can. A missing text is
+ * reported as `ai.invalid-output`; a truncated one was already reported as
+ * `ai.truncated`.
+ */
+function unusable(result: AiTextResult, model: string, needText: boolean): AiFailureReason | null {
+  if (result.truncated) return "truncated";
+  if (needText && !result.text?.trim()) {
+    reportDegraded("ai.invalid-output", "the model returned no text", { model });
+    return "invalid-output";
+  }
+  return null;
+}
+
+/** Report a helper's failure to its caller, without letting the caller's
+ *  listener break the helper's never-throws contract. */
+function tell(onFailure: AiFailureListener | undefined, reason: AiFailureReason): null {
+  try {
+    onFailure?.(reason);
+  } catch {
+    // The listener's failure is its own.
+  }
+  return null;
 }
 
 /** The first `choices` entry of an OpenAI-shaped output, if there is one. */
@@ -329,6 +442,8 @@ export interface AltTextOptions {
   maxTokens?: number;
   /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
+  /** Hears why, when it returns `null` for a failure. */
+  onFailure?: AiFailureListener;
 }
 
 /**
@@ -345,9 +460,10 @@ export async function generateAltText(
   image: ArrayBuffer | Uint8Array | number[],
   opts: AltTextOptions = {},
 ): Promise<string | null> {
-  const out = await runAiText(
+  const model = opts.model ?? DEFAULT_ALT_TEXT_MODEL;
+  const out = await attemptAiText(
     runner,
-    opts.model ?? DEFAULT_ALT_TEXT_MODEL,
+    model,
     {
       // Vision models take the image as an array of byte values.
       image: Array.from(toBytes(image)),
@@ -356,8 +472,10 @@ export async function generateAltText(
     },
     gatewayRun(opts.gateway),
   );
-  if (!out?.text || out.truncated) return null;
-  return tidyAltText(out.text);
+  if (!out.ok) return tell(opts.onFailure, out.reason);
+  const reason = unusable(out.value, model, true);
+  if (reason) return tell(opts.onFailure, reason);
+  return tidyAltText(out.value.text!);
 }
 
 /** Normalize image input to a byte view without copying when already a `Uint8Array`. */
@@ -468,6 +586,8 @@ export interface RewriteOptions {
   maxTokens?: number;
   /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
+  /** Hears why, when it returns `null` for a failure. */
+  onFailure?: AiFailureListener;
 }
 
 /**
@@ -495,9 +615,10 @@ export async function rewriteText(
   const input = text.trim();
   if (!input) return null;
   const instruction = REWRITE_INSTRUCTIONS[opts.mode ?? "tighten"];
-  const out = await runAiText(
+  const model = opts.model ?? DEFAULT_TEXT_MODEL;
+  const out = await attemptAiText(
     runner,
-    opts.model ?? DEFAULT_TEXT_MODEL,
+    model,
     {
       messages: [
         {
@@ -517,8 +638,13 @@ export async function rewriteText(
     },
     gatewayRun(opts.gateway),
   );
-  if (!out?.text || out.truncated) return null;
-  return unwrapModelText(out.text) || null;
+  if (!out.ok) return tell(opts.onFailure, out.reason);
+  const reason = unusable(out.value, model, true);
+  if (reason) return tell(opts.onFailure, reason);
+  const rewritten = unwrapModelText(out.value.text!);
+  if (rewritten) return rewritten;
+  reportDegraded("ai.invalid-output", "the rewrite was only a preamble or quotes", { model });
+  return tell(opts.onFailure, "invalid-output");
 }
 
 /** A suggested SEO title + meta description. Either field may be `null` when the
@@ -538,6 +664,8 @@ export interface SeoOptions {
   maxContentChars?: number;
   /** Route through AI Gateway (#87)—caching, cost caps, fallbacks, logging. */
   gateway?: AiGatewayOptions;
+  /** Hears why, when it returns `null` for a failure. */
+  onFailure?: AiFailureListener;
 }
 
 /** Search engines truncate around these; keep suggestions within them. The
@@ -558,9 +686,10 @@ export async function suggestSeo(
 ): Promise<SeoSuggestion | null> {
   const input = content.trim();
   if (!input) return null;
-  const out = await runAiText(
+  const model = opts.model ?? DEFAULT_TEXT_MODEL;
+  const out = await attemptAiText(
     runner,
-    opts.model ?? DEFAULT_TEXT_MODEL,
+    model,
     {
       messages: [
         {
@@ -594,15 +723,26 @@ export async function suggestSeo(
     },
     gatewayRun(opts.gateway),
   );
+  if (!out.ok) return tell(opts.onFailure, out.reason);
   // A cut-off reply can still parse, with a description that stops mid-sentence.
-  if (!out || out.truncated) return null;
-  const parsed = extractJsonObject(out.output);
-  if (!parsed) return null;
+  const cut = unusable(out.value, model, false);
+  if (cut) return tell(opts.onFailure, cut);
+  const parsed = extractJsonObject(out.value.output);
+  if (!parsed) {
+    reportDegraded("ai.invalid-output", "the reply wasn't the expected JSON object", { model });
+    return tell(opts.onFailure, "invalid-output");
+  }
   const title = nonEmptyString(parsed.title) ? capLength(parsed.title.trim(), SEO_TITLE_MAX) : null;
   const description = nonEmptyString(parsed.description)
     ? capLength(parsed.description.trim(), SEO_DESCRIPTION_MAX)
     : null;
-  return title === null && description === null ? null : { title, description };
+  if (title === null && description === null) {
+    reportDegraded("ai.invalid-output", "the reply had neither a title nor a description", {
+      model,
+    });
+    return tell(opts.onFailure, "invalid-output");
+  }
+  return { title, description };
 }
 
 function nonEmptyString(v: unknown): v is string {

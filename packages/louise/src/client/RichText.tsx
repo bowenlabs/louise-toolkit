@@ -102,6 +102,12 @@ const REWRITE_ACTIONS = [
  *  length. The selection is never touched on failure, so it says so. */
 const REWRITE_FAILED = "Couldn’t rewrite this right now. Your text hasn’t changed.";
 
+/** Shown when AI is out of capacity for now, so trying again later can work. */
+const REWRITE_BUSY = "AI is busy right now. Try again in a minute. Your text hasn’t changed.";
+
+/** Shown when the rewrite came back cut off, so a shorter selection can work. */
+const REWRITE_TOO_MUCH = "That’s too much to rewrite at once. Select less, and try again.";
+
 /** Shown once when the site has no AI binding, before the control retires. */
 const REWRITE_UNAVAILABLE = "AI rewrite isn’t set up for this site.";
 
@@ -153,8 +159,14 @@ interface RewritePreview {
  * logs, not for the person editing.
  */
 async function rewriteFailure(res: Response): Promise<string> {
-  if (res.status !== 413) return REWRITE_FAILED;
-  const data = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  if (res.status !== 413 && res.status !== 502) return REWRITE_FAILED;
+  const data = (await res.json().catch(() => null)) as { error?: unknown; reason?: unknown } | null;
+  if (res.status === 502) {
+    // The server's `error` is log-facing; its `reason` says what an editor can do.
+    if (data?.reason === "rate-limited") return REWRITE_BUSY;
+    if (data?.reason === "truncated") return REWRITE_TOO_MUCH;
+    return REWRITE_FAILED;
+  }
   return typeof data?.error === "string" && data.error ? data.error : REWRITE_FAILED;
 }
 
