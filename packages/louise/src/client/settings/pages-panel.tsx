@@ -425,7 +425,12 @@ function PageForm(props: { page: PageRow; onDone: () => void; ogCard?: OgCardOpt
         return;
       }
       if (!res.ok) {
-        setError("Couldn’t suggest SEO right now. Your fields are as you left them.");
+        const data = (await res.json().catch(() => null)) as { reason?: unknown } | null;
+        setError(
+          data?.reason === "rate-limited"
+            ? "AI is busy right now. Try again in a minute. Your fields are as you left them."
+            : "Couldn’t suggest SEO right now. Your fields are as you left them.",
+        );
         return;
       }
       const data = (await res.json().catch(() => null)) as {
