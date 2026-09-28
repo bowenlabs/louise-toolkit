@@ -12,6 +12,7 @@ import {
   imageUrlMap,
   isArchivedItem,
   type RawCatalogObject,
+  type RawCustomAttributes,
   type RawPresence,
   type RawVariationData,
 } from "./wire.js";
@@ -50,6 +51,47 @@ export function presentAt(presence: SquarePresence, locationId: string): boolean
     : presence.presentAtLocationIds.includes(locationId);
 }
 
+/**
+ * A custom attribute value on a catalog object: a field the seller defined,
+ * such as tasting notes on an item or a description on a variation. Square
+ * Dashboard shows these on items and variations; modifiers and categories
+ * carry them only through the API.
+ */
+export interface SquareCustomAttribute {
+  /** The CatalogCustomAttributeDefinition's id. */
+  definitionId: string;
+  /** The definition's key. Another application's key is prefixed with its
+   *  application id and a colon. */
+  key: string;
+  /** The definition's name, as the seller sees it in the Square Dashboard. */
+  name: string;
+  /** `STRING`, `NUMBER`, `BOOLEAN`, or `SELECTION`. */
+  type: string;
+  stringValue: string | null;
+  /** A decimal string, as Square sends it, so no precision is lost. */
+  numberValue: string | null;
+  booleanValue: boolean | null;
+  /** The chosen options of a `SELECTION` attribute, by uid. */
+  selectionUids: string[];
+}
+
+/**
+ * The text of the `STRING` custom attribute called `name`, trimmed, or `null`
+ * when the object has none or it's blank. Names match without regard to case,
+ * so a seller who types "Online description" in the Square Dashboard matches
+ * a site that asks for "online description".
+ */
+export function customAttributeText(
+  attributes: readonly SquareCustomAttribute[] | undefined,
+  name: string,
+): string | null {
+  const wanted = name.trim().toLowerCase();
+  const found = attributes?.find(
+    (a) => a.type === "STRING" && a.name.trim().toLowerCase() === wanted,
+  );
+  return found?.stringValue?.trim() || null;
+}
+
 export interface SquareVariation extends SquarePresence {
   id: string;
   name: string;
@@ -60,6 +102,10 @@ export interface SquareVariation extends SquarePresence {
   currency: string;
   /** Per-location price overrides, empty when the base price applies everywhere. */
   locationOverrides: SquareLocationOverride[];
+  /** Seller-defined fields, empty when there are none. Optional so an object
+   *  built by hand, or read from a cache written before this field, still
+   *  type-checks; {@link mapCatalogItem} always sets it. */
+  customAttributes?: SquareCustomAttribute[];
   /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
 }
@@ -97,6 +143,9 @@ export interface SquareCatalogItem extends SquarePresence {
    *  show an image other than the primary, which is also the register's tile. */
   images: SquareItemImage[];
   variations: SquareVariation[];
+  /** Seller-defined fields, empty when there are none. Optional for the same
+   *  reason as {@link SquareVariation.customAttributes}. */
+  customAttributes?: SquareCustomAttribute[];
   /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
 }
@@ -109,6 +158,19 @@ function mapPresence(raw: RawPresence): SquarePresence {
     presentAtLocationIds: raw.present_at_location_ids ?? [],
     absentAtLocationIds: raw.absent_at_location_ids ?? [],
   };
+}
+
+function mapCustomAttributes(raw: RawCustomAttributes): SquareCustomAttribute[] {
+  return Object.entries(raw.custom_attribute_values ?? {}).map(([key, v]) => ({
+    definitionId: v.custom_attribute_definition_id ?? "",
+    key: v.key ?? key,
+    name: v.name ?? "",
+    type: v.type ?? "",
+    stringValue: v.string_value ?? null,
+    numberValue: v.number_value ?? null,
+    booleanValue: v.boolean_value ?? null,
+    selectionUids: v.selection_uid_values ?? [],
+  }));
 }
 
 function mapLocationOverrides(data: RawVariationData | undefined): SquareLocationOverride[] {
@@ -139,6 +201,7 @@ export function mapCatalogItem(
       priceCents: v.item_variation_data?.price_money?.amount ?? 0,
       currency: v.item_variation_data?.price_money?.currency ?? "USD",
       locationOverrides: mapLocationOverrides(v.item_variation_data),
+      customAttributes: mapCustomAttributes(v),
       version: v.version ?? 0,
       ...mapPresence(v),
     }));
@@ -149,6 +212,7 @@ export function mapCatalogItem(
     imageUrl: itemImages[0]?.url ?? null,
     images: itemImages,
     variations,
+    customAttributes: mapCustomAttributes(obj),
     version: obj.version ?? 0,
     ...mapPresence(obj),
   };
