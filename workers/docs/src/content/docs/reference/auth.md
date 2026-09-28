@@ -10,6 +10,7 @@ import {
   getLouiseAuth,
   resolveEditorSession,
   handleAuthRequest,
+  redirectWithCookies,
   requireEditor,
   requireEditorFromContext,
   safeNextPath,
@@ -185,6 +186,22 @@ no user row—and returns the same enumeration-safe response a real send does.
 Use it in your `/api/auth/[...all]` route. `admins` is the resolved allowlist
 (the same source `resolveAdmins` uses). The gate matches `sign-in/magic-link`
 under any `basePath`, so it works the same for an instance mounted elsewhere.
+
+## `redirectWithCookies(from, location, status?)`
+
+A redirect that carries every cookie a Better Auth response set. Use it in a
+server-rendered route that calls the API with `asResponse: true` and then sends
+the browser on, such as a sign-out link:
+
+```ts
+const result = await auth.api.signOut({ headers: request.headers, asResponse: true });
+return redirectWithCookies(result, "/");
+```
+
+Sign-out expires three cookies at once. Copying them with
+`headers.get("set-cookie")` joins them into one header, and the browser keeps
+all but the first, so the visitor stays signed in. `status` defaults to 303.
+Pass a `location` your route chose, or one checked with `safeNextPath`.
 
 ## `requireEditor(ctx, mutation?)` · `isSameOrigin(request)`
 
