@@ -1,0 +1,27 @@
+{
+  "extraKnownMarketplaces": {
+    "bowenlabs": {
+      "source": { "source": "github", "repo": "bowenlabs/claude-plugins" }
+    },
+    "knowledge-work-plugins": {
+      "source": { "source": "github", "repo": "anthropics/knowledge-work-plugins" }
+    },
+    "accesslint": {
+      "source": { "source": "github", "repo": "AccessLint/skills" }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": { "source": "github", "repo": "nextlevelbuilder/ui-ux-pro-max-skill" }
+    },
+    "cloudflare": {
+      "source": { "source": "github", "repo": "cloudflare/skills" }
+    }
+  },
+  "enabledPlugins": {
+    "louise@bowenlabs": true,
+    "design@knowledge-work-plugins": true,
+    "frontend-design@claude-plugins-official": true,
+    "accesslint@accesslint": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "cloudflare@cloudflare": true
+  }
+}
