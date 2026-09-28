@@ -72,7 +72,7 @@ overrides:
   # resolved 0.35.4, so like the esbuild pin this UNIFIES two copies onto one.
   sharp: "^0.35.4"
 
-  # undici — GHSA-3wwx-pv8p-q78v, DoS via an unhandled error in WebSocket
+  # undici—GHSA-3wwx-pv8p-q78v, DoS via an unhandled error in WebSocket
   # permessage-deflate decompression. Fixed in 7.29.1 and 8.10.2. Dev-only, under
   # workers/sandbox, and two copies were affected. The 8.x copy (astro > unifont,
   # which asks for `^8.0.0`) needed no override: refreshing the lockfile moved it
