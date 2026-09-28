@@ -13,7 +13,12 @@
 import { mapCatalogItem, type SquareCatalogItem, type SquarePresence } from "./catalog.js";
 import type { SquareConfig } from "./client.js";
 import { sqFetch, sqGet, sqPost } from "./request.js";
-import { type CatalogSearchResponse, imageUrlMap, type RawCatalogObject } from "./wire.js";
+import {
+  type CatalogSearchResponse,
+  imageUrlMap,
+  isArchivedItem,
+  type RawCatalogObject,
+} from "./wire.js";
 
 /** A REGULAR Square category (product taxonomy). The parallel MENU_CATEGORY tree
  *  (Square Online display) is filtered out by {@link listCategories}. */
@@ -95,7 +100,7 @@ export async function listCatalogDetailed(config: SquareConfig): Promise<Detaile
     });
     const images = imageUrlMap(res.related_objects);
     for (const obj of res.objects ?? []) {
-      if (obj.type !== "ITEM" || obj.is_deleted) continue;
+      if (obj.type !== "ITEM" || obj.is_deleted || isArchivedItem(obj)) continue;
       items.push(mapCatalogItem(obj, images));
       const d = obj.item_data ?? {};
       const cats = (d.categories ?? []).map((c) => c.id).filter((x): x is string => !!x);

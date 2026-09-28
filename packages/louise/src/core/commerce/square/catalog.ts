@@ -7,8 +7,10 @@ import type { SquareConfig } from "./client.js";
 import type { SquareMoney } from "./money.js";
 import { sqGet, sqPost } from "./request.js";
 import {
+  archivedItemIds,
   type CatalogSearchResponse,
   imageUrlMap,
+  isArchivedItem,
   type RawCatalogObject,
   type RawPresence,
   type RawVariationData,
@@ -153,7 +155,8 @@ export function mapCatalogItem(
 }
 
 /**
- * List every non-deleted catalog ITEM with its variations and primary image.
+ * List every catalog ITEM that isn't deleted or archived, with its variations
+ * and primary image.
  * Walks the search cursor (coffee catalogs are small; a safety cap bounds it).
  * POST /v2/catalog/search.
  */
@@ -169,7 +172,9 @@ export async function listCatalogItems(config: SquareConfig): Promise<SquareCata
     });
     const images = imageUrlMap(res.related_objects);
     for (const obj of res.objects ?? []) {
-      if (obj.type === "ITEM" && !obj.is_deleted) items.push(mapCatalogItem(obj, images));
+      if (obj.type === "ITEM" && !obj.is_deleted && !isArchivedItem(obj)) {
+        items.push(mapCatalogItem(obj, images));
+      }
     }
     cursor = res.cursor;
     if (!cursor) break;
@@ -190,20 +195,35 @@ export async function retrieveCatalogItem(
   return mapCatalogItem(res.object, imageUrlMap(res.related_objects));
 }
 
+/** Batch-retrieve variations with their parent ITEMs, which is how the price
+ *  lookups tell a variation of an archived item apart from a live one. */
+async function retrieveVariations(
+  config: SquareConfig,
+  variationIds: string[],
+): Promise<RawCatalogObject[]> {
+  const res = await sqPost<{ objects?: RawCatalogObject[]; related_objects?: RawCatalogObject[] }>(
+    config,
+    "/v2/catalog/batch-retrieve",
+    { object_ids: variationIds, include_related_objects: true },
+  );
+  const archived = archivedItemIds(res.related_objects);
+  return (res.objects ?? []).filter((obj) => !archived.has(obj.item_variation_data?.item_id ?? ""));
+}
+
 /**
  * Batch-retrieve catalog objects by id—used at checkout to verify cart prices
  * against the live catalog before charging. POST /v2/catalog/batch-retrieve.
  * Returns a map of variationId → priceCents for the ITEM_VARIATION objects.
+ *
+ * A variation of an archived item is omitted, like an unknown id, so a caller
+ * that requires every id to resolve won't sell something the shop took down.
  */
 export async function retrieveVariationPrices(
   config: SquareConfig,
   variationIds: string[],
 ): Promise<Map<string, SquareMoney>> {
-  const res = await sqPost<{ objects?: RawCatalogObject[] }>(config, "/v2/catalog/batch-retrieve", {
-    object_ids: variationIds,
-  });
   const prices = new Map<string, SquareMoney>();
-  for (const obj of res.objects ?? []) {
+  for (const obj of await retrieveVariations(config, variationIds)) {
     if (obj.type === "ITEM_VARIATION") {
       // batch-retrieve returns variations as top-level objects with
       // item_variation_data on the object itself.
@@ -262,20 +282,17 @@ export async function retrieveLiveCatalogObjectIds(
  * price at the dearest merchant's storefront. Re-price against the location the
  * order is actually being placed at, never against the client's numbers.
  *
- * A variation absent at `locationId` is omitted from the result entirely, so a
- * caller that requires every id to resolve will fail closed rather than silently
- * selling something the merchant does not carry.
+ * A variation absent at `locationId`, or of an archived item, is omitted from
+ * the result entirely, so a caller that requires every id to resolve will fail
+ * closed rather than silently selling something the merchant does not carry.
  */
 export async function retrieveVariationPricesAt(
   config: SquareConfig,
   variationIds: string[],
   locationId: string,
 ): Promise<Map<string, SquareMoney>> {
-  const res = await sqPost<{ objects?: RawCatalogObject[] }>(config, "/v2/catalog/batch-retrieve", {
-    object_ids: variationIds,
-  });
   const prices = new Map<string, SquareMoney>();
-  for (const obj of res.objects ?? []) {
+  for (const obj of await retrieveVariations(config, variationIds)) {
     if (obj.type !== "ITEM_VARIATION") continue;
     if (!presentAt(mapPresence(obj), locationId)) continue;
 
