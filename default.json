@@ -41,8 +41,8 @@
       "groupName": "the toolkit",
       "labels": ["dependencies", "toolkit"],
       "schedule": ["at any time"],
-      "minimumReleaseAge": null,
-      "description": "The whole reason a site tracks this preset. Toolkit releases are the updates a Louise site most wants promptly — they carry the editor, auth and content fixes — and they are first-party, so the usual soak-before-trusting-a-stranger argument does not apply. Grouped so a release that bumps two of them lands as one PR, and taken off the weekly schedule so it does not wait until Monday."
+      "minimumReleaseAge": "1 day",
+      "description": "The whole reason a site tracks this preset. Toolkit releases are the updates a Louise site most wants promptly, since they carry the editor, auth, and content fixes. Grouped so a release that bumps two of them lands as one PR, and taken off the weekly schedule so it doesn't wait until Monday. It still waits one day, because every site keeps pnpm's one-day `minimumReleaseAge` guard: a PR opened sooner fails its own install on a release pnpm won't take yet."
     },
     {
       "matchPackageNames": ["typescript"],
