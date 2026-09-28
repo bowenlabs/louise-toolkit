@@ -10,6 +10,7 @@ import {
   createPayment,
   createTeamMember,
   createTimecard,
+  customAttributeText,
   listCatalogItems,
   listLocations,
   mapCatalogItem,
@@ -148,12 +149,104 @@ describe("mapCatalogItem", () => {
           currency: "USD",
           version: 5,
           locationOverrides: [],
+          customAttributes: [],
           presentAtAllLocations: true,
           presentAtLocationIds: [],
           absentAtLocationIds: [],
         },
       ],
+      customAttributes: [],
     });
+  });
+
+  it("maps custom attribute values on the item and each variation", () => {
+    const item = mapCatalogItem(
+      {
+        id: "item-4",
+        type: "ITEM",
+        custom_attribute_values: {
+          "def-origin": {
+            name: "Origin",
+            key: "def-origin",
+            custom_attribute_definition_id: "DEF_ORIGIN",
+            type: "STRING",
+            string_value: "Huila, Colombia",
+          },
+        },
+        item_data: {
+          name: "Savory Croissant",
+          variations: [
+            {
+              id: "var-bacon",
+              type: "ITEM_VARIATION",
+              item_variation_data: { name: "Bacon" },
+              custom_attribute_values: {
+                "def-desc": {
+                  name: "Online description",
+                  custom_attribute_definition_id: "DEF_DESC",
+                  type: "STRING",
+                  string_value: "Bacon and cheese, with everything seasoning.",
+                },
+                "def-spicy": {
+                  name: "Spicy",
+                  key: "def-spicy",
+                  custom_attribute_definition_id: "DEF_SPICY",
+                  type: "BOOLEAN",
+                  boolean_value: false,
+                },
+              },
+            },
+            { id: "var-plain", type: "ITEM_VARIATION", item_variation_data: { name: "Plain" } },
+          ],
+        },
+      },
+      new Map(),
+    );
+    expect(item.customAttributes).toEqual([
+      {
+        definitionId: "DEF_ORIGIN",
+        key: "def-origin",
+        name: "Origin",
+        type: "STRING",
+        stringValue: "Huila, Colombia",
+        numberValue: null,
+        booleanValue: null,
+        selectionUids: [],
+      },
+    ]);
+    const [bacon, plain] = item.variations;
+    // A value without its own `key` takes the map key it was filed under.
+    expect(bacon?.customAttributes?.[0]?.key).toBe("def-desc");
+    expect(bacon?.customAttributes?.[1]).toMatchObject({ type: "BOOLEAN", booleanValue: false });
+    expect(plain?.customAttributes).toEqual([]);
+  });
+});
+
+describe("customAttributeText", () => {
+  const attr = (name: string, type: string, stringValue: string | null) => ({
+    definitionId: "DEF",
+    key: "def",
+    name,
+    type,
+    stringValue,
+    numberValue: null,
+    booleanValue: null,
+    selectionUids: [],
+  });
+
+  it("finds a STRING attribute by name, ignoring case, and trims it", () => {
+    const attrs = [attr("Online description", "STRING", "  Flaky and buttery. ")];
+    expect(customAttributeText(attrs, "online DESCRIPTION")).toBe("Flaky and buttery.");
+  });
+
+  it("returns null for a missing, blank, or non-text attribute", () => {
+    expect(customAttributeText(undefined, "Online description")).toBeNull();
+    expect(
+      customAttributeText([attr("Online description", "STRING", "  ")], "Online description"),
+    ).toBeNull();
+    expect(
+      customAttributeText([attr("Online description", "NUMBER", "3")], "Online description"),
+    ).toBeNull();
   });
 
   it("falls back to null image and empty variations when absent", () => {

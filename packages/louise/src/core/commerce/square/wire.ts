@@ -27,6 +27,25 @@ interface RawLocationOverride {
   sold_out?: boolean;
 }
 
+/** One entry in a catalog object's `custom_attribute_values` map. Square fills
+ *  `name` from the definition, so a reader can find a value by the name the
+ *  seller gave it in the Square Dashboard. */
+export interface RawCustomAttributeValue {
+  name?: string;
+  key?: string;
+  custom_attribute_definition_id?: string;
+  type?: string;
+  string_value?: string;
+  number_value?: string;
+  boolean_value?: boolean;
+  selection_uid_values?: string[];
+}
+
+/** Carried on the CatalogObject itself, keyed by each definition's key. */
+export interface RawCustomAttributes {
+  custom_attribute_values?: Record<string, RawCustomAttributeValue>;
+}
+
 export interface RawVariationData {
   /** The parent ITEM's id. */
   item_id?: string;
@@ -36,7 +55,7 @@ export interface RawVariationData {
   location_overrides?: RawLocationOverride[];
 }
 
-export interface RawCatalogObject extends RawPresence {
+export interface RawCatalogObject extends RawPresence, RawCustomAttributes {
   id: string;
   type: string;
   version?: number;
@@ -53,7 +72,8 @@ export interface RawCatalogObject extends RawPresence {
       type: string;
       version?: number;
       item_variation_data?: RawVariationData;
-    } & RawPresence)[];
+    } & RawPresence &
+      RawCustomAttributes)[];
     // Detailed-extraction fields (see listCatalogDetailed). Optional + ignored by
     // the plain listCatalogItems, so adding them is backwards-compatible.
     reporting_category?: { id?: string };
