@@ -36,3 +36,32 @@ export async function handleAuthRequest(
   }
   return auth.handler(request);
 }
+
+/**
+ * A redirect that carries every cookie a Better Auth response set, for a
+ * server-rendered route that calls the API with `asResponse: true` and then
+ * sends the browser on, such as a sign-out link:
+ *
+ *     const result = await auth.api.signOut({ headers: request.headers, asResponse: true });
+ *     return redirectWithCookies(result, "/");
+ *
+ * Better Auth sets several cookies at once; sign-out expires the session
+ * token, the cached session, and the "don't remember me" cookie. Copying them
+ * with `headers.get("set-cookie")` joins them into one header, and the browser
+ * keeps all but the first, so a signed-out visitor still carries the session.
+ * This copies each one with `getSetCookie()`.
+ *
+ * `location` is where the browser goes. Pass a path the route chose, never one
+ * read from the request unchecked (see `safeNextPath`). `status` defaults to
+ * 303, which turns a POST into a GET.
+ */
+export function redirectWithCookies(
+  from: Response | Headers,
+  location: string,
+  status: 301 | 302 | 303 | 307 | 308 = 303,
+): Response {
+  const headers = new Headers({ location });
+  const source = from instanceof Response ? from.headers : from;
+  for (const cookie of source.getSetCookie()) headers.append("set-cookie", cookie);
+  return new Response(null, { status, headers });
+}

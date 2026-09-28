@@ -5,6 +5,7 @@ import {
   defaultResolveAdmins,
   getLouiseAuth,
   handleAuthRequest,
+  redirectWithCookies,
   hasRole,
   isAllowedSignInEmail,
   isSameOrigin,
@@ -139,6 +140,35 @@ describe("handleAuthRequest (magic-link allowlist gate)", () => {
       "owner@x.com",
     ]);
     expect(calls).toEqual(["/api/auth/sign-up/email"]);
+  });
+});
+
+describe("redirectWithCookies", () => {
+  // What Better Auth's sign-out sets: three expiring cookies, one header each.
+  const signOut = () => {
+    const headers = new Headers();
+    for (const name of ["session_token", "session_data", "dont_remember"]) {
+      headers.append("set-cookie", `better-auth.${name}=; Max-Age=0; Path=/; HttpOnly`);
+    }
+    return new Response(JSON.stringify({ success: true }), { headers });
+  };
+
+  it("carries every cookie onto the redirect, one header each", () => {
+    const res = redirectWithCookies(signOut(), "/");
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.getSetCookie()).toEqual([
+      "better-auth.session_token=; Max-Age=0; Path=/; HttpOnly",
+      "better-auth.session_data=; Max-Age=0; Path=/; HttpOnly",
+      "better-auth.dont_remember=; Max-Age=0; Path=/; HttpOnly",
+    ]);
+  });
+
+  it("takes bare headers and a status, and redirects with no cookies to carry", () => {
+    const res = redirectWithCookies(new Headers(), "/account", 302);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/account");
+    expect(res.headers.getSetCookie()).toEqual([]);
   });
 });
 

@@ -29,7 +29,7 @@ export {
   resolveEditorSession,
   resolveSession,
 } from "./session.js";
-export { handleAuthRequest } from "./handler.js";
+export { handleAuthRequest, redirectWithCookies } from "./handler.js";
 export { authSchemaOptions, type AuthSchemaConfig, generateAuthSchemaSql } from "./schema-gen.js";
 export {
   type EditorContext,
