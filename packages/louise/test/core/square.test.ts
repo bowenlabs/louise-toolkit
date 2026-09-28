@@ -216,6 +216,7 @@ describe("listCatalogItems", () => {
       PAGE2: {
         objects: [
           { id: "item-2", type: "ITEM", is_deleted: true, item_data: { name: "Retired" } }, // deleted: ignored
+          { id: "item-4", type: "ITEM", item_data: { name: "Shelved", is_archived: true } }, // archived: ignored
           { id: "item-3", type: "ITEM", item_data: { name: "Night Roast" } },
         ],
       },
@@ -240,7 +241,7 @@ describe("listCatalogItems", () => {
     }
     // Cursor from page 1 was forwarded to page 2.
     expect(calls[1]?.body).toMatchObject({ cursor: "PAGE2" });
-    // Only non-deleted ITEMs are mapped, across both pages.
+    // Only ITEMs that are neither deleted nor archived are mapped, across both pages.
     expect(items.map((i) => i.id)).toEqual(["item-1", "item-3"]);
   });
 });
@@ -1223,17 +1224,30 @@ describe("retrieveVariationPricesAt", () => {
           present_at_location_ids: ["L2"],
           item_variation_data: { price_money: { amount: 900, currency: "USD" } },
         },
+        // Its item is archived, so it fails closed the same way.
+        {
+          id: "var-archived",
+          type: "ITEM_VARIATION",
+          item_variation_data: {
+            item_id: "item-archived",
+            price_money: { amount: 700, currency: "USD" },
+          },
+        },
+      ],
+      related_objects: [
+        { id: "item-archived", type: "ITEM", item_data: { name: "Shelved", is_archived: true } },
       ],
     });
 
     const prices = await retrieveVariationPricesAt(
       CONFIG,
-      ["var-here", "var-base", "var-elsewhere"],
+      ["var-here", "var-base", "var-elsewhere", "var-archived"],
       "L1",
     );
     expect(prices.get("var-here")).toEqual({ amount: 1300, currency: "USD" });
     expect(prices.get("var-base")).toEqual({ amount: 800, currency: "USD" });
     expect(prices.has("var-elsewhere")).toBe(false);
+    expect(prices.has("var-archived")).toBe(false);
   });
 });
 

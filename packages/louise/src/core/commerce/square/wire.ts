@@ -28,6 +28,8 @@ interface RawLocationOverride {
 }
 
 export interface RawVariationData {
+  /** The parent ITEM's id. */
+  item_id?: string;
   name?: string;
   sku?: string;
   price_money?: { amount?: number; currency?: string };
@@ -44,6 +46,7 @@ export interface RawCatalogObject extends RawPresence {
   item_data?: {
     name?: string;
     description?: string;
+    is_archived?: boolean;
     image_ids?: string[];
     variations?: ({
       id: string;
@@ -92,6 +95,18 @@ export interface CatalogSearchResponse {
   objects?: RawCatalogObject[];
   related_objects?: RawCatalogObject[];
   cursor?: string;
+}
+
+/** Square's archive hides an ITEM from the point of sale and the online store
+ *  without deleting it, so a storefront treats an archived item as gone. */
+export function isArchivedItem(obj: RawCatalogObject): boolean {
+  return obj.type === "ITEM" && obj.item_data?.is_archived === true;
+}
+
+/** Ids of the archived ITEMs in a related-objects list. A batch-retrieve of
+ *  variations with `include_related_objects` returns each parent ITEM there. */
+export function archivedItemIds(related: RawCatalogObject[] | undefined): Set<string> {
+  return new Set((related ?? []).filter(isArchivedItem).map((obj) => obj.id));
 }
 
 /** Resolve IMAGE object urls from a related-objects list, keyed by image id. */

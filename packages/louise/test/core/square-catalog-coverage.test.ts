@@ -81,6 +81,11 @@ describe("listCatalogDetailed", () => {
           },
           { id: "CAT1", type: "CATEGORY" },
           { id: "ITEM_GONE", type: "ITEM", is_deleted: true, item_data: { name: "Gone" } },
+          {
+            id: "ITEM_ARCHIVED",
+            type: "ITEM",
+            item_data: { name: "Archived", is_archived: true, categories: [{ id: "CAT_HOT" }] },
+          },
         ],
         related_objects: [
           { id: "IMG1", type: "IMAGE", image_data: { url: "https://example.com/latte.jpg" } },
@@ -605,11 +610,37 @@ describe("retrieveVariationPrices", () => {
     });
     const prices = await retrieveVariationPrices(CONFIG, ["VAR1", "VAR2", "ITEM1"]);
     expect(calls[0]).toMatchObject({ method: "POST", path: "/v2/catalog/batch-retrieve" });
-    expect(calls[0]?.body).toEqual({ object_ids: ["VAR1", "VAR2", "ITEM1"] });
+    expect(calls[0]?.body).toEqual({
+      object_ids: ["VAR1", "VAR2", "ITEM1"],
+      include_related_objects: true,
+    });
     expect([...prices]).toEqual([
       ["VAR1", { amount: 450, currency: "USD" }],
       ["VAR2", { amount: 0, currency: "USD" }],
     ]);
+  });
+
+  it("omits a variation whose parent item is archived", async () => {
+    answer({
+      objects: [
+        {
+          id: "VAR_LIVE",
+          type: "ITEM_VARIATION",
+          item_variation_data: { item_id: "ITEM_LIVE", price_money: { amount: 450 } },
+        },
+        {
+          id: "VAR_ARCHIVED",
+          type: "ITEM_VARIATION",
+          item_variation_data: { item_id: "ITEM_ARCHIVED", price_money: { amount: 500 } },
+        },
+      ],
+      related_objects: [
+        { id: "ITEM_LIVE", type: "ITEM", item_data: { name: "Latte" } },
+        { id: "ITEM_ARCHIVED", type: "ITEM", item_data: { name: "Mocha", is_archived: true } },
+      ],
+    });
+    const prices = await retrieveVariationPrices(CONFIG, ["VAR_LIVE", "VAR_ARCHIVED"]);
+    expect([...prices.keys()]).toEqual(["VAR_LIVE"]);
   });
 
   it("answers an empty map when Square returns no objects", async () => {
