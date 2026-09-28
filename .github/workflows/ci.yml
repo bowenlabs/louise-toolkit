@@ -242,7 +242,12 @@ jobs:
         run: sh scripts/ci-build.sh
 
   # A single required check to protect the branch with, so adding a job later
-  # doesn't mean editing branch protection.
+  # means adding it to `needs` and to the step here rather than editing branch
+  # protection. `always()` makes this job run, and fail, when a need fails:
+  # without it, a failed need skips this job, and GitHub counts a skipped
+  # required check as passing. The step requires `success` from each need, so
+  # a skipped or cancelled job fails it too, as in the CI that create-astroid
+  # scaffolds.
   ci:
     name: CI
     runs-on: ubuntu-latest
@@ -250,5 +255,12 @@ jobs:
     needs: [lint, test, pack, site]
     steps:
       - name: Fail if any job did not succeed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
+        run: |
+          echo "lint=${{ needs.lint.result }}"
+          echo "test=${{ needs.test.result }}"
+          echo "pack=${{ needs.pack.result }}"
+          echo "site=${{ needs.site.result }}"
+          [ "${{ needs.lint.result }}" = "success" ]
+          [ "${{ needs.test.result }}" = "success" ]
+          [ "${{ needs.pack.result }}" = "success" ]
+          [ "${{ needs.site.result }}" = "success" ]
