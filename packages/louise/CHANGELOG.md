@@ -165,6 +165,11 @@
   - **An unguarded preview warns:** `mountPreviewSync` logs a warning when it has no `allowedOrigin`, since it then accepts preview values from any window.
   - **Ids parse strictly:** `decodeEditRef` accepts only digits, so `pages:7abc:title` and a negative id are rejected.
 
+- #734: Square catalog reads leave out archived items. An archived item is hidden from the point of sale and the online store, but it isn't deleted, so it used to reach a storefront.
+
+  - **`listCatalogItems` and `listCatalogDetailed`** skip an ITEM whose `item_data.is_archived` is true, as they already skip a deleted one.
+  - **`retrieveVariationPrices` and `retrieveVariationPricesAt`** omit a variation whose parent item is archived, so a cart saved before the item was archived fails the price check instead of reaching checkout. Both now send `include_related_objects: true` to read the parent item.
+
 ## 0.36.0
 
 ### Minor Changes
