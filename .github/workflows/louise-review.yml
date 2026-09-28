@@ -1,0 +1,19 @@
+# The Louise review: the `louise:reviewer` agent reviews each pull request
+# and posts one comment. bowenlabs/claude-plugins' README, section Review in
+# CI, describes the workflow and its secrets.
+name: Louise review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    uses: bowenlabs/claude-plugins/.github/workflows/louise-review.yml@main
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      louise_token: ${{ secrets.LOUISE_REVIEW_TOKEN }}
