@@ -1,6 +1,6 @@
-# The Louise review: the `louise:reviewer` agent
-# reviews each pull request and posts one comment. The workflow and its
-# secrets are described in bowenlabs/claude-plugins' README § Review in CI.
+# The Louise review: the `louise:reviewer` agent reviews each pull request
+# and posts one comment. bowenlabs/claude-plugins' README, section Review in
+# CI, describes the workflow and its secrets.
 name: Louise review
 
 on:
