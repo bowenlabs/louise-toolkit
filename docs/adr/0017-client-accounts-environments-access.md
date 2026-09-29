@@ -171,7 +171,7 @@ inside its WebView.
 
 ### Open: which Apple Developer account and Firebase project publish a client's app
 
-A native app ships from an Apple Developer account and, on Android, a Firebase project for push. Decision 1 settles who owns a client's Cloudflare account; nothing here settles who owns these. It matters for privacy as well as ownership: an APNs key signs sends for every app on its team, and ADR 0016's push amendments keep push keys in the client's Cloudflare account only when the team and the Firebase project publish that client's apps alone. The choice isn't made yet, and it has to be before the first app ships:
+A native app ships from an Apple Developer account and, on Android, a Firebase project for push. Decision 1 settles who owns a client's Cloudflare account; nothing here settles who owns these. It matters for privacy as well as ownership: an APNs key signs sends for every app on its team, and an FCM service account key for every app in its Firebase project, and ADR 0016's push amendments keep push keys in the client's Cloudflare account only when the team and the Firebase project publish that client's apps alone. The choice isn't made yet, and it has to be before the first app ships:
 
 - The client enrolls their own Apple Developer account and owns a Firebase project, with Baylee as a member, the same as their Cloudflare account. The app lists under the business's name, and handoff is a role change.
 - The apps ship from a Bowen Labs team. Push keys then can't sit in any client's account, so sending needs its own design, and ADR 0016 needs another amendment.

@@ -1,6 +1,6 @@
 # ADR 0020: Native apps use Tauri 2, with in-house plugins in `louise-toolkit-native`
 
-- **Status:** Proposed (2026-09-26). **Amended 2026-09-28** (see _Amendment (2026-09-28, WebView proof of concept)_ below): Apple Pay in the WebView is a candidate first path from iOS 16, pending one sandbox payment on a physical iPhone and the Android WebView setup, so `tauri-plugin-louise-square` could follow a first release rather than gate it; a shell that loads a remote URL raises the App Review 4.2 risk and can't work offline through a service worker; and a capability grants native access to a whole origin, so the app that holds it needs its own.
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-28** (see _Amendment (2026-09-28, WebView proof of concept)_ below): Apple Pay in the WebView is a candidate first path from iOS 16, pending one sandbox payment on a physical iPhone and the Android WebView setup, so `tauri-plugin-louise-square` could follow a first release rather than gate it; a shell that loads a remote URL raises the App Review 4.2 risk and can't work offline through a service worker; and a capability grants native access to a whole origin, so the app that holds it needs its own. **Amended 2026-09-29:** decision 6 points to the rules for push in ADR 0016's two push amendments.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0017 (decision 4, one runtime), ADR 0016 (privacy-first), ADR 0013 (Google style), ADR 0006 (zero-dependency core), [bowenlabs/louise-toolkit-native](https://github.com/bowenlabs/louise-toolkit-native), [bowenlabs/astroidjs#79](https://github.com/bowenlabs/astroidjs/issues/79) (the mobile target)
 
@@ -69,6 +69,8 @@ The crates are `tauri-plugin-louise-<name>`, and the TypeScript bindings are `@l
 ### 6. Privacy
 
 A device token is personal data under ADR 0016. The push plugin hands it to the host app and stores nothing itself. The app sends it only to its own site's API, which keeps it in the site's own database, in the client's own account.
+
+ADR 0016's push amendments (2026-09-29) set the rules any push plugin follows: no token or Firebase identifier before the person allows notifications, Firebase messaging auto-init off on Android, a payload limited to a reference, a status, and one line of text, and the FCM token deleted whenever the site deletes its copy.
 
 ## Open questions
 

@@ -1,6 +1,6 @@
 # ADR 0016: Privacy-first, as an enforced rule
 
-- **Status:** Proposed (2026-09-26). **Amended 2026-09-29** (see _Amendment (2026-09-29, push for native apps)_ below): Apple Push Notification service and Firebase Cloud Messaging join the vendor list, for native apps only; a notification carries a reference, a status, and at most one line of text, never personal details; a device token stays in the site's D1 only as long as its purpose; and iOS notifications go to Apple directly, never through Google. **Amended again 2026-09-29** (see _Amendment (2026-09-29, push consent and credentials)_ below): the rules hold for any native app, whatever its shell; the Android app creates no Firebase token or installation ID before the person allows notifications; a site holds push keys only when they publish that client's apps alone; and deleting a token also deletes it at Google.
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-29** (see _Amendment (2026-09-29, push for native apps)_ below): Apple Push Notification service and Firebase Cloud Messaging join the vendor list, for native apps only; a notification carries a reference, a status, and at most one line of text, never personal details; a device token stays in the site's D1 only as long as its purpose; and iOS notifications go to Apple directly, never through Google. **Amended again 2026-09-29** (see _Amendment (2026-09-29, push consent and credentials)_ below): the rules hold for any native app, whatever its shell; the Android app creates no Firebase token or installation ID before the person allows notifications; a site holds push keys only when they publish that client's apps alone; the Android app deletes its FCM token whenever the site deletes its copy; and no notification carries a message's text.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0015 (two audiences), ADR 0017 (client accounts and access), ADR 0004 (edge caching), ADR 0020 (native apps), the platform plan in louise-ops
 
@@ -81,9 +81,9 @@ iOS notifications never go through FCM, even though FCM can deliver to iOS: that
 ### Rules for push
 
 1. **A notification carries a reference and a status, not the record.** Its payload holds the record's short reference, its status, and at most one line of text: for an order, "Your order is ready"; for an owner's ticket, "New reply on a ticket." It never holds a person's name, email address, or phone number, an order's items or amount, or a message's text. The text shows on a locked screen and passes through Apple's or Google's servers, so it says only what's safe for anyone holding the phone to read.
-2. **Tokens stay in the client's account.** As ADR 0020 decision 6 says, the plugin stores nothing, and the app sends its token only to its own site's API, which keeps it in the site's D1. louise-ops never receives a token, as decision 1 requires.
-3. **A token lasts as long as its purpose.** A token registered for one order's status is deleted when that order is picked up or canceled, or after 24 hours, whichever comes first. A token tied to a signed-in person, customer or owner, is deleted when they sign out, turn notifications off, or delete their account. A token that APNs or FCM reports as no longer valid is deleted on that response.
-4. **The credentials are the site's secrets.** The APNs key and the FCM service account key are stored as secrets in the client's Cloudflare account, never in code or in louise-ops. Which Apple Developer account and Firebase project publish a client's app isn't decided yet. It belongs with ADR 0017's account ownership, and it's settled before the first app ships.
+2. **Tokens stay in the client's account.** The app's push code stores no token on the device beyond what the operating system and, on Android, the Firebase messaging SDK keep, and it sends its token only to its own site's API, which keeps it in the site's D1. For a Tauri app, that code is `tauri-plugin-louise-push` (ADR 0020 decision 6). louise-ops never receives a token, as decision 1 requires. (Amended 2026-09-29; see _Amendment (2026-09-29, push consent and credentials)_.)
+3. **A token lasts as long as its purpose.** A token registered for one order's status is deleted when that order is picked up or canceled, or after 24 hours, whichever comes first. A token tied to a signed-in person, customer or owner, is deleted when they sign out, turn notifications off, or delete their account. A token that APNs or FCM reports as no longer valid is deleted on that response. Whenever the site deletes a token, the Android app also deletes its FCM token. (Amended 2026-09-29; see _Amendment (2026-09-29, push consent and credentials)_.)
+4. **The credentials are the site's secrets, when they reach that client's apps alone.** The APNs key and the FCM service account key are stored as secrets in the client's Cloudflare account, never in code or in louise-ops, and only when the Apple Developer team and the Firebase project publish that client's apps and no one else's. Which account and project publish a client's app isn't decided yet; ADR 0017 records it as open, to settle before the first app ships. (Amended 2026-09-29; see _Amendment (2026-09-29, push consent and credentials)_.)
 5. **The app asks for permission when it's useful.** It asks for notification permission only when there's something to be notified about, such as right after an order is placed, never at first launch. The system's prompt is the person's choice, and someone who declines still sees the status by polling.
 6. **The site says so.** The page that decision 5 requires names push: that the site stores a device token, what for, how long, and that Apple or Google delivers each notification.
 
@@ -91,11 +91,11 @@ Decision 2 doesn't change. The Firebase SDK ships in the Android app, not on a p
 
 ## Amendment (2026-09-29, push consent and credentials)
 
-A review of the preceding amendment, after it merged, found four gaps. This amendment closes them. It changes none of that amendment's other rules.
+A review of the preceding amendment, after it merged, found five gaps. This amendment closes them. It changes rules 2, 3, and 4, each marked where it stands, and the APNs and FCM rows in decision 7. Rules 1, 5, and 6 don't change.
 
 ### The rules hold for any native app
 
-The preceding amendment scoped push to the native apps on the stack and leaned on `tauri-plugin-louise-push` in rule 2. ADR 0020 leaves open whether the iOS owner app moves to Tauri, and a Swift app wouldn't use that plugin. So the rules for push bind every native app, whatever its shell. For a Tauri app, the plugin is how it meets them; a Swift app meets them in its own code. Rule 2 reads accordingly: the app's push code stores no token on the device beyond what the operating system keeps, and sends it only to its own site's API.
+The preceding amendment scoped push to the native apps on the stack and leaned on `tauri-plugin-louise-push` in rule 2. ADR 0020 leaves open whether the iOS owner app moves to Tauri, and a Swift app wouldn't use that plugin. So the rules for push bind every native app, whatever its shell. For a Tauri app, the plugin is how it meets them; a Swift app meets them in its own code. Rule 2 now says so: the app's push code stores no token on the device beyond what the operating system and, on Android, the Firebase messaging SDK keep, and it sends its token only to its own site's API.
 
 ### No Firebase identifier before the person says yes
 
@@ -107,9 +107,18 @@ By default, the Firebase Cloud Messaging SDK creates a Firebase installation ID 
 
 The FCM row in decision 7 now says so.
 
-### Deleting a token deletes it everywhere the site can reach
+### No message text reaches either service
 
-Rule 3 deletes a token from the site's D1, which doesn't reach Google's copy. So when a person signs out, turns notifications off, or deletes their account, the Android app also deletes its FCM token, which revokes it at Google. On iOS, deleting the site's copy is enough: an APNs token delivers nothing without the key that signs each send, and only the site holds that key. Apple advises against unregistering from APNs outside rare cases, so the app doesn't.
+Rule 1 bars a message's text from a notification, but the APNs and FCM rows in decision 7 left it out of their exclusions. Both rows now exclude it, as rule 1 does.
+
+### Deleting a token also deletes it at Google
+
+Rule 3 deletes a token from the site's D1, which doesn't reach Google's copy. So the Android app deletes its FCM token, which revokes it at Google, whenever the site deletes its copy:
+
+- **When the app causes the deletion,** because the person signs out, turns notifications off, or deletes their account in the app, it deletes its FCM token at the same time.
+- **When the site deletes the token itself,** because an order was picked up or canceled, 24 hours passed, the service reported the token invalid, or the person deleted their account on the web, the app deletes its FCM token the next time it opens. On each launch it asks its site's API whether the site still holds its token, and deletes the FCM token when the answer is no. It requests a new one only when there's something new to be notified about.
+
+On iOS, deleting the site's copy is enough while rule 4 holds: an APNs token delivers nothing without the key that signs each send, and under rule 4 only the site holds that key. Apple advises against unregistering from APNs outside rare cases, so the app doesn't. If the open question in ADR 0017 ends with a team that publishes more than one client's apps, this reasoning needs another look.
 
 ### A site holds push keys only when they reach that client's apps alone
 
