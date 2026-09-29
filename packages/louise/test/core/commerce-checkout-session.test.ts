@@ -45,27 +45,45 @@ describe("checkoutSession", () => {
 
   it("is the same after a reload finds the same cart", () => {
     const storage = memoryStorage();
-    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage }).id("cart-a", 0);
-    const reloaded = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage }).id(
+      "cart-a",
+      0,
+    );
+    const reloaded = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage,
+    });
     expect(reloaded.id("cart-a", 1000)).toBe(id);
   });
 
   it("is stable across retries of the same cart", () => {
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: memoryStorage() });
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage: memoryStorage(),
+    });
     expect(session.id("cart-a", 0)).toBe(session.id("cart-a", 1));
   });
 
   it("is new for a different cart, whichever tab changed it", () => {
     const storage = memoryStorage();
-    const here = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
-    const there = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    const here = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
+    const there = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     const id = here.id("cart-a", 0);
     there.id("cart-b", 1);
     expect(here.id("cart-a", 2)).not.toBe(id);
   });
 
   it("is new after rotate(), for the same cart", () => {
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: memoryStorage() });
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage: memoryStorage(),
+    });
     const id = session.id("cart-a", 0);
     session.rotate();
     const next = session.id("cart-a", 1);
@@ -75,14 +93,19 @@ describe("checkoutSession", () => {
 
   it("is new once another tab rotates it", () => {
     const storage = memoryStorage();
-    const here = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    const here = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     const id = here.id("cart-a", 0);
-    checkoutSession({ storageKey: KEY, idleMs: HOUR, storage }).rotate();
+    checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage }).rotate();
     expect(here.id("cart-a", 1)).not.toBe(id);
   });
 
   it("retires after idleMs unused, and each use restarts the clock", () => {
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: memoryStorage() });
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage: memoryStorage(),
+    });
     const id = session.id("cart-a", 0);
     expect(session.id("cart-a", 59 * 60 * 1000)).toBe(id);
     expect(session.id("cart-a", 118 * 60 * 1000)).toBe(id);
@@ -91,15 +114,15 @@ describe("checkoutSession", () => {
 
   it("keeps two storage keys apart", () => {
     const storage = memoryStorage();
-    const shop = checkoutSession({ storageKey: "shop", idleMs: HOUR, storage });
-    const cafe = checkoutSession({ storageKey: "cafe", idleMs: HOUR, storage });
+    const shop = checkoutSession({ storageKey: "shop", idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
+    const cafe = checkoutSession({ storageKey: "cafe", idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     expect(shop.id("cart-a", 0)).not.toBe(cafe.id("cart-a", 0));
   });
 
   it("mints a new ID over a stored value it can't read", () => {
     const storage = memoryStorage();
     storage.setItem(KEY, "{not json");
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     const id = session.id("cart-a", 0);
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect(session.id("cart-a", 1)).toBe(id);
@@ -107,13 +130,21 @@ describe("checkoutSession", () => {
 
   it("ignores a stored value of the wrong shape", () => {
     const storage = memoryStorage();
-    storage.setItem(KEY, JSON.stringify({ id: "", bag: "cart-a", usedAt: 0 }));
-    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage }).id("cart-a", 0);
+    storage.setItem(KEY, JSON.stringify({ id: "", bag: "cart-a", mintedAt: 0, usedAt: 0 }));
+    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage }).id(
+      "cart-a",
+      0,
+    );
     expect(id).not.toBe("");
   });
 
   it("falls back to page memory when storage throws", () => {
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: failing() });
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage: failing(),
+    });
     const id = session.id("cart-a", 0);
     expect(session.id("cart-a", 1)).toBe(id);
     session.rotate();
@@ -124,6 +155,7 @@ describe("checkoutSession", () => {
     const session = checkoutSession({
       storageKey: KEY,
       idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
       storage: {
         getItem: () => null,
         setItem: () => {
@@ -136,16 +168,21 @@ describe("checkoutSession", () => {
     expect(session.id("cart-a", 1)).toBe(id);
   });
 
-  it("uses localStorage by default, read on each call", () => {
+  it("uses localStorage by default in a browser, read on each call", () => {
     const storage = memoryStorage();
+    vi.stubGlobal("document", {});
     vi.stubGlobal("localStorage", storage);
-    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR }).id("cart-a", 0);
+    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR }).id(
+      "cart-a",
+      0,
+    );
     expect(JSON.parse(storage.data.get(KEY) ?? "{}")).toMatchObject({ id, bag: "cart-a" });
   });
 
-  it("works in page memory where there's no localStorage", () => {
+  it("works in page memory in a browser with no localStorage", () => {
+    vi.stubGlobal("document", {});
     vi.stubGlobal("localStorage", undefined);
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR });
+    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR });
     const id = session.id("cart-a", 0);
     expect(session.id("cart-a", 1)).toBe(id);
   });
@@ -155,7 +192,12 @@ describe("checkoutSession", () => {
       randomUUID: undefined,
       getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
     });
-    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: memoryStorage() });
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage: memoryStorage(),
+    });
     const id = session.id("cart-a", 0);
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(session.id("cart-a", 1)).toBe(id);
@@ -165,18 +207,56 @@ describe("checkoutSession", () => {
 
   it("doesn't count a use stamped in the future as recent", () => {
     const storage = memoryStorage();
-    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage }).id("cart-a", 10 * HOUR);
+    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage }).id(
+      "cart-a",
+      10 * HOUR,
+    );
     // The clock moved backward: the stored use is ahead of now.
-    const later = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    const later = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     expect(later.id("cart-a", 0)).not.toBe(id);
   });
 
+  it("keeps nothing between calls on a server, where memory is every customer's", () => {
+    // No document and no storage option: a Worker isolate or a Node server,
+    // whose global localStorage, if any, is shared by every request too.
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR });
+    expect(session.id("cart-a", 0)).not.toBe(session.id("cart-a", 1));
+    expect(storage.data.size).toBe(0);
+  });
+
+  it("retires at maxAgeMs however often it's used", () => {
+    const session = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 2 * HOUR,
+      storage: memoryStorage(),
+    });
+    const id = session.id("cart-a", 0);
+    expect(session.id("cart-a", 50 * 60 * 1000)).toBe(id);
+    expect(session.id("cart-a", 100 * 60 * 1000)).toBe(id);
+    // Used 30 minutes ago, but minted 130 minutes ago: past the server's
+    // record, so it's a new attempt.
+    expect(session.id("cart-a", 130 * 60 * 1000)).not.toBe(id);
+  });
+
+  it("refuses a maxAgeMs shorter than idleMs", () => {
+    expect(() => checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: HOUR - 1 })).toThrow(
+      RangeError,
+    );
+  });
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])("refuses idleMs %s", (idleMs) => {
-    expect(() => checkoutSession({ storageKey: KEY, idleMs })).toThrow(RangeError);
+    expect(() => checkoutSession({ storageKey: KEY, idleMs, maxAgeMs: 4 * HOUR })).toThrow(
+      RangeError,
+    );
   });
 
   it("refuses an empty storage key", () => {
-    expect(() => checkoutSession({ storageKey: "", idleMs: HOUR })).toThrow(RangeError);
+    expect(() => checkoutSession({ storageKey: "", idleMs: HOUR, maxAgeMs: 4 * HOUR })).toThrow(
+      RangeError,
+    );
   });
 });
 

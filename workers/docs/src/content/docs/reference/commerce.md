@@ -30,23 +30,23 @@ import {
 } from "louise-toolkit/commerce";
 ```
 
-| Export                                    | Purpose                                                                                                                                             |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Money`                                   | `{ amount, currency }`—amount in the currency's minor unit (cents).                                                                                 |
-| `centsToMajor(cents, digits?)`            | Minor units → major (`2500` → `25`). The default of 2 digits suits USD, not JPY or BHD.                                                             |
-| `currencyDigits(currency)`                | A currency's minor-unit count from `Intl`: 2 for USD, 0 for JPY, 3 for BHD.                                                                         |
-| `formatMoney(money, { locale })`          | A `Money` as text (`"$1,250.00"`). Other `Intl.NumberFormat` options pass through.                                                                  |
-| `parseMoney(text, { locale, currency })`  | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.                                                                 |
-| `majorToCents(amount, digits?)`           | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                                                                           |
-| `parseMoneyInput(text, digits?)`          | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.                                                              |
-| `percentTip(subtotal, percent)`           | A preset tip in cents, rounded at the cent. Exact for a fractional percentage.                                                                      |
-| `tipCap(subtotal, cap)`                   | The largest tip the shop accepts. See [Tips](#tips).                                                                                                |
-| `parseTipCents(value)`                    | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.                                                               |
-| `clampTip(tip, subtotal, cap)`            | The tip limited to the cap: what the server charges.                                                                                                |
-| `checkoutSession({ storageKey, idleMs })` | A checkout-session ID kept beside a stored cart. See [A checkout-session ID that survives a reload](#a-checkout-session-id-that-survives-a-reload). |
-| `cartFingerprint(lines)`                  | What makes two carts the same order: variants, quantities, and add-ons, not prices.                                                                 |
-| `hmacSha256Hex` / `hmacSha256Base64`      | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64).                                                            |
-| `safeEqual(a, b)`                         | Constant-time-ish compare—use it to check a computed signature against a header value.                                                              |
+| Export                                              | Purpose                                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Money`                                             | `{ amount, currency }`—amount in the currency's minor unit (cents).                                                                                 |
+| `centsToMajor(cents, digits?)`                      | Minor units → major (`2500` → `25`). The default of 2 digits suits USD, not JPY or BHD.                                                             |
+| `currencyDigits(currency)`                          | A currency's minor-unit count from `Intl`: 2 for USD, 0 for JPY, 3 for BHD.                                                                         |
+| `formatMoney(money, { locale })`                    | A `Money` as text (`"$1,250.00"`). Other `Intl.NumberFormat` options pass through.                                                                  |
+| `parseMoney(text, { locale, currency })`            | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.                                                                 |
+| `majorToCents(amount, digits?)`                     | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                                                                           |
+| `parseMoneyInput(text, digits?)`                    | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.                                                              |
+| `percentTip(subtotal, percent)`                     | A preset tip in cents, rounded at the cent. Exact for a fractional percentage.                                                                      |
+| `tipCap(subtotal, cap)`                             | The largest tip the shop accepts. See [Tips](#tips).                                                                                                |
+| `parseTipCents(value)`                              | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.                                                               |
+| `clampTip(tip, subtotal, cap)`                      | The tip limited to the cap: what the server charges.                                                                                                |
+| `checkoutSession({ storageKey, idleMs, maxAgeMs })` | A checkout-session ID kept beside a stored cart. See [A checkout-session ID that survives a reload](#a-checkout-session-id-that-survives-a-reload). |
+| `cartFingerprint(lines)`                            | What makes two carts the same order: variants, quantities, and add-ons, not prices.                                                                 |
+| `hmacSha256Hex` / `hmacSha256Base64`                | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64).                                                            |
+| `safeEqual(a, b)`                                   | Constant-time-ish compare—use it to check a computed signature against a header value.                                                              |
 
 ### Tips
 
@@ -132,8 +132,13 @@ under a new key, and pays twice.
 ```ts
 import { cartFingerprint, checkoutSession } from "louise-toolkit/commerce";
 
-// The shop's policy: how long a leftover cart stays the same order.
-const session = checkoutSession({ storageKey: "shop-checkout-session", idleMs: 60 * 60 * 1000 });
+// The shop's policy: how long a leftover cart stays the same order, and the
+// longest one attempt lasts. Keep the server's attempt records longer.
+const session = checkoutSession({
+  storageKey: "shop-checkout-session",
+  idleMs: 60 * 60 * 1000,
+  maxAgeMs: 90 * 60 * 1000,
+});
 
 const res = await fetch("/api/checkout", {
   method: "POST",
@@ -144,16 +149,16 @@ if (result.ok || result.declined) session.rotate(); // placed, or definitely not
 ```
 
 `session.id(fingerprint)` returns the stored ID while the cart matches the
-fingerprint it was minted for and it was used within `idleMs`. Otherwise it
-mints and stores a new one. So an edited cart is a new attempt, whichever tab
+fingerprint it was minted for, it was used within `idleMs`, and it was minted
+within `maxAgeMs`. Otherwise it mints and stores a new one. So an edited cart is a new attempt, whichever tab
 edited it, and a cart left over from yesterday's lost response places a new
 order today. Call `rotate()` after an order is placed and after a definite
 decline. Leave the ID alone after an ambiguous failure, such as a timeout, so
 the retry reuses it.
 
 `cartFingerprint(lines)` counts each variant-and-add-ons combination, in any
-order and however the quantity is split across lines, and leaves prices out. A price repair after a lost response is
-still the same order, and it has to keep the same key. If your cart lines have
+order and however the quantity is split across lines, and leaves prices out. A
+price repair after a lost response is still the same order, and it has to keep the same key. If your cart lines have
 another shape, pass any string that changes exactly when the order does.
 
 Storage that throws, in private browsing or on a full quota, moves the ID to
@@ -165,8 +170,15 @@ check out the same cart at the same moment can still send different IDs.
 On the server, derive the payment's idempotency key from the session ID and the
 lines as the customer chose them. Never include the verified prices or a tip: a
 retry that differs only there has to reuse the key, so the provider refuses it
-or returns the first payment rather than charging again. Set `idleMs` shorter
-than the server keeps any record of an attempt's outcome.
+or returns the first payment rather than charging again. Keep any record of an
+attempt's outcome longer than `maxAgeMs`, the longest the client calls it one
+attempt. `idleMs` alone doesn't bound that, because each use restarts it.
+
+`checkoutSession` is a browser primitive. On a server, where there's no
+`document`, memory and any global storage are shared by every request, so
+without a `storage` option a session keeps nothing between calls. Two customers
+with the same cart must never share an ID, or the second one's payment is
+deduplicated into the first one's.
 
 ## `louise-toolkit/commerce/stripe`
 

@@ -33,15 +33,20 @@ export interface CheckoutSessionOptions {
   storageKey: string;
   /**
    * How long an unused ID stays current, in milliseconds. Each call to `id()`
-   * restarts it. Keep it shorter than the server keeps its record of an
-   * attempt's outcome, so a retry the client still calls this attempt finds
-   * that record. No default: how long a leftover cart stays the same order is
-   * the shop's call.
+   * restarts it, up to `maxAgeMs`. No default: how long a leftover cart stays
+   * the same order is the shop's call.
    */
   idleMs: number;
+  /**
+   * The longest an ID lives from when it was minted, in milliseconds, however
+   * often it's used. At least `idleMs`. Keep the server's record of an
+   * attempt's outcome longer than this, so every retry the client still calls
+   * this attempt finds that record. Without a cap, a retry every hour would
+   * keep the ID past any record's TTL.
+   */
+  maxAgeMs: number;
   /** Where the ID persists. Defaults to `globalThis.localStorage`, read on each
-   *  call, so a session made where there's no storage (on a server, say) falls
-   *  back to page memory instead of throwing. */
+   *  call. */
   storage?: CheckoutSessionStorage;
 }
 
@@ -60,6 +65,8 @@ export interface CheckoutSession {
 interface StoredSession {
   id: string;
   bag: string;
+  /** Epoch milliseconds the ID was minted. */
+  mintedAt: number;
   /** Epoch milliseconds the ID was last handed out. */
   usedAt: number;
 }
@@ -70,6 +77,7 @@ const isStoredSession = (value: unknown): value is StoredSession => {
     typeof v?.id === "string" &&
     v.id.length > 0 &&
     typeof v.bag === "string" &&
+    typeof v.mintedAt === "number" &&
     typeof v.usedAt === "number"
   );
 };
@@ -103,22 +111,36 @@ function randomId(): string {
  * retires the ID here too. Storage has no compare-and-set, so this narrows
  * the window without closing it: two tabs that mint an ID for the same cart
  * at the same moment can still send different ones.
+ *
+ * A browser primitive. On a server, where there's no `document`, memory is
+ * shared by every request, so without a `storage` option a session keeps
+ * nothing between calls: two customers with the same cart must never share an
+ * ID, or the second one's payment is deduplicated into the first one's.
  */
 export function checkoutSession(options: CheckoutSessionOptions): CheckoutSession {
-  const { storageKey, idleMs } = options;
+  const { storageKey, idleMs, maxAgeMs } = options;
   if (!storageKey) throw new RangeError("storageKey must be a non-empty string");
   if (!Number.isFinite(idleMs) || idleMs <= 0) {
     throw new RangeError(`idleMs must be a positive number of milliseconds, got ${idleMs}`);
   }
+  if (!Number.isFinite(maxAgeMs) || maxAgeMs < idleMs) {
+    throw new RangeError(
+      `maxAgeMs must be a number of milliseconds of at least idleMs, got ${maxAgeMs}`,
+    );
+  }
 
   let memory: StoredSession | null = null;
   let storageFailed = false;
+  // Page memory is one customer's only in a page. Where there's no document
+  // and no storage was passed (a server), keep nothing between calls.
+  const shared = options.storage === undefined && typeof document === "undefined";
   // Where there's no localStorage, the first access throws a TypeError, and
   // the catch below moves the ID to page memory like any other failure.
   const storage = (): CheckoutSessionStorage => options.storage ?? globalThis.localStorage;
 
   const read = (): StoredSession | null => {
     if (storageFailed) return memory;
+    if (shared) return null;
     try {
       const raw = storage().getItem(storageKey);
       if (!raw) return null;
@@ -131,6 +153,7 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
   };
 
   const write = (session: StoredSession) => {
+    if (shared) return;
     memory = session;
     if (storageFailed) return;
     try {
@@ -143,24 +166,24 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
   return {
     id(fingerprint, now = Date.now()) {
       const stored = read();
-      // A `usedAt` ahead of `now` (a clock moved backward) doesn't count as
-      // recent use, or the idle window would never apply.
+      // A stamp ahead of `now` (a clock moved backward) doesn't count, or the
+      // windows would never apply.
       const current =
         stored &&
         stored.bag === fingerprint &&
         now >= stored.usedAt &&
-        now - stored.usedAt < idleMs;
-      const session = {
-        id: current ? stored.id : randomId(),
-        bag: fingerprint,
-        usedAt: now,
-      };
+        now - stored.usedAt < idleMs &&
+        now >= stored.mintedAt &&
+        now - stored.mintedAt < maxAgeMs;
+      const session: StoredSession = current
+        ? { ...stored, usedAt: now }
+        : { id: randomId(), bag: fingerprint, mintedAt: now, usedAt: now };
       write(session);
       return session.id;
     },
     rotate() {
       memory = null;
-      if (storageFailed) return;
+      if (shared || storageFailed) return;
       try {
         storage().removeItem(storageKey);
       } catch {
