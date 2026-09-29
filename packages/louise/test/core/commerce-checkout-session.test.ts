@@ -150,6 +150,27 @@ describe("checkoutSession", () => {
     expect(session.id("cart-a", 1)).toBe(id);
   });
 
+  it("mints a v4 id where crypto.randomUUID is missing (plain http)", () => {
+    vi.stubGlobal("crypto", {
+      randomUUID: undefined,
+      getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
+    });
+    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage: memoryStorage() });
+    const id = session.id("cart-a", 0);
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(session.id("cart-a", 1)).toBe(id);
+    session.rotate();
+    expect(session.id("cart-a", 2)).not.toBe(id);
+  });
+
+  it("doesn't count a use stamped in the future as recent", () => {
+    const storage = memoryStorage();
+    const id = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage }).id("cart-a", 10 * HOUR);
+    // The clock moved backward: the stored use is ahead of now.
+    const later = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
+    expect(later.id("cart-a", 0)).not.toBe(id);
+  });
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])("refuses idleMs %s", (idleMs) => {
     expect(() => checkoutSession({ storageKey: KEY, idleMs })).toThrow(RangeError);
   });
@@ -180,6 +201,19 @@ describe("cartFingerprint", () => {
     expect(cartFingerprint([latte])).not.toBe(
       cartFingerprint([{ ...latte, modifiers: [{ id: "WHOLE" }] }]),
     );
+  });
+
+  it("can't be fooled by separators inside ids", () => {
+    expect(cartFingerprint([{ variantId: "a:1", quantity: 2 }])).not.toBe(
+      cartFingerprint([{ variantId: "a", quantity: 1, modifiers: [{ id: "2:" }] }]),
+    );
+    expect(cartFingerprint([{ ...latte, modifiers: [{ id: "x,y" }] }])).not.toBe(
+      cartFingerprint([{ ...latte, modifiers: [{ id: "x" }, { id: "y" }] }]),
+    );
+  });
+
+  it("treats one line of 2 and two identical lines of 1 as the same order", () => {
+    expect(cartFingerprint([{ ...latte, quantity: 2 }])).toBe(cartFingerprint([latte, latte]));
   });
 
   it("treats no add-ons and an empty list the same", () => {

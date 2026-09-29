@@ -18,7 +18,7 @@
 // An id also retires after `idleMs` unused, so a cart left over from a lost
 // response yesterday places a new order today instead of finding yesterday's.
 
-import type { CartLine } from "./cart.js";
+import { type CartLine, cartLineIdentity } from "./cart.js";
 
 /** The slice of the Web Storage API a session uses. */
 export interface CheckoutSessionStorage {
@@ -75,6 +75,20 @@ const isStoredSession = (value: unknown): value is StoredSession => {
 };
 
 /**
+ * A v4 uuid. `crypto.randomUUID` exists only in a secure context, so a page on
+ * plain `http://` (a LAN dev server, an embedded web view on a custom scheme)
+ * builds one from `crypto.getRandomValues`, which exists everywhere.
+ */
+function randomId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; // version 4
+  b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * A checkout-session id that persists beside a stored cart and changes only
  * when the cart does, after `idleMs` unused, or on `rotate()`.
  *
@@ -127,9 +141,15 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
   return {
     id(fingerprint, now = Date.now()) {
       const stored = read();
-      const current = stored && stored.bag === fingerprint && now - stored.usedAt < idleMs;
+      // A `usedAt` ahead of `now` (a clock moved backward) doesn't count as
+      // recent use, or the idle window would never apply.
+      const current =
+        stored &&
+        stored.bag === fingerprint &&
+        now >= stored.usedAt &&
+        now - stored.usedAt < idleMs;
       const session = {
-        id: current ? stored.id : crypto.randomUUID(),
+        id: current ? stored.id : randomId(),
         bag: fingerprint,
         usedAt: now,
       };
@@ -149,19 +169,18 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
 }
 
 /**
- * What makes two carts the same order, for {@link checkoutSession}: each line's
- * variant, quantity, and add-on ids. Prices are left out, so a price repair
- * keeps the attempt. Line order and add-on order don't matter.
+ * What makes two carts the same order, for {@link checkoutSession}: how many of
+ * each variant-and-add-ons combination they hold. Prices are left out, so a
+ * price repair keeps the attempt. Line order, add-on order, and how the
+ * quantity is split across lines don't matter.
  */
 export function cartFingerprint(
   lines: readonly Pick<CartLine, "variantId" | "quantity" | "modifiers">[],
 ): string {
-  return JSON.stringify(
-    lines
-      .map((l) => {
-        const modifiers = (l.modifiers ?? []).map((m) => m.id).sort();
-        return `${l.variantId}:${l.quantity}:${modifiers.join(",")}`;
-      })
-      .sort(),
-  );
+  const quantities = new Map<string, number>();
+  for (const line of lines) {
+    const identity = cartLineIdentity(line);
+    quantities.set(identity, (quantities.get(identity) ?? 0) + line.quantity);
+  }
+  return JSON.stringify([...quantities].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }

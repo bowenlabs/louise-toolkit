@@ -124,11 +124,15 @@ export interface RepairCartOptions<L extends CartLine> {
   maxQuantity?: number;
 }
 
-const defaultKey = (line: CartLine) =>
-  `${line.variantId}|${(line.modifiers ?? [])
-    .map((m) => m.id)
-    .sort()
-    .join(",")}`;
+/**
+ * What makes two lines the same thing: the variant plus its sorted add-on ids.
+ * JSON-encoded, so an id containing a separator can't make two different lines
+ * look alike.
+ */
+export const cartLineIdentity = (line: Pick<CartLine, "variantId" | "modifiers">): string =>
+  JSON.stringify([line.variantId, (line.modifiers ?? []).map((m) => m.id).sort()]);
+
+const defaultKey = (line: CartLine) => cartLineIdentity(line);
 
 /**
  * Apply `issues` to `lines`: reprice changed variants, remove unavailable and
