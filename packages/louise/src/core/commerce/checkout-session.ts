@@ -1,21 +1,21 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// louise-toolkit/commerce—the checkout-session id a stored cart sends with its
+// louise-toolkit/commerce—the checkout-session ID a stored cart sends with its
 // checkout, where the server scopes the payment's idempotency key to it.
 //
-// A cart that persists (in localStorage, say) needs an id that persists with
-// it. An id held in page memory changes on every reload while the cart doesn't,
+// A cart that persists (in localStorage, say) needs an ID that persists with
+// it. An ID held in page memory changes on every reload while the cart doesn't,
 // so a customer whose paid checkout lost its response (a dropped connection, a
 // force-quit app) reloads, retries the same cart under a new key, and pays
 // twice.
 //
-// The id is stored with a fingerprint of the cart it was minted for. Asked for
-// the id of a different cart, the session mints a new one, so an edited cart is
+// The ID is stored with a fingerprint of the cart it was minted for. Asked for
+// the ID of a different cart, the session mints a new one, so an edited cart is
 // a new attempt, whichever tab or screen edited it. Fingerprint what the
 // customer chose (items, add-ons, quantities), not prices: a price repair after
 // a lost response is still the same attempt, and must keep the same key.
 //
-// An id also retires after `idleMs` unused, so a cart left over from a lost
+// An ID also retires after `idleMs` unused, so a cart left over from a lost
 // response yesterday places a new order today instead of finding yesterday's.
 
 import { type CartLine, cartLineIdentity } from "./cart.js";
@@ -28,7 +28,7 @@ export interface CheckoutSessionStorage {
 }
 
 export interface CheckoutSessionOptions {
-  /** The storage key the id lives under. One per cart, so two carts on one
+  /** The storage key the ID lives under. One per cart, so two carts on one
    *  origin never share an attempt. */
   storageKey: string;
   /**
@@ -39,7 +39,7 @@ export interface CheckoutSessionOptions {
    * the shop's call.
    */
   idleMs: number;
-  /** Where the id persists. Defaults to `globalThis.localStorage`, read on each
+  /** Where the ID persists. Defaults to `globalThis.localStorage`, read on each
    *  call, so a session made where there's no storage (on a server, say) falls
    *  back to page memory instead of throwing. */
   storage?: CheckoutSessionStorage;
@@ -47,12 +47,12 @@ export interface CheckoutSessionOptions {
 
 export interface CheckoutSession {
   /**
-   * The id for the cart `fingerprint` describes: the stored one while it was
+   * The ID for the cart `fingerprint` describes: the stored one while it was
    * minted for that fingerprint and used within `idleMs`, otherwise a new one,
    * stored before it's returned.
    */
   id(fingerprint: string, now?: number): string;
-  /** Retire the id, so the next checkout is a new attempt: after an order is
+  /** Retire the ID, so the next checkout is a new attempt: after an order is
    *  placed, or after a definite decline, when nothing was charged. */
   rotate(): void;
 }
@@ -60,7 +60,7 @@ export interface CheckoutSession {
 interface StoredSession {
   id: string;
   bag: string;
-  /** Epoch milliseconds the id was last handed out. */
+  /** Epoch milliseconds the ID was last handed out. */
   usedAt: number;
 }
 
@@ -75,7 +75,7 @@ const isStoredSession = (value: unknown): value is StoredSession => {
 };
 
 /**
- * A v4 uuid. `crypto.randomUUID` exists only in a secure context, so a page on
+ * A v4 UUID. `crypto.randomUUID` exists only in a secure context, so a page on
  * plain `http://` (a LAN dev server, an embedded web view on a custom scheme)
  * builds one from `crypto.getRandomValues`, which exists everywhere.
  */
@@ -89,18 +89,18 @@ function randomId(): string {
 }
 
 /**
- * A checkout-session id that persists beside a stored cart and changes only
+ * A checkout-session ID that persists beside a stored cart and changes only
  * when the cart does, after `idleMs` unused, or on `rotate()`.
  *
  * Send `session.id(cartFingerprint(lines))` with each checkout, call
  * `rotate()` once an order is placed and after a definite decline, and derive
- * the server's payment idempotency key from the id and the lines as chosen,
+ * the server's payment idempotency key from the ID and the lines as chosen,
  * never from prices or a tip.
  *
- * Storage that throws (private browsing, a full quota) moves the id to page
+ * Storage that throws (private browsing, a full quota) moves the ID to page
  * memory for the rest of the page's life, where a reload starts a new attempt.
  * While storage works, it alone is the truth, so another tab's `rotate()`
- * retires the id here too.
+ * retires the ID here too.
  */
 export function checkoutSession(options: CheckoutSessionOptions): CheckoutSession {
   const { storageKey, idleMs } = options;
@@ -112,7 +112,7 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
   let memory: StoredSession | null = null;
   let storageFailed = false;
   // Where there's no localStorage, the first access throws a TypeError, and
-  // the catch below moves the id to page memory like any other failure.
+  // the catch below moves the ID to page memory like any other failure.
   const storage = (): CheckoutSessionStorage => options.storage ?? globalThis.localStorage;
 
   const read = (): StoredSession | null => {

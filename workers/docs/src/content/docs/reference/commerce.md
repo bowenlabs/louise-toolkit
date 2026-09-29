@@ -43,7 +43,7 @@ import {
 | `tipCap(subtotal, cap)`                   | The largest tip the shop accepts. See [Tips](#tips).                                                                                                |
 | `parseTipCents(value)`                    | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.                                                               |
 | `clampTip(tip, subtotal, cap)`            | The tip limited to the cap: what the server charges.                                                                                                |
-| `checkoutSession({ storageKey, idleMs })` | A checkout-session id kept beside a stored cart. See [A checkout-session id that survives a reload](#a-checkout-session-id-that-survives-a-reload). |
+| `checkoutSession({ storageKey, idleMs })` | A checkout-session ID kept beside a stored cart. See [A checkout-session ID that survives a reload](#a-checkout-session-id-that-survives-a-reload). |
 | `cartFingerprint(lines)`                  | What makes two carts the same order: variants, quantities, and add-ons, not prices.                                                                 |
 | `hmacSha256Hex` / `hmacSha256Base64`      | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64).                                                            |
 | `safeEqual(a, b)`                         | Constant-time-ish compare—use it to check a computed signature against a header value.                                                              |
@@ -121,11 +121,11 @@ is data—`repriced`, `removed`, `modifier-removed`, `merged` (with any quantity
 cap cut off)—for you to word for your customers. It never mutates its input, and
 it applies no quantity cap unless you pass one.
 
-### A checkout-session id that survives a reload
+### A checkout-session ID that survives a reload
 
-A payment's idempotency key is only as stable as the id it's scoped to. A cart
-that persists in `localStorage` needs a checkout-session id that persists with
-it: an id held in page memory changes on every reload while the cart doesn't, so
+A payment's idempotency key is only as stable as the ID it's scoped to. A cart
+that persists in `localStorage` needs a checkout-session ID that persists with
+it: an ID held in page memory changes on every reload while the cart doesn't, so
 a customer whose paid checkout lost its response reloads, retries the same cart
 under a new key, and pays twice.
 
@@ -143,12 +143,12 @@ const result = await res.json();
 if (result.ok || result.declined) session.rotate(); // placed, or definitely not charged
 ```
 
-`session.id(fingerprint)` returns the stored id while the cart matches the
+`session.id(fingerprint)` returns the stored ID while the cart matches the
 fingerprint it was minted for and it was used within `idleMs`. Otherwise it
 mints and stores a new one. So an edited cart is a new attempt, whichever tab
 edited it, and a cart left over from yesterday's lost response places a new
 order today. Call `rotate()` after an order is placed and after a definite
-decline. Leave the id alone after an ambiguous failure, such as a timeout, so
+decline. Leave the ID alone after an ambiguous failure, such as a timeout, so
 the retry reuses it.
 
 `cartFingerprint(lines)` counts each variant-and-add-ons combination, in any
@@ -156,11 +156,11 @@ order and however the quantity is split across lines, and leaves prices out. A p
 still the same order, and it has to keep the same key. If your cart lines have
 another shape, pass any string that changes exactly when the order does.
 
-Storage that throws, in private browsing or on a full quota, moves the id to
+Storage that throws, in private browsing or on a full quota, moves the ID to
 page memory for the rest of the page's life. While storage works, it alone is
-the truth, so another tab's `rotate()` retires the id everywhere.
+the truth, so another tab's `rotate()` retires the ID everywhere.
 
-On the server, derive the payment's idempotency key from the session id and the
+On the server, derive the payment's idempotency key from the session ID and the
 lines as the customer chose them. Never include the verified prices or a tip: a
 retry that differs only there has to reuse the key, so the provider refuses it
 or returns the first payment rather than charging again. Set `idleMs` shorter
@@ -348,7 +348,7 @@ across a queue redelivery, set `externalId` and reconcile with
 :::danger[There is no product update. Not "not yet"—none.]
 The API exposes no endpoint to change a product's name, description, price, or
 variants after creation. If a detail is wrong, the only remedy is delete and
-create again—which mints a **new id**, so anything of yours keyed on the old
+create again—which mints a **new ID**, so anything of yours keyed on the old
 one (a mirror row, a saved cart, an order line) has to be reconciled.
 
 Two things to design around: validate your inputs before calling, because there
@@ -458,7 +458,7 @@ transient error isn't cached as an answer.
 
 Compare `squareApplicationIdEnvironment(PUBLIC_SQUARE_APPLICATION_ID)` with the
 environment your server uses before mounting the card form. A placeholder id, or
-an id from the other environment, otherwise fails inside the payment SDK with an
+an ID from the other environment, otherwise fails inside the payment SDK with an
 error a customer can't act on.
 
 ### Editing an existing object
@@ -520,7 +520,7 @@ import {
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                                            |
 | **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                                           |
-| **Catalog images**        | `createCatalogImage`—multipart upload returning the id that `imageIds` takes                                                                                                                                                                                        |
+| **Catalog images**        | `createCatalogImage`—multipart upload returning the ID that `imageIds` takes                                                                                                                                                                                        |
 | **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                                              |
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                        |
 | **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                        |

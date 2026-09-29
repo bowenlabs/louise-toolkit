@@ -1,5 +1,5 @@
-// core/commerce/checkout-session—the checkout-session id a stored cart keeps
-// across reloads. An id held in page memory changed on every reload while the
+// core/commerce/checkout-session—the checkout-session ID a stored cart keeps
+// across reloads. An ID held in page memory changed on every reload while the
 // cart didn't, so a retry after a lost response went out under a new
 // idempotency key and charged twice.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -96,7 +96,7 @@ describe("checkoutSession", () => {
     expect(shop.id("cart-a", 0)).not.toBe(cafe.id("cart-a", 0));
   });
 
-  it("mints a new id over a stored value it can't read", () => {
+  it("mints a new ID over a stored value it can't read", () => {
     const storage = memoryStorage();
     storage.setItem(KEY, "{not json");
     const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, storage });
@@ -150,7 +150,7 @@ describe("checkoutSession", () => {
     expect(session.id("cart-a", 1)).toBe(id);
   });
 
-  it("mints a v4 id where crypto.randomUUID is missing (plain http)", () => {
+  it("mints a v4 ID where crypto.randomUUID is missing (plain http)", () => {
     vi.stubGlobal("crypto", {
       randomUUID: undefined,
       getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),
@@ -203,7 +203,7 @@ describe("cartFingerprint", () => {
     );
   });
 
-  it("can't be fooled by separators inside ids", () => {
+  it("can't be fooled by separators inside IDs", () => {
     expect(cartFingerprint([{ variantId: "a:1", quantity: 2 }])).not.toBe(
       cartFingerprint([{ variantId: "a", quantity: 1, modifiers: [{ id: "2:" }] }]),
     );
