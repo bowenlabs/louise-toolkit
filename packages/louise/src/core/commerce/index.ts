@@ -88,6 +88,16 @@ export {
   type RepairCartOptions,
 } from "./cart.js";
 
+// The checkout-session id a stored cart keeps across reloads, for the payment's
+// idempotency key.
+export {
+  cartFingerprint,
+  type CheckoutSession,
+  checkoutSession,
+  type CheckoutSessionOptions,
+  type CheckoutSessionStorage,
+} from "./checkout-session.js";
+
 // Catalog-mirror sync: which stored rows the provider dropped.
 export { type VanishedRowsOptions, vanishedRows } from "./sync.js";
 
