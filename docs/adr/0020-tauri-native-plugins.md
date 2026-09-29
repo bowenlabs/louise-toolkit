@@ -1,6 +1,6 @@
 # ADR 0020: Native apps use Tauri 2, with in-house plugins in `louise-toolkit-native`
 
-- **Status:** Proposed (2026-09-26)
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-28** (see _Amendment (2026-09-28, WebView proof of concept)_ below): Apple Pay in the WebView is a candidate first path from iOS 16, pending one payment on a device, so `tauri-plugin-louise-square` can follow a first release rather than gate it; a shell that loads a remote URL raises the App Review 4.2 risk and can't work offline through a service worker; and a capability grants native access to a whole origin.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0017 (decision 4, one runtime), ADR 0016 (privacy-first), ADR 0013 (Google style), ADR 0006 (zero-dependency core), [bowenlabs/louise-toolkit-native](https://github.com/bowenlabs/louise-toolkit-native), [bowenlabs/astroidjs#79](https://github.com/bowenlabs/astroidjs/issues/79) (the mobile target)
 
@@ -75,6 +75,28 @@ A device token is personal data under ADR 0016. The push plugin hands it to the 
 - **The iOS owner app.** ADR 0017 plans a Swift shell for passkeys through Associated Domains and push. Tauri configures entitlements, but WebAuthn inside a WKWebView with Associated Domains has to be verified before the owner app moves to Tauri.
 - **Apple App Review guideline 4.2** (minimum functionality) rejects a thin wrapper around a website. Push, Apple Pay, and working offline mitigate it, and the first submission is the test.
 - **Apple Pay in the WebView.** The Square plugin uses the native SDK, so this matters only as a fallback.
+
+## Amendment (2026-09-28, WebView proof of concept)
+
+On 2026-09-28, a proof of concept for a café site's order app ran a Tauri 2 shell on the iOS 26.4 simulator, as a reference for the mobile target in [astroidjs#79](https://github.com/bowenlabs/astroidjs/issues/79). The shell doesn't bundle the UI. It bundles one start page, then loads the live site over HTTPS, so the web app and the native app share one codebase, one origin, and one deploy. None of this overturns the preceding decision. It answers part of two open questions and changes what a first release needs.
+
+### What the proof of concept measured
+
+Everything here ran on the simulator. The proof of concept made no payment, and it didn't test Android.
+
+- **Apple Pay reported as available in the WebView.** With Tauri's scripts injected, `ApplePaySession.canMakePayments()` returned `true` on an HTTPS page. iOS 13 through 15 turned Apple Pay off in any WKWebView whose app injected scripts, and WebKit removed that rule in Safari 16 ([commit aa041a623c](https://github.com/WebKit/WebKit/commit/aa041a623c)). Tauri injects its own scripts into the pages it loads, so a shell that relies on Apple Pay in the WebView needs iOS 16 or later. Availability isn't a payment: a sandbox payment on a physical iPhone is still untested.
+- **A capability matches a remote page by origin, never by path.** A grant for the order app's path on the site's host never matched, and a grant for the host covers every page on it. A plugin's permission granted to a remote site therefore reaches every page that site's origin serves, including CMS-edited pages when they share the host.
+- **The service worker API is absent.** `navigator.serviceWorker` is undefined in the app's WKWebView, which doesn't use App-Bound Domains. The proof of concept didn't try App-Bound Domains, which could enable it.
+
+Android wasn't measured, but its setup is documented: Google Pay in the Android System WebView needs the app to turn on the Payment Request API, declare the payment intents in its manifest, and get approval in Google's Pay & Wallet Console ([Chrome's guide](https://developer.chrome.com/docs/android/payments-in-webviews)).
+
+### What changes
+
+- **Apple Pay in the WebView** is a candidate first path, not only a fallback. Decision 3 has `tauri-plugin-louise-square` wrap Apple Pay and Google Pay through the In-App Payments SDK. A shell that loads the site can take the same payments through the Web Payments SDK the web client already uses. If one sandbox payment on a physical iPhone succeeds, and the Android WebView setup above passes, a first release can ship with the web checkout, and the Square plugin becomes an upgrade rather than a prerequisite. Until both pass, decision 3 stands as written.
+- **App Review guideline 4.2** is a higher risk for a shell that loads a remote URL, since that's the thin wrapper around a website the guideline targets. Working offline, one of the mitigations the open question lists, can't come from a service worker in such a shell. It has to come from the bundled start page, from App-Bound Domains, or from bundling the UI. Push and Apple Pay carry more of the weight, and the first submission is still the test.
+- **A plugin's permission goes to the app's own origin.** Because a grant covers a whole host, the mobile target grants plugin permissions only to an origin that serves the app, never to one shared with the rest of a site.
+
+The passkeys question for the iOS owner app stays open: the proof of concept didn't test WebAuthn.
 
 ## Consequences
 
