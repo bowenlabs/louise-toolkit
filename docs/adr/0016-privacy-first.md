@@ -1,8 +1,8 @@
 # ADR 0016: Privacy-first, as an enforced rule
 
-- **Status:** Proposed (2026-09-26)
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-29** (see _Amendment (2026-09-29, push for native apps)_ below): Apple Push Notification service and Firebase Cloud Messaging join the vendor list, for native apps only; a notification carries a reference, a status, and at most one line of text, never personal details; a device token stays in the site's D1 only as long as its purpose; and iOS notifications go to Apple directly, never through Google.
 - **Deciders:** Baylee (solo maintainer)
-- **Related:** ADR 0012 (API boundary), ADR 0015 (two audiences), ADR 0017 (client accounts and access), ADR 0004 (edge caching), the platform plan in louise-ops
+- **Related:** ADR 0012 (API boundary), ADR 0015 (two audiences), ADR 0017 (client accounts and access), ADR 0004 (edge caching), ADR 0020 (native apps), the platform plan in louise-ops
 
 ## Context
 
@@ -55,15 +55,39 @@ An owner can export their site: content, media, settings, tickets, and the auth 
 
 Every third party that receives anything from a site or from louise-ops is listed here with what reaches it and why. The list is amended, never silently extended.
 
-| Vendor                              | What reaches it                                                                                                                                      | Why                                                                         |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Cloudflare                          | Everything, as the hosting platform, in the client's own account                                                                                     | The platform                                                                |
-| Sentry (opt-in per site, astroidjs) | An incident's fingerprint, stack trace, release, and path; `sendDefaultPii` off; request bodies and headers scrubbed; no browser SDK on public pages | Error triage with stack traces and release tracking                         |
-| Snyk                                | Repository source and dependency manifests                                                                                                           | Dependency and code scanning on pull requests                               |
-| Discord (Bowen Labs' server)        | A site name, a ticket ID and subject, an incident fingerprint, a probe status                                                                        | Alerts to Baylee; never a ticket body, a customer name, or an email address |
-| GitHub                              | Repository source; an issue title and a ticket ID when a ticket becomes engineering work                                                             | Source control and engineering work                                         |
+| Vendor                                                                   | What reaches it                                                                                                                                                                 | Why                                                                            |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Cloudflare                                                               | Everything, as the hosting platform, in the client's own account                                                                                                                | The platform                                                                   |
+| Sentry (opt-in per site, astroidjs)                                      | An incident's fingerprint, stack trace, release, and path; `sendDefaultPii` off; request bodies and headers scrubbed; no browser SDK on public pages                            | Error triage with stack traces and release tracking                            |
+| Snyk                                                                     | Repository source and dependency manifests                                                                                                                                      | Dependency and code scanning on pull requests                                  |
+| Discord (Bowen Labs' server)                                             | A site name, a ticket ID and subject, an incident fingerprint, a probe status                                                                                                   | Alerts to Baylee; never a ticket body, a customer name, or an email address    |
+| GitHub                                                                   | Repository source; an issue title and a ticket ID when a ticket becomes engineering work                                                                                        | Source control and engineering work                                            |
+| Apple Push Notification service (iOS apps only, amended 2026-09-29)      | A device token, the app's bundle ID, and each notification's payload: a reference, a status, and at most one line of text, never a name, contact detail, item, or amount        | Push notifications to iOS devices, which reach an iOS device only through APNs |
+| Firebase Cloud Messaging, Google (Android apps only, amended 2026-09-29) | A registration token, the Firebase installation ID that the messaging SDK creates on the device, the Firebase project ID, and each notification's payload, limited as for Apple | Push notifications to Android devices                                          |
 
 Cloudflare's own products used from a Worker (Workers AI, Images, Email Service, Browser Rendering) run inside the client's account and don't appear as vendors.
+
+## Amendment (2026-09-29, push for native apps)
+
+ADR 0020 makes remote push the first in-house plugin, `tauri-plugin-louise-push`, for notifications such as a café site's order app sending "order ready." A native app can't receive a remote notification any other way: iOS delivers them only through Apple Push Notification service (APNs), and Android through Firebase Cloud Messaging (FCM). Both services receive the device token and every notification a site sends, so decision 7 gains a row for each. None of this ships before the push plugin does. It covers every native app on the stack, such as a café's order app now and the iOS owner app that ADR 0017 plans; the web apps keep polling.
+
+### What reaches each service
+
+- **Apple, for iOS:** the device token, the app's bundle ID, and each notification's payload. The site's Worker sends each notification to APNs itself, authenticated with the site's APNs key. An iOS device keeps its own connection to APNs whether or not an app uses push, so the app adds the token and the payloads to what Apple already has, and nothing else.
+- **Google, for Android:** the registration token, the Firebase project ID, and each notification's payload. The site's Worker sends each notification through the FCM HTTP v1 API, authenticated with the site's service account. On the device, the Firebase Cloud Messaging SDK creates a Firebase installation ID and sends it to Google to issue the token. The app includes that SDK and no other Firebase product: no Analytics, which decision 3 rules out, and no Crashlytics or Remote Config, which decision 7 doesn't list.
+
+iOS notifications never go through FCM, even though FCM can deliver to iOS: that would put Google in the path of every iOS notification as well as Apple. A Worker can reach APNs directly. Its `fetch` speaks HTTP/1.1, and Cloudflare's edge speaks the HTTP/2 that APNs requires. That works on a deployed Worker but not in local `wrangler dev` on macOS ([cloudflare/workerd#4841](https://github.com/cloudflare/workerd/issues/4841)), so test APNs sends on a Preview.
+
+### Rules for push
+
+1. **A notification carries a reference and a status, not the record.** Its payload holds the record's short reference, its status, and at most one line of text: for an order, "Your order is ready"; for an owner's ticket, "New reply on a ticket." It never holds a person's name, email address, or phone number, an order's items or amount, or a message's text. The text shows on a locked screen and passes through Apple's or Google's servers, so it says only what's safe for anyone holding the phone to read.
+2. **Tokens stay in the client's account.** As ADR 0020 decision 6 says, the plugin stores nothing, and the app sends its token only to its own site's API, which keeps it in the site's D1. louise-ops never receives a token, as decision 1 requires.
+3. **A token lasts as long as its purpose.** A token registered for one order's status is deleted when that order is picked up or canceled, or after 24 hours, whichever comes first. A token tied to a signed-in person, customer or owner, is deleted when they sign out, turn notifications off, or delete their account. A token that APNs or FCM reports as no longer valid is deleted on that response.
+4. **The credentials are the site's secrets.** The APNs key and the FCM service account key are stored as secrets in the client's Cloudflare account, never in code or in louise-ops. Which Apple Developer account and Firebase project publish a client's app isn't decided yet. It belongs with ADR 0017's account ownership, and it's settled before the first app ships.
+5. **The app asks for permission when it's useful.** It asks for notification permission only when there's something to be notified about, such as right after an order is placed, never at first launch. The system's prompt is the person's choice, and someone who declines still sees the status by polling.
+6. **The site says so.** The page that decision 5 requires names push: that the site stores a device token, what for, how long, and that Apple or Google delivers each notification.
+
+Decision 2 doesn't change. The Firebase SDK ships in the Android app, not on a public page, so it's not a script that the external-host allowlist covers.
 
 ## Consequences
 
