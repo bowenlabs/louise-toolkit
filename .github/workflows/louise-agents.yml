@@ -1,0 +1,25 @@
+# The Louise agents, started by a label on an issue: `agent:diagnose` posts a
+# diagnosis as a comment.
+# bowenlabs/claude-plugins' README, section Diagnose and fix in CI, describes
+# both workflows, their secrets, and what the agents can reach.
+name: Louise agents
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  diagnose:
+    if: github.event.label.name == 'agent:diagnose'
+    uses: bowenlabs/claude-plugins/.github/workflows/louise-diagnose.yml@main
+    with:
+      agent_app_id: ${{ vars.LOUISE_AGENT_APP_ID }}
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      louise_token: ${{ secrets.LOUISE_REVIEW_TOKEN }}
+      agent_app_private_key: ${{ secrets.LOUISE_AGENT_APP_PRIVATE_KEY }}
