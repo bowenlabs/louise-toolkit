@@ -5,7 +5,7 @@
 // against Turnstile's siteverify endpoint before accepting a submission. The
 // secret is the site's (server-only); Louise just owns the request shape.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { upstreamFetch } from "../security/upstream.js";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -39,7 +39,7 @@ export async function verifyTurnstileToken(
   } catch (err) {
     // Failing closed rejects every submission while siteverify is unreachable,
     // so say so rather than letting it pass for a wave of spam.
-    reportDegraded("forms.turnstile", err);
+    reportFallback("forms.turnstile", err);
     return false;
   }
 }

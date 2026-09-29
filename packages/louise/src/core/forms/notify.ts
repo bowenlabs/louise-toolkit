@@ -6,7 +6,7 @@
 // email transport is the site's (a `FormMailer`), so Louise stays decoupled from
 // any one email binding.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { fetchPublicUrl } from "../security/public-url.js";
 import type { FormConfig, FormMailer } from "./types.js";
 
@@ -20,7 +20,7 @@ export function renderSubmissionText(config: FormConfig, values: Record<string, 
 /**
  * Fire a form's declared notifications for a submission. The webhook POSTs
  * `{ form, values }`; the email uses the site-supplied `mailer`. Errors are
- * reported with `reportDegraded` and otherwise swallowed (a notification
+ * reported with `reportFallback` and otherwise swallowed (a notification
  * failure must never fail the submission the visitor already completed)—the
  * caller runs this via `ctx.waitUntil`.
  */
@@ -43,7 +43,7 @@ export async function notifySubmission(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ form: config.name, values }),
       }).catch((err: unknown) => {
-        reportDegraded("forms.notify.webhook", err, { form: config.name });
+        reportFallback("forms.notify.webhook", err, { form: config.name });
       }),
     );
   }
@@ -53,7 +53,7 @@ export async function notifySubmission(
       Promise.resolve(
         mailer({ to: notify.email.to, subject, text: renderSubmissionText(config, values) }),
       ).catch((err: unknown) => {
-        reportDegraded("forms.notify.email", err, { form: config.name });
+        reportFallback("forms.notify.email", err, { form: config.name });
       }),
     );
   }

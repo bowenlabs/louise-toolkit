@@ -13,7 +13,7 @@
 import { asc, eq } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { robotsTxt, type SitemapEntry, sitemapXml } from "../seo/sitemap.js";
 import { publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -151,7 +151,7 @@ export function sitemapRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       return respond(request, sitemapXml(await entries(request, env)), "application/xml");
     } catch (err) {
       // A sitemap that fails shouldn't look like an empty site to a crawler.
-      reportDegraded("seo.sitemap", err);
+      reportFallback("seo.sitemap", err);
       return new Response("Sitemap unavailable", {
         status: 503,
         headers: { "retry-after": "60", "cache-control": "no-store" },

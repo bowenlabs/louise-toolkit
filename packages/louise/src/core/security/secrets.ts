@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import type { SecretBinding } from "./types";
 
 export type { SecretBinding };
@@ -43,7 +43,7 @@ export async function readSecret(
   } catch (err) {
     // Declared but unreadable is worth a line: in production it's a store that
     // was never provisioned, and the feature behind it quietly switches off.
-    reportDegraded("security.readSecret", err);
+    reportFallback("security.readSecret", err);
     return null;
   }
   const value = raw?.trim();

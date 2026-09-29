@@ -15,7 +15,7 @@
 // already models the no-catalog-object variant—so a site can sell from its own
 // catalog without mirroring anything into Square first.
 
-import { reportDegraded } from "../../degraded.js";
+import { reportFallback } from "../../degraded.js";
 import { UpstreamError } from "../../security/upstream.js";
 import type { SquareConfig } from "./client.js";
 import type { SquareMoney } from "./money.js";
@@ -191,7 +191,7 @@ export async function retrievePaymentLink(
     // A 404 is the "no longer exists" this documents. Anything else, a rejected
     // token or an outage, reads the same to the caller, so it's reported.
     if (!(err instanceof UpstreamError && err.status === 404)) {
-      reportDegraded("commerce.square.paymentLink", err, { linkId });
+      reportFallback("commerce.square.paymentLink", err, { linkId });
     }
     return null;
   }

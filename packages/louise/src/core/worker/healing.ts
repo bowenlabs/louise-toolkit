@@ -36,7 +36,7 @@
 //     non-idempotent writes (a retried POST can double-write). `retries`
 //     defaults to 0; opt in only for codes whose route is safe to repeat.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { LouiseError } from "../errors.js";
 import type { WorkerRoute } from "./index.js";
 
@@ -125,7 +125,7 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
  *   3. While attempts remain under the rule's `retries`, back off and re-run.
  *   4. Once retries are exhausted: `escalate` (fire-and-forget via
  *      `waitUntil`), then `fallback` (return its Response, after a
- *      `reportDegraded("worker.healing", …)` line)—or re-throw the last error
+ *      `reportFallback("worker.healing", …)` line)—or re-throw the last error
  *      if the rule has neither.
  *
  * @example
@@ -190,7 +190,7 @@ export function withHealing<Env = unknown>(
 
         if (rule.fallback) {
           // The pathname only: a query string can carry a token.
-          reportDegraded("worker.healing", err, {
+          reportFallback("worker.healing", err, {
             code: err.code,
             attempts,
             path: new URL(request.url).pathname,

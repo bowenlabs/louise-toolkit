@@ -5,13 +5,13 @@
 //
 // A throw from `fetch`, `queue`, or `scheduled` becomes an `IncidentReport`,
 // goes to the site's sinks through `ctx.waitUntil`, and is re-thrown, so
-// Cloudflare answers exactly as it would have. A `reportDegraded` call has no
+// Cloudflare answers exactly as it would have. A `reportFallback` call has no
 // `ctx` of its own, and neither does an incident a kit module emits (a queue
 // message's last attempt, a dead letter), so each one waits in a small buffer
 // until the next handler in this isolate finishes and flushes it.
 //
 // Nothing here may fail the work it reports on. A sink that throws is logged
-// with `console.error`, not `reportDegraded`: a degrade from a failing sink
+// with `console.error`, not `reportFallback`: a degrade from a failing sink
 // would feed the next flush, which would fail the same way, forever.
 
 import { onDegraded } from "../degraded.js";

@@ -12,7 +12,7 @@
 // so it stays "absent" (card hidden) until the first scan writes one.
 
 import type { CwvSummary } from "../analytics/index.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { timestampAge } from "./age.js";
 import type {
   BrokenLink,
@@ -200,7 +200,7 @@ export async function readHealthSummary(
   try {
     return JSON.parse(raw) as HealthSummary;
   } catch (err) {
-    reportDegraded("health.summary", err, { key });
+    reportFallback("health.summary", err, { key });
     return null;
   }
 }

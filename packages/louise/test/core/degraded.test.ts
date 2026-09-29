@@ -3,7 +3,7 @@ import {
   DEGRADED_LOG_PREFIX,
   LouiseDbError,
   onDegraded,
-  reportDegraded,
+  reportFallback,
   type DegradedEvent,
 } from "../../src/core/errors.js";
 import { UpstreamError } from "../../src/core/security/upstream.js";
@@ -17,7 +17,7 @@ afterEach(() => {
   error.mockRestore();
 });
 
-/** The one line reportDegraded logged. */
+/** The one line reportFallback logged. */
 function logged(): string {
   expect(error).toHaveBeenCalledTimes(1);
   const args = error.mock.calls[0];
@@ -25,26 +25,26 @@ function logged(): string {
   return args[0] as string;
 }
 
-describe("reportDegraded", () => {
+describe("reportFallback", () => {
   it("logs one line: the marker, the name, the cause, and the details", () => {
-    reportDegraded("content.read", new TypeError("fetch failed"), { collection: "pages" });
+    reportFallback("content.read", new TypeError("fetch failed"), { collection: "pages" });
     expect(logged()).toBe(
       '[louise] degraded content.read: TypeError: fetch failed {"collection":"pages"}',
     );
   });
 
   it("starts every line with the exported prefix", () => {
-    reportDegraded("x", new Error("y"));
+    reportFallback("x", new Error("y"));
     expect(logged().startsWith(`${DEGRADED_LOG_PREFIX} x: `)).toBe(true);
   });
 
   it("names a Louise error by its class", () => {
-    reportDegraded("db.read", new LouiseDbError("D1 unavailable"));
+    reportFallback("db.read", new LouiseDbError("D1 unavailable"));
     expect(logged()).toBe("[louise] degraded db.read: LouiseDbError: D1 unavailable");
   });
 
   it("logs an upstream failure's operation and what the provider said", () => {
-    reportDegraded(
+    reportFallback(
       "commerce.products",
       new UpstreamError("Fourthwall", 401, { operation: "GET /products", detail: "bad token" }),
     );
@@ -54,23 +54,23 @@ describe("reportDegraded", () => {
   });
 
   it("leaves the details off when there are none", () => {
-    reportDegraded("a", new Error("b"), {});
+    reportFallback("a", new Error("b"), {});
     expect(logged()).toBe("[louise] degraded a: Error: b");
   });
 
   it("keeps a multi-line cause on one line", () => {
-    reportDegraded("a", new Error("first\nsecond\r\n  third"));
+    reportFallback("a", new Error("first\nsecond\r\n  third"));
     expect(logged()).toBe("[louise] degraded a: Error: first second third");
   });
 
   it("cuts a very long cause message", () => {
-    reportDegraded("a", "x".repeat(2000));
+    reportFallback("a", "x".repeat(2000));
     expect(logged().length).toBeLessThan(600);
     expect(logged().endsWith("…")).toBe(true);
   });
 
   it("returns undefined", () => {
-    expect(reportDegraded("a", new Error("b"))).toBeUndefined();
+    expect(reportFallback("a", new Error("b"))).toBeUndefined();
   });
 
   describe("never throws, whatever it's handed", () => {
@@ -118,7 +118,7 @@ describe("reportDegraded", () => {
 
     for (const [label, cause, expected] of hostile) {
       it(`as the cause: ${label}`, () => {
-        expect(() => reportDegraded("hostile", cause)).not.toThrow();
+        expect(() => reportFallback("hostile", cause)).not.toThrow();
         expect(logged()).toBe(`[louise] degraded hostile: ${expected}`);
       });
     }
@@ -126,7 +126,7 @@ describe("reportDegraded", () => {
     it("as details: a circular object", () => {
       const details: Record<string, unknown> = {};
       details.self = details;
-      expect(() => reportDegraded("a", new Error("b"), details)).not.toThrow();
+      expect(() => reportFallback("a", new Error("b"), details)).not.toThrow();
       expect(logged()).toBe("[louise] degraded a: Error: b [details not serializable]");
     });
 
@@ -137,12 +137,12 @@ describe("reportDegraded", () => {
           throw new Error("getter");
         },
       };
-      expect(() => reportDegraded("a", new Error("b"), details)).not.toThrow();
+      expect(() => reportFallback("a", new Error("b"), details)).not.toThrow();
       expect(logged()).toBe("[louise] degraded a: Error: b [details not serializable]");
     });
 
     it("as the name: something that isn't a string", () => {
-      expect(() => reportDegraded(undefined as never, new Error("b"))).not.toThrow();
+      expect(() => reportFallback(undefined as never, new Error("b"))).not.toThrow();
       expect(logged()).toBe("[louise] degraded undefined: Error: b");
     });
 
@@ -150,7 +150,7 @@ describe("reportDegraded", () => {
       error.mockImplementation(() => {
         throw new Error("console gone");
       });
-      expect(() => reportDegraded("a", new Error("b"))).not.toThrow();
+      expect(() => reportFallback("a", new Error("b"))).not.toThrow();
     });
   });
 });
@@ -160,9 +160,9 @@ describe("onDegraded", () => {
     const events: DegradedEvent[] = [];
     const off = onDegraded((event) => events.push(event));
     const cause = new Error("b");
-    reportDegraded("a", cause, { id: 7 });
+    reportFallback("a", cause, { id: 7 });
     off();
-    reportDegraded("c", cause);
+    reportFallback("c", cause);
     expect(events).toEqual([{ name: "a", message: "Error: b", cause, details: { id: 7 } }]);
     expect(events[0]!.cause).toBe(cause);
   });
@@ -173,7 +173,7 @@ describe("onDegraded", () => {
       throw new Error("listener broke");
     });
     const offGood = onDegraded((event) => seen.push(event.name));
-    expect(() => reportDegraded("a", new Error("b"))).not.toThrow();
+    expect(() => reportFallback("a", new Error("b"))).not.toThrow();
     offBad();
     offGood();
     expect(seen).toEqual(["a"]);

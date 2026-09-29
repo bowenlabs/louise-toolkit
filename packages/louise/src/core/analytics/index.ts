@@ -13,7 +13,7 @@
 // gracefully: no dataset binding → the beacon route accepts-and-drops and the
 // badge reads "not measured yet".
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { s, standardValidate } from "../schema/index.js";
 import { LOUISE_VITALS_PATH, publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -173,7 +173,7 @@ export function vitalsRoute<Env>(config: VitalsRouteConfig<Env>): WorkerRoute<En
         dataset.writeDataPoint(vitalDataPoint(reading));
       } catch (err) {
         // Best-effort: never fail a beacon on a write hiccup.
-        reportDegraded("analytics.vitals", err, { metric: reading.name });
+        reportFallback("analytics.vitals", err, { metric: reading.name });
       }
     }
     return new Response(null, { status: 204 });

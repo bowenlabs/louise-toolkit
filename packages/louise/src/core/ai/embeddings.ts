@@ -13,7 +13,7 @@
 // `env.VECTORIZE` binding with no cast—so the module stays decoupled from a
 // specific `@cloudflare/workers-types` version and is trivially faked in tests.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { type AiGatewayOptions, type AiRunner, runAi } from "./index.js";
 
 /** Default Workers AI text-embedding model. `bge-base-en-v1.5` is a small,
@@ -286,7 +286,7 @@ export async function indexContent(
     ]);
     return true;
   } catch (err) {
-    reportDegraded("ai.vectors.upsert", err, { namespace, count: 1 });
+    reportFallback("ai.vectors.upsert", err, { namespace, count: 1 });
     return false;
   }
 }
@@ -341,7 +341,7 @@ export async function indexContents(
       for (const record of batch) stored.push(record.metadata!.docId as number);
     } catch (err) {
       // best-effort, like indexContent: the rows left out are what to retry.
-      reportDegraded("ai.vectors.upsert", err, { namespace, count: batch.length });
+      reportFallback("ai.vectors.upsert", err, { namespace, count: batch.length });
     }
   }
   return stored;
@@ -363,7 +363,7 @@ export async function removeContentVector(
   } catch (err) {
     // best-effort—a stale vector is harmless (its row won't hydrate, so the
     // merge drops it), never worth failing the caller.
-    reportDegraded("ai.vectors.delete", err, { namespace, id });
+    reportFallback("ai.vectors.delete", err, { namespace, id });
   }
 }
 
@@ -420,7 +420,7 @@ export async function semanticSearch(
     }
     return results;
   } catch (err) {
-    reportDegraded("ai.vectors.query", err, { namespace });
+    reportFallback("ai.vectors.query", err, { namespace });
     return [];
   }
 }

@@ -35,7 +35,7 @@
 
 import type { EditorSession } from "../auth/types.js";
 import { type PageId, parsePageId } from "../content/ids.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { type EditorRouteEnv, guardEditor, json, type ResolveEditor } from "../editor/shared.js";
 import type { DraftSoftLocks } from "../editor/versions.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -447,7 +447,7 @@ export function createEditSession(ctx: DurableObjectState, config: EditSessionCo
             // Persist failed—leave the snapshot dirty and re-arm below to retry.
             // Reported, because a persist that keeps failing leaves every edit
             // in the session unsaved while the editors see them land.
-            reportDegraded("realtime.persist", err, { fields: keys.length });
+            reportFallback("realtime.persist", err, { fields: keys.length });
           }
         }
       }

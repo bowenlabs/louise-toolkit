@@ -203,7 +203,7 @@ export class LouiseApiError extends LouiseError {
 export {
   DEGRADED_LOG_PREFIX,
   onDegraded,
-  reportDegraded,
+  reportFallback,
   type DegradedDetails,
   type DegradedEvent,
   type DegradedListener,

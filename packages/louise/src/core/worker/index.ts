@@ -58,7 +58,7 @@ export interface ComposeWorkerOptions<Env = unknown, QMessage = unknown> {
   gate?: ApiGateConfig<Env>;
   /**
    * Incident capture (ADR 0022). Set it and a throw from `fetch`, `queue`, or
-   * `scheduled`, and every `reportDegraded` call, becomes an
+   * `scheduled`, and every `reportFallback` call, becomes an
    * `IncidentReport` sent to these sinks after the response. A throw is still
    * re-thrown, so responses don't change. One sink, a list, or
    * `{ sinks, critical, release }`. Omitted, nothing is captured.

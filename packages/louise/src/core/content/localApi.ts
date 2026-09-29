@@ -24,7 +24,7 @@ import {
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { LouiseAccessDeniedError, LouiseContentError } from "../errors.js";
 import { collectionSearchTableName, extractSearchText } from "./codegen.js";
 import type { PageId, VersionId } from "./ids.js";
@@ -1133,7 +1133,7 @@ export function createVersionedLocalApi<
     try {
       await reindexOrDefer(db, config, doc as AnyRecord, deferReindex, { versionId });
     } catch (err) {
-      reportDegraded("content.publish.reindex", err, {
+      reportFallback("content.publish.reindex", err, {
         collection: config.slug,
         id: parentId,
         versionId,

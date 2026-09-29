@@ -1,6 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 //
-// `reportDegraded`—the one call a fallback makes to say it fired (#556).
+// `reportFallback`—the one call a fallback makes to say it fired (#556).
 //
 // Degrading instead of crashing is a house rule: a limiter outage fails open, a
 // broken dashboard card collapses to "absent," an AI assist returns `null`. The
@@ -20,7 +20,7 @@ import { UpstreamError, upstreamLogLine } from "./security/upstream.js";
  *  It's logged, so never put a secret, a token, or personal data in it. */
 export type DegradedDetails = Readonly<Record<string, unknown>>;
 
-/** What a {@link DegradedListener} receives for each {@link reportDegraded} call. */
+/** What a {@link DegradedListener} receives for each {@link reportFallback} call. */
 export interface DegradedEvent {
   /** Which fallback fired, as a stable dotted name, for example, `"forms.notify.webhook"`. */
   readonly name: string;
@@ -76,12 +76,12 @@ const listeners = new Set<DegradedListener>();
  * try {
  *   products = await listProducts(env);
  * } catch (err) {
- *   reportDegraded("commerce.products", err, { source: "seed" });
+ *   reportFallback("commerce.products", err, { source: "seed" });
  *   products = seedProducts;
  * }
  * ```
  */
-export function reportDegraded(name: string, cause?: unknown, details?: DegradedDetails): void {
+export function reportFallback(name: string, cause?: unknown, details?: DegradedDetails): void {
   try {
     const event: DegradedEvent = {
       name: safeText(name, "unnamed"),
@@ -106,14 +106,14 @@ export function reportDegraded(name: string, cause?: unknown, details?: Degraded
 }
 
 /**
- * Listen for every {@link reportDegraded} call in this isolate, for example,
+ * Listen for every {@link reportFallback} call in this isolate, for example,
  * to forward degrades to an error tracker or count them in a metric. Returns a
  * function that removes the listener.
  *
  * Listeners run synchronously, after the log line, and a listener that throws
  * is ignored. Register one at module scope rather than per request, because
  * the set lives as long as the isolate does. Louise's own incident capture is
- * meant to hook in here, so a site's `reportDegraded` calls won't need to
+ * meant to hook in here, so a site's `reportFallback` calls won't need to
  * change when it does.
  */
 export function onDegraded(listener: DegradedListener): () => void {
