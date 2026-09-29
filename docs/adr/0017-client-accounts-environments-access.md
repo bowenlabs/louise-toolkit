@@ -1,6 +1,6 @@
 # ADR 0017: Client accounts, environments, access, and one runtime
 
-- **Status:** Proposed (2026-09-26). **Amended 2026-09-26** (see _Amendment_ below): staging runs on Worker Previews instead of a second Worker, releases are trunk-based with a tag as the release, and Workers Builds deploys production from a branch only the release tag moves. **Amended again 2026-09-26** (see _Amendment: native clients_ below): native apps are Tauri 2 shells, per ADR 0020.
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-26** (see _Amendment_ below): staging runs on Worker Previews instead of a second Worker, releases are trunk-based with a tag as the release, and Workers Builds deploys production from a branch only the release tag moves. **Amended again 2026-09-26** (see _Amendment: native clients_ below): native apps are Tauri 2 shells, per ADR 0020. **Amended 2026-09-29** (see _Amendment (2026-09-29): who publishes a client's native app_ below): which Apple Developer account and Firebase project publish a client's app is recorded as open, to settle before the first app ships.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (zero-dependency core), ADR 0014 (coverage floor), ADR 0016 (privacy-first), #521 (branch pushes deploy production), the per-site staging issues, the platform plan in louise-ops
 
@@ -166,6 +166,15 @@ in `bowenlabs/louise-toolkit-native`. [ADR 0020](0020-tauri-native-plugins.md)
 records the decision. Whether the iOS owner app moves to the Tauri shell is
 open there, pending a check that passkeys through Associated Domains work
 inside its WebView.
+
+## Amendment (2026-09-29): who publishes a client's native app
+
+### Open: which Apple Developer account and Firebase project publish a client's app
+
+A native app ships from an Apple Developer account and, on Android, a Firebase project for push. Decision 1 settles who owns a client's Cloudflare account; nothing here settles who owns these. It matters for privacy as well as ownership: an APNs key signs sends for every app on its team, and an FCM service account key for every app in its Firebase project, and ADR 0016's push amendments keep push keys in the client's Cloudflare account only when the team and the Firebase project publish that client's apps alone. The choice isn't made yet, and it has to be before the first app ships:
+
+- The client enrolls their own Apple Developer account and owns a Firebase project, with Baylee as a member, the same as their Cloudflare account. The app lists under the business's name, and handoff is a role change.
+- The apps ship from a Bowen Labs team. Push keys then can't sit in any client's account, so sending needs its own design, and ADR 0016 needs another amendment.
 
 ## Consequences
 
