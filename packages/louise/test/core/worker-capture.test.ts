@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { LouiseDbError, reportDegraded } from "../../src/core/errors.js";
+import { LouiseDbError, reportFallback } from "../../src/core/errors.js";
 import type { IncidentReport } from "../../src/core/incidents/index.js";
 import { isCriticalIncident } from "../../src/core/incidents/index.js";
 import { composeWorker, reportIncident, withIncidentCapture } from "../../src/core/worker/index.js";
@@ -103,7 +103,7 @@ describe("composeWorker({ onIncident })", () => {
     const { reports, sink } = recorder();
     const worker = composeWorker({
       fetch: async () => {
-        reportDegraded("commerce.products", new TypeError("fetch failed"), { source: "seed" });
+        reportFallback("commerce.products", new TypeError("fetch failed"), { source: "seed" });
         return new Response("seed content");
       },
       onIncident: sink,
@@ -125,7 +125,7 @@ describe("composeWorker({ onIncident })", () => {
     const { reports, sink } = recorder();
     const worker = composeWorker({
       fetch: async () => {
-        reportDegraded("content.read", "stale");
+        reportFallback("content.read", "stale");
         throw new Error("render failed");
       },
       onIncident: sink,
@@ -166,7 +166,7 @@ describe("composeWorker({ onIncident })", () => {
     const worker = composeWorker({
       fetch: async (request) => {
         if (new URL(request.url).pathname === "/about")
-          reportDegraded("commerce.checkout.session", "down");
+          reportFallback("commerce.checkout.session", "down");
         throw new Error("x");
       },
       onIncident: { sinks: sink, critical: ["commerce.checkout", "/cart"] },
@@ -230,7 +230,7 @@ describe("composeWorker({ onIncident })", () => {
       fetch: async () => new Response("ok"),
       routes: [
         async () => {
-          reportDegraded("forms.notify.webhook", "timeout");
+          reportFallback("forms.notify.webhook", "timeout");
           return undefined;
         },
       ],
@@ -257,7 +257,7 @@ describe("composeWorker({ onIncident })", () => {
     const { reports, sink } = recorder();
     const worker = composeWorker({
       fetch: async () => {
-        for (let i = 0; i < 105; i++) reportDegraded("content.read", `miss ${i}`);
+        for (let i = 0; i < 105; i++) reportFallback("content.read", `miss ${i}`);
         return new Response("ok");
       },
       onIncident: sink,
@@ -314,7 +314,7 @@ describe("capture on queue and scheduled", () => {
     const worker = composeWorker({
       fetch: async () => new Response(),
       scheduled: async () => {
-        reportDegraded("health.summary", "kv write failed");
+        reportFallback("health.summary", "kv write failed");
       },
       onIncident: sink,
     });

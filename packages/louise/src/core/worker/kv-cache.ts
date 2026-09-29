@@ -4,7 +4,7 @@
 // every request (a tenant by hostname, a settings row, a feature flag).
 // `withEdgeCache` caches whole responses; this caches one value.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 
 /** The subset of a KV namespace this uses. */
 export interface KvCacheStore {
@@ -34,7 +34,7 @@ export interface KvCachedOptions {
  * Read `key` from KV, or run `load` and store what it returns (JSON). `null`
  * from `load` means "not found" and is cached too, unless `cacheMisses: false`.
  *
- * Fails open: a KV read or write that throws is reported with `reportDegraded`
+ * Fails open: a KV read or write that throws is reported with `reportFallback`
  * and otherwise ignored, and `load` runs, so a cache outage costs speed, never
  * correctness. A value that no longer parses
  * is treated as a miss. `kv` may be `undefined` (unbound in dev)—then this
@@ -56,7 +56,7 @@ export async function kvCached<T>(
   }
   const raw = kv
     ? await kv.get(key).catch((err: unknown) => {
-        reportDegraded("worker.kvCache.read", err, { key });
+        reportFallback("worker.kvCache.read", err, { key });
         return null;
       })
     : null;
@@ -75,7 +75,7 @@ export async function kvCached<T>(
         expirationTtl: options.ttlSeconds,
       })
       .catch((err: unknown) => {
-        reportDegraded("worker.kvCache.write", err, { key });
+        reportFallback("worker.kvCache.write", err, { key });
       });
   }
   return value;
@@ -83,9 +83,9 @@ export async function kvCached<T>(
 
 /** Drop a cached key after the data behind it changes. Fails open, like the
  *  read, but a failed bust means readers can see the old value for up to the
- *  TTL, so it's reported with `reportDegraded`. */
+ *  TTL, so it's reported with `reportFallback`. */
 export async function kvBust(kv: KvCacheStore | undefined, key: string): Promise<void> {
   await kv?.delete(key).catch((err: unknown) => {
-    reportDegraded("worker.kvCache.bust", err, { key });
+    reportFallback("worker.kvCache.bust", err, { key });
   });
 }

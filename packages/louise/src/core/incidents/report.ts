@@ -4,7 +4,7 @@
 // Re-exported from `index.ts`.
 //
 // A throw from a route, a queue handler, or a cron, and a fallback that fired
-// (`reportDegraded`), each become one `IncidentReport`. Reports with the same
+// (`reportFallback`), each become one `IncidentReport`. Reports with the same
 // fingerprint are one incident: a sink counts them, and the count is what
 // tells a one-off from a pattern. This file is the pure part: the report's
 // shape, the fingerprint, and the redaction every report gets before any sink
@@ -132,7 +132,7 @@ export function buildIncidentReport(input: IncidentInput): IncidentReport {
 }
 
 /**
- * The report for a `reportDegraded` call: kind `degraded`, named for the
+ * The report for a `reportFallback` call: kind `degraded`, named for the
  * fallback that fired, with the cause's code when it was a `LouiseError`.
  */
 export function incidentFromDegraded(

@@ -8,7 +8,7 @@
 // the guard is same-origin (CSRF) + the spam checks, not an editor session.
 
 import { isSameOrigin } from "../auth/guard.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import {
   columnName,
   type FormDefinition,
@@ -187,7 +187,7 @@ export function formRoute<Env extends FormRouteEnv = FormRouteEnv>(
         if (config.onSpam) await config.onSpam(verdict, env, { form: form.name, body });
         else console.warn(`[louise] form "${form.name}": held a submission (${verdict})`);
       } catch (err) {
-        reportDegraded("forms.onSpam", err, { form: form.name });
+        reportFallback("forms.onSpam", err, { form: form.name });
       }
       return answer({ form: form.name, status: "sent" }, () => json({ ok: true }, 201));
     }

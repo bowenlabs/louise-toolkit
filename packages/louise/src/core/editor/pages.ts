@@ -18,7 +18,7 @@ import {
   type pageRedirects,
   slugChangeStatements,
 } from "../db/index.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { LouiseValidationError } from "../errors.js";
 import { s, standardValidate } from "../schema/index.js";
 import { sanitizeRichHtml } from "../security/index.js";
@@ -254,7 +254,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
     } catch (err) {
       // The live write already landed. Reported, because until the draft is
       // saved again, the next publish puts the old values back.
-      reportDegraded("editor.pages.draftCarry", err, { id });
+      reportFallback("editor.pages.draftCarry", err, { id });
     }
   };
 
@@ -286,7 +286,7 @@ export function pagesRoute<Env extends EditorRouteEnv = EditorRouteEnv>(
       await config.afterWrite(editor, write);
     } catch (err) {
       // Best-effort—a post-write hook (for example, search reindex) must never fail the write.
-      reportDegraded("editor.pages.afterWrite", err);
+      reportFallback("editor.pages.afterWrite", err);
     }
   };
 

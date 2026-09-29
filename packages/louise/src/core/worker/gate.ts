@@ -14,7 +14,7 @@
 
 import { requireEditor } from "../auth/guard.js";
 import type { EditorSession } from "../auth/types.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { louiseSecurityHeaders } from "../security/headers.js";
 import type { WorkerRoute } from "./index.js";
 
@@ -104,7 +104,7 @@ export function resolveEditorOnce<Env>(
       .then(() => resolveEditor(request, env))
       .catch((err: unknown) => {
         // Treated as signed out: the request falls back to what a visitor sees.
-        reportDegraded("worker.resolveEditor", err);
+        reportFallback("worker.resolveEditor", err);
         return null;
       });
     byResolver.set(resolveEditor, editor);

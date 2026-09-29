@@ -12,7 +12,7 @@
 // omitted; a resolver that throws is treated as absent (it never fails the whole
 // dashboard with a 500), so a card degrades to "nothing to show" rather than an error.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { type EditorRouteEnv, guardEditor, json, matchPath, type ResolveEditor } from "./shared.js";
 
@@ -77,7 +77,7 @@ async function settle<Env, T>(
   try {
     return (await resolver(env)) ?? undefined;
   } catch (err) {
-    reportDegraded("editor.overview", err, { slice });
+    reportFallback("editor.overview", err, { slice });
     return undefined;
   }
 }

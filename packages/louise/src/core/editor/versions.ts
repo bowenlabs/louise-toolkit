@@ -44,7 +44,7 @@ import {
   serializeD1BookmarkCookie,
   slugChangeStatements,
 } from "../db/index.js";
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import { s, standardValidate } from "../schema/index.js";
 import type { WorkerRoute } from "../worker/index.js";
 import {
@@ -465,7 +465,7 @@ export async function applyPublish<Env extends EditorRouteEnv = EditorRouteEnv>(
     try {
       await database.batch(writes as [(typeof writes)[number], ...typeof writes]);
     } catch (err) {
-      reportDegraded("editor.redirects", err, { id });
+      reportFallback("editor.redirects", err, { id });
     }
   };
 
@@ -587,7 +587,7 @@ async function lockedByOthers<Env extends EditorRouteEnv>(
   } catch (err) {
     // Fail open: a soft-lock is advisory, and an unreachable session mustn't
     // stop every save. Reported, because while it lasts the lock isn't checked.
-    reportDegraded("editor.softLocks", err, { id: save.id });
+    reportFallback("editor.softLocks", err, { id: save.id });
     return [];
   }
   return changed.filter((key) => {

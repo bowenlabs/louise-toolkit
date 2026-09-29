@@ -10,7 +10,7 @@
 // model catalog. That keeps the door open for routing `run` through AI Gateway
 // later (#87) without touching callers.
 
-import { causeParts, reportDegraded } from "../degraded.js";
+import { causeParts, reportFallback } from "../degraded.js";
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "../seo/limits.js";
 
 /** The one capability these helpers need from a Workers AI binding: `run(model,
@@ -180,7 +180,7 @@ async function attemptAi(
     // reason is part of the name, because an incident report keeps the name and
     // not the details: `ai.run.model-retired` is its own incident.
     const reason = classifyAiError(err);
-    reportDegraded(`ai.run.${reason}`, err, { model, reason });
+    reportFallback(`ai.run.${reason}`, err, { model, reason });
     return { ok: false, reason };
   }
 }
@@ -191,7 +191,7 @@ async function attemptAi(
  * an assist, never a gate—so callers wire it inline and keep their non-AI
  * fallback (empty alt, the original prose, no SEO suggestion).
  *
- * A thrown error is reported with `reportDegraded` as `ai.run.<reason>`, such
+ * A thrown error is reported with `reportFallback` as `ai.run.<reason>`, such
  * as `ai.run.model-retired`, where the reason is {@link classifyAiError}'s.
  */
 export async function runAi(
@@ -246,7 +246,7 @@ const TRUNCATED_FINISH_REASONS = new Set(["length", "max_tokens"]);
  * The same contract as {@link runAi}: `null` when `runner` is absent or the call
  * throws, and it never throws. Otherwise it returns the text along with
  * `truncated`, read from `inputs.max_tokens` and what the model reported. A
- * truncated answer is reported with `reportDegraded` as `ai.truncated`, with the
+ * truncated answer is reported with `reportFallback` as `ai.truncated`, with the
  * model ID, so it shows in `wrangler tail` and an `onDegraded` listener hears it.
  *
  * Check `truncated` before you store or show the text. A cut-off answer reads as
@@ -283,7 +283,7 @@ async function attemptAiText(
     // A cut-off answer is a degrade: the helpers refuse it and the caller keeps
     // its fallback. Report it in the same shape as `ai.run`, so one search finds
     // both and an `onDegraded` listener hears it.
-    reportDegraded("ai.truncated", "answer hit the output token cap", {
+    reportFallback("ai.truncated", "answer hit the output token cap", {
       model,
       finishReason,
       completionTokens: usage?.completionTokens ?? null,
@@ -301,7 +301,7 @@ async function attemptAiText(
 function unusable(result: AiTextResult, model: string, needText: boolean): AiFailureReason | null {
   if (result.truncated) return "truncated";
   if (needText && !result.text?.trim()) {
-    reportDegraded("ai.invalid-output", "the model returned no text", { model });
+    reportFallback("ai.invalid-output", "the model returned no text", { model });
     return "invalid-output";
   }
   return null;
@@ -643,7 +643,7 @@ export async function rewriteText(
   if (reason) return tell(opts.onFailure, reason);
   const rewritten = unwrapModelText(out.value.text!);
   if (rewritten) return rewritten;
-  reportDegraded("ai.invalid-output", "the rewrite was only a preamble or quotes", { model });
+  reportFallback("ai.invalid-output", "the rewrite was only a preamble or quotes", { model });
   return tell(opts.onFailure, "invalid-output");
 }
 
@@ -729,7 +729,7 @@ export async function suggestSeo(
   if (cut) return tell(opts.onFailure, cut);
   const parsed = extractJsonObject(out.value.output);
   if (!parsed) {
-    reportDegraded("ai.invalid-output", "the reply wasn't the expected JSON object", { model });
+    reportFallback("ai.invalid-output", "the reply wasn't the expected JSON object", { model });
     return tell(opts.onFailure, "invalid-output");
   }
   const title = nonEmptyString(parsed.title) ? capLength(parsed.title.trim(), SEO_TITLE_MAX) : null;
@@ -737,7 +737,7 @@ export async function suggestSeo(
     ? capLength(parsed.description.trim(), SEO_DESCRIPTION_MAX)
     : null;
   if (title === null && description === null) {
-    reportDegraded("ai.invalid-output", "the reply had neither a title nor a description", {
+    reportFallback("ai.invalid-output", "the reply had neither a title nor a description", {
       model,
     });
     return tell(opts.onFailure, "invalid-output");

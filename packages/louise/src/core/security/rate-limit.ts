@@ -13,7 +13,7 @@
 //     wrongly blocks, so it fails safe for legitimate users.
 //   - **Fails open**: any KV error returns `ok: true`. A limiter outage must
 //     never take down sign-in or the contact form. It's reported with
-//     `reportDegraded`, so an open limiter doesn't go unnoticed.
+//     `reportFallback`, so an open limiter doesn't go unnoticed.
 //
 // The *rules* (which routes, which budgets) are site policy: a site defines its
 // own `RateRule[]` and passes it to `matchRateRule`. Only the mechanism lives here.
@@ -23,7 +23,7 @@
 // for the hot abuse-control surfaces, but its budget lives in wrangler config
 // (the `limit`/`windowSec` args become advisory) and it only reports a boolean.
 
-import { reportDegraded } from "../degraded.js";
+import { reportFallback } from "../degraded.js";
 import type { KVLike, RateLimitBackend, RateLimiterBinding } from "./types";
 
 export type { RateLimitBackend };
@@ -77,7 +77,7 @@ export async function rateLimit(
     } catch (err) {
       // Fails open—a limiter outage must never take down sign-in or a form.
       // The key stays out of the report: it's usually a visitor's IP address.
-      reportDegraded("security.rateLimit", err, { backend: "native" });
+      reportFallback("security.rateLimit", err, { backend: "native" });
       return { ok: true, remaining: limit, retryAfter: 0 };
     }
   }
@@ -93,7 +93,7 @@ export async function rateLimit(
     await kv.put(bucket, String(current + 1), { expirationTtl: windowSec + 10 });
     return { ok: true, remaining: limit - current - 1, retryAfter };
   } catch (err) {
-    reportDegraded("security.rateLimit", err, { backend: "kv" });
+    reportFallback("security.rateLimit", err, { backend: "kv" });
     return { ok: true, remaining: limit, retryAfter: 0 };
   }
 }
