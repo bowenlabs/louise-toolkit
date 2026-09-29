@@ -129,9 +129,9 @@ export interface RepairCartOptions<L extends CartLine> {
  * JSON-encoded, so an ID containing a separator can't make two different lines
  * look alike.
  */
-// Module-internal: shared with checkout-session.ts, not re-exported. The
-// server's attempt key in astroidjs reads add-on IDs as strings and keeps its
-// own encoding.
+// Module-internal: shared with checkout-session.ts, not re-exported. A
+// server-side attempt key reads add-on IDs as strings and keeps its own
+// encoding.
 export const cartLineIdentity = (line: Pick<CartLine, "variantId" | "modifiers">): string =>
   JSON.stringify([line.variantId, (line.modifiers ?? []).map((m) => m.id).sort()]);
 
