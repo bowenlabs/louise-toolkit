@@ -1,0 +1,26 @@
+# Louise answers a comment that mentions `@louise`, from someone with write
+# access, as the Louise agent app. bowenlabs/claude-plugins' README, section
+# Mentions in CI, describes the workflow and what the agent can reach.
+name: Louise mention
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  mention:
+    if: contains(github.event.comment.body, '@louise')
+    uses: bowenlabs/claude-plugins/.github/workflows/louise-mention.yml@main
+    with:
+      agent_app_id: ${{ vars.LOUISE_AGENT_APP_ID }}
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      louise_token: ${{ secrets.LOUISE_REVIEW_TOKEN }}
+      agent_app_private_key: ${{ secrets.LOUISE_AGENT_APP_PRIVATE_KEY }}
