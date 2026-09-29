@@ -130,8 +130,8 @@ export interface RepairCartOptions<L extends CartLine> {
  * look alike.
  */
 // Module-internal: shared with checkout-session.ts, not re-exported. A
-// server-side attempt key reads add-on IDs as strings and keeps its own
-// encoding.
+// server-side attempt key keeps its own encoding but must agree on what the
+// same order is: quantities added up per variant and add-on set, in any order.
 export const cartLineIdentity = (line: Pick<CartLine, "variantId" | "modifiers">): string =>
   JSON.stringify([line.variantId, (line.modifiers ?? []).map((m) => m.id).sort()]);
 

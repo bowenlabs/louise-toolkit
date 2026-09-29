@@ -16,7 +16,9 @@
 // a lost response is still the same attempt, and must keep the same key.
 //
 // An ID also retires after `idleMs` unused, so a cart left over from a lost
-// response yesterday places a new order today instead of finding yesterday's.
+// response yesterday places a new order today instead of finding yesterday's,
+// and `maxAgeMs` after it was minted, so it never outlives the server's record
+// of the attempt.
 
 import { type CartLine, cartLineIdentity } from "./cart.js";
 
@@ -42,7 +44,7 @@ export interface CheckoutSessionOptions {
    * often it's used. At least `idleMs`. Keep the server's record of an
    * attempt's outcome longer than this, so every retry the client still calls
    * this attempt finds that record. Without a cap, a retry every hour would
-   * keep the ID past any record's TTL.
+   * keep the ID past any record's expiry.
    */
   maxAgeMs: number;
   /** Where the ID persists. Defaults to `globalThis.localStorage`, read on each
@@ -53,8 +55,8 @@ export interface CheckoutSessionOptions {
 export interface CheckoutSession {
   /**
    * The ID for the cart `fingerprint` describes: the stored one while it was
-   * minted for that fingerprint and used within `idleMs`, otherwise a new one,
-   * stored before it's returned.
+   * minted for that fingerprint, used within `idleMs`, and minted within
+   * `maxAgeMs`, otherwise a new one, stored before it's returned.
    */
   id(fingerprint: string, now?: number): string;
   /** Retire the ID, so the next checkout is a new attempt: after an order is
@@ -98,7 +100,8 @@ function randomId(): string {
 
 /**
  * A checkout-session ID that persists beside a stored cart and changes only
- * when the cart does, after `idleMs` unused, or on `rotate()`.
+ * when the cart does, after `idleMs` unused, `maxAgeMs` after it was minted, or
+ * on `rotate()`.
  *
  * Send `session.id(cartFingerprint(lines))` with each checkout, call
  * `rotate()` once an order is placed and after a definite decline, and derive
@@ -141,14 +144,21 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
   const read = (): StoredSession | null => {
     if (storageFailed) return memory;
     if (shared) return null;
+    let raw: string | null;
     try {
-      const raw = storage().getItem(storageKey);
-      if (!raw) return null;
-      const parsed: unknown = JSON.parse(raw);
-      return isStoredSession(parsed) ? parsed : null;
+      raw = storage().getItem(storageKey);
     } catch {
       storageFailed = true;
       return memory;
+    }
+    // A value that isn't a session (garbage, or a bare ID an older version
+    // stored under the same key) reads as none, so the next write replaces
+    // it. Storage works; only this value is bad.
+    try {
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      return isStoredSession(parsed) ? parsed : null;
+    } catch {
+      return null;
     }
   };
 
@@ -160,6 +170,17 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
       storage().setItem(storageKey, JSON.stringify(session));
     } catch {
       storageFailed = true;
+      // Don't leave an older ID behind for a reload to find: removing frees
+      // space, so it usually works on a full quota.
+      removeStored();
+    }
+  };
+
+  const removeStored = () => {
+    try {
+      storage().removeItem(storageKey);
+    } catch {
+      // Nothing more to do: storage refuses even this.
     }
   };
 
@@ -183,12 +204,11 @@ export function checkoutSession(options: CheckoutSessionOptions): CheckoutSessio
     },
     rotate() {
       memory = null;
-      if (shared || storageFailed) return;
-      try {
-        storage().removeItem(storageKey);
-      } catch {
-        storageFailed = true;
-      }
+      if (shared) return;
+      // Even after a failure: a stored ID left behind would come back on a
+      // reload, and a server that replays settled attempts would answer the
+      // next order with the one already paid.
+      removeStored();
     },
   };
 }

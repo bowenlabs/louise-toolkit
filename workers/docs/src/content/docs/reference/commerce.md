@@ -159,7 +159,10 @@ the retry reuses it.
 `cartFingerprint(lines)` counts each variant-and-add-ons combination, in any
 order and however the quantity is split across lines, and leaves prices out. A
 price repair after a lost response is still the same order, and it has to keep the same key. If your cart lines have
-another shape, pass any string that changes exactly when the order does.
+another shape, pass any string that changes exactly when the order does. The
+server's key has to agree on what the same order is: if the fingerprint treats
+one line of 2 and two lines of 1 as the same order, so must the key, or a cart
+consolidated after a lost response keeps its ID and gets a new key.
 
 Storage that throws, in private browsing or on a full quota, moves the ID to
 page memory for the rest of the page's life. While storage works, it alone is

@@ -119,13 +119,49 @@ describe("checkoutSession", () => {
     expect(shop.id("cart-a", 0)).not.toBe(cafe.id("cart-a", 0));
   });
 
-  it("mints a new ID over a stored value it can't read", () => {
+  it.each([
+    ["garbage", "{not json"],
+    ["a bare ID from an older version", "0b7c4e2a-9f1d-4c3b-8a6e-2d5f7a9c1e3b"],
+  ])("replaces a stored value it can't read (%s) and keeps persisting", (_, value) => {
     const storage = memoryStorage();
-    storage.setItem(KEY, "{not json");
+    storage.setItem(KEY, value);
     const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
     const id = session.id("cart-a", 0);
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(session.id("cart-a", 1)).toBe(id);
+    expect(JSON.parse(storage.data.get(KEY) ?? "{}")).toMatchObject({ id });
+    // A reload still finds it: persistence stayed on.
+    const reloaded = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage,
+    });
+    expect(reloaded.id("cart-a", 1)).toBe(id);
+  });
+
+  it("doesn't leave a paid ID behind for a reload after a write fails", () => {
+    const data = new Map<string, string>();
+    let full = false;
+    const storage: CheckoutSessionStorage = {
+      getItem: (k) => data.get(k) ?? null,
+      setItem: (k, v) => {
+        if (full) throw new Error("QuotaExceededError");
+        data.set(k, v);
+      },
+      removeItem: (k) => void data.delete(k),
+    };
+    const session = checkoutSession({ storageKey: KEY, idleMs: HOUR, maxAgeMs: 4 * HOUR, storage });
+    const paid = session.id("cart-a", 0);
+    full = true;
+    session.id("cart-a", 1); // the write fails; the page runs from memory
+    session.rotate(); // the order was placed
+    const reloaded = checkoutSession({
+      storageKey: KEY,
+      idleMs: HOUR,
+      maxAgeMs: 4 * HOUR,
+      storage,
+    });
+    expect(reloaded.id("cart-a", 2)).not.toBe(paid);
   });
 
   it("ignores a stored value of the wrong shape", () => {
