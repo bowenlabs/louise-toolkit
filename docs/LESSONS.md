@@ -237,3 +237,4 @@ you're served before relying on them. An axis-instanced woff2 that you host
 yourself keeps only the axes you ask for, and it's smaller: 55 KB against 191 KB
 for the full-axis file from the CDN. The package inlines its `wght` subset, so it
 makes no font request at all.
+
