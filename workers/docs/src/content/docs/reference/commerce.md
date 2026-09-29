@@ -158,7 +158,9 @@ another shape, pass any string that changes exactly when the order does.
 
 Storage that throws, in private browsing or on a full quota, moves the ID to
 page memory for the rest of the page's life. While storage works, it alone is
-the truth, so another tab's `rotate()` retires the ID everywhere.
+the truth, so another tab's `rotate()` retires the ID everywhere. Storage has no
+compare-and-set, so this narrows the window without closing it: two tabs that
+check out the same cart at the same moment can still send different IDs.
 
 On the server, derive the payment's idempotency key from the session ID and the
 lines as the customer chose them. Never include the verified prices or a tip: a
@@ -457,7 +459,7 @@ Square sends none. Only a 404 means "no program"; any other failure throws, so a
 transient error isn't cached as an answer.
 
 Compare `squareApplicationIdEnvironment(PUBLIC_SQUARE_APPLICATION_ID)` with the
-environment your server uses before mounting the card form. A placeholder id, or
+environment your server uses before mounting the card form. A placeholder ID, or
 an ID from the other environment, otherwise fails inside the payment SDK with an
 error a customer can't act on.
 

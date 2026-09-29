@@ -32,7 +32,7 @@ export interface CheckoutSessionOptions {
    *  origin never share an attempt. */
   storageKey: string;
   /**
-   * How long an unused id stays current, in milliseconds. Each call to `id()`
+   * How long an unused ID stays current, in milliseconds. Each call to `id()`
    * restarts it. Keep it shorter than the server keeps its record of an
    * attempt's outcome, so a retry the client still calls this attempt finds
    * that record. No default: how long a leftover cart stays the same order is
@@ -100,7 +100,9 @@ function randomId(): string {
  * Storage that throws (private browsing, a full quota) moves the ID to page
  * memory for the rest of the page's life, where a reload starts a new attempt.
  * While storage works, it alone is the truth, so another tab's `rotate()`
- * retires the ID here too.
+ * retires the ID here too. Storage has no compare-and-set, so this narrows
+ * the window without closing it: two tabs that mint an ID for the same cart
+ * at the same moment can still send different ones.
  */
 export function checkoutSession(options: CheckoutSessionOptions): CheckoutSession {
   const { storageKey, idleMs } = options;

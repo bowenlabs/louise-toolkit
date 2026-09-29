@@ -88,7 +88,7 @@ export {
   type RepairCartOptions,
 } from "./cart.js";
 
-// The checkout-session id a stored cart keeps across reloads, for the payment's
+// The checkout-session ID a stored cart keeps across reloads, for the payment's
 // idempotency key.
 export {
   cartFingerprint,
