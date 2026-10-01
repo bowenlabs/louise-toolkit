@@ -59,7 +59,8 @@ export interface MenuVariation {
   id: string;
   name: string;
   priceCents: number;
-  currency: string;
+  /** The price's ISO 4217 code, or `null` when Square sent none, as on `SquareVariation`. */
+  currency: string | null;
   /** Units in stock, or `null` when Square doesn't track this variation. */
   stock: number | null;
 }

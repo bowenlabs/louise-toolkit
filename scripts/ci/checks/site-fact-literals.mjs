@@ -72,7 +72,6 @@ const ALLOWED = {
   "packages/louise/src/core/commerce/stripe.ts": {
     usd: "overridable default: every Stripe helper takes `currency`, and all sites sell in USD today",
   },
-  "packages/louise/src/core/commerce/square/catalog.ts": { USD: SQUARE_READ },
   "packages/louise/src/core/commerce/square/catalog-details.ts": { USD: SQUARE_WRITE },
   "packages/louise/src/core/commerce/square/invoices.ts": { USD: SQUARE_WRITE },
   "packages/louise/src/core/commerce/square/labor.ts": {
@@ -81,9 +80,6 @@ const ALLOWED = {
   "packages/louise/src/core/commerce/square/locations.ts": { USD: SQUARE_READ },
   "packages/louise/src/core/commerce/square/wire.ts": {
     USD: `${SQUARE_READ}, and ${SQUARE_WRITE}`,
-  },
-  "packages/louise/src/core/commerce/fourthwall-platform.ts": {
-    USD: "tags Fourthwall money that left its currency out; Fourthwall names it",
   },
   "packages/louise/src/core/dates/index.ts": {
     "en-CA": "parse-only: `isoDateIn` reads YYYY-MM-DD parts out of Intl; never shown",

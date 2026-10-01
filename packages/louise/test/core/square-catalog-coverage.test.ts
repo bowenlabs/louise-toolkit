@@ -616,8 +616,28 @@ describe("retrieveVariationPrices", () => {
     });
     expect([...prices]).toEqual([
       ["VAR1", { amount: 450, currency: "USD" }],
-      ["VAR2", { amount: 0, currency: "USD" }],
+      ["VAR2", { amount: 0, currency: null }],
     ]);
+  });
+
+  it("keeps the currency Square sends and leaves a missing one null, never a guess", async () => {
+    answer({
+      objects: [
+        {
+          id: "VAR-EUR",
+          type: "ITEM_VARIATION",
+          item_variation_data: { price_money: { amount: 450, currency: "EUR" } },
+        },
+        {
+          id: "VAR-NONE",
+          type: "ITEM_VARIATION",
+          item_variation_data: { price_money: { amount: 300 } },
+        },
+      ],
+    });
+    const prices = await retrieveVariationPrices(CONFIG, ["VAR-EUR", "VAR-NONE"]);
+    expect(prices.get("VAR-EUR")).toEqual({ amount: 450, currency: "EUR" });
+    expect(prices.get("VAR-NONE")).toEqual({ amount: 300, currency: null });
   });
 
   it("omits a variation whose parent item is archived", async () => {
