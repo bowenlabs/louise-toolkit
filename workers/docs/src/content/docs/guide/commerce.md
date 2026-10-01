@@ -88,6 +88,9 @@ The one write path is **checkout**, and it's deliberately trust-nothing:
 3. **Charge** with `createPayment`, passing a Web Payments SDK card token
    (`sourceId`) tokenized in the browser (raw card data never reaches the Worker)
    plus the `orderId`, so the amount matches Square's computed total.
+   Scope the idempotency key to a
+   [checkout-session ID that survives a reload](/reference/commerce/#a-checkout-session-id-that-survives-a-reload),
+   so a retry after a lost response can't charge twice.
 
 Subscriptions reuse the same tokenized-card model: save a card on file with
 `createCard`, then enroll against a plan variation with `createSubscription`.

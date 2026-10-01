@@ -30,21 +30,23 @@ import {
 } from "louise-toolkit/commerce";
 ```
 
-| Export                                   | Purpose                                                                                  |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `Money`                                  | `{ amount, currency }`—amount in the currency's minor unit (cents).                      |
-| `centsToMajor(cents, digits?)`           | Minor units → major (`2500` → `25`). The default of 2 digits suits USD, not JPY or BHD.  |
-| `currencyDigits(currency)`               | A currency's minor-unit count from `Intl`: 2 for USD, 0 for JPY, 3 for BHD.              |
-| `formatMoney(money, { locale })`         | A `Money` as text (`"$1,250.00"`). Other `Intl.NumberFormat` options pass through.       |
-| `parseMoney(text, { locale, currency })` | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.      |
-| `majorToCents(amount, digits?)`          | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                |
-| `parseMoneyInput(text, digits?)`         | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.   |
-| `percentTip(subtotal, percent)`          | A preset tip in cents, rounded at the cent. Exact for a fractional percentage.           |
-| `tipCap(subtotal, cap)`                  | The largest tip the shop accepts. See [Tips](#tips).                                     |
-| `parseTipCents(value)`                   | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.    |
-| `clampTip(tip, subtotal, cap)`           | The tip limited to the cap: what the server charges.                                     |
-| `hmacSha256Hex` / `hmacSha256Base64`     | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64). |
-| `safeEqual(a, b)`                        | Constant-time-ish compare—use it to check a computed signature against a header value.   |
+| Export                                              | Purpose                                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Money`                                             | `{ amount, currency }`—amount in the currency's minor unit (cents).                                                                                 |
+| `centsToMajor(cents, digits?)`                      | Minor units → major (`2500` → `25`). The default of 2 digits suits USD, not JPY or BHD.                                                             |
+| `currencyDigits(currency)`                          | A currency's minor-unit count from `Intl`: 2 for USD, 0 for JPY, 3 for BHD.                                                                         |
+| `formatMoney(money, { locale })`                    | A `Money` as text (`"$1,250.00"`). Other `Intl.NumberFormat` options pass through.                                                                  |
+| `parseMoney(text, { locale, currency })`            | What `formatMoney` prints (`"$1,200.50"`, `"1.200,50 €"`) → minor units, or `null`.                                                                 |
+| `majorToCents(amount, digits?)`                     | Major → minor, exactly. `Math.round(1.005 * 100)` is 100; this gives 101.                                                                           |
+| `parseMoneyInput(text, digits?)`                    | A typed amount (`"12.50"`) → minor units, or `null`. Parsed as text, strict, no float.                                                              |
+| `percentTip(subtotal, percent)`                     | A preset tip in cents, rounded at the cent. Exact for a fractional percentage.                                                                      |
+| `tipCap(subtotal, cap)`                             | The largest tip the shop accepts. See [Tips](#tips).                                                                                                |
+| `parseTipCents(value)`                              | A tip from a request body, rounded to the cent. Anything unreadable or negative is 0.                                                               |
+| `clampTip(tip, subtotal, cap)`                      | The tip limited to the cap: what the server charges.                                                                                                |
+| `checkoutSession({ storageKey, idleMs, maxAgeMs })` | A checkout-session ID kept beside a stored cart. See [A checkout-session ID that survives a reload](#a-checkout-session-id-that-survives-a-reload). |
+| `cartFingerprint(lines)`                            | What makes two carts the same order: variants, quantities, and add-ons, not prices.                                                                 |
+| `hmacSha256Hex` / `hmacSha256Base64`                | HMAC-SHA256 of a message under a secret (Stripe uses hex; Square/Fourthwall use base64).                                                            |
+| `safeEqual(a, b)`                                   | Constant-time-ish compare—use it to check a computed signature against a header value.                                                              |
 
 ### Tips
 
@@ -118,6 +120,68 @@ two lines that became identical. It returns `{ lines, changes }`, where `changes
 is data—`repriced`, `removed`, `modifier-removed`, `merged` (with any quantity the
 cap cut off)—for you to word for your customers. It never mutates its input, and
 it applies no quantity cap unless you pass one.
+
+### A checkout-session ID that survives a reload
+
+A payment's idempotency key is only as stable as the ID it's scoped to. A cart
+that persists in `localStorage` needs a checkout-session ID that persists with
+it: an ID held in page memory changes on every reload while the cart doesn't, so
+a customer whose paid checkout lost its response reloads, retries the same cart
+under a new key, and pays twice.
+
+```ts
+import { cartFingerprint, checkoutSession } from "louise-toolkit/commerce";
+
+// The shop's policy: how long a leftover cart stays the same order, and the
+// longest one attempt lasts. Keep the server's attempt records longer.
+const session = checkoutSession({
+  storageKey: "shop-checkout-session",
+  idleMs: 60 * 60 * 1000,
+  maxAgeMs: 90 * 60 * 1000,
+});
+
+const res = await fetch("/api/checkout", {
+  method: "POST",
+  body: JSON.stringify({ lines, sourceId, checkoutSessionId: session.id(cartFingerprint(lines)) }),
+});
+const result = await res.json();
+if (result.ok || result.declined) session.rotate(); // placed, or definitely not charged
+```
+
+`session.id(fingerprint)` returns the stored ID while the cart matches the
+fingerprint it was minted for, it was used within `idleMs`, and it was minted
+within `maxAgeMs`. Otherwise it mints and stores a new one. So an edited cart is a new attempt, whichever tab
+edited it, and a cart left over from yesterday's lost response places a new
+order today. Call `rotate()` after an order is placed and after a definite
+decline. Leave the ID alone after an ambiguous failure, such as a timeout, so
+the retry reuses it.
+
+`cartFingerprint(lines)` counts each variant-and-add-ons combination, in any
+order and however the quantity is split across lines, and leaves prices out. A
+price repair after a lost response is still the same order, and it has to keep the same key. If your cart lines have
+another shape, pass any string that changes exactly when the order does. The
+server's key has to agree on what the same order is: if the fingerprint treats
+one line of 2 and two lines of 1 as the same order, so must the key, or a cart
+consolidated after a lost response keeps its ID and gets a new key.
+
+Storage that throws, in private browsing or on a full quota, moves the ID to
+page memory for the rest of the page's life. While storage works, it alone is
+the truth, so another tab's `rotate()` retires the ID everywhere. Storage has no
+compare-and-set, so this narrows the window without closing it: two tabs that
+check out the same cart at the same moment can still send different IDs.
+
+On the server, derive the payment's idempotency key from the session ID and the
+lines as the customer chose them. Never include the verified prices or a tip: a
+retry that differs only there has to reuse the key, so the provider refuses it
+or returns the first payment rather than charging again. Keep any record of an
+attempt's outcome longer than `maxAgeMs`, the longest the client calls it one
+attempt. `idleMs` alone doesn't bound that, because each use restarts it.
+
+`checkoutSession` is a browser primitive. On a server, where there's no
+`document`, memory and any global storage are shared by every request, so
+without a `storage` option a session keeps nothing between calls. Two customers
+with the same cart must never share an ID, or the second one's payment is
+deduplicated into the first one's.
 
 ## `louise-toolkit/commerce/stripe`
 
@@ -305,7 +369,7 @@ across a queue redelivery, set `externalId` and reconcile with
 :::danger[There is no product update. Not "not yet"—none.]
 The API exposes no endpoint to change a product's name, description, price, or
 variants after creation. If a detail is wrong, the only remedy is delete and
-create again—which mints a **new id**, so anything of yours keyed on the old
+create again—which mints a **new ID**, so anything of yours keyed on the old
 one (a mirror row, a saved cart, an order line) has to be reconciled.
 
 Two things to design around: validate your inputs before calling, because there
@@ -414,8 +478,8 @@ Square sends none. Only a 404 means "no program"; any other failure throws, so a
 transient error isn't cached as an answer.
 
 Compare `squareApplicationIdEnvironment(PUBLIC_SQUARE_APPLICATION_ID)` with the
-environment your server uses before mounting the card form. A placeholder id, or
-an id from the other environment, otherwise fails inside the payment SDK with an
+environment your server uses before mounting the card form. A placeholder ID, or
+an ID from the other environment, otherwise fails inside the payment SDK with an
 error a customer can't act on.
 
 ### Editing an existing object
@@ -477,7 +541,7 @@ import {
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                                            |
 | **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                                           |
-| **Catalog images**        | `createCatalogImage`—multipart upload returning the id that `imageIds` takes                                                                                                                                                                                        |
+| **Catalog images**        | `createCatalogImage`—multipart upload returning the ID that `imageIds` takes                                                                                                                                                                                        |
 | **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                                              |
 | **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                        |
 | **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                        |

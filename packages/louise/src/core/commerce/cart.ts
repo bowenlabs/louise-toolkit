@@ -98,7 +98,7 @@ export function cartIssues(lines: readonly CartLine[], catalog: CatalogSnapshot)
   return issues;
 }
 
-/** Every add-on id across `lines`, de-duplicated—what to ask the provider about. */
+/** Every add-on ID across `lines`, de-duplicated—what to ask the provider about. */
 export function cartModifierIds(lines: readonly CartLine[]): string[] {
   return [...new Set(lines.flatMap((l) => (l.modifiers ?? []).map((m) => m.id)))];
 }
@@ -117,18 +117,25 @@ export type CartChange<L extends CartLine> =
 export interface RepairCartOptions<L extends CartLine> {
   /**
    * What makes two lines "the same thing"—merged after an add-on is
-   * removed. Default: the variant plus its sorted add-on ids.
+   * removed. Default: the variant plus its sorted add-on IDs.
    */
   key?: (line: L) => string;
   /** Per-line quantity cap applied when merging. Default: none. */
   maxQuantity?: number;
 }
 
-const defaultKey = (line: CartLine) =>
-  `${line.variantId}|${(line.modifiers ?? [])
-    .map((m) => m.id)
-    .sort()
-    .join(",")}`;
+/**
+ * What makes two lines the same thing: the variant plus its sorted add-on IDs.
+ * JSON-encoded, so an ID containing a separator can't make two different lines
+ * look alike.
+ */
+// Module-internal: shared with checkout-session.ts, not re-exported. A
+// server-side attempt key keeps its own encoding but must agree on what the
+// same order is: quantities added up per variant and add-on set, in any order.
+export const cartLineIdentity = (line: Pick<CartLine, "variantId" | "modifiers">): string =>
+  JSON.stringify([line.variantId, (line.modifiers ?? []).map((m) => m.id).sort()]);
+
+const defaultKey = (line: CartLine) => cartLineIdentity(line);
 
 /**
  * Apply `issues` to `lines`: reprice changed variants, remove unavailable and
