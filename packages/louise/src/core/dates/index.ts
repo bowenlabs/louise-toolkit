@@ -193,6 +193,7 @@ export {
   openingState,
   type OpeningStateOptions,
   parseOpeningHours,
+  parseWeekday,
   type PickupOptions,
   pickupProblem,
   type PickupSlot,
