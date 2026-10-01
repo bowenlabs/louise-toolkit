@@ -100,13 +100,32 @@ export function parseOpeningHours(text: string): OpeningRange | "closed" | null 
   return { open, close };
 }
 
-function dayIndex(day: string | number): number {
-  if (typeof day === "number") return Number.isInteger(day) && day >= 0 && day <= 6 ? day : -1;
+/**
+ * A row's `day` as a weekday number, from 0 for Sunday to 6 for Saturday, like
+ * `Date#getDay` and `weekdayOf`, or `null` when it names no weekday.
+ *
+ * It's the matcher every opening-hours function uses to find a weekday's row,
+ * so code that words its own hours summary reads the rows the same way
+ * {@link openingState} does. It reads a full English weekday name or its first
+ * three letters, in any case and with surrounding spaces trimmed (`"Monday"`,
+ * `"mon"`, `" MON "`), or an integer from 0 to 6. Anything else is `null`,
+ * including another prefix such as `"Mo"` or `"Tues"`, a misspelling, and a
+ * number out of range.
+ *
+ * ```ts
+ * parseWeekday("Saturday"); // 6
+ * parseWeekday("sun"); // 0
+ * parseWeekday("Tues"); // null
+ * ```
+ */
+export function parseWeekday(day: string | number): number | null {
+  if (typeof day === "number") return Number.isInteger(day) && day >= 0 && day <= 6 ? day : null;
   const name = day.trim().toLowerCase();
-  if (name.length < 3) return -1;
-  return DAY_NAMES.findIndex(
+  if (name.length < 3) return null;
+  const index = DAY_NAMES.findIndex(
     (d) => d.toLowerCase().startsWith(name) && (name.length === 3 || d.toLowerCase() === name),
   );
+  return index === -1 ? null : index;
 }
 
 /** The first row for `weekday`, parsed, or null when there's none or it can't be read. */
@@ -114,7 +133,7 @@ function rangeOn(
   rows: readonly OpeningHoursRow[],
   weekday: number,
 ): OpeningRange | "closed" | null {
-  const row = rows.find((r) => dayIndex(r.day) === weekday);
+  const row = rows.find((r) => parseWeekday(r.day) === weekday);
   return row ? parseOpeningHours(row.hours) : null;
 }
 

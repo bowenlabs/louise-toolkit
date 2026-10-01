@@ -6,6 +6,7 @@ import {
   type OpeningHoursRow,
   openingState,
   parseOpeningHours,
+  parseWeekday,
   type PickupOptions,
   pickupProblem,
   pickupSlots,
@@ -65,6 +66,50 @@ describe("parseOpeningHours", () => {
     "7 — 9",
   ])("can't read %j", (text) => {
     expect(parseOpeningHours(text)).toBeNull();
+  });
+});
+
+describe("parseWeekday", () => {
+  it.each([
+    ["Sunday", 0],
+    ["monday", 1],
+    ["TUESDAY", 2],
+    [" Wednesday ", 3],
+    ["thu", 4],
+    ["FRI", 5],
+    ["Sat", 6],
+    [0, 0],
+    [6, 6],
+  ] as const)("reads %j as %i", (day, index) => {
+    expect(parseWeekday(day)).toBe(index);
+  });
+
+  it.each([
+    "",
+    "Mo",
+    "Mond",
+    "Tues",
+    "Thurs",
+    "Mondays",
+    "Lunes",
+    "domingo",
+    -1,
+    7,
+    1.5,
+    Number.NaN,
+  ])("can't read %j", (day) => {
+    expect(parseWeekday(day)).toBeNull();
+  });
+
+  it("finds the row openingState reads for today", () => {
+    // 2026-03-09 is a Monday. Only the row parseWeekday reads as 1 counts.
+    const rows: OpeningHoursRow[] = [
+      { day: "Mond", hours: "Closed" },
+      { day: " mon ", hours: "7a-7p" },
+    ];
+    const monday = at("2026-03-09T15:00:00Z");
+    expect(rows.findIndex((r) => parseWeekday(r.day) === 1)).toBe(1);
+    expect(openingState(rows, { timeZone: TZ, now: monday }).kind).toBe("open");
   });
 });
 

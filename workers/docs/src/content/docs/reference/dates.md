@@ -121,16 +121,19 @@ pickupSlots(rows, pickup); // [{ kind: "asap", readyAt }, { kind: "timed", ready
 pickupProblem(rows, readyAt, pickup); // null, or "closed" | "after-close" | "too-far"
 ```
 
-|                                      |                                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------- |
-| `parseOpeningHours(text)`            | → `{ open, close }` in minutes after midnight, `"closed"`, or `null`            |
-| `openingState(rows, { timeZone })`   | → `open` with `closesAt`, `closed` with the next `opensAt`, or `unknown`        |
-| `pickupSlots(rows, options)`         | → an ASAP slot, then timed slots on the shop's clock, each with a UTC `readyAt` |
-| `pickupProblem(rows, readyAt, opts)` | → why to refuse a pickup, as a code, or `null`                                  |
-| `openingHoursJsonLd(rows)`           | → `openingHours` for `localBusinessJsonLd`, from the same parser                |
+|                                      |                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `parseOpeningHours(text)`            | → `{ open, close }` in minutes after midnight, `"closed"`, or `null`                      |
+| `parseWeekday(day)`                  | → a row's `day` as `0` (Sunday) to `6`, or `null`, matched as the functions here match it |
+| `openingState(rows, { timeZone })`   | → `open` with `closesAt`, `closed` with the next `opensAt`, or `unknown`                  |
+| `pickupSlots(rows, options)`         | → an ASAP slot, then timed slots on the shop's clock, each with a UTC `readyAt`           |
+| `pickupProblem(rows, readyAt, opts)` | → why to refuse a pickup, as a code, or `null`                                            |
+| `openingHoursJsonLd(rows)`           | → `openingHours` for `localBusinessJsonLd`, from the same parser                          |
 
 **What it reads.** A row's `day` is an English weekday name, its first three
-letters, or a number from 0 (Sunday) to 6. The hours are a range split on an em
+letters, or a number from 0 (Sunday) to 6. `parseWeekday` is that matcher, so
+code that words its own hours summary, such as "Mon—Fri · 7a—7p", finds each
+weekday's row the same way `openingState` does. The hours are a range split on an em
 dash, an en dash, a hyphen, or "to", with ends such as `7a`, `7 AM`,
 `7:30 p.m.`, `19:30`, `noon`, and `midnight`. "Closed" closes the day.
 
