@@ -315,6 +315,17 @@ export interface FwPlatformMoney {
   currency: string;
 }
 
+/**
+ * A cost Fourthwall reports, in major units like {@link FwPlatformMoney}.
+ * `currency` is the ISO 4217 code Fourthwall sent, or `null` when it sent
+ * none. The toolkit doesn't guess a missing one: use the currency your site
+ * sells in, `cost.currency ?? siteCurrency`.
+ */
+export interface FwReportedMoney {
+  value: number;
+  currency: string | null;
+}
+
 // ── External orders ──────────────────────────────────────────────────────────
 //
 // The at-cost fulfillment rail: you sell wherever you like, Fourthwall
@@ -355,10 +366,10 @@ export interface FwExternalOrderInput {
 /** What an order will cost you, all in major units. Returned by
  *  {@link validateExternalOrder} before you commit to anything. */
 export interface FwExternalOrderCosts {
-  manufacturingCost: FwPlatformMoney | null;
-  fulfillmentFee: FwPlatformMoney | null;
-  shippingCost: FwPlatformMoney | null;
-  totalCreatorCost: FwPlatformMoney | null;
+  manufacturingCost: FwReportedMoney | null;
+  fulfillmentFee: FwReportedMoney | null;
+  shippingCost: FwReportedMoney | null;
+  totalCreatorCost: FwReportedMoney | null;
 }
 
 export interface FwExternalOrderValidation extends FwExternalOrderCosts {
@@ -398,10 +409,10 @@ export interface FwExternalOrder {
   raw: unknown;
 }
 
-function money(raw: unknown): FwPlatformMoney | null {
+function money(raw: unknown): FwReportedMoney | null {
   const m = raw as { value?: unknown; currency?: unknown } | null | undefined;
   if (!m || typeof m.value !== "number") return null;
-  return { value: m.value, currency: typeof m.currency === "string" ? m.currency : "USD" };
+  return { value: m.value, currency: typeof m.currency === "string" ? m.currency : null };
 }
 
 function mapCosts(raw: Record<string, unknown>): FwExternalOrderCosts {

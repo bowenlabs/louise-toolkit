@@ -274,6 +274,10 @@ available before money is committed. Shipping especially isn't knowable up front
 it depends on the destination and on how Fourthwall splits the items across
 facilities.
 
+Each cost is an `FwReportedMoney`, in major units, or `null` when Fourthwall
+leaves the cost out. Its `currency` is what Fourthwall sent, or `null` when it
+sent none, so use your site's currency then.
+
 :::danger[A failed validation still answers 200]
 Fourthwall returns 200 for a validation that failed, with the reasons in the
 body. Read `check.valid` and `check.problems`, not the HTTP status—treating
@@ -494,6 +498,14 @@ The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquareSubscription`, `SquareMoney`, …) type the normalized, camelCase shapes the
 client returns. `SquareMoney` is an alias of the shared `Money`, and
 `centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)—both still import from `louise-toolkit/commerce/square`.
+
+A catalog price keeps the currency Square sends. When Square sends none, the
+currency is `null`, never a guess: `SquareVariation.currency`, a
+`MenuVariation`'s `currency`, and the `SquareCatalogPrice` that
+`priceAtLocation`, `retrieveVariationPrices`, and `retrieveVariationPricesAt`
+return. The currency is a fact about your site, so fill a `null` from your own
+settings, such as `price.currency ?? siteCurrency`, before you show or charge
+the price.
 
 A `SquareCatalogItem` carries its primary image as `imageUrl` and every image
 as `images` (`SquareItemImage`: `id` and `url`), in Square's order with the

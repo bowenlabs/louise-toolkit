@@ -154,6 +154,22 @@ describe("fourthwall platform — external orders", () => {
     expect(check.problems).toEqual([]);
   });
 
+  it("keeps a cost's currency as sent, and leaves a missing one null rather than guessing", async () => {
+    stubFetch([
+      {
+        body: {
+          valid: true,
+          manufacturingCost: { value: 12.5, currency: "EUR" },
+          shippingCost: { value: 5.25 },
+        },
+      },
+    ]);
+    const check = await validateExternalOrder(config, order);
+    expect(check.manufacturingCost).toEqual({ value: 12.5, currency: "EUR" });
+    expect(check.shippingCost).toEqual({ value: 5.25, currency: null });
+    expect(check.fulfillmentFee).toBeNull();
+  });
+
   it("treats a 200 carrying errors as INVALID, not as success", async () => {
     // The trap: Fourthwall answers 200 for a validation that failed, with the
     // reasons in the body. Reading `res.ok` as the verdict would submit an

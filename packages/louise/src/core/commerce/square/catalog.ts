@@ -4,7 +4,6 @@
 // is sold.
 
 import type { SquareConfig } from "./client.js";
-import type { SquareMoney } from "./money.js";
 import { sqGet, sqPost } from "./request.js";
 import {
   archivedItemIds,
@@ -32,6 +31,7 @@ export interface SquarePresence {
 export interface SquareLocationOverride {
   locationId: string;
   priceCents: number | null;
+  /** The override price's ISO 4217 code, or `null` when Square sent none. */
   currency: string | null;
   trackInventory: boolean | null;
   soldOut: boolean | null;
@@ -99,7 +99,12 @@ export interface SquareVariation extends SquarePresence {
   /** The BASE price. For what a given merchant charges, use
    *  {@link priceAtLocation}; the override wins where one exists. */
   priceCents: number;
-  currency: string;
+  /**
+   * The base price's ISO 4217 code, as Square sent it, or `null` when it sent
+   * none. Square almost always names it. When it doesn't, use the currency your
+   * site sells in: `variation.currency ?? siteCurrency`.
+   */
+  currency: string | null;
   /** Per-location price overrides, empty when the base price applies everywhere. */
   locationOverrides: SquareLocationOverride[];
   /** Seller-defined fields, empty when there are none. Optional so an object
@@ -111,12 +116,27 @@ export interface SquareVariation extends SquarePresence {
 }
 
 /**
+ * A catalog price: an amount in the currency's minor unit, and the ISO 4217
+ * code Square sent with it, or `null` when it sent none. Like the shared
+ * `Money`, except that the toolkit doesn't guess a missing currency: it's a
+ * fact about the site, so fill it from your own settings with
+ * `price.currency ?? siteCurrency`.
+ */
+export interface SquareCatalogPrice {
+  amount: number;
+  currency: string | null;
+}
+
+/**
  * The effective price of a variation at one location: the location's override
  * if it sets a price, otherwise the base price. This is the single definition of
  * "what does this cost here", and server-side re-pricing at checkout must use it
  * rather than trusting a client-submitted amount.
  */
-export function priceAtLocation(variation: SquareVariation, locationId: string): SquareMoney {
+export function priceAtLocation(
+  variation: SquareVariation,
+  locationId: string,
+): SquareCatalogPrice {
   const override = variation.locationOverrides.find((o) => o.locationId === locationId);
   if (override?.priceCents != null) {
     return { amount: override.priceCents, currency: override.currency ?? variation.currency };
@@ -199,7 +219,7 @@ export function mapCatalogItem(
       name: v.item_variation_data?.name ?? "",
       sku: v.item_variation_data?.sku ?? null,
       priceCents: v.item_variation_data?.price_money?.amount ?? 0,
-      currency: v.item_variation_data?.price_money?.currency ?? "USD",
+      currency: v.item_variation_data?.price_money?.currency ?? null,
       locationOverrides: mapLocationOverrides(v.item_variation_data),
       customAttributes: mapCustomAttributes(v),
       version: v.version ?? 0,
@@ -277,7 +297,8 @@ async function retrieveVariations(
 /**
  * Batch-retrieve catalog objects by id—used at checkout to verify cart prices
  * against the live catalog before charging. POST /v2/catalog/batch-retrieve.
- * Returns a map of variationId → priceCents for the ITEM_VARIATION objects.
+ * Returns a map of variationId → price for the ITEM_VARIATION objects, with a
+ * `null` currency where Square sent none.
  *
  * A variation of an archived item is omitted, like an unknown id, so a caller
  * that requires every id to resolve won't sell something the shop took down.
@@ -285,14 +306,14 @@ async function retrieveVariations(
 export async function retrieveVariationPrices(
   config: SquareConfig,
   variationIds: string[],
-): Promise<Map<string, SquareMoney>> {
-  const prices = new Map<string, SquareMoney>();
+): Promise<Map<string, SquareCatalogPrice>> {
+  const prices = new Map<string, SquareCatalogPrice>();
   for (const obj of await retrieveVariations(config, variationIds)) {
     if (obj.type === "ITEM_VARIATION") {
       // batch-retrieve returns variations as top-level objects with
       // item_variation_data on the object itself.
       const price = obj.item_variation_data?.price_money;
-      prices.set(obj.id, { amount: price?.amount ?? 0, currency: price?.currency ?? "USD" });
+      prices.set(obj.id, { amount: price?.amount ?? 0, currency: price?.currency ?? null });
     }
   }
   return prices;
@@ -354,8 +375,8 @@ export async function retrieveVariationPricesAt(
   config: SquareConfig,
   variationIds: string[],
   locationId: string,
-): Promise<Map<string, SquareMoney>> {
-  const prices = new Map<string, SquareMoney>();
+): Promise<Map<string, SquareCatalogPrice>> {
+  const prices = new Map<string, SquareCatalogPrice>();
   for (const obj of await retrieveVariations(config, variationIds)) {
     if (obj.type !== "ITEM_VARIATION") continue;
     if (!presentAt(mapPresence(obj), locationId)) continue;
@@ -365,13 +386,13 @@ export async function retrieveVariationPricesAt(
     if (override?.priceCents != null) {
       prices.set(obj.id, {
         amount: override.priceCents,
-        currency: override.currency ?? data?.price_money?.currency ?? "USD",
+        currency: override.currency ?? data?.price_money?.currency ?? null,
       });
       continue;
     }
     prices.set(obj.id, {
       amount: data?.price_money?.amount ?? 0,
-      currency: data?.price_money?.currency ?? "USD",
+      currency: data?.price_money?.currency ?? null,
     });
   }
   return prices;

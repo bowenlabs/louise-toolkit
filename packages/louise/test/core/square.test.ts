@@ -1285,6 +1285,33 @@ describe("mapCatalogItem — location data", () => {
     ]);
     expect(priceAtLocation(item.variations[0], "L1")).toEqual({ amount: 5500, currency: "USD" });
   });
+
+  it("leaves a price's currency null when Square sends none, here and at a location", () => {
+    const item = mapCatalogItem(
+      {
+        id: "item-2",
+        type: "ITEM",
+        item_data: {
+          name: "Postcard",
+          variations: [
+            {
+              id: "var-2",
+              type: "ITEM_VARIATION",
+              item_variation_data: {
+                name: "Single",
+                price_money: { amount: 300 },
+                location_overrides: [{ location_id: "L1", price_money: { amount: 350 } }],
+              },
+            },
+          ],
+        },
+      },
+      new Map(),
+    );
+    expect(item.variations[0].currency).toBeNull();
+    expect(priceAtLocation(item.variations[0], "L1")).toEqual({ amount: 350, currency: null });
+    expect(priceAtLocation(item.variations[0], "L2")).toEqual({ amount: 300, currency: null });
+  });
 });
 
 describe("retrieveVariationPricesAt", () => {
@@ -1341,6 +1368,43 @@ describe("retrieveVariationPricesAt", () => {
     expect(prices.get("var-base")).toEqual({ amount: 800, currency: "USD" });
     expect(prices.has("var-elsewhere")).toBe(false);
     expect(prices.has("var-archived")).toBe(false);
+  });
+
+  it("takes an override's currency from the base price, and leaves it null when neither names one", async () => {
+    stubFetch({
+      objects: [
+        {
+          id: "var-inherits",
+          type: "ITEM_VARIATION",
+          item_variation_data: {
+            price_money: { amount: 1000, currency: "CAD" },
+            location_overrides: [{ location_id: "L1", price_money: { amount: 1300 } }],
+          },
+        },
+        {
+          id: "var-none",
+          type: "ITEM_VARIATION",
+          item_variation_data: {
+            price_money: { amount: 800 },
+            location_overrides: [{ location_id: "L1", price_money: { amount: 900 } }],
+          },
+        },
+        {
+          id: "var-base-none",
+          type: "ITEM_VARIATION",
+          item_variation_data: { price_money: { amount: 600 } },
+        },
+      ],
+    });
+
+    const prices = await retrieveVariationPricesAt(
+      CONFIG,
+      ["var-inherits", "var-none", "var-base-none"],
+      "L1",
+    );
+    expect(prices.get("var-inherits")).toEqual({ amount: 1300, currency: "CAD" });
+    expect(prices.get("var-none")).toEqual({ amount: 900, currency: null });
+    expect(prices.get("var-base-none")).toEqual({ amount: 600, currency: null });
   });
 });
 
