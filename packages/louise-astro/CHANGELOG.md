@@ -1,6 +1,12 @@
 # @louise-toolkit/astro
 
-## 0.6.6
+## 0.7.0
+
+### Minor Changes
+
+- This release requires `louise-toolkit` 0.41.0 and, through it, `better-auth` and `@better-auth/passkey` 1.7.7 or later. The adapter pins the toolkit to an exact version, so it's a minor rather than a patch: a caret range on 0.6 doesn't pick it up and install a second toolkit beside the one your site or `astroidjs` resolves.
+
+  **Upgrading:** bump `@louise-toolkit/astro`, `louise-toolkit`, and `astroidjs` together, then check that the lockfile holds one `louise-toolkit` version. The toolkit's 0.41.0 entry lists what changes for a site.
 
 ### Patch Changes
 
