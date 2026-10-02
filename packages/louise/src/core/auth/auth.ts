@@ -117,16 +117,34 @@ export interface LouiseAuthConfig {
   /** Resolve the admin allowlist. Defaults to `OWNER_EMAIL`/`ENGINEER_EMAIL`
    *  from env; override to source it elsewhere (for example, a DB lookup). */
   resolveAdmins?: (env: LouiseAuthEnv) => string[] | Promise<string[]>;
-  /** Enable customer email/password sign-in/up. Omit for an admin-only editor. */
+  /** Enable customer sign-in and sign-up. Omit for an admin-only editor. */
   customers?: {
+    /**
+     * How customers sign in. Default `"password"`: email and password, with the
+     * password options below.
+     *
+     * `"magic-link"` turns email and password off and opens the magic-link
+     * endpoint to every address instead of only the admin allowlist: anyone can
+     * ask for a one-time link, and following it signs them in, creating the
+     * account unless `disableSignUp` is set. The account's email is verified by
+     * the link itself. Serve the instance with `auth.handler`, not
+     * {@link handleAuthRequest}, whose gate admits only admins; on a deployed
+     * origin, Turnstile guards the endpoint whenever its captcha is active.
+     */
+    signIn?: "password" | "magic-link";
+    /** Password sign-in only. Default 8. */
     minPasswordLength?: number;
+    /** Password sign-in only. A link proves the address, so it needs no flag. */
     requireEmailVerification?: boolean;
-    /** Close public sign-up—accounts are provisioned by staff instead. */
+    /** Close public sign-up—accounts are provisioned by staff instead. With
+     *  `"magic-link"`, an address with no account gets no email at all. */
     disableSignUp?: boolean;
-    /** Revoke existing sessions when a password is reset. Default `true`: a
-     *  reset usually means the old credentials are compromised. */
+    /** Password sign-in only. Revoke existing sessions when a password is
+     *  reset. Default `true`: a reset usually means the old credentials are
+     *  compromised. */
     revokeSessionsOnPasswordReset?: boolean;
-    /** Send the self-serve reset link. Omit to leave reset unavailable. */
+    /** Password sign-in only. Send the self-serve reset link. Omit to leave
+     *  reset unavailable. */
     sendResetPassword?: (args: { user: { email: string }; url: string }) => Promise<void> | void;
   };
   /**
@@ -330,6 +348,10 @@ export async function getLouiseAuth(
   const captchaKey = activeCaptchaSecret(env, await turnstileSecret(env));
   const isAdmin = (email: string | null | undefined) =>
     admins.includes((email ?? "").trim().toLowerCase());
+  // Customers sign in by magic link: the endpoint opens to every address and
+  // email and password stay off (see `customers.signIn`).
+  const customerLinks = config.customers?.signIn === "magic-link";
+  const customerSignUpClosed = customerLinks && !!config.customers?.disableSignUp;
 
   // Same-D1 auth namespace (issue #15, Option B): when set, every auth table is
   // renamed `<prefix><model>` so it queries the same tables the namespaced
@@ -387,7 +409,7 @@ export async function getLouiseAuth(
       ...(prefix ? { modelName: `${prefix}account` } : {}),
     },
     ...(Object.keys(verificationOptions).length ? { verification: verificationOptions } : {}),
-    ...(config.customers
+    ...(config.customers && !customerLinks
       ? {
           emailAndPassword: {
             enabled: true,
@@ -433,16 +455,26 @@ export async function getLouiseAuth(
     plugins: [
       magicLink({
         expiresIn: 60 * 15,
-        sendMagicLink: async ({ email, url: link }) => {
-          // Magic links are editor sign-in, so only the allowlist gets one.
-          // `handleAuthRequest` refuses everyone else before Better Auth runs,
-          // but only on the route that calls it: an instance served straight
-          // from `auth.handler` (a customer portal on its own `basePath`) would
-          // otherwise mail a working sign-in link—one that creates the
-          // account, `disableSignUp` or not—to any address anyone typed. The
-          // token Better Auth has already stored is never delivered, so it's
-          // inert.
-          if (!isAdmin(email)) return;
+        // Without this, following a link to an address with no account creates
+        // one, whatever `emailAndPassword.disableSignUp` says.
+        ...(customerSignUpClosed ? { disableSignUp: true } : {}),
+        sendMagicLink: async ({ email, url: link }, ctx) => {
+          // Unless customers sign in by link, magic links are editor sign-in,
+          // so only the allowlist gets one. `handleAuthRequest` refuses
+          // everyone else before Better Auth runs, but only on the route that
+          // calls it: an instance served straight from `auth.handler` (a
+          // customer portal on its own `basePath`) would otherwise mail a
+          // working sign-in link—one that creates the account—to any address
+          // anyone typed. The token Better Auth has already stored is never
+          // delivered, so it's inert.
+          if (!customerLinks && !isAdmin(email)) return;
+          // Customer links with sign-up closed: an address with no account
+          // would only reach an error page, so it gets no email, and the
+          // response stays the same either way.
+          if (customerSignUpClosed && !isAdmin(email)) {
+            const found = await ctx?.context.internalAdapter.findUserByEmail(email);
+            if (!found?.user) return;
+          }
           // Local dev has no EMAIL binding—log the link instead.
           if (isDev) {
             console.log(`[dev] Magic link for ${email}: ${link}`);

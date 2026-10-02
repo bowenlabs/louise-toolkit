@@ -9,7 +9,10 @@ import type { LouiseAuth } from "./auth.js";
  * rejected BEFORE Better Auth runs—no token, no mail, and (at the verify
  * step) no user row—and return the SAME enumeration-safe response a real send
  * returns, so probing the endpoint reveals nothing. Customer email/password
- * sign-up (when enabled) is intentionally NOT gated by this.
+ * sign-up (when enabled) is intentionally NOT gated by this. An instance whose
+ * customers sign in by magic link (`customers.signIn: "magic-link"`) must not
+ * route through here, since this gate would turn every customer away: serve it
+ * with `auth.handler`.
  *
  * `admins` is the resolved allowlist (use `defaultResolveAdmins` or the config's
  * `resolveAdmins`—the same source the factory uses).
