@@ -216,15 +216,26 @@ interface RawOrder {
   }[];
 }
 
+/** The order's currency, from any amount Square sent, for the ones it left out. */
+function orderCurrency(o: RawOrder): string | undefined {
+  return (
+    o.total_money?.currency ??
+    o.net_amount_due_money?.currency ??
+    o.tenders?.find((t) => t.amount_money?.currency)?.amount_money?.currency ??
+    o.line_items?.find((li) => li.gross_sales_money?.currency)?.gross_sales_money?.currency
+  );
+}
+
 function mapOrder(o: RawOrder): SquareOrder {
+  const currency = orderCurrency(o);
   return {
     id: o.id ?? "",
     locationId: o.location_id ?? "",
     state: o.state ?? "",
-    totalMoney: money(o.total_money),
-    totalTaxMoney: money(o.total_tax_money),
-    totalDiscountMoney: money(o.total_discount_money),
-    totalServiceChargeMoney: money(o.total_service_charge_money),
+    totalMoney: money(o.total_money, currency),
+    totalTaxMoney: money(o.total_tax_money, currency),
+    totalDiscountMoney: money(o.total_discount_money, currency),
+    totalServiceChargeMoney: money(o.total_service_charge_money, currency),
     referenceId: o.reference_id ?? null,
     customerId: o.customer_id ?? null,
     createdAt: o.created_at ?? null,
@@ -234,18 +245,15 @@ function mapOrder(o: RawOrder): SquareOrder {
       name: li.name ?? "",
       quantity: li.quantity ?? "0",
       catalogObjectId: li.catalog_object_id ?? null,
-      grossSalesMoney: money(li.gross_sales_money),
+      grossSalesMoney: money(li.gross_sales_money, currency),
     })),
-    // Square leaves out a zero amount, often a tip. Its currency comes from
-    // the amount beside it, so a missing one never reads as USD in another
-    // currency's store.
-    netAmountDueMoney: money(o.net_amount_due_money ?? { currency: o.total_money?.currency }),
+    netAmountDueMoney: money(o.net_amount_due_money, currency),
     tenders: (o.tenders ?? []).map((t) => ({
       id: t.id ?? "",
       type: t.type ?? "",
       paymentId: t.payment_id ?? null,
-      amountMoney: money(t.amount_money),
-      tipMoney: money(t.tip_money ?? { currency: t.amount_money?.currency }),
+      amountMoney: money(t.amount_money, currency),
+      tipMoney: money(t.tip_money, t.amount_money?.currency ?? currency),
     })),
   };
 }

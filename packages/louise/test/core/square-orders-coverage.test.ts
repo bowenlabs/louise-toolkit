@@ -165,6 +165,21 @@ describe("retrieveOrder", () => {
     const order = await retrieveOrder(CONFIG, "O3");
     expect(order.netAmountDueMoney).toEqual({ amount: 0, currency: "CAD" });
     expect(order.tenders[0]?.tipMoney).toEqual({ amount: 0, currency: "CAD" });
+    expect(order.totalTaxMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
+  it("finds the order's currency on a tender or a line when the total has none", async () => {
+    answer({
+      order: {
+        id: "O4",
+        tenders: [{ id: "T1", amount_money: { amount: 800, currency: "EUR" } }],
+        line_items: [{ name: "Harbor Blend", quantity: "1" }],
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O4");
+    expect(order.totalMoney).toEqual({ amount: 0, currency: "EUR" });
+    expect(order.lineItems[0]?.grossSalesMoney).toEqual({ amount: 0, currency: "EUR" });
+    expect(order.tenders[0]?.tipMoney).toEqual({ amount: 0, currency: "EUR" });
   });
 
   it("maps an unpaid order with no tenders", async () => {

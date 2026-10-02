@@ -2,4 +2,4 @@
 "louise-toolkit": patch
 ---
 
-`louise-toolkit/commerce/square` no longer guesses USD for an amount Square leaves out. A tender's `tipMoney`, an order's `netAmountDueMoney`, and a payment's `tipMoney` take the currency of the amount beside them, so a store that sells in another currency never sees a zero tip in USD next to its own totals.
+`louise-toolkit/commerce/square` takes a missing amount's currency from the amounts around it rather than assuming USD. Square leaves out a zero amount, often a tip. An order's money fields now fall back to the order's currency, found on its total, amount due, tenders, or line items. A tender's tip falls back to the tender's amount. A payment's amounts fall back to its own currency, and for `createPayment` to the currency it was charged in. USD is left only when a response carries no currency anywhere. `money()` in the client's wire helpers takes that fallback as an optional second argument.
