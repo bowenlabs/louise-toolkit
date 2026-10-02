@@ -96,6 +96,16 @@ overrides:
   # package calls never loads the version this changes.
   "@cloudflare/puppeteer>@puppeteer/browsers": "^3.2.3"
 
+  # devalue—six advisories in 5.9.2 and earlier (GHSA-j22f-vq7h-c4qm and five
+  # more from the same audit): `uneval` and `stringify` serialize shared
+  # memory, repeated strings and sparse arrays amplify CPU and allocation,
+  # `stringifyAsync` can leave an unhandled rejection, and a null-prototype
+  # key can bypass the `__proto__` check. Fixed in 5.9.3. Dev-only: it reaches
+  # us through astro under workers/sandbox and workers/docs, and the adapter's
+  # astro devDependency. Scoped to the 5.x line astro asks for; 6.x is out, and
+  # a bare `devalue:` key would move the tree onto a major astro hasn't adopted.
+  devalue@5: "^5.9.3"
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
