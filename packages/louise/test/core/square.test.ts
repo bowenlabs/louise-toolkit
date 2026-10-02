@@ -775,6 +775,24 @@ describe("createOrder — fulfillments, service charges, modifiers", () => {
     });
   });
 
+  it("makes a DRAFT order template on request, and no state otherwise", async () => {
+    // A subscription phase names a DRAFT order as its template; a normal order
+    // leaves `state` to Square, as before.
+    const calls = stubFetch({ order: { id: "ORD_T", state: "DRAFT" } });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+      state: "DRAFT",
+    });
+    await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ catalogObjectId: "VAR1", quantity: 1 }],
+    });
+    const bodies = calls.map((c) => c.body as { order: Record<string, unknown> });
+    expect(bodies[0]?.order).toMatchObject({ state: "DRAFT" });
+    expect(bodies[1]?.order).not.toHaveProperty("state");
+  });
+
   it("omits `modifiers` when the list is empty or absent", async () => {
     const calls = stubFetch({ order: { id: "ORD1" } });
     await createOrder(CONFIG, {

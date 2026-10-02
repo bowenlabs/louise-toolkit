@@ -5,6 +5,7 @@
 //
 // Internal: `square.ts` doesn't re-export this file, so nothing here is public.
 
+import type { SquarePresence } from "./catalog.js";
 import type { SquareMoney } from "./money.js";
 import type { SquareOrderLineItem } from "./orders.js";
 
@@ -15,6 +16,17 @@ export interface RawPresence {
   present_at_all_locations?: boolean;
   present_at_location_ids?: string[];
   absent_at_location_ids?: string[];
+}
+
+/** Normalize the three presence fields, defaulting to Square's own default
+ *  (`present_at_all_locations` is true when the field is absent). Shared by
+ *  the catalog items and the subscription plans. */
+export function mapPresence(raw: RawPresence): SquarePresence {
+  return {
+    presentAtAllLocations: raw.present_at_all_locations ?? true,
+    presentAtLocationIds: raw.present_at_location_ids ?? [],
+    absentAtLocationIds: raw.absent_at_location_ids ?? [],
+  };
 }
 
 /** A per-location price/inventory override on an ITEM_VARIATION. This is what
@@ -109,6 +121,36 @@ export interface RawCatalogObject extends RawPresence, RawCustomAttributes {
     }[];
   };
   image_data?: { url?: string };
+  // Present on SUBSCRIPTION_PLAN / SUBSCRIPTION_PLAN_VARIATION search results
+  // (listSubscriptionPlans). A plan can carry its variations nested; a
+  // variation can also come back top-level, naming its plan.
+  subscription_plan_data?: {
+    name?: string;
+    all_items?: boolean;
+    eligible_item_ids?: string[];
+    eligible_category_ids?: string[];
+    subscription_plan_variations?: RawCatalogObject[];
+  };
+  subscription_plan_variation_data?: {
+    name?: string;
+    subscription_plan_id?: string;
+    monthly_billing_anchor_date?: number;
+    can_prorate?: boolean;
+    successor_plan_variation_id?: string;
+    phases?: {
+      uid?: string;
+      ordinal?: number;
+      cadence?: string;
+      periods?: number;
+      /** The pre-`pricing` field; Square still sends it for a STATIC phase. */
+      recurring_price_money?: { amount?: number; currency?: string };
+      pricing?: {
+        type?: string;
+        price_money?: { amount?: number; currency?: string };
+        discount_ids?: string[];
+      };
+    }[];
+  };
 }
 
 export interface CatalogSearchResponse {

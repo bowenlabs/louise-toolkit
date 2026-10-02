@@ -9,6 +9,7 @@ import {
   listCatalogDetailed,
   listCategories,
   listModifierLists,
+  listSubscriptionPlans,
   readModifyWriteCatalog,
   retrieveCatalogItem,
   retrieveVariationPrices,
@@ -666,5 +667,191 @@ describe("retrieveVariationPrices", () => {
   it("answers an empty map when Square returns no objects", async () => {
     answer({});
     expect((await retrieveVariationPrices(CONFIG, ["VAR1"])).size).toBe(0);
+  });
+});
+
+describe("listSubscriptionPlans", () => {
+  it("joins variations to their plan, whether nested, top-level, or both", async () => {
+    const monthly = {
+      id: "VAR_M",
+      type: "SUBSCRIPTION_PLAN_VARIATION",
+      version: 7,
+      subscription_plan_variation_data: {
+        name: "Monthly",
+        subscription_plan_id: "PLAN_COFFEE",
+        monthly_billing_anchor_date: 1,
+        can_prorate: true,
+        phases: [
+          {
+            uid: "PH0",
+            ordinal: 0,
+            cadence: "MONTHLY",
+            periods: 1,
+            pricing: { type: "RELATIVE", discount_ids: ["DISC_TRIAL"] },
+          },
+          {
+            // No ordinal, and the pre-`pricing` price field.
+            cadence: "MONTHLY",
+            recurring_price_money: { amount: 1800, currency: "USD" },
+          },
+        ],
+      },
+    };
+    const pages = [
+      {
+        objects: [
+          {
+            id: "PLAN_COFFEE",
+            type: "SUBSCRIPTION_PLAN",
+            version: 2,
+            present_at_all_locations: false,
+            present_at_location_ids: ["L1"],
+            subscription_plan_data: {
+              name: "Coffee",
+              eligible_item_ids: ["ITEM_BEANS"],
+              // Nested AND top-level (below): read once.
+              subscription_plan_variations: [
+                monthly,
+                {
+                  id: "VAR_OLD",
+                  type: "SUBSCRIPTION_PLAN_VARIATION",
+                  is_deleted: true,
+                  subscription_plan_variation_data: { subscription_plan_id: "PLAN_COFFEE" },
+                },
+              ],
+            },
+          },
+          monthly,
+          {
+            id: "VAR_ORPHAN",
+            type: "SUBSCRIPTION_PLAN_VARIATION",
+            subscription_plan_variation_data: { name: "Lost", subscription_plan_id: "PLAN_GONE" },
+          },
+          { id: "PLAN_GONE", type: "SUBSCRIPTION_PLAN", is_deleted: true },
+          { id: "ITEM1", type: "ITEM" },
+        ],
+        cursor: "PAGE2",
+      },
+      {
+        objects: [
+          {
+            id: "VAR_2W",
+            type: "SUBSCRIPTION_PLAN_VARIATION",
+            subscription_plan_variation_data: {
+              name: "Every two weeks",
+              subscription_plan_id: "PLAN_COFFEE",
+              phases: [
+                {
+                  cadence: "EVERY_TWO_WEEKS",
+                  pricing: { type: "STATIC", price_money: { amount: 1700, currency: "USD" } },
+                },
+              ],
+            },
+          },
+          { id: "PLAN_BARE", type: "SUBSCRIPTION_PLAN" },
+        ],
+      },
+    ];
+    const calls = square((_call, i) => pages[i]);
+    const plans = await listSubscriptionPlans(CONFIG);
+    expect(calls.map((c) => c.body)).toEqual([
+      {
+        object_types: ["SUBSCRIPTION_PLAN", "SUBSCRIPTION_PLAN_VARIATION"],
+        include_deleted_objects: false,
+      },
+      {
+        object_types: ["SUBSCRIPTION_PLAN", "SUBSCRIPTION_PLAN_VARIATION"],
+        include_deleted_objects: false,
+        cursor: "PAGE2",
+      },
+    ]);
+    expect(plans).toEqual([
+      {
+        id: "PLAN_COFFEE",
+        name: "Coffee",
+        allItems: false,
+        eligibleItemIds: ["ITEM_BEANS"],
+        eligibleCategoryIds: [],
+        version: 2,
+        presentAtAllLocations: false,
+        presentAtLocationIds: ["L1"],
+        absentAtLocationIds: [],
+        variations: [
+          {
+            id: "VAR_M",
+            planId: "PLAN_COFFEE",
+            name: "Monthly",
+            monthlyBillingAnchorDate: 1,
+            canProrate: true,
+            version: 7,
+            presentAtAllLocations: true,
+            presentAtLocationIds: [],
+            absentAtLocationIds: [],
+            phases: [
+              {
+                uid: "PH0",
+                ordinal: 0,
+                cadence: "MONTHLY",
+                periods: 1,
+                pricingType: "RELATIVE",
+                priceCents: null,
+                currency: null,
+                discountIds: ["DISC_TRIAL"],
+              },
+              {
+                uid: null,
+                ordinal: 1,
+                cadence: "MONTHLY",
+                periods: null,
+                pricingType: "STATIC",
+                priceCents: 1800,
+                currency: "USD",
+                discountIds: [],
+              },
+            ],
+          },
+          {
+            id: "VAR_2W",
+            planId: "PLAN_COFFEE",
+            name: "Every two weeks",
+            monthlyBillingAnchorDate: null,
+            canProrate: false,
+            version: 0,
+            presentAtAllLocations: true,
+            presentAtLocationIds: [],
+            absentAtLocationIds: [],
+            phases: [
+              {
+                uid: null,
+                ordinal: 0,
+                cadence: "EVERY_TWO_WEEKS",
+                periods: null,
+                pricingType: "STATIC",
+                priceCents: 1700,
+                currency: "USD",
+                discountIds: [],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "PLAN_BARE",
+        name: "",
+        allItems: false,
+        eligibleItemIds: [],
+        eligibleCategoryIds: [],
+        version: 0,
+        presentAtAllLocations: true,
+        presentAtLocationIds: [],
+        absentAtLocationIds: [],
+        variations: [],
+      },
+    ]);
+  });
+
+  it("answers [] for a catalog without plans", async () => {
+    square(() => ({}));
+    expect(await listSubscriptionPlans(CONFIG)).toEqual([]);
   });
 });

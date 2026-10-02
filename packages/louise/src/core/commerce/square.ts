@@ -30,6 +30,7 @@ export * from "./square/payments.js";
 export * from "./square/customers.js";
 export * from "./square/cards.js";
 export * from "./square/loyalty.js";
+export * from "./square/subscription-plans.js";
 export * from "./square/subscriptions.js";
 export * from "./square/team.js";
 export * from "./square/labor.js";

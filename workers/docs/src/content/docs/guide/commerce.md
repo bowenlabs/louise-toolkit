@@ -93,7 +93,11 @@ The one write path is **checkout**, and it's deliberately trust-nothing:
    so a retry after a lost response can't charge twice.
 
 Subscriptions reuse the same tokenized-card model: save a card on file with
-`createCard`, then enroll against a plan variation with `createSubscription`.
+`createCard`, pick a variation of a plan from `listSubscriptionPlans`, then
+enroll with `createSubscription`. A variation that bills an order each cycle
+takes a `DRAFT` order from `createOrder` as its template, fulfillment included.
+Cancel, pause, and resume are scheduled changes; see the
+[reference](/reference/commerce/#subscriptions).
 
 Webhooks differ from Stripe and Fourthwall in one important way—Square signs the
 **concatenation of your exact notification URL and the raw body**, so
