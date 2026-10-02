@@ -81,6 +81,17 @@ describe("retrieveOrder", () => {
         closed_at: "2026-09-27T10:05:00Z",
         updated_at: "2026-09-27T10:06:00Z",
         total_money: { amount: 1500, currency: "USD" },
+        net_amount_due_money: { amount: 0, currency: "USD" },
+        tenders: [
+          {
+            id: "T1",
+            type: "CARD",
+            payment_id: "P1",
+            amount_money: { amount: 1500, currency: "USD" },
+            tip_money: { amount: 200, currency: "USD" },
+          },
+          {},
+        ],
         line_items: [
           {
             name: "Harbor Blend",
@@ -121,7 +132,67 @@ describe("retrieveOrder", () => {
           grossSalesMoney: { amount: 0, currency: "USD" },
         },
       ],
+      netAmountDueMoney: { amount: 0, currency: "USD" },
+      tenders: [
+        {
+          id: "T1",
+          type: "CARD",
+          paymentId: "P1",
+          amountMoney: { amount: 1500, currency: "USD" },
+          tipMoney: { amount: 200, currency: "USD" },
+        },
+        {
+          id: "",
+          type: "",
+          paymentId: null,
+          amountMoney: { amount: 0, currency: "USD" },
+          tipMoney: { amount: 0, currency: "USD" },
+        },
+      ],
     });
+  });
+
+  // Square leaves a zero amount out. A guessed USD would sit beside the
+  // store's real currency, and adding the two would go wrong.
+  it("gives a missing tip or amount due the currency beside it", async () => {
+    answer({
+      order: {
+        id: "O3",
+        total_money: { amount: 1200, currency: "CAD" },
+        tenders: [{ id: "T1", payment_id: "P1", amount_money: { amount: 1200, currency: "CAD" } }],
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O3");
+    expect(order.netAmountDueMoney).toEqual({ amount: 0, currency: "CAD" });
+    expect(order.tenders[0]?.tipMoney).toEqual({ amount: 0, currency: "CAD" });
+    expect(order.totalTaxMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
+  it("finds the order's currency on a tender or a line when the total has none", async () => {
+    answer({
+      order: {
+        id: "O4",
+        tenders: [{ id: "T1", amount_money: { amount: 800, currency: "EUR" } }],
+        line_items: [{ name: "Harbor Blend", quantity: "1" }],
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O4");
+    expect(order.totalMoney).toEqual({ amount: 0, currency: "EUR" });
+    expect(order.lineItems[0]?.grossSalesMoney).toEqual({ amount: 0, currency: "EUR" });
+    expect(order.tenders[0]?.tipMoney).toEqual({ amount: 0, currency: "EUR" });
+  });
+
+  it("maps an unpaid order with no tenders", async () => {
+    answer({
+      order: {
+        id: "O2",
+        total_money: { amount: 900, currency: "USD" },
+        net_amount_due_money: { amount: 900, currency: "USD" },
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O2");
+    expect(order.tenders).toEqual([]);
+    expect(order.netAmountDueMoney).toEqual({ amount: 900, currency: "USD" });
   });
 
   it.each([

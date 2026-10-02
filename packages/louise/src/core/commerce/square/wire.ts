@@ -180,8 +180,14 @@ export function imageUrlMap(related: RawCatalogObject[] | undefined): Map<string
   return map;
 }
 
-export function money(m?: { amount?: number; currency?: string }): SquareMoney {
-  return { amount: m?.amount ?? 0, currency: m?.currency ?? "USD" };
+/**
+ * Square's money in this client's shape. Square leaves a zero amount out, often
+ * a tip, so pass `fallback`, the currency of the amounts around it, and a
+ * missing one reads in the store's currency. USD is left only for a response
+ * that carries no currency anywhere.
+ */
+export function money(m?: { amount?: number; currency?: string }, fallback?: string): SquareMoney {
+  return { amount: m?.amount ?? 0, currency: m?.currency ?? fallback ?? "USD" };
 }
 
 /**

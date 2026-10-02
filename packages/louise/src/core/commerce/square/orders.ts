@@ -146,6 +146,27 @@ export interface SquareOrder {
     catalogObjectId: string | null;
     grossSalesMoney: SquareMoney;
   }[];
+  /** What's still owed: `totalMoney` less what the order's tenders paid. */
+  netAmountDueMoney: SquareMoney;
+  /** The payments made against the order, one per tender. */
+  tenders: SquareTender[];
+}
+
+/**
+ * One payment made against an order. Square adds a tender when a payment for
+ * the order completes, so an order that has a tender with a `paymentId` was
+ * paid, even if the response to that payment call never arrived.
+ */
+export interface SquareTender {
+  id: string;
+  /** `CARD`, `CASH`, `SQUARE_GIFT_CARD`, and so on. */
+  type: string;
+  /** The payment's ID, for `retrievePayment`; null for a tender with no
+   *  payment behind it, such as cash recorded by hand. */
+  paymentId: string | null;
+  amountMoney: SquareMoney;
+  /** The tip on top of `amountMoney`, zero when there's none. */
+  tipMoney: SquareMoney;
 }
 
 /**
@@ -185,17 +206,36 @@ interface RawOrder {
     catalog_object_id?: string;
     gross_sales_money?: { amount?: number; currency?: string };
   }[];
+  net_amount_due_money?: { amount?: number; currency?: string };
+  tenders?: {
+    id?: string;
+    type?: string;
+    payment_id?: string;
+    amount_money?: { amount?: number; currency?: string };
+    tip_money?: { amount?: number; currency?: string };
+  }[];
+}
+
+/** The order's currency, from any amount Square sent, for the ones it left out. */
+function orderCurrency(o: RawOrder): string | undefined {
+  return (
+    o.total_money?.currency ??
+    o.net_amount_due_money?.currency ??
+    o.tenders?.find((t) => t.amount_money?.currency)?.amount_money?.currency ??
+    o.line_items?.find((li) => li.gross_sales_money?.currency)?.gross_sales_money?.currency
+  );
 }
 
 function mapOrder(o: RawOrder): SquareOrder {
+  const currency = orderCurrency(o);
   return {
     id: o.id ?? "",
     locationId: o.location_id ?? "",
     state: o.state ?? "",
-    totalMoney: money(o.total_money),
-    totalTaxMoney: money(o.total_tax_money),
-    totalDiscountMoney: money(o.total_discount_money),
-    totalServiceChargeMoney: money(o.total_service_charge_money),
+    totalMoney: money(o.total_money, currency),
+    totalTaxMoney: money(o.total_tax_money, currency),
+    totalDiscountMoney: money(o.total_discount_money, currency),
+    totalServiceChargeMoney: money(o.total_service_charge_money, currency),
     referenceId: o.reference_id ?? null,
     customerId: o.customer_id ?? null,
     createdAt: o.created_at ?? null,
@@ -205,7 +245,15 @@ function mapOrder(o: RawOrder): SquareOrder {
       name: li.name ?? "",
       quantity: li.quantity ?? "0",
       catalogObjectId: li.catalog_object_id ?? null,
-      grossSalesMoney: money(li.gross_sales_money),
+      grossSalesMoney: money(li.gross_sales_money, currency),
+    })),
+    netAmountDueMoney: money(o.net_amount_due_money, currency),
+    tenders: (o.tenders ?? []).map((t) => ({
+      id: t.id ?? "",
+      type: t.type ?? "",
+      paymentId: t.payment_id ?? null,
+      amountMoney: money(t.amount_money, currency),
+      tipMoney: money(t.tip_money, t.amount_money?.currency ?? currency),
     })),
   };
 }
@@ -360,7 +408,13 @@ export async function createOrder(
   return mapOrder(res.order);
 }
 
-/** Retrieve one order. GET /v2/orders/{id}. */
+/**
+ * Retrieve one order. GET /v2/orders/{id}.
+ *
+ * To see whether an order was paid, read it here rather than from a
+ * {@link createOrder} replayed under its idempotency key, which can answer
+ * with the order as it was first created, before any tender.
+ */
 export async function retrieveOrder(config: SquareConfig, orderId: string): Promise<SquareOrder> {
   const res = await sqGet<{ order?: RawOrder }>(
     config,

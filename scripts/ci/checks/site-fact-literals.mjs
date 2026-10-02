@@ -68,6 +68,8 @@ const ZONE = new RegExp(`^(?:${ZONE_AREAS.join("|")})/[A-Za-z_]+(?:/[A-Za-z_]+)?
 const SQUARE_WRITE =
   "a fallback for a price the caller didn't give a currency; the input takes one";
 const SQUARE_READ = "tags a Square response that left its currency out; Square names it";
+const SQUARE_MONEY =
+  "last resort in `money()`: a missing amount takes the currency of the amounts around it, so USD is left only for a response with no currency anywhere";
 const ALLOWED = {
   "packages/louise/src/core/commerce/stripe.ts": {
     usd: "overridable default: every Stripe helper takes `currency`, and all sites sell in USD today",
@@ -79,7 +81,7 @@ const ALLOWED = {
   },
   "packages/louise/src/core/commerce/square/locations.ts": { USD: SQUARE_READ },
   "packages/louise/src/core/commerce/square/wire.ts": {
-    USD: `${SQUARE_READ}, and ${SQUARE_WRITE}`,
+    USD: `${SQUARE_MONEY}, and ${SQUARE_WRITE}`,
   },
   "packages/louise/src/core/dates/index.ts": {
     "en-CA": "parse-only: `isoDateIn` reads YYYY-MM-DD parts out of Intl; never shown",
