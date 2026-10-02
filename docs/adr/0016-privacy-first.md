@@ -149,4 +149,4 @@ Decision 4 had `getLouiseAuth` drop customer passwords in one `minor`. Sites alr
 
 A site that switches keeps the password hashes its customers already made, in the `account` table's rows with `providerId = 'credential'`. They no longer sign anyone in. Until the site deletes those rows, it still stores a hash for those people, so decision 4's goal holds for that site only after it does. The auth reference says how.
 
-An endpoint that mails any address is a new surface, and its guards are the site's to turn on: Turnstile with real keys, a Durable Object rate limiter, and `waitUntil` so the response time doesn't show whether an address has an account. The option switches Better Auth's own rate limiter on, since a Worker never sets the `NODE_ENV` Better Auth reads to decide.
+An endpoint that mails any address is a new surface, and its guards are the site's to turn on: Turnstile with real keys, a Durable Object rate limiter, and `waitUntil` so the response time doesn't show whether an address has an account. Better Auth's own rate limiter is on for every instance off `localhost`, since a Worker never sets the `NODE_ENV` Better Auth reads to decide.

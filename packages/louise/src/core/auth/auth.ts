@@ -135,10 +135,9 @@ export interface LouiseAuthConfig {
      * Because a stranger can make the site send mail, three things guard the
      * endpoint, and two of them are the site's to turn on:
      *
-     * - **Better Auth's rate limiter**, which this option switches on. Better
-     *   Auth only enables it by itself when `NODE_ENV` is `production`, which
-     *   a Worker never sets. Set {@link LouiseAuthConfig.rateLimitDo} too: the
-     *   KV and D1 fallbacks undercount under a burst.
+     * - **Better Auth's rate limiter**, on for every instance off localhost.
+     *   Set {@link LouiseAuthConfig.rateLimitDo} too: the KV and in-memory
+     *   fallbacks undercount under a burst.
      * - **Turnstile**, only when both a real secret and a real site key are
      *   set. With the test keys, which every Worker Preview gets, or with none,
      *   the captcha is off, so the endpoint mails any address that asks. Each
@@ -214,6 +213,15 @@ export interface LouiseAuthConfig {
   /**
    * Durable Object namespace backing Better Auth's own rate limiter.
    *
+   * The limiter itself is on for every instance except on `localhost` and
+   * `127.0.0.1`, whether or not this is set; this only chooses where it counts.
+   * Better Auth enables it by itself only when `NODE_ENV` is `production`,
+   * which a Worker never sets, so the factory turns it on. It keys each count
+   * on the `CF-Connecting-IP` header and the path, and answers a burst with a
+   * 429. Its default budgets, per address and path, are 100 requests per 10
+   * seconds, 3 per 10 seconds on sign-in and sign-up, and 5 a minute each for
+   * sending and following a magic link.
+   *
    * Wire this and rate limiting stops going through KV entirely: Better Auth
    * checks `rateLimit.customStorage` BEFORE secondary storage, so the KV
    * `increment` is never called. That matters because a DO is the only atomic
@@ -227,8 +235,9 @@ export interface LouiseAuthConfig {
    * `createRateLimiter` in `louise-toolkit/security` for the shape. One object
    * per key, so no single object becomes a bottleneck.
    *
-   * Omit to keep Better Auth's default storage (KV when `sessionCacheKv` is set,
-   * otherwise the database).
+   * Omit to keep Better Auth's default storage: KV when `sessionCacheKv` is
+   * set, otherwise a map in the isolate's memory, which each isolate keeps on
+   * its own.
    */
   rateLimitDo?: RateLimitNamespace;
   /**
@@ -416,34 +425,32 @@ export async function getLouiseAuth(
     // A second instance on the same origin needs its own mount and its own
     // cookie prefix, or the two sessions collide.
     ...(config.basePath ? { basePath: config.basePath } : {}),
-    ...(config.cookiePrefix || config.waitUntil
-      ? {
-          advanced: {
-            ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
-            ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
-          },
-        }
-      : {}),
+    advanced: {
+      ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
+      ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
+      // Better Auth reads the client IP from `X-Forwarded-For` by default, and
+      // only when it holds one address. A client can send its own, which
+      // Cloudflare appends to, and then no IP resolves and every request
+      // shares one bucket per path: a stranger could spend everyone's sign-in
+      // budget. Cloudflare sets `CF-Connecting-IP` itself and overwrites any
+      // copy a client sends.
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
+    },
     // Single custom domain in prod, localhost in dev.
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv
       ? { secondaryStorage: kvSecondaryStorage(config.sessionCacheKv) }
       : {}),
-    // Checked ahead of secondaryStorage by Better Auth, so wiring this retires
-    // the KV `increment` rather than merely documenting its limits.
-    // Better Auth enables its limiter by itself only when `NODE_ENV` is
-    // `production`, which a Worker never sets. An endpoint that mails any
-    // address can't go without it.
-    ...(config.rateLimitDo || customerLinks
-      ? {
-          rateLimit: {
-            ...(customerLinks ? { enabled: true } : {}),
-            ...(config.rateLimitDo
-              ? { customStorage: durableRateLimitStorage(config.rateLimitDo) }
-              : {}),
-          },
-        }
-      : {}),
+    rateLimit: {
+      // Better Auth enables its limiter by itself only when `NODE_ENV` is
+      // `production`, which a Worker never sets, so without this it's off on
+      // every instance: the editor's magic-link and passkey endpoints included.
+      // Off on localhost, where a burst is someone testing, not an attack.
+      enabled: !isDev,
+      // Checked ahead of secondaryStorage by Better Auth, so wiring this retires
+      // the KV `increment` rather than merely documenting its limits.
+      ...(config.rateLimitDo ? { customStorage: durableRateLimitStorage(config.rateLimitDo) } : {}),
+    },
     session: {
       expiresIn: config.session?.expiresIn ?? 60 * 60 * 24 * 45,
       updateAge: config.session?.updateAge ?? 60 * 60 * 24,
