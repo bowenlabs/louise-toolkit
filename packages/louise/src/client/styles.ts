@@ -836,6 +836,15 @@ html[data-louise-studio] body {
 .louise-rt:focus-within { border-color: var(--louise-ring); box-shadow: 0 0 0 1px var(--louise-ring); }
 .louise-rt .ProseMirror:focus { outline: 2px solid transparent; }
 .louise-prose-surface { min-height: 90px; padding: 9px 11px; font-size: var(--louise-text-md); }
+/* The canvas surface (#761): a field edited in place inside the site's own
+   element, so the text keeps that element's font, size, color, and spacing
+   while it's edited. An inline field (a heading, a tagline) holds one
+   paragraph that is the editor's, not the site's: it takes the host's font
+   and no margin, or a site rule for paragraphs in that region (a hero's "p")
+   reaches it and shrinks a display heading. A prose body keeps the site's
+   paragraph rules, which are the ones it's published with. */
+.louise-canvas-surface { font: inherit; letter-spacing: inherit; color: inherit; }
+.louise-canvas-surface.is-inline > p { font: inherit; letter-spacing: inherit; color: inherit; margin: 0; }
 /* ── Builder blocks (#16): editing chrome ─────────────────────────
    Matches the editor look — no background fill, a border-only outline on
    the hovered/selected block. Controls are editor-only affordances. */
@@ -1277,13 +1286,18 @@ html[data-louise-studio] body {
 .louise-block-add-menu .louise-slash-item { width: 100%; text-align: left; border: none; background: none; }
 .louise-icon { line-height: 0; }
 .louise-icon svg { width: 100%; height: 100%; display: block; }
-/* Format bubble (#182 Phase 5): ProseKit's InlinePopover positions this pill over
-   the current text selection and controls its own show/hide; we only set the
-   stacking context here -- the inner pill look lives on the .louise-toolbar
-   class. (No backticks in this comment: the whole block is a JS template string.) */
+/* Format bubble (#182 Phase 5): ProseKit's inline popover positioner places this
+   over the current text selection, and its popup shows and hides with the
+   selection (#761); we only set the stacking context and the box here -- the
+   inner pill look lives on the .louise-toolbar class. The positioner is a
+   custom element, inline by default, so it takes a block box to size the
+   popup. (No backticks in this comment: the whole block is a JS template string.) */
 .louise-format-bubble {
+  display: block;
+  width: max-content;
   z-index: 2147483004;
 }
+.louise-format-popup { display: block; }
 .louise-toolbar {
   display: flex;
   align-items: center;
