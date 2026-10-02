@@ -1,6 +1,6 @@
 # ADR 0016: Privacy-first, as an enforced rule
 
-- **Status:** Proposed (2026-09-26). **Amended 2026-09-29** (see _Amendment (2026-09-29, push for native apps)_ below): Apple Push Notification service and Firebase Cloud Messaging join the vendor list, for native apps only; a notification carries a reference, a status, and at most one line of text, never personal details; a device token stays in the site's D1 only as long as its purpose; and iOS notifications go to Apple directly, never through Google. **Amended again 2026-09-29** (see _Amendment (2026-09-29, push consent and credentials)_ below): the rules hold for any native app, whatever its shell; the Android app creates no Firebase token or installation ID before the person allows notifications; a site holds push keys only when they publish that client's apps alone; the Android app deletes its FCM token whenever the site deletes its copy; and no notification carries a message's text.
+- **Status:** Proposed (2026-09-26). **Amended 2026-09-29** (see _Amendment (2026-09-29, push for native apps)_ below): Apple Push Notification service and Firebase Cloud Messaging join the vendor list, for native apps only; a notification carries a reference, a status, and at most one line of text, never personal details; a device token stays in the site's D1 only as long as its purpose; and iOS notifications go to Apple directly, never through Google. **Amended again 2026-09-29** (see _Amendment (2026-09-29, push consent and credentials)_ below): the rules hold for any native app, whatever its shell; the Android app creates no Firebase token or installation ID before the person allows notifications; a site holds push keys only when they publish that client's apps alone; the Android app deletes its FCM token whenever the site deletes its copy; and no notification carries a message's text. **Amended 2026-10-02** (see _Amendment (2026-10-02, customer sign-in by link)_ below): dropping customer passwords ships first as an opt-in, `customers.signIn: "magic-link"`, and becomes the default in a later `minor` once every site that runs customer accounts on the kit has switched.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0015 (two audiences), ADR 0017 (client accounts and access), ADR 0004 (edge caching), ADR 0020 (native apps), the platform plan in louise-ops
 
@@ -41,7 +41,7 @@ Analytics Engine is the only analytics sink. No site adds a third-party analytic
 
 ### 4. Data minimization in auth
 
-Owners sign in with magic links and passkeys. `getLouiseAuth` drops password sign-in for customers too, in a `minor` changeset, so a site running the kit's auth stores no password hash for anyone. Sessions stay at 45 days rolling. Each site pins its passkey relying-party ID to its apex.
+Owners sign in with magic links and passkeys. `getLouiseAuth` drops password sign-in for customers too, in a `minor` changeset, so a site running the kit's auth stores no password hash for anyone. Sessions stay at 45 days rolling. Each site pins its passkey relying-party ID to its apex. (Amended 2026-10-02: the drop ships as an opt-in first; see _Amendment (2026-10-02, customer sign-in by link)_.)
 
 ### 5. Each site says what it stores
 
@@ -139,3 +139,14 @@ So rule 4 holds only on that condition. Who publishes a client's app is still op
 - **A privacy policy without enforcement.** Rejected: the README already made a claim nothing checked. A rule that CI doesn't hold is a hope.
 - **Centralize tickets and incidents in louise-ops for convenience.** Rejected: it moves a customer's words into a Bowen Labs database by default, and a leak there is a leak across every client at once.
 - **Sentry as the system of record for errors.** Rejected: the site's D1 keeps the incident row and Sentry gets a scrubbed copy, so an owner's data doesn't depend on a vendor's retention.
+
+## Amendment (2026-10-02, customer sign-in by link)
+
+Decision 4 had `getLouiseAuth` drop customer passwords in one `minor`. Sites already run customer accounts with passwords, and flipping every one of them in a single release would move each site's sign-in page, emails, and stored data at once. So the drop happens in two steps.
+
+1. **Opt-in now.** `customers.signIn: "magic-link"` turns email and password off for an instance and signs customers in with a one-time link by email. The link verifies the address, so an account made that way never holds an unverified email either. `"password"` stays the default.
+2. **The default flips later.** Once every site that runs customer accounts on the kit has switched, a later `minor` makes `"magic-link"` the default and removes the password path. That changeset says what a site that still uses passwords must do.
+
+A site that switches keeps the password hashes its customers already made, in the `account` table's rows with `providerId = 'credential'`. They no longer sign anyone in. Until the site deletes those rows, it still stores a hash for those people, so decision 4's goal holds for that site only after it does. The auth reference says how.
+
+An endpoint that mails any address is a new surface, and its guards are the site's to turn on: Turnstile with real keys, a Durable Object rate limiter, and `waitUntil` so the response time doesn't show whether an address has an account. The option switches Better Auth's own rate limiter on, since a Worker never sets the `NODE_ENV` Better Auth reads to decide.

@@ -19,8 +19,8 @@ import {
 ```
 
 The shared Better Auth setup for a Louise site: magic-link + passkey editor
-sign-in (allowlist-gated), optional customer email/password, and captcha, behind
-one **request-scoped** factory. Framework-agnostic—you wire the helpers into
+sign-in (allowlist-gated), optional customer sign-in by password or by magic link,
+and captcha, behind one **request-scoped** factory. Framework-agnostic—you wire the helpers into
 your Astro middleware and routes.
 
 Peer dependencies: `better-auth`, `@better-auth/passkey`. Builds on
@@ -50,10 +50,12 @@ passed straight to `database` (no adapter).
 
 Two guarantees hold on every instance, whatever route serves it:
 
-- **Magic links go only to the allowlist.** The instance sends a sign-in email
-  only to an address `resolveAdmins` returns. A customer portal mounted on its own
-  `basePath` with `resolveAdmins: () => []` sends none, so nobody can use it to
-  mail sign-in links, or create accounts past `disableSignUp`.
+- **Magic links go only to the allowlist, unless customers sign in by link.**
+  The instance sends a sign-in email only to an address `resolveAdmins` returns.
+  A customer portal mounted on its own `basePath` with `resolveAdmins: () => []`
+  sends none, so nobody can use it to mail sign-in links, or create accounts past
+  `disableSignUp`. Setting `customers.signIn: "magic-link"` lifts this on purpose;
+  see [Customers who sign in by link](#customers-who-sign-in-by-link).
 - **`SESSION_SECRET` must be real.** Off `localhost`, a missing, empty, or
   `DUMMY_REPLACE_ME` value throws rather than signing sessions with a known key.
 
@@ -66,13 +68,14 @@ Two guarantees hold on every instance, whatever route serves it:
 | `mailFrom`             | `from` for the magic-link email                                                                                                                                                     |
 | `renderMagicLinkEmail` | render the email body (site branding)                                                                                                                                               |
 | `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup                                                  |
-| `customers?`           | enable customer email/password (omit for an admin-only editor)                                                                                                                      |
+| `customers?`           | enable customer sign-in (omit for an admin-only editor). `signIn` is `"password"` (default) or `"magic-link"`; see [Customers who sign in by link](#customers-who-sign-in-by-link)  |
 | `additionalFields?`    | extra Better Auth user columns (for example, `squareCustomerId`)                                                                                                                    |
 | `tablePrefix?`         | namespace the auth tables in the same D1 (for example, `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
 | `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                          |
 | `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                              |
 | `verificationStorage?` | where single-use values (magic links, resets) are consumed from; defaults to `"database"`                                                                                           |
 | `rateLimitDo?`         | Durable Object namespace backing Better Auth's rate limiter                                                                                                                         |
+| `waitUntil?`           | the runtime's `waitUntil`; sends magic-link email after the response, so the endpoint's timing doesn't show whether it mailed                                                       |
 | `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                      |
 
 ```ts
@@ -178,6 +181,36 @@ request—edit access is never trusted from the client. Returns the editor when
 the user holds the editor role, else null. Assign the result to `locals` in your
 Astro middleware.
 
+## Customers who sign in by link
+
+`customers: { signIn: "magic-link" }` drops passwords for customers. The
+instance mounts no password sign-in, sign-up, or reset endpoint, and its
+magic-link endpoint mails any address that asks. Following a link signs the
+person in, creating the account unless `customers.disableSignUp` is set, and the
+link itself verifies the email. With sign-up closed, an address with no account
+gets no email, and the response body is the same either way.
+
+Because a stranger can make the site send mail, guard the endpoint:
+
+- **Rate limiting.** The option switches Better Auth's limiter on, since Better
+  Auth enables it by itself only when `NODE_ENV` is `production`, which a Worker
+  never sets. Set `rateLimitDo` too; the KV and D1 fallbacks undercount under a
+  burst.
+- **Turnstile.** The captcha guards `sign-in/magic-link` only when both a real
+  secret and a real site key are set. With the test keys, which every Worker
+  Preview gets, or with none, it's off and the endpoint mails whoever asks. Each
+  such send off `localhost` logs an `auth.magic-link-no-captcha` degrade.
+- **`waitUntil`.** Pass it, and the send leaves the response path. Without it,
+  how long the endpoint takes shows whether it mailed, which tells a caller
+  whether an address has an account when sign-up is closed.
+
+Serve the instance with `auth.handler`, not `handleAuthRequest`: that gate admits
+only admins, so it would turn every customer away.
+
+Accounts that already had a password keep their hash in the `account` table
+(rows with `providerId = 'credential'`). Those people sign in by link to the same
+account. To store no hash, delete those rows once you've switched.
+
 ## `handleAuthRequest(auth, request, admins)`
 
 The Better Auth catch-all with the editor magic-link allowlist gate. A non-admin
@@ -186,6 +219,10 @@ no user row—and returns the same enumeration-safe response a real send does.
 Use it in your `/api/auth/[...all]` route. `admins` is the resolved allowlist
 (the same source `resolveAdmins` uses). The gate matches `sign-in/magic-link`
 under any `basePath`, so it works the same for an instance mounted elsewhere.
+
+Don't serve a customer instance with `customers.signIn: "magic-link"` through
+it: the gate would turn every customer away. Use `auth.handler` for that
+instance.
 
 ## `redirectWithCookies(from, location, status?)`
 

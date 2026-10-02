@@ -669,3 +669,196 @@ describe("verification storage (single-use values stay on D1)", () => {
     });
   });
 });
+
+describe("customers who sign in by magic link", () => {
+  const optionsOf = async (over: Record<string, unknown>) => {
+    const auth = await getLouiseAuth(authEnv, "http://localhost:4321", {
+      ...authBase,
+      ...over,
+    } as never);
+    return (
+      auth as unknown as {
+        options: {
+          emailAndPassword?: { enabled?: boolean };
+          plugins: {
+            id?: string;
+            options?: {
+              disableSignUp?: boolean;
+              sendMagicLink: (
+                data: { email: string; url: string; token: string },
+                ctx?: unknown,
+              ) => Promise<void>;
+            };
+          }[];
+        };
+      }
+    ).options;
+  };
+  const magicOf = async (over: Record<string, unknown>) =>
+    (await optionsOf(over)).plugins.find((p) => p.id === "magic-link")?.options;
+  const ctxWith = (user: unknown) => ({
+    context: { internalAdapter: { findUserByEmail: vi.fn(async () => (user ? { user } : null)) } },
+  });
+
+  it("turns email and password off, and leaves sign-up open by default", async () => {
+    const options = await optionsOf({
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+    });
+    expect(options.emailAndPassword).toBeUndefined();
+    expect((await magicOf({ customers: { signIn: "magic-link" } }))?.disableSignUp).toBeUndefined();
+  });
+
+  it("keeps email and password for the default and for an explicit password sign-in", async () => {
+    expect((await optionsOf({ customers: {} })).emailAndPassword?.enabled).toBe(true);
+    expect((await optionsOf({ customers: { signIn: "password" } })).emailAndPassword?.enabled).toBe(
+      true,
+    );
+  });
+
+  it("sends a link to any address, not only the allowlist", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({ customers: { signIn: "magic-link" }, resolveAdmins: () => [] });
+    await magic?.sendMagicLink({
+      email: "kai@example.com",
+      url: "http://localhost:4321/v",
+      token: "t",
+    });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("kai@example.com"));
+    log.mockRestore();
+  });
+
+  it("with sign-up closed, mails only an existing account and blocks sign-up at verify", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({
+      customers: { signIn: "magic-link", disableSignUp: true },
+      resolveAdmins: () => [],
+    });
+    expect(magic?.disableSignUp).toBe(true);
+    await magic?.sendMagicLink(
+      { email: "nobody@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctxWith(null),
+    );
+    expect(log).not.toHaveBeenCalled();
+    await magic?.sendMagicLink(
+      { email: "quinn@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctxWith({ id: "u1", email: "quinn@example.com" }),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("quinn@example.com"));
+    log.mockRestore();
+  });
+
+  it("with sign-up closed, still mails an allowlisted admin without a lookup", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({
+      customers: { signIn: "magic-link", disableSignUp: true },
+      resolveAdmins: () => ["owner@example.com"],
+    });
+    const ctx = ctxWith(null);
+    await magic?.sendMagicLink(
+      { email: "owner@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctx,
+    );
+    expect(ctx.context.internalAdapter.findUserByEmail).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("owner@example.com"));
+    log.mockRestore();
+  });
+
+  it("leaves a password instance's links editor-only", async () => {
+    const render = vi.fn(() => ({ subject: "", html: "", text: "" }));
+    const auth = await getLouiseAuth(authEnv, "https://shop.example.com", {
+      ...authBase,
+      customers: {},
+      renderMagicLinkEmail: render,
+      resolveAdmins: () => [],
+    } as never);
+    const magic = (
+      auth as unknown as {
+        options: { plugins: { id?: string; options?: { sendMagicLink: Function } }[] };
+      }
+    ).options.plugins.find((p) => p.id === "magic-link")?.options;
+    await magic?.sendMagicLink({
+      email: "kai@example.com",
+      url: "https://shop.example.com/v",
+      token: "t",
+    });
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
+describe("customer magic links: rate limit, background send, and the captcha warning", () => {
+  const instanceOf = async (env: LouiseAuthEnv, baseURL: string, over: Record<string, unknown>) =>
+    (
+      (await getLouiseAuth(env, baseURL, { ...authBase, ...over } as never)) as unknown as {
+        options: {
+          rateLimit?: { enabled?: boolean; customStorage?: unknown };
+          advanced?: { cookiePrefix?: string; backgroundTasks?: { handler: unknown } };
+          plugins: {
+            id?: string;
+            options?: {
+              sendMagicLink: (
+                data: { email: string; url: string; token: string },
+                ctx?: unknown,
+              ) => Promise<void>;
+            };
+          }[];
+        };
+      }
+    ).options;
+
+  it("switches Better Auth's rate limiter on for customer links, and only for them", async () => {
+    const links = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+    });
+    expect(links.rateLimit?.enabled).toBe(true);
+    const password = await instanceOf(authEnv, "https://shop.example.com", { customers: {} });
+    expect(password.rateLimit).toBeUndefined();
+  });
+
+  it("passes waitUntil to Better Auth's background tasks, beside the cookie prefix", async () => {
+    const waitUntil = vi.fn();
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      waitUntil,
+      cookiePrefix: "shop",
+    });
+    expect(options.advanced?.backgroundTasks?.handler).toBe(waitUntil);
+    expect(options.advanced?.cookiePrefix).toBe("shop");
+    expect((await instanceOf(authEnv, "https://shop.example.com", {})).advanced).toBeUndefined();
+  });
+
+  it("hands the send to runInBackgroundOrAwait, so the response needn't wait for it", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const runInBackgroundOrAwait = vi.fn(async (p: Promise<unknown>) => {
+      await p.catch(() => {});
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait } },
+    );
+    expect(runInBackgroundOrAwait).toHaveBeenCalledOnce();
+    expect(runInBackgroundOrAwait.mock.calls[0]?.[0]).toBeInstanceOf(Promise);
+    error.mockRestore();
+  });
+
+  it("logs a degrade for each customer link sent with no captcha off localhost", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait: async (p: Promise<unknown>) => p.catch(() => {}) } },
+    );
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("auth.magic-link-no-captcha"));
+    error.mockRestore();
+  });
+});
