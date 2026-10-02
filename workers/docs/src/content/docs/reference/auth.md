@@ -240,6 +240,12 @@ Sign-out expires three cookies at once. Copying them with
 all but the first, so the visitor stays signed in. `status` defaults to 303.
 Pass a `location` your route chose, or one checked with `safeNextPath`.
 
+`auth.api.signOut` is part of the `LouiseAuth` type, with Better Auth's
+signature for a response: `signOut({ headers, asResponse: true })` returns a
+`Promise<Response>`. Call it with no cast. A route that built a sign-out
+`Request` and passed it to `auth.handler` to get the same response can call it
+directly instead.
+
 ## `requireEditor(ctx, mutation?)` · `isSameOrigin(request)`
 
 ```ts

@@ -406,6 +406,29 @@ const authBase = {
   renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
 };
 
+describe("api.signOut", () => {
+  // Called with no cast on purpose: the typecheck covers this file, so it also
+  // proves `LouiseAuth` exposes the method the `redirectWithCookies` example uses.
+  it("expires the session cookies, and redirectWithCookies carries them on", async () => {
+    const auth = await getLouiseAuth(authEnv, "https://example.com", authBase as never);
+    const result = await auth.api.signOut({
+      headers: new Headers({ cookie: "better-auth.session_token=stale" }),
+      asResponse: true,
+    });
+    expect(result).toBeInstanceOf(Response);
+    expect(result.status).toBe(200);
+    const res = redirectWithCookies(result, "/");
+    expect(res.headers.get("location")).toBe("/");
+    // An https origin gets `__Secure-` cookies; sign-out expires all three.
+    expect(res.headers.getSetCookie()).toEqual(
+      ["session_token", "session_data", "dont_remember"].map(
+        (name) =>
+          `__Secure-better-auth.${name}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`,
+      ),
+    );
+  });
+});
+
 describe("passkey rpID (#312)", () => {
   /** The passkey plugin's resolved options, as Better Auth holds them. */
   const passkeyOptions = async (baseURL: string, over: Record<string, unknown> = {}) => {
