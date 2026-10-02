@@ -78,7 +78,7 @@ Two guarantees hold on every instance, whatever route serves it:
 | `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                          |
 | `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                              |
 | `verificationStorage?` | where single-use values (magic links, resets) are consumed from; defaults to `"database"`                                                                                           |
-| `rateLimitDo?`         | Durable Object namespace backing Better Auth's rate limiter                                                                                                                         |
+| `rateLimitDo?`         | Durable Object namespace where Better Auth's rate limiter counts. The limiter is on for every instance off `localhost` either way; see [Rate limiting](#rate-limiting)              |
 | `waitUntil?`           | the runtime's `waitUntil`; sends magic-link email after the response, so the endpoint's timing doesn't show whether it mailed                                                       |
 | `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                      |
 
@@ -96,7 +96,9 @@ export const getAuth = (env: Env, baseURL: string) =>
 ```
 
 Magic-link + `admin` + passkey are always on; captcha (Turnstile) mounts only
-when both a real secret and a real site key are configured.
+when both a real secret and a real site key are configured. Better Auth's rate
+limiter is on unless `baseURL` is on `localhost` or `127.0.0.1`; see
+[Rate limiting](#rate-limiting).
 
 ### One passkey across an admin subdomain
 
@@ -148,10 +150,48 @@ session read cache.
 Pass `"secondary"` to restore the older behaviour. Take it only if you have
 measured the extra D1 read on the verification path and decided it matters.
 
-### Rate limiting on a Durable Object
+### Rate limiting
 
-Better Auth checks `rateLimit.customStorage` **before** secondary storage, so
-setting `rateLimitDo` means its rate limiting stops going through KV entirely.
+Better Auth's rate limiter is on for every instance, the editor's included,
+except when the host in `baseURL` is `localhost` or `127.0.0.1`: the same check
+that allows the dev session secret. `[::1]` and `*.localhost` don't count as
+local, and neither does a fixed production `baseURL` in local dev, so derive
+`baseURL` from the request. Better Auth enables the limiter by itself only when
+`NODE_ENV` is `production`, which a Worker never sets, so `getLouiseAuth` turns
+it on.
+
+It counts per instance, client address, and path, and answers a request over
+budget with a 429 and an `X-Retry-After` header. Each instance counts on its
+own: customers asking for links at `/api/shop-auth` don't spend the editor's
+budget at `/api/auth`, and two sites on one Worker don't share one. Better
+Auth's default budgets:
+
+| path                                       | budget             |
+| ------------------------------------------ | ------------------ |
+| `sign-in/magic-link`, `magic-link/verify`  | 5 a minute, each   |
+| other `sign-in/*`, `sign-up/*`, `change-*` | 3 per 10 seconds   |
+| everything else, including passkeys        | 100 per 10 seconds |
+
+The address comes from the `CF-Connecting-IP` header, which Cloudflare sets and
+overwrites. Better Auth's default, `X-Forwarded-For`, carries whatever the
+client sent ahead of the real address, and when it holds more than one address
+Better Auth puts every such request in one shared bucket per path. A request
+with no `CF-Connecting-IP`, which only happens off Cloudflare, lands in that
+shared bucket too.
+
+People behind one address, such as a shop's guest Wi-Fi, share a budget. Four
+of them signing in by password within 10 seconds get a 429 on the fourth try.
+Wire your sign-in forms to show the 429 as "try again in a moment" rather than a
+generic error. An owner who hits the limit waits out the window, a minute at
+most, or signs in from another network. A session they already have keeps
+working: the editor reads it on the server, and the limiter only counts requests
+to `/api/auth` itself. ADR 0012's amendment says why `/api/auth` gets an address limiter
+when `/api/louise/*` doesn't.
+
+#### Where it counts
+
+Setting `rateLimitDo` moves the count into a Durable Object, and rate limiting
+stops going through KV entirely.
 
 ```ts
 getLouiseAuth(env, baseURL, {
@@ -161,11 +201,14 @@ getLouiseAuth(env, baseURL, {
 });
 ```
 
-A Durable Object is the only atomic counter on Workers. The KV counter has a
-read→write gap that undercounts under a burst, and Cloudflare's native Rate
-Limiting binding is permissive, eventually consistent and scoped **per
-location**—so an attacker spread across colos gets one budget per colo. Fine for
-form spam, weak for sign-in.
+A Durable Object is the only atomic counter on Workers. Without one, the
+limiter counts in KV when `sessionCacheKv` is set, and otherwise in a map in
+each isolate's memory. The KV counter has a read→write gap that undercounts
+under a burst, and each isolate keeps its own map, so a burst spread across
+isolates gets a budget in each. Cloudflare's native Rate Limiting binding is
+permissive, eventually consistent and scoped **per location**—so an attacker
+spread across colos gets one budget per colo. Fine for form spam, weak for
+sign-in.
 
 Your site owns the `DurableObject` subclass and the wrangler binding; see
 [`createRateLimiter`](/reference/security/) for the shape.
@@ -196,10 +239,10 @@ gets no email, and the response body is the same either way.
 
 Because a stranger can make the site send mail, guard the endpoint:
 
-- **Rate limiting.** The option switches Better Auth's limiter on, since Better
-  Auth enables it by itself only when `NODE_ENV` is `production`, which a Worker
-  never sets. Set `rateLimitDo` too; the KV and D1 fallbacks undercount under a
-  burst.
+- **Rate limiting.** Better Auth's limiter is on for every instance off
+  `localhost`, and allows each address 5 link requests a minute; see
+  [Rate limiting](#rate-limiting). Set `rateLimitDo` too; the KV and in-memory
+  fallbacks undercount under a burst.
 - **Turnstile.** The captcha guards `sign-in/magic-link` only when both a real
   secret and a real site key are set. With the test keys, which every Worker
   Preview gets, or with none, it's off and the endpoint mails whoever asks. Each
