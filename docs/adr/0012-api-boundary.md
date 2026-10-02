@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -172,6 +172,54 @@ The cookie-versus-token rule in decision 2 stands, restated for where it now
 lives: a request with a bearer token is authenticated by the token alone, and
 its cookie is never consulted. The origin check is skipped for the token's
 identity only, so it can never apply to a cookie's.
+
+## Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)
+
+Decision 2 keeps rate limiting out of the gate, and _Considered and rejected_
+turns down an IP limiter on `/api/louise/*`, because an address limiter on
+editor routes can lock the owner out of their own studio. Both stand.
+`getLouiseAuth` now turns Better Auth's own limiter on for every instance
+unless `baseURL` is on `localhost` or `127.0.0.1`, which puts an address limiter
+on `/api/auth`, the editor's sign-in included. Better Auth turns it on by itself
+only when `NODE_ENV` is `production`, which a Worker never sets, so until now it
+was off on every site.
+
+**Why `/api/auth` is different.** Everything under `/api/louise/*` runs behind
+a resolved editor session, so a limiter there counts only the owner's own
+requests: it can block them and protects nothing. `/api/auth` is the one place a
+stranger reaches with no session at all. The magic-link endpoint sends mail to
+the address it's given, sign-in endpoints take guesses, and a customer instance
+mails any address. A limit per address is what stops one caller from turning the
+site into a mail cannon or a password oracle.
+
+**The lockout risk, and its limits:**
+
+- **The editor's budget is its own.** Better Auth keys a count on the client
+  address and the path with `basePath` removed, so on its own it would count an
+  editor at `/api/auth` and a customer instance at `/api/shop-auth` in one
+  bucket. Customers asking for links on a shop's guest Wi-Fi would then spend
+  the owner's budget. `getLouiseAuth` prefixes every key with the instance's
+  host and `basePath`, so they don't.
+- **The editor's budget is small but short.** Each address gets 5 magic-link
+  requests a minute and 5 followed links a minute; passkey sign-in falls under
+  the general 100 per 10 seconds. `handleAuthRequest` answers a link request
+  for an address off the admin allowlist itself, so only a request naming an
+  editor's address reaches the limiter. Someone on the owner's network who knows
+  that address can still spend the link budget, but for a minute at a time.
+- **A session isn't counted.** An owner already signed in keeps working: the
+  editor reads the session on the server, which doesn't pass through the
+  limiter, and `/api/louise/*` has no limiter at all.
+
+**How the owner gets back in:** wait out the window, a minute at most, or sign
+in from another network, such as a phone's mobile data. No site setting turns
+the limiter off or changes its budgets.
+
+**The address is `CF-Connecting-IP`.** Better Auth's default,
+`X-Forwarded-For`, carries whatever the client sent ahead of the real address,
+and a header with more than one address resolves to no address, so every such
+request would share one bucket per path. That shared bucket is the lockout this
+ADR worries about, open to anyone, so the factory reads the header Cloudflare
+sets and overwrites.
 
 ## Out of scope, tracked separately
 
