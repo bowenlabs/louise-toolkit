@@ -35,7 +35,8 @@ function mapPayment(p: RawPayment): SquarePayment {
     status: p.status ?? "",
     orderId: p.order_id ?? null,
     amountMoney: money(p.amount_money),
-    tipMoney: money(p.tip_money),
+    // No tip comes back as no `tip_money`: take the payment's currency.
+    tipMoney: money(p.tip_money ?? { currency: p.amount_money?.currency }),
     receiptUrl: p.receipt_url ?? null,
     createdAt: p.created_at ?? null,
   };

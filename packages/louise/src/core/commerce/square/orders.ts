@@ -236,13 +236,16 @@ function mapOrder(o: RawOrder): SquareOrder {
       catalogObjectId: li.catalog_object_id ?? null,
       grossSalesMoney: money(li.gross_sales_money),
     })),
-    netAmountDueMoney: money(o.net_amount_due_money),
+    // Square leaves out a zero amount, often a tip. Its currency comes from
+    // the amount beside it, so a missing one never reads as USD in another
+    // currency's store.
+    netAmountDueMoney: money(o.net_amount_due_money ?? { currency: o.total_money?.currency }),
     tenders: (o.tenders ?? []).map((t) => ({
       id: t.id ?? "",
       type: t.type ?? "",
       paymentId: t.payment_id ?? null,
       amountMoney: money(t.amount_money),
-      tipMoney: money(t.tip_money),
+      tipMoney: money(t.tip_money ?? { currency: t.amount_money?.currency }),
     })),
   };
 }

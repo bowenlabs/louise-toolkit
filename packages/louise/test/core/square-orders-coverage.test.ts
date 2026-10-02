@@ -152,6 +152,21 @@ describe("retrieveOrder", () => {
     });
   });
 
+  // Square leaves a zero amount out. A guessed USD would sit beside the
+  // store's real currency, and adding the two would go wrong.
+  it("gives a missing tip or amount due the currency beside it", async () => {
+    answer({
+      order: {
+        id: "O3",
+        total_money: { amount: 1200, currency: "CAD" },
+        tenders: [{ id: "T1", payment_id: "P1", amount_money: { amount: 1200, currency: "CAD" } }],
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O3");
+    expect(order.netAmountDueMoney).toEqual({ amount: 0, currency: "CAD" });
+    expect(order.tenders[0]?.tipMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
   it("maps an unpaid order with no tenders", async () => {
     answer({
       order: {
