@@ -572,6 +572,7 @@ import {
   retrieveOrder,
   searchOrdersByCustomer,
   createPayment,
+  retrievePayment,
   searchCustomersByEmail,
   retrieveCustomer,
   createCustomer,
@@ -587,6 +588,7 @@ import {
   type SquareCatalogItem,
   type SquareOrder,
   type SquarePayment,
+  type SquareTender,
   type SquareCustomer,
   type SquareSubscription,
   type SquareSubscriptionPlan,
@@ -604,7 +606,7 @@ import {
 | **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                                               |
 | **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                                             |
 | **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
-| **Payments**              | `createPayment`—charge a Web Payments card token against an order.                                                                                                                                                                                                  |
+| **Payments**              | `createPayment`—charge a Web Payments card token against an order. `retrievePayment`—read one back by ID, with its status and receipt.                                                                                                                              |
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                    |
 | **Cards & subscriptions** | `createCard`, `listSubscriptionPlans`, `searchSubscriptionsByCustomer`, `retrieveSubscription`, `createSubscription`, `updateSubscription`, `cancelSubscription`, `pauseSubscription`, `resumeSubscription`; see below.                                             |
 | **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                                                  |
@@ -614,11 +616,17 @@ import {
 | **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                                         |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
-`SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
+`SquareTender`, `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
 `SquareSubscription`, `SquareSubscriptionPlan`, `SquareMoney`, …) type the
 normalized, camelCase shapes the
 client returns. `SquareMoney` is an alias of the shared `Money`, and
 `centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)—both still import from `louise-toolkit/commerce/square`.
+
+To see whether an order was paid, read it with `retrieveOrder` and check its
+`tenders`: Square adds one when a payment for the order completes, and its
+`paymentId` goes to `retrievePayment`. A `createOrder` replayed under its
+idempotency key can answer with the order as it was first created, before any
+tender. This is how a checkout recovers a payment whose answer was lost.
 
 A catalog price keeps the currency Square sends. When Square sends none, the
 currency is `null`, never a guess: `SquareVariation.currency`, a

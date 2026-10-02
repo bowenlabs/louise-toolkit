@@ -4,7 +4,7 @@
 
 import type { SquareConfig } from "./client.js";
 import type { SquareMoney } from "./money.js";
-import { sqPost } from "./request.js";
+import { sqGet, sqPost } from "./request.js";
 import { money } from "./wire.js";
 
 export interface SquarePayment {
@@ -15,6 +15,8 @@ export interface SquarePayment {
   /** The tip, when one was sent; zero otherwise. Not included in `amountMoney`. */
   tipMoney: SquareMoney;
   receiptUrl: string | null;
+  /** When Square created the payment, as an RFC 3339 timestamp. */
+  createdAt: string | null;
 }
 
 interface RawPayment {
@@ -22,8 +24,21 @@ interface RawPayment {
   status?: string;
   order_id?: string;
   receipt_url?: string;
+  created_at?: string;
   amount_money?: { amount?: number; currency?: string };
   tip_money?: { amount?: number; currency?: string };
+}
+
+function mapPayment(p: RawPayment): SquarePayment {
+  return {
+    id: p.id ?? "",
+    status: p.status ?? "",
+    orderId: p.order_id ?? null,
+    amountMoney: money(p.amount_money),
+    tipMoney: money(p.tip_money),
+    receiptUrl: p.receipt_url ?? null,
+    createdAt: p.created_at ?? null,
+  };
 }
 
 /**
@@ -66,13 +81,22 @@ export async function createPayment(
     reference_id: input.referenceId,
   });
   if (!res.payment) throw new Error("Square payment creation returned no payment");
-  const p = res.payment;
-  return {
-    id: p.id ?? "",
-    status: p.status ?? "",
-    orderId: p.order_id ?? null,
-    amountMoney: money(p.amount_money),
-    tipMoney: money(p.tip_money),
-    receiptUrl: p.receipt_url ?? null,
-  };
+  return mapPayment(res.payment);
+}
+
+/**
+ * Retrieve one payment. GET /v2/payments/{id}. With the `paymentId` of an
+ * order's tender, this recovers a payment whose create call failed after
+ * Square took it: its status, amounts, and receipt.
+ */
+export async function retrievePayment(
+  config: SquareConfig,
+  paymentId: string,
+): Promise<SquarePayment> {
+  const res = await sqGet<{ payment?: RawPayment }>(
+    config,
+    `/v2/payments/${encodeURIComponent(paymentId)}`,
+  );
+  if (!res.payment) throw new Error(`Square payment ${paymentId} not found`);
+  return mapPayment(res.payment);
 }

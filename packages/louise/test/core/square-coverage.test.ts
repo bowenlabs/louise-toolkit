@@ -15,6 +15,7 @@ import {
   retrieveCustomer,
   retrieveInventoryCounts,
   retrieveLocation,
+  retrievePayment,
   SQUARE_VERSION,
   SquareApiError,
   searchCustomersByEmail,
@@ -624,6 +625,7 @@ describe("createPayment", () => {
       amountMoney: { amount: 0, currency: "USD" },
       tipMoney: { amount: 0, currency: "USD" },
       receiptUrl: null,
+      createdAt: null,
     });
   });
 
@@ -636,5 +638,37 @@ describe("createPayment", () => {
         locationId: "L1",
       }),
     ).rejects.toThrow(/returned no payment/);
+  });
+});
+
+describe("retrievePayment", () => {
+  it("GETs the encoded id and maps every field", async () => {
+    const calls = answer({
+      payment: {
+        id: "P/1",
+        status: "COMPLETED",
+        order_id: "O1",
+        receipt_url: "https://squareup.com/receipt/preview/P1",
+        created_at: "2026-10-02T15:00:00.000Z",
+        amount_money: { amount: 1500, currency: "USD" },
+        tip_money: { amount: 200, currency: "USD" },
+      },
+    });
+    const payment = await retrievePayment(CONFIG, "P/1");
+    expect(calls[0]).toMatchObject({ method: "GET", path: "/v2/payments/P%2F1" });
+    expect(payment).toEqual({
+      id: "P/1",
+      status: "COMPLETED",
+      orderId: "O1",
+      amountMoney: { amount: 1500, currency: "USD" },
+      tipMoney: { amount: 200, currency: "USD" },
+      receiptUrl: "https://squareup.com/receipt/preview/P1",
+      createdAt: "2026-10-02T15:00:00.000Z",
+    });
+  });
+
+  it("throws when Square answers without a payment", async () => {
+    answer({});
+    await expect(retrievePayment(CONFIG, "P9")).rejects.toThrow(/Square payment P9 not found/);
   });
 });

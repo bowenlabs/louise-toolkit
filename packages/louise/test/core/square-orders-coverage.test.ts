@@ -81,6 +81,17 @@ describe("retrieveOrder", () => {
         closed_at: "2026-09-27T10:05:00Z",
         updated_at: "2026-09-27T10:06:00Z",
         total_money: { amount: 1500, currency: "USD" },
+        net_amount_due_money: { amount: 0, currency: "USD" },
+        tenders: [
+          {
+            id: "T1",
+            type: "CARD",
+            payment_id: "P1",
+            amount_money: { amount: 1500, currency: "USD" },
+            tip_money: { amount: 200, currency: "USD" },
+          },
+          {},
+        ],
         line_items: [
           {
             name: "Harbor Blend",
@@ -121,7 +132,37 @@ describe("retrieveOrder", () => {
           grossSalesMoney: { amount: 0, currency: "USD" },
         },
       ],
+      netAmountDueMoney: { amount: 0, currency: "USD" },
+      tenders: [
+        {
+          id: "T1",
+          type: "CARD",
+          paymentId: "P1",
+          amountMoney: { amount: 1500, currency: "USD" },
+          tipMoney: { amount: 200, currency: "USD" },
+        },
+        {
+          id: "",
+          type: "",
+          paymentId: null,
+          amountMoney: { amount: 0, currency: "USD" },
+          tipMoney: { amount: 0, currency: "USD" },
+        },
+      ],
     });
+  });
+
+  it("maps an unpaid order with no tenders", async () => {
+    answer({
+      order: {
+        id: "O2",
+        total_money: { amount: 900, currency: "USD" },
+        net_amount_due_money: { amount: 900, currency: "USD" },
+      },
+    });
+    const order = await retrieveOrder(CONFIG, "O2");
+    expect(order.tenders).toEqual([]);
+    expect(order.netAmountDueMoney).toEqual({ amount: 900, currency: "USD" });
   });
 
   it.each([
