@@ -2,7 +2,8 @@
 
 // `louise-toolkit/auth`—the Better Auth setup shared by every Louise site:
 // magic-link + passkey editor sign-in (allowlist-gated), optional customer
-// email/password, and captcha, behind one configurable, request-scoped factory.
+// sign-in by password or by magic link, and captcha, behind one configurable,
+// request-scoped factory.
 // Framework-agnostic: the site wires these into its own middleware/routes.
 
 export {

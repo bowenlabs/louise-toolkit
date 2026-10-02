@@ -406,6 +406,29 @@ const authBase = {
   renderMagicLinkEmail: () => ({ subject: "", html: "", text: "" }),
 };
 
+describe("api.signOut", () => {
+  // Called with no cast on purpose: the typecheck covers this file, so it also
+  // proves `LouiseAuth` exposes the method the `redirectWithCookies` example uses.
+  it("expires the session cookies, and redirectWithCookies carries them on", async () => {
+    const auth = await getLouiseAuth(authEnv, "https://example.com", authBase as never);
+    const result = await auth.api.signOut({
+      headers: new Headers({ cookie: "better-auth.session_token=stale" }),
+      asResponse: true,
+    });
+    expect(result).toBeInstanceOf(Response);
+    expect(result.status).toBe(200);
+    const res = redirectWithCookies(result, "/");
+    expect(res.headers.get("location")).toBe("/");
+    // An https origin gets `__Secure-` cookies; sign-out expires all three.
+    expect(res.headers.getSetCookie()).toEqual(
+      ["session_token", "session_data", "dont_remember"].map(
+        (name) =>
+          `__Secure-better-auth.${name}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`,
+      ),
+    );
+  });
+});
+
 describe("passkey rpID (#312)", () => {
   /** The passkey plugin's resolved options, as Better Auth holds them. */
   const passkeyOptions = async (baseURL: string, over: Record<string, unknown> = {}) => {
@@ -667,5 +690,395 @@ describe("verification storage (single-use values stay on D1)", () => {
     expect(await verificationOf({ tablePrefix: "auth_" })).toEqual({
       modelName: "auth_verification",
     });
+  });
+});
+
+describe("Better Auth's rate limiter", () => {
+  // Better Auth turns its limiter on by itself only when `NODE_ENV` is
+  // `production`, which a Worker never sets, so the factory decides instead.
+  const rateLimitOf = async (baseURL: string, over: Record<string, unknown> = {}) => {
+    const auth = await getLouiseAuth(authEnv, baseURL, { ...authBase, ...over } as never);
+    return (
+      auth as unknown as {
+        options: {
+          rateLimit?: { enabled?: boolean; customStorage?: unknown };
+          advanced?: { ipAddress?: { ipAddressHeaders?: string[] } };
+        };
+      }
+    ).options;
+  };
+  /** A fake `rateLimitDo` binding that records each key and answers `allowed`. */
+  const fakeDo = (allowed: boolean) => {
+    const keys: string[] = [];
+    const ns = {
+      idFromName: (name: string) => {
+        keys.push(name);
+        return name;
+      },
+      get: () => ({
+        fetch: async () =>
+          Response.json(allowed ? { allowed } : { allowed, retryAfter: 42 }, { status: 200 }),
+      }),
+    };
+    return { ns, keys };
+  };
+  /** Ask for a magic link through the handler, from one client address. */
+  const askForLink = (
+    auth: LouiseAuth,
+    ip: string | null,
+    headers: Record<string, string> = {},
+    at = "https://example.com/api/auth",
+  ) =>
+    auth.handler(
+      new Request(`${at}/sign-in/magic-link`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: new URL(at).origin,
+          ...(ip ? { "cf-connecting-ip": ip } : {}),
+          ...headers,
+        },
+        body: JSON.stringify({ email: "quinn@example.com" }),
+      }),
+    );
+  /** Six link requests in a row: the sixth is over the magic-link budget. */
+  const burst = async (send: () => Promise<Response>) => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i++) statuses.push((await send()).status);
+    return statuses;
+  };
+
+  it("is on for every instance off localhost, the editor-only one included", async () => {
+    for (const over of [
+      {},
+      { customers: {} },
+      { customers: { signIn: "password" } },
+      { customers: { signIn: "magic-link" } },
+    ]) {
+      expect((await rateLimitOf("https://example.com", over)).rateLimit?.enabled).toBe(true);
+    }
+  });
+
+  it("is off on localhost and 127.0.0.1, for customer links too", async () => {
+    for (const baseURL of ["http://localhost:4321", "http://127.0.0.1:4321"]) {
+      expect((await rateLimitOf(baseURL)).rateLimit?.enabled).toBe(false);
+      expect(
+        (await rateLimitOf(baseURL, { customers: { signIn: "magic-link" } })).rateLimit?.enabled,
+      ).toBe(false);
+    }
+  });
+
+  it("counts in the Durable Object when rateLimitDo is set, and nowhere else", async () => {
+    const { ns, keys } = fakeDo(true);
+    const get = vi.fn(async () => null);
+    const kv = { get, put: async () => {}, delete: async () => {} } as unknown as SessionKV;
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      rateLimitDo: ns,
+      sessionCacheKv: kv,
+    } as never);
+    await askForLink(auth, "192.0.2.5");
+    expect(keys).toHaveLength(1);
+    expect(get).not.toHaveBeenCalledWith(expect.stringContaining("192.0.2.5"));
+  });
+
+  it("counts in KV when sessionCacheKv is set and there's no Durable Object", async () => {
+    const counts = new Map<string, string>();
+    const kv = {
+      get: async (k: string) => counts.get(k) ?? null,
+      put: async (k: string, v: string) => void counts.set(k, v),
+      delete: async () => {},
+    } as unknown as SessionKV;
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      sessionCacheKv: kv,
+    } as never);
+    const statuses = await burst(() => askForLink(auth, "192.0.2.6"));
+    expect(statuses[5]).toBe(429);
+    expect([...counts.keys()].some((k) => k.startsWith("example.com/api/auth|192.0.2.6|"))).toBe(
+      true,
+    );
+  });
+
+  it("keys the count on CF-Connecting-IP, which Cloudflare sets and a client can't", async () => {
+    expect(
+      (await rateLimitOf("https://example.com")).advanced?.ipAddress?.ipAddressHeaders,
+    ).toEqual(["cf-connecting-ip"]);
+    const { ns, keys } = fakeDo(true);
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      rateLimitDo: ns,
+    } as never);
+    // A spoofed X-Forwarded-For, which Cloudflare would append to, is ignored.
+    await askForLink(auth, "192.0.2.10", { "x-forwarded-for": "192.0.2.99, 192.0.2.10" });
+    expect(keys).toEqual(["example.com/api/auth|192.0.2.10|/sign-in/magic-link"]);
+  });
+
+  it("never reads X-Forwarded-For, even with no CF-Connecting-IP", async () => {
+    // Off Cloudflare, nothing sets CF-Connecting-IP, no address resolves, and
+    // Better Auth puts every such request in one bucket per path. Under
+    // `NODE_ENV=test` it substitutes 127.0.0.1 instead, so this pins the part
+    // that holds everywhere: a header the client controls is never the key.
+    const { ns, keys } = fakeDo(true);
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      rateLimitDo: ns,
+    } as never);
+    await askForLink(auth, null, { "x-forwarded-for": "192.0.2.98" });
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain("192.0.2.98");
+  });
+
+  it("keeps the editor's count apart from a customer instance's on one address", async () => {
+    // Better Auth drops `basePath` from the key, so without a scope a shop's
+    // guest Wi-Fi asking for customer links would spend the owner's budget.
+    const editor = await getLouiseAuth(authEnv, "https://example.com", authBase as never);
+    const shop = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      basePath: "/api/shop-auth",
+      cookiePrefix: "shop",
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+    } as never);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const customers = await burst(() =>
+      askForLink(shop, "192.0.2.50", {}, "https://example.com/api/shop-auth"),
+    );
+    error.mockRestore();
+    expect(customers[5]).toBe(429);
+    expect((await askForLink(editor, "192.0.2.50")).status).not.toBe(429);
+  });
+
+  it("keeps two sites on one Worker apart", async () => {
+    const a = await getLouiseAuth(authEnv, "https://example.com", authBase as never);
+    const b = await getLouiseAuth(authEnv, "https://example.org", authBase as never);
+    expect((await burst(() => askForLink(a, "192.0.2.60")))[5]).toBe(429);
+    expect((await askForLink(b, "192.0.2.60", {}, "https://example.org/api/auth")).status).not.toBe(
+      429,
+    );
+  });
+
+  it("answers a 429 when the Durable Object says no", async () => {
+    const { ns } = fakeDo(false);
+    const auth = await getLouiseAuth(authEnv, "https://example.com", {
+      ...authBase,
+      rateLimitDo: ns,
+    } as never);
+    const res = await askForLink(auth, "192.0.2.20");
+    expect(res.status).toBe(429);
+    expect(res.headers.get("x-retry-after")).toBe("42");
+  });
+
+  it("answers a burst of link requests with a 429, per client, with no Durable Object", async () => {
+    // Better Auth's in-memory fallback is module state, so each test uses its
+    // own addresses. The magic-link plugin allows 5 sends a minute.
+    const auth = await getLouiseAuth(authEnv, "https://example.com", authBase as never);
+    const statuses = await burst(() => askForLink(auth, "192.0.2.30"));
+    expect(statuses.slice(0, 5)).not.toContain(429);
+    expect(statuses[5]).toBe(429);
+    expect((await askForLink(auth, "192.0.2.31")).status).not.toBe(429);
+  });
+
+  it("lets a burst through on localhost", async () => {
+    const auth = await getLouiseAuth(authEnv, "http://localhost:4321", authBase as never);
+    for (let i = 0; i < 6; i++) {
+      const res = await auth.handler(
+        new Request("http://localhost:4321/api/auth/sign-in/magic-link", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:4321",
+            "cf-connecting-ip": "192.0.2.40",
+          },
+          body: JSON.stringify({ email: "quinn@example.com" }),
+        }),
+      );
+      expect(res.status).not.toBe(429);
+    }
+  });
+});
+
+describe("customers who sign in by magic link", () => {
+  const optionsOf = async (over: Record<string, unknown>) => {
+    const auth = await getLouiseAuth(authEnv, "http://localhost:4321", {
+      ...authBase,
+      ...over,
+    } as never);
+    return (
+      auth as unknown as {
+        options: {
+          emailAndPassword?: { enabled?: boolean };
+          plugins: {
+            id?: string;
+            options?: {
+              disableSignUp?: boolean;
+              sendMagicLink: (
+                data: { email: string; url: string; token: string },
+                ctx?: unknown,
+              ) => Promise<void>;
+            };
+          }[];
+        };
+      }
+    ).options;
+  };
+  const magicOf = async (over: Record<string, unknown>) =>
+    (await optionsOf(over)).plugins.find((p) => p.id === "magic-link")?.options;
+  const ctxWith = (user: unknown) => ({
+    context: { internalAdapter: { findUserByEmail: vi.fn(async () => (user ? { user } : null)) } },
+  });
+
+  it("turns email and password off, and leaves sign-up open by default", async () => {
+    const options = await optionsOf({
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+    });
+    expect(options.emailAndPassword).toBeUndefined();
+    expect((await magicOf({ customers: { signIn: "magic-link" } }))?.disableSignUp).toBeUndefined();
+  });
+
+  it("keeps email and password for the default and for an explicit password sign-in", async () => {
+    expect((await optionsOf({ customers: {} })).emailAndPassword?.enabled).toBe(true);
+    expect((await optionsOf({ customers: { signIn: "password" } })).emailAndPassword?.enabled).toBe(
+      true,
+    );
+  });
+
+  it("sends a link to any address, not only the allowlist", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({ customers: { signIn: "magic-link" }, resolveAdmins: () => [] });
+    await magic?.sendMagicLink({
+      email: "kai@example.com",
+      url: "http://localhost:4321/v",
+      token: "t",
+    });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("kai@example.com"));
+    log.mockRestore();
+  });
+
+  it("with sign-up closed, mails only an existing account and blocks sign-up at verify", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({
+      customers: { signIn: "magic-link", disableSignUp: true },
+      resolveAdmins: () => [],
+    });
+    expect(magic?.disableSignUp).toBe(true);
+    await magic?.sendMagicLink(
+      { email: "nobody@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctxWith(null),
+    );
+    expect(log).not.toHaveBeenCalled();
+    await magic?.sendMagicLink(
+      { email: "quinn@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctxWith({ id: "u1", email: "quinn@example.com" }),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("quinn@example.com"));
+    log.mockRestore();
+  });
+
+  it("with sign-up closed, still mails an allowlisted admin without a lookup", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const magic = await magicOf({
+      customers: { signIn: "magic-link", disableSignUp: true },
+      resolveAdmins: () => ["owner@example.com"],
+    });
+    const ctx = ctxWith(null);
+    await magic?.sendMagicLink(
+      { email: "owner@example.com", url: "http://localhost:4321/v", token: "t" },
+      ctx,
+    );
+    expect(ctx.context.internalAdapter.findUserByEmail).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("owner@example.com"));
+    log.mockRestore();
+  });
+
+  it("leaves a password instance's links editor-only", async () => {
+    const render = vi.fn(() => ({ subject: "", html: "", text: "" }));
+    const auth = await getLouiseAuth(authEnv, "https://shop.example.com", {
+      ...authBase,
+      customers: {},
+      renderMagicLinkEmail: render,
+      resolveAdmins: () => [],
+    } as never);
+    const magic = (
+      auth as unknown as {
+        options: { plugins: { id?: string; options?: { sendMagicLink: Function } }[] };
+      }
+    ).options.plugins.find((p) => p.id === "magic-link")?.options;
+    await magic?.sendMagicLink({
+      email: "kai@example.com",
+      url: "https://shop.example.com/v",
+      token: "t",
+    });
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
+describe("customer magic links: background send and the captcha warning", () => {
+  const instanceOf = async (env: LouiseAuthEnv, baseURL: string, over: Record<string, unknown>) =>
+    (
+      (await getLouiseAuth(env, baseURL, { ...authBase, ...over } as never)) as unknown as {
+        options: {
+          advanced?: { cookiePrefix?: string; backgroundTasks?: { handler: unknown } };
+          plugins: {
+            id?: string;
+            options?: {
+              sendMagicLink: (
+                data: { email: string; url: string; token: string },
+                ctx?: unknown,
+              ) => Promise<void>;
+            };
+          }[];
+        };
+      }
+    ).options;
+
+  it("passes waitUntil to Better Auth's background tasks, beside the cookie prefix", async () => {
+    const waitUntil = vi.fn();
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      waitUntil,
+      cookiePrefix: "shop",
+    });
+    expect(options.advanced?.backgroundTasks?.handler).toBe(waitUntil);
+    expect(options.advanced?.cookiePrefix).toBe("shop");
+    const bare = (await instanceOf(authEnv, "https://shop.example.com", {})).advanced;
+    expect(bare?.backgroundTasks).toBeUndefined();
+    expect(bare?.cookiePrefix).toBeUndefined();
+  });
+
+  it("hands the send to runInBackgroundOrAwait, so the response needn't wait for it", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const runInBackgroundOrAwait = vi.fn(async (p: Promise<unknown>) => {
+      await p.catch(() => {});
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait } },
+    );
+    expect(runInBackgroundOrAwait).toHaveBeenCalledOnce();
+    expect(runInBackgroundOrAwait.mock.calls[0]?.[0]).toBeInstanceOf(Promise);
+    error.mockRestore();
+  });
+
+  it("logs a degrade for each customer link sent with no captcha off localhost", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait: async (p: Promise<unknown>) => p.catch(() => {}) } },
+    );
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("auth.magic-link-no-captcha"));
+    error.mockRestore();
   });
 });

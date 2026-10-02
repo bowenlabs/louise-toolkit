@@ -6,17 +6,20 @@
 // natively: pass the binding straight to `database` (it uses D1's batch() for
 // atomicity; D1 has no interactive transactions).
 //
-// Plugins, always on: magic-link (editor sign-in, allowlist-gated in the route
-// handler), admin (owner/editor roles), passkey (WebAuthn—rpID is derived
-// per request from `baseURL`, so passkeys bind to the site's own origin, dev
-// and prod alike). Captcha (Turnstile) mounts only when configured. Customer
-// email/password + extra user fields are opt-in.
+// Plugins, always on: magic-link (editor sign-in, allowlist-gated, unless
+// customers sign in by link too), admin (owner/editor roles), passkey
+// (WebAuthn—rpID is derived per request from `baseURL`, so passkeys bind to the
+// site's own origin, dev and prod alike). Captcha (Turnstile) mounts only when
+// configured. Customer sign-in (password or magic link) and extra user fields
+// are opt-in.
 
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { admin, captcha, magicLink, organization } from "better-auth/plugins";
+import { reportDegraded } from "../degraded.js";
 import { sendEmail } from "../email/index.js";
 import {
+  type DurableRateLimitStorage,
   durableRateLimitStorage,
   getSessionSecret,
   type KVLike,
@@ -117,16 +120,49 @@ export interface LouiseAuthConfig {
   /** Resolve the admin allowlist. Defaults to `OWNER_EMAIL`/`ENGINEER_EMAIL`
    *  from env; override to source it elsewhere (for example, a DB lookup). */
   resolveAdmins?: (env: LouiseAuthEnv) => string[] | Promise<string[]>;
-  /** Enable customer email/password sign-in/up. Omit for an admin-only editor. */
+  /** Enable customer sign-in and sign-up. Omit for an admin-only editor. */
   customers?: {
+    /**
+     * How customers sign in. Default `"password"`: email and password, with the
+     * password options below.
+     *
+     * `"magic-link"` turns email and password off and opens the magic-link
+     * endpoint to every address instead of only the admin allowlist: anyone can
+     * ask for a one-time link, and following it signs them in, creating the
+     * account unless `disableSignUp` is set. The link itself verifies the
+     * account's email. Serve the instance with `auth.handler`, not
+     * {@link handleAuthRequest}, whose gate admits only admins.
+     *
+     * Because a stranger can make the site send mail, three things guard the
+     * endpoint, and two of them are the site's to turn on:
+     *
+     * - **Better Auth's rate limiter**, on for every instance off localhost.
+     *   Set {@link LouiseAuthConfig.rateLimitDo} too: the KV and in-memory
+     *   fallbacks undercount under a burst.
+     * - **Turnstile**, only when both a real secret and a real site key are
+     *   set. With the test keys, which every Worker Preview gets, or with none,
+     *   the captcha is off, so the endpoint mails any address that asks. Each
+     *   link sent that way off localhost logs an `auth.magic-link-no-captcha`
+     *   degrade.
+     * - **{@link LouiseAuthConfig.waitUntil}**, so the send leaves the response
+     *   path and the endpoint answers in the same time whether or not it mails.
+     */
+    signIn?: "password" | "magic-link";
+    /** Password sign-in only. Default 8. */
     minPasswordLength?: number;
+    /** Password sign-in only. A link proves the address, so it needs no flag. */
     requireEmailVerification?: boolean;
-    /** Close public sign-up—accounts are provisioned by staff instead. */
+    /** Close public sign-up—accounts are provisioned by staff instead. With
+     *  `"magic-link"`, an address with no account gets no email at all; set
+     *  {@link LouiseAuthConfig.waitUntil}, or the response time shows which
+     *  addresses have one. */
     disableSignUp?: boolean;
-    /** Revoke existing sessions when a password is reset. Default `true`: a
-     *  reset usually means the old credentials are compromised. */
+    /** Password sign-in only. Revoke existing sessions when a password is
+     *  reset. Default `true`: a reset usually means the old credentials are
+     *  compromised. */
     revokeSessionsOnPasswordReset?: boolean;
-    /** Send the self-serve reset link. Omit to leave reset unavailable. */
+    /** Password sign-in only. Send the self-serve reset link. Omit to leave
+     *  reset unavailable. */
     sendResetPassword?: (args: { user: { email: string }; url: string }) => Promise<void> | void;
   };
   /**
@@ -178,6 +214,16 @@ export interface LouiseAuthConfig {
   /**
    * Durable Object namespace backing Better Auth's own rate limiter.
    *
+   * The limiter itself is on for every instance unless the host in `baseURL`
+   * is `localhost` or `127.0.0.1`, whether or not this is set; this only
+   * chooses where it counts. Better Auth enables it by itself only when
+   * `NODE_ENV` is `production`, which a Worker never sets, so the factory turns
+   * it on. It keys each count on the instance (host and `basePath`), the
+   * `CF-Connecting-IP` header, and the path, and answers a burst with a 429.
+   * Its default budgets, per address and path, are 100 requests per 10
+   * seconds, 3 per 10 seconds on sign-in and sign-up, and 5 a minute each for
+   * sending and following a magic link.
+   *
    * Wire this and rate limiting stops going through KV entirely: Better Auth
    * checks `rateLimit.customStorage` BEFORE secondary storage, so the KV
    * `increment` is never called. That matters because a DO is the only atomic
@@ -191,10 +237,22 @@ export interface LouiseAuthConfig {
    * `createRateLimiter` in `louise-toolkit/security` for the shape. One object
    * per key, so no single object becomes a bottleneck.
    *
-   * Omit to keep Better Auth's default storage (KV when `sessionCacheKv` is set,
-   * otherwise the database).
+   * Omit to count in KV when `sessionCacheKv` is set, otherwise in a map in
+   * the isolate's memory, which each isolate keeps on its own.
    */
   rateLimitDo?: RateLimitNamespace;
+  /**
+   * The runtime's `waitUntil`, from `cloudflare:workers` or the request's
+   * execution context. Better Auth hands it the work it can finish after the
+   * response: here, sending a magic-link email. Without it the endpoint
+   * waits for the send, so how long it takes tells a caller whether an email
+   * went out, which matters once a customer instance mails only existing
+   * accounts (`customers.disableSignUp` with `signIn: "magic-link"`).
+   *
+   * A failed send in the background is logged, not returned: the person sees
+   * the same "check your inbox" either way.
+   */
+  waitUntil?: (promise: Promise<unknown>) => void;
   /** Enable multi-editor tenancy (organization plugin). Omit for a single-editor
    *  site. Mirror this on `AuthSchemaConfig.organizations` when regenerating the
    *  migration. See {@link LouiseOrganizationsConfig}. */
@@ -278,6 +336,71 @@ export function kvSecondaryStorage(
   };
 }
 
+/** Better Auth's in-memory limit, kept per isolate. Module state, so the count
+ *  outlives the per-request instance; the cap stops a flood of addresses from
+ *  growing it without bound. */
+const memoryCounts = new Map<string, { count: number; resetAt: number }>();
+const MEMORY_COUNTS_MAX = 10_000;
+
+/**
+ * Where Better Auth's limiter counts when the site hasn't wired `rateLimitDo`:
+ * KV when `sessionCacheKv` is set, the same fixed window Better Auth's
+ * secondary storage uses, otherwise a map in the isolate's memory. Both are
+ * Better Auth's own fallbacks, rebuilt here so that {@link scopedRateLimitStorage}
+ * can sit in front of them; Better Auth offers no way to change a key before it
+ * reaches its built-in stores.
+ */
+function fallbackRateLimitStorage(kv: SessionKV | undefined): DurableRateLimitStorage {
+  if (kv) {
+    const { increment } = kvSecondaryStorage(kv);
+    return {
+      consume: async (key, rule) =>
+        (await increment(key, rule.window)) <= rule.max
+          ? { allowed: true, retryAfter: null }
+          : { allowed: false, retryAfter: rule.window },
+    };
+  }
+  return {
+    consume: async (key, rule) => {
+      const now = Date.now();
+      if (memoryCounts.size >= MEMORY_COUNTS_MAX) {
+        for (const [k, v] of memoryCounts) if (now >= v.resetAt) memoryCounts.delete(k);
+        // Still full of live counts: drop the oldest, as Better Auth's own map
+        // does, rather than clearing them all and resetting every budget.
+        for (const k of memoryCounts.keys()) {
+          if (memoryCounts.size < MEMORY_COUNTS_MAX) break;
+          memoryCounts.delete(k);
+        }
+      }
+      const entry = memoryCounts.get(key);
+      if (!entry || now >= entry.resetAt) {
+        memoryCounts.set(key, { count: 1, resetAt: now + rule.window * 1000 });
+        return { allowed: true, retryAfter: null };
+      }
+      if (entry.count >= rule.max) {
+        return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+      }
+      entry.count += 1;
+      return { allowed: true, retryAfter: null };
+    },
+  };
+}
+
+/**
+ * Prefix every rate-limit key with the instance it belongs to. Better Auth keys
+ * a count on the client address and the path with `basePath` removed, so an
+ * editor at `/api/auth` and a customer instance at `/api/shop-auth` would both
+ * count `/sign-in/magic-link` in one bucket: customers asking for links from a
+ * shop's Wi-Fi would spend the owner's sign-in budget. The host keeps two sites
+ * on one Worker apart the same way.
+ */
+function scopedRateLimitStorage(
+  scope: string,
+  inner: DurableRateLimitStorage,
+): DurableRateLimitStorage {
+  return { consume: (key, rule) => inner.consume(`${scope}|${key}`, rule) };
+}
+
 /** The current user on a resolved session (Better Auth + admin-plugin `role`). */
 export interface LouiseSessionUser {
   id: string;
@@ -302,6 +425,12 @@ export interface LouiseAuth {
       // client has selected one (see `activeOrganizationId` in ./org.ts).
       session?: { activeOrganizationId?: string | null } | null;
     } | null>;
+    /**
+     * Ends the session the request's cookie names and returns Better Auth's
+     * response, whose `set-cookie` headers expire the session cookies. Pass it
+     * to `redirectWithCookies` to sign someone out from a server-rendered route.
+     */
+    signOut(input: { headers: Headers; asResponse: true }): Promise<Response>;
   };
 }
 
@@ -330,6 +459,10 @@ export async function getLouiseAuth(
   const captchaKey = activeCaptchaSecret(env, await turnstileSecret(env));
   const isAdmin = (email: string | null | undefined) =>
     admins.includes((email ?? "").trim().toLowerCase());
+  // Customers sign in by magic link: the endpoint opens to every address and
+  // email and password stay off (see `customers.signIn`).
+  const customerLinks = config.customers?.signIn === "magic-link";
+  const customerSignUpClosed = customerLinks && !!config.customers?.disableSignUp;
 
   // Same-D1 auth namespace (issue #15, Option B): when set, every auth table is
   // renamed `<prefix><model>` so it queries the same tables the namespaced
@@ -364,17 +497,38 @@ export async function getLouiseAuth(
     // A second instance on the same origin needs its own mount and its own
     // cookie prefix, or the two sessions collide.
     ...(config.basePath ? { basePath: config.basePath } : {}),
-    ...(config.cookiePrefix ? { advanced: { cookiePrefix: config.cookiePrefix } } : {}),
+    advanced: {
+      ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
+      ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
+      // Better Auth reads the client IP from `X-Forwarded-For` by default, and
+      // only when it holds one address. A client can send its own, which
+      // Cloudflare appends to, and then no IP resolves and every request
+      // shares one bucket per path: a stranger could spend everyone's sign-in
+      // budget. Cloudflare sets `CF-Connecting-IP` itself and overwrites any
+      // copy a client sends.
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
+    },
     // Single custom domain in prod, localhost in dev.
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv
       ? { secondaryStorage: kvSecondaryStorage(config.sessionCacheKv) }
       : {}),
-    // Checked ahead of secondaryStorage by Better Auth, so wiring this retires
-    // the KV `increment` rather than merely documenting its limits.
-    ...(config.rateLimitDo
-      ? { rateLimit: { customStorage: durableRateLimitStorage(config.rateLimitDo) } }
-      : {}),
+    rateLimit: {
+      // Better Auth enables its limiter by itself only when `NODE_ENV` is
+      // `production`, which a Worker never sets, so without this it's off on
+      // every instance: the editor's magic-link and passkey endpoints included.
+      // Off on localhost, where a burst is someone testing, not an attack.
+      enabled: !isDev,
+      // Checked ahead of secondaryStorage by Better Auth, so wiring the Durable
+      // Object retires the KV `increment` rather than merely documenting its
+      // limits. Always set, so every count is scoped to this instance.
+      customStorage: scopedRateLimitStorage(
+        `${host}${config.basePath ?? "/api/auth"}`,
+        config.rateLimitDo
+          ? durableRateLimitStorage(config.rateLimitDo)
+          : fallbackRateLimitStorage(config.sessionCacheKv),
+      ),
+    },
     session: {
       expiresIn: config.session?.expiresIn ?? 60 * 60 * 24 * 45,
       updateAge: config.session?.updateAge ?? 60 * 60 * 24,
@@ -387,7 +541,7 @@ export async function getLouiseAuth(
       ...(prefix ? { modelName: `${prefix}account` } : {}),
     },
     ...(Object.keys(verificationOptions).length ? { verification: verificationOptions } : {}),
-    ...(config.customers
+    ...(config.customers && !customerLinks
       ? {
           emailAndPassword: {
             enabled: true,
@@ -433,23 +587,38 @@ export async function getLouiseAuth(
     plugins: [
       magicLink({
         expiresIn: 60 * 15,
-        sendMagicLink: async ({ email, url: link }) => {
-          // Magic links are editor sign-in, so only the allowlist gets one.
-          // `handleAuthRequest` refuses everyone else before Better Auth runs,
-          // but only on the route that calls it: an instance served straight
-          // from `auth.handler` (a customer portal on its own `basePath`) would
-          // otherwise mail a working sign-in link—one that creates the
-          // account, `disableSignUp` or not—to any address anyone typed. The
-          // token Better Auth has already stored is never delivered, so it's
-          // inert.
-          if (!isAdmin(email)) return;
+        // Without this, following a link to an address with no account creates
+        // one, whatever `emailAndPassword.disableSignUp` says.
+        ...(customerSignUpClosed ? { disableSignUp: true } : {}),
+        sendMagicLink: async ({ email, url: link }, ctx) => {
+          // Unless customers sign in by link, magic links are editor sign-in,
+          // so only the allowlist gets one. `handleAuthRequest` refuses
+          // everyone else before Better Auth runs, but only on the route that
+          // calls it: an instance served straight from `auth.handler` (a
+          // customer portal on its own `basePath`) would otherwise mail a
+          // working sign-in link—one that creates the account—to any address
+          // anyone typed. The token Better Auth has already stored is never
+          // delivered, so it's inert.
+          if (!customerLinks && !isAdmin(email)) return;
+          // Customer links with sign-up closed: an address with no account
+          // would only reach an error page, so it gets no email, and the
+          // response stays the same either way.
+          if (customerSignUpClosed && !isAdmin(email)) {
+            const found = await ctx?.context.internalAdapter.findUserByEmail(email);
+            if (!found?.user) return;
+          }
           // Local dev has no EMAIL binding—log the link instead.
           if (isDev) {
             console.log(`[dev] Magic link for ${email}: ${link}`);
             return;
           }
+          // An open endpoint with no captcha mails whoever asks. Say so on
+          // every send, so a site that meant to turn Turnstile on finds out.
+          if (customerLinks && !captchaKey && !isAdmin(email)) {
+            reportDegraded("auth.magic-link-no-captcha", undefined, { host });
+          }
           const mail = config.renderMagicLinkEmail({ url: link, toEmail: email });
-          await sendEmail(
+          const send = sendEmail(
             env.EMAIL,
             {
               from: config.mailFrom,
@@ -464,6 +633,10 @@ export async function getLouiseAuth(
             // bundler's `import.meta.env` too—it reflects THIS request.
             { dev: isDev },
           );
+          // Off the response path when the site passed `waitUntil`, so the
+          // endpoint answers as fast whether or not it mailed; awaited
+          // otherwise. Better Auth's own plugin awaits this callback directly.
+          await (ctx ? ctx.context.runInBackgroundOrAwait(send) : send);
         },
       }),
       admin(),
