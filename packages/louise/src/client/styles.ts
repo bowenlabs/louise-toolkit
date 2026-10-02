@@ -1288,7 +1288,7 @@ html[data-louise-studio] body {
 .louise-icon svg { width: 100%; height: 100%; display: block; }
 /* Format bubble (#182 Phase 5): ProseKit's inline popover positioner places this
    over the current text selection, and its popup shows and hides with the
-   selection (#761); we only set the stacking context and the box here -- the
+   selection (#761). This rule sets only the stacking context and the box—the
    inner pill look lives on the .louise-toolbar class. The positioner is a
    custom element, inline by default, so it takes a block box to size the
    popup. (No backticks in this comment: the whole block is a JS template string.) */
