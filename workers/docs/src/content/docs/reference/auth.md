@@ -46,7 +46,11 @@ Constructs the request-scoped auth instance. `baseURL` is the origin (Better
 Auth signs callback URLs and binds the passkey `rpID` against it)—derive it
 from the request, so a multi-tenant deployment gets the correct origin-bound
 relying party per tenant. Better Auth 1.5+ speaks D1 natively; the binding is
-passed straight to `database` (no adapter).
+passed straight to `database` (no adapter). The factory turns off Better Auth's runtime schema
+check (`advanced.database.validateSchema: false`): the check caches per
+instance, and an instance lives for one request, so it would read D1's schema on
+every request. Keep the auth tables right with the
+[schema generator](#generating-the-auth-schema) and your migrations instead.
 
 Two guarantees hold on every instance, whatever route serves it:
 

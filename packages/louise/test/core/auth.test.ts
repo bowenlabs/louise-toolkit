@@ -1082,3 +1082,40 @@ describe("customer magic links: background send and the captcha warning", () => 
     error.mockRestore();
   });
 });
+
+describe("schema validation", () => {
+  it("turns off Better Auth's per-instance schema check, since every request builds an instance", async () => {
+    const options = (
+      (await getLouiseAuth(authEnv, "https://example.com", authBase as never)) as unknown as {
+        options: { advanced?: { database?: { validateSchema?: boolean }; cookiePrefix?: string } };
+      }
+    ).options;
+    expect(options.advanced?.database?.validateSchema).toBe(false);
+    const prefixed = (
+      (await getLouiseAuth(authEnv, "https://example.com", {
+        ...authBase,
+        cookiePrefix: "shop",
+      } as never)) as unknown as {
+        options: { advanced?: { database?: { validateSchema?: boolean }; cookiePrefix?: string } };
+      }
+    ).options;
+    expect(prefixed.advanced?.cookiePrefix).toBe("shop");
+    expect(prefixed.advanced?.database?.validateSchema).toBe(false);
+  });
+
+  it("serves a request without reading the database's schema", async () => {
+    // Typed with the SQL argument the real binding takes, so the calls record it.
+    const prepare = vi.fn((_sql: string) => noopD1.prepare());
+    const auth = await getLouiseAuth(
+      { ...authEnv, DB: { ...noopD1, prepare } as unknown as D1Database } as LouiseAuthEnv,
+      "https://example.com",
+      authBase as never,
+    );
+    await auth.api.signOut({
+      headers: new Headers({ cookie: "better-auth.session_token=stale" }),
+      asResponse: true,
+    });
+    const sql = prepare.mock.calls.map(([q]) => String(q));
+    expect(sql.some((q) => /sqlite_schema|PRAGMA table_info/i.test(q))).toBe(false);
+  });
+});
