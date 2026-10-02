@@ -350,6 +350,12 @@ export interface LouiseAuth {
       // client has selected one (see `activeOrganizationId` in ./org.ts).
       session?: { activeOrganizationId?: string | null } | null;
     } | null>;
+    /**
+     * Ends the session the request's cookie names and returns Better Auth's
+     * response, whose `set-cookie` headers expire the session cookies. Pass it
+     * to `redirectWithCookies` to sign someone out from a server-rendered route.
+     */
+    signOut(input: { headers: Headers; asResponse: true }): Promise<Response>;
   };
 }
 
