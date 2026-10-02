@@ -6,6 +6,7 @@ import {
   escapeMultiline,
   mailButton,
   mailFallbackLink,
+  mailRows,
   type MailTheme,
   renderEmailShell,
   subjectSafe,
@@ -181,5 +182,136 @@ describe("renderEmailShell", () => {
     const safe = renderEmailShell(theme, { ...opts, preheader: escapeHtml(name) });
     expect(safe).toContain("&lt;b&gt;Kai&lt;/b&gt;");
     expect(safe).not.toContain("<b>Kai</b>");
+  });
+});
+
+describe("renderEmailShell — fluid card and the logo masthead", () => {
+  const opts = {
+    title: "Your order",
+    preheader: "Thanks, Alex",
+    eyebrow: "Order &middot; 42",
+    headline: "It's on its way",
+    bodyHtml: "<p>Body copy</p>",
+    footerNote: "Sent to alex@example.com",
+  };
+  const logo = { src: "https://example.com/logo.png", width: 160, height: 44 };
+
+  it("renders a fluid card with a fixed table for Outlook", () => {
+    const html = renderEmailShell(theme, opts);
+    expect(html).toContain(
+      'width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;',
+    );
+    expect(html).not.toContain('width="600" cellpadding="0" cellspacing="0" style="width:600px');
+    expect(html).toContain('<!--[if mso]><table role="presentation" width="600"');
+    expect(html).toContain("<!--[if mso]></td></tr></table><![endif]-->");
+  });
+
+  it("omits the eyebrow when it's empty", () => {
+    expect(renderEmailShell(theme, opts)).toContain(">Order &middot; 42</p>");
+    const html = renderEmailShell(theme, { ...opts, eyebrow: "" });
+    expect(html).not.toContain("letter-spacing:0.16em");
+    expect(html).toContain(">It's on its way</h1>");
+  });
+
+  it("draws a solid band with the logo image, sized and described, and centres the footer", () => {
+    const html = renderEmailShell({ ...theme, masthead: "logo", logo }, opts);
+    expect(html).toContain(
+      '<img src="https://example.com/logo.png" alt="Example Organization" width="160" height="44"',
+    );
+    expect(html).toContain("width:160px;height:44px;");
+    expect(html).toContain('align="center" style="padding:22px 40px;background:#111111;');
+    expect(html).not.toContain("height:116px");
+    expect(html).not.toContain("text-shadow:");
+    expect(html).toContain('text-align:center;">\n<p');
+  });
+
+  it("takes the logo's own alt text and masthead fill, escaped", () => {
+    const html = renderEmailShell(
+      { ...theme, masthead: "logo", mastheadBg: "#222222", logo: { ...logo, alt: 'Kai & "Co"' } },
+      opts,
+    );
+    expect(html).toContain('alt="Kai &amp; &quot;Co&quot;"');
+    expect(html).toContain("background:#222222;");
+  });
+
+  it("falls back to the wordmark without a logo, or with a src that isn't http(s)", () => {
+    const text = renderEmailShell({ ...theme, masthead: "logo" }, opts);
+    expect(text).not.toContain("<img");
+    expect(text).toContain('color:#fafafa;">Example Organization</span>');
+    const unsafe = renderEmailShell(
+      { ...theme, masthead: "logo", logo: { ...logo, src: "javascript:alert(1)" } },
+      opts,
+    );
+    expect(unsafe).not.toContain("<img");
+    expect(unsafe).not.toContain("javascript:");
+  });
+
+  it("keeps the band masthead and a left footer by default", () => {
+    const html = renderEmailShell(theme, opts);
+    expect(html).toContain("height:116px");
+    expect(html).toContain("text-align:left;");
+    expect(html).not.toContain("<img");
+  });
+
+  it("swaps the border for a shadow, and sizes the headline and padding from the theme", () => {
+    const html = renderEmailShell(
+      {
+        ...theme,
+        shadow: "0 6px 20px rgba(0,0,0,0.08)",
+        headlineSize: 24,
+        headlineWeight: 600,
+        contentPadding: 32,
+      },
+      opts,
+    );
+    expect(html).toContain("box-shadow:0 6px 20px rgba(0,0,0,0.08);border-radius:6px");
+    expect(html).not.toContain("border:1px solid #dddddd;border-radius");
+    expect(html).toContain("font-weight:600;font-size:24px;line-height:1.1");
+    expect(html).toContain("padding:40px 32px 36px;");
+    expect(html).toContain("padding:24px 32px 30px;");
+    const plain = renderEmailShell(theme, opts);
+    expect(plain).toContain("border:1px solid #dddddd;border-radius:6px");
+    expect(plain).toContain("font-weight:400;font-size:32px;");
+    expect(plain).toContain("padding:40px 40px 36px;");
+  });
+});
+
+describe("mailButton alignment", () => {
+  it("is left by default and centres on request, by theme or by button", () => {
+    const left = mailButton(theme, { href: "https://example.com", label: "Go" });
+    expect(left).toContain('<table role="presentation" cellpadding="0" cellspacing="0"><tr>');
+    const byTheme = mailButton(
+      { ...theme, buttonAlign: "center" },
+      { href: "https://example.com", label: "Go" },
+    );
+    expect(byTheme).toContain('cellspacing="0" align="center" style="margin:0 auto;"><tr>');
+    const byButton = mailButton(theme, {
+      href: "https://example.com",
+      label: "Go",
+      align: "center",
+    });
+    expect(byButton).toContain('align="center" style="margin:0 auto;"');
+    const backToLeft = mailButton(
+      { ...theme, buttonAlign: "center" },
+      { href: "https://example.com", label: "Go", align: "left" },
+    );
+    expect(backToLeft).not.toContain('align="center"');
+  });
+});
+
+describe("mailRows", () => {
+  it("renders each label and value as a two-column line in a soft box", () => {
+    const html = mailRows({ ...theme, radius: 18 }, [
+      { label: "Order", value: "42 &middot; 2 bags" },
+      { label: "Total", value: "$30.00" },
+    ]);
+    expect(html).toContain("background:#f5f5f5;border:1px solid #dddddd;border-radius:14px;");
+    expect(html).toContain('color:#777777;">Order</td><td align="right"');
+    expect(html).toContain(
+      'color:#111111;font-weight:600;text-align:right;">42 &middot; 2 bags</td>',
+    );
+    expect(html).toContain(">$30.00</td>");
+    expect(html.match(/<tr>/g)).toHaveLength(3);
+    expect(mailRows(theme, [])).not.toContain('<tr><td style="padding:5px 0;');
   });
 });
