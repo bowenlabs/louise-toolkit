@@ -500,6 +500,14 @@ export async function getLouiseAuth(
     advanced: {
       ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
       ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
+      // Better Auth 1.7.7 checks the database schema before its first query,
+      // by default, and caches the verdict on the instance. This factory
+      // builds an instance per request, so the cache never outlives one: every
+      // request that touched auth would list D1's tables and read each one's
+      // columns first, and any difference would fail the request. The auth
+      // schema is this kit's to keep right: `generateAuthSchemaSql` emits it
+      // and the site's migrations apply it.
+      database: { validateSchema: false },
       // Better Auth reads the client IP from `X-Forwarded-For` by default, and
       // only when it holds one address. A client can send its own, which
       // Cloudflare appends to, and then no IP resolves and every request
