@@ -43,6 +43,8 @@ export default defineConfig({
           // happy-dom package from its own location. See test/happy-dom-env.ts.
           environment: "./test/happy-dom-env.ts",
           include: ["test/client/**/*.test.{ts,tsx}"],
+          // DOM APIs happy-dom lacks that the client needs (see the file).
+          setupFiles: ["./test/client/setup-dom.ts"],
         },
       },
     ],

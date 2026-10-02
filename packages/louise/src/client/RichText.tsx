@@ -42,7 +42,11 @@ import {
   BlockHandleRoot,
 } from "prosekit/solid/block-handle";
 import { ResizableHandle, ResizableRoot } from "prosekit/solid/resizable";
-import { InlinePopoverRoot } from "prosekit/solid/inline-popover";
+import {
+  InlinePopoverPopup,
+  InlinePopoverPositioner,
+  InlinePopoverRoot,
+} from "prosekit/solid/inline-popover";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { CHROME_LANG, wirePopoverDismiss, wireToolbarRoving } from "./a11y.js";
 import { render } from "solid-js/web";
@@ -475,6 +479,14 @@ export interface RichTextProps {
   typography?: RichTextTypography;
   /** Show the Language button, which marks a phrase with `<span lang>` (#606). */
   language?: boolean;
+  /** Where the editor sits (#761). `panel` (the default) is a field in the
+   *  drawer or a form: the surface gets the panel's padding, minimum height,
+   *  and type size. `canvas` is a field edited in place on the live page,
+   *  inside the site's own element: the surface inherits that element's font,
+   *  color, and spacing, so a heading still looks like the heading while it's
+   *  edited. `mountRichText` defaults to `canvas`. */
+  surface?: "panel" | "canvas";
+  /** A class for the editing surface, in place of the one `surface` picks. */
   class?: string;
 }
 
@@ -979,6 +991,15 @@ function Toolbar(props: {
   );
 }
 
+/** The editing surface's class for a `surface` (#761). On the canvas, an
+ *  `inline` field's one paragraph is the editor's own, not the site's, so it
+ *  takes `is-inline` and the stylesheet gives it the host's font and no margin.
+ *  A prose body keeps the site's paragraph rules. */
+function surfaceClass(props: RichTextProps): string {
+  if (props.surface !== "canvas") return "louise-prose-surface";
+  return props.inline ? "louise-canvas-surface is-inline" : "louise-canvas-surface";
+}
+
 export function RichText(props: RichTextProps) {
   const builder = () => props.builder ?? props.blocks ?? false;
   const editor = createEditor({
@@ -1014,19 +1035,27 @@ export function RichText(props: RichTextProps) {
     <ProseKit editor={editor}>
       <div class="louise-rt">
         {/* Format bubble (#182 Phase 5): a floating toolbar that appears over the
-            current text selection (ProseKit InlinePopover), so inline editing on
-            the live page stays clean until the editor highlights text. */}
+            current text selection, so inline editing on the live page stays
+            clean until the editor highlights text. ProseKit's inline popover is
+            three elements (#761): the root tracks the selection and holds the
+            open state, the positioner places itself over the selection, and the
+            popup shows and hides. The root alone renders its children in the
+            flow, always visible. */}
         <Show when={props.toolbar !== false}>
-          <InlinePopoverRoot class="louise-format-bubble">
-            <Toolbar
-              minimal={props.minimal || props.inline}
-              image={props.image}
-              colors={props.colors}
-              language={props.language}
-            />
+          <InlinePopoverRoot>
+            <InlinePopoverPositioner class="louise-format-bubble">
+              <InlinePopoverPopup class="louise-format-popup">
+                <Toolbar
+                  minimal={props.minimal || props.inline}
+                  image={props.image}
+                  colors={props.colors}
+                  language={props.language}
+                />
+              </InlinePopoverPopup>
+            </InlinePopoverPositioner>
           </InlinePopoverRoot>
         </Show>
-        <div class={props.class ?? "louise-prose-surface"} ref={host} />
+        <div class={props.class ?? surfaceClass(props)} ref={host} />
         {/* Block drag-handle + inserters—omitted in `minimal`/`inline`
             (light-inline) modes, where there's no block layer to reorder. */}
         <Show when={!(props.minimal || props.inline)}>
@@ -1052,7 +1081,10 @@ export function RichText(props: RichTextProps) {
 /**
  * Vanilla-DOM adapter for the inline surface: takes over `el` (which already
  * contains the server-rendered rich text) with the same Solid-hosted editor.
- * `onChange` fires on every edit so the caller can mark the field dirty.
+ * `onChange` fires on every edit so the caller can mark the field dirty. The
+ * editor is on the canvas, inside the site's own element, so its surface
+ * inherits that element's type (`surface: "canvas"`) unless `opts.surface`
+ * says otherwise.
  */
 export function mountRichText(
   el: HTMLElement,
@@ -1069,6 +1101,7 @@ export function mountRichText(
     colors?: readonly RichTextColor[];
     typography?: RichTextTypography;
     language?: boolean;
+    surface?: "panel" | "canvas";
   },
 ): RichTextField {
   const defaultContent: NodeJSON | string = initialDoc ?? (el.innerHTML.trim() || "<p></p>");
@@ -1086,6 +1119,7 @@ export function mountRichText(
         colors={opts?.colors}
         typography={opts?.typography}
         language={opts?.language}
+        surface={opts?.surface ?? "canvas"}
         onDocChange={() => onChange()}
         ref={(f) => {
           field = f;
