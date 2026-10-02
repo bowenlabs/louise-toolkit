@@ -177,6 +177,16 @@ describe("retrieveOrder", () => {
     expect(order.totalMoney).toEqual({ amount: 0, currency: "CAD" });
   });
 
+  it("gives a sparse calculated order the currency of the caller's service charge", async () => {
+    answer({ order: {} });
+    const order = await calculateOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [LINE],
+      serviceCharges: [{ name: "Shipping", amountMoney: { amount: 600, currency: "CAD" } }],
+    });
+    expect(order.totalMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
   it("finds the order's currency on a tender or a line when the total has none", async () => {
     answer({
       order: {

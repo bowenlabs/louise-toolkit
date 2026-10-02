@@ -226,11 +226,15 @@ function orderCurrency(o: RawOrder): string | undefined {
   );
 }
 
-/** The currency the caller named on an ad hoc line, for a sparse response to
- *  an order it wrote. */
-function inputCurrency(lineItems: SquareOrderLineItem[]): string | undefined {
-  for (const li of lineItems) if ("priceCents" in li && li.currency) return li.currency;
-  return undefined;
+/** The currency the caller named on an order it wrote, for a sparse response:
+ *  an ad hoc line's, or a service charge's, which always names one. A cart of
+ *  catalog lines plus shipping is the usual case. */
+function inputCurrency(input: {
+  lineItems: SquareOrderLineItem[];
+  serviceCharges?: SquareServiceCharge[];
+}): string | undefined {
+  for (const li of input.lineItems) if ("priceCents" in li && li.currency) return li.currency;
+  return input.serviceCharges?.[0]?.amountMoney.currency;
 }
 
 /** `fallback` is a currency the caller named, for a response that names none. */
@@ -413,7 +417,7 @@ export async function createOrder(
     },
   });
   if (!res.order) throw new Error("Square order creation returned no order");
-  return mapOrder(res.order, inputCurrency(input.lineItems));
+  return mapOrder(res.order, inputCurrency(input));
 }
 
 /**
@@ -623,5 +627,5 @@ export async function calculateOrder(
     order: orderPricingBody(input),
   });
   if (!res.order) throw new Error("Square order calculation returned no order");
-  return mapOrder(res.order, inputCurrency(input.lineItems));
+  return mapOrder(res.order, inputCurrency(input));
 }
