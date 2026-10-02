@@ -422,14 +422,18 @@ export async function getLouiseAuth(
     // A second instance on the same origin needs its own mount and its own
     // cookie prefix, or the two sessions collide.
     ...(config.basePath ? { basePath: config.basePath } : {}),
-    ...(config.cookiePrefix || config.waitUntil
-      ? {
-          advanced: {
-            ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
-            ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
-          },
-        }
-      : {}),
+    advanced: {
+      ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
+      ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
+      // Better Auth 1.7.7 checks the database schema before its first query,
+      // by default, and caches the verdict on the instance. This factory
+      // builds an instance per request, so the cache never outlives one: every
+      // request that touched auth would list D1's tables and read each one's
+      // columns first, and any difference would fail the request. The auth
+      // schema is this kit's to keep right: `generateAuthSchemaSql` emits it
+      // and the site's migrations apply it.
+      database: { validateSchema: false },
+    },
     // Single custom domain in prod, localhost in dev.
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv

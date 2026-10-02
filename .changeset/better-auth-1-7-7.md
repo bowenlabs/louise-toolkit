@@ -10,4 +10,8 @@
 
 The peer ranges move from `^1.6.23` to `^1.7.7`, and the toolkit's own development copies from `^1.7.2`.
 
-**Upgrading:** a site that resolves Better Auth below 1.7.7 gets a peer-dependency warning, or an install error under strict peers. Bump both packages in the site, `corepack pnpm add better-auth@^1.7.7 @better-auth/passkey@^1.7.7`, and check that the lockfile holds one copy of each.
+**`getLouiseAuth` turns off Better Auth's runtime schema check.** Better Auth 1.7.7 checks the database schema before an instance's first query, by default, and caches the verdict on that instance. `getLouiseAuth` builds an instance per request, so every request that touched auth would list D1's tables and read each one's columns first, and any difference would fail the request. The factory now sets `advanced.database.validateSchema: false`; `generateAuthSchemaSql` and the site's migrations keep the schema right.
+
+**Upgrading:** a site that resolves Better Auth below 1.7.7 gets a peer-dependency warning, or an install error under strict peers. Bump both packages, `corepack pnpm add better-auth@^1.7.7 @better-auth/passkey@^1.7.7`, and check that the lockfile holds one copy of each.
+
+You don't have to wait for this release to take the security fix: the older toolkit's `^1.6.23` range already admits 1.7.7, so a site can bump Better Auth now. Until it also runs this toolkit, though, Better Auth's schema check stays on and runs on every request, so upgrade the toolkit soon after.
