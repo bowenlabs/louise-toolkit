@@ -195,6 +195,31 @@ describe("retrieveLoyaltyProgram", () => {
     expect(program?.accrualRules[1]).toMatchObject({ itemVariationId: "V1" });
   });
 
+  it("gives a rule's amount with no currency the currency another rule names", async () => {
+    route(() => ({
+      body: {
+        program: {
+          id: "LP1",
+          status: "ACTIVE",
+          accrual_rules: [
+            {
+              accrual_type: "VISIT",
+              points: 1,
+              visit_data: { minimum_amount_money: { amount: 500 } },
+            },
+            {
+              accrual_type: "SPEND",
+              points: 1,
+              spend_data: { amount_money: { amount: 100, currency: "CAD" } },
+            },
+          ],
+        },
+      },
+    }));
+    const program = await retrieveLoyaltyProgram(CONFIG);
+    expect(program?.accrualRules[0]?.visitMinimumMoney).toEqual({ amount: 500, currency: "CAD" });
+  });
+
   it("returns an inactive program too — whether to advertise it is the caller's call", async () => {
     route(() => ({ body: { program: { id: "LP1", status: "INACTIVE" } } }));
     expect(await retrieveLoyaltyProgram(CONFIG)).toMatchObject({ status: "INACTIVE" });

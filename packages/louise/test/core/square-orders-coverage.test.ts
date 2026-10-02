@@ -168,6 +168,15 @@ describe("retrieveOrder", () => {
     expect(order.totalTaxMoney).toEqual({ amount: 0, currency: "CAD" });
   });
 
+  it("gives a sparse written order the currency of the caller's ad hoc line", async () => {
+    answer({ order: { id: "O5" } });
+    const order = await createOrder(CONFIG, {
+      locationId: "L1",
+      lineItems: [{ name: "Gift wrap", priceCents: 300, quantity: 1, currency: "CAD" }],
+    });
+    expect(order.totalMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
   it("finds the order's currency on a tender or a line when the total has none", async () => {
     answer({
       order: {

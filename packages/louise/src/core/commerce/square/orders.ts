@@ -226,8 +226,16 @@ function orderCurrency(o: RawOrder): string | undefined {
   );
 }
 
-function mapOrder(o: RawOrder): SquareOrder {
-  const currency = orderCurrency(o);
+/** The currency the caller named on an ad hoc line, for a sparse response to
+ *  an order it wrote. */
+function inputCurrency(lineItems: SquareOrderLineItem[]): string | undefined {
+  for (const li of lineItems) if ("priceCents" in li && li.currency) return li.currency;
+  return undefined;
+}
+
+/** `fallback` is a currency the caller named, for a response that names none. */
+function mapOrder(o: RawOrder, fallback?: string): SquareOrder {
+  const currency = orderCurrency(o) ?? fallback;
   return {
     id: o.id ?? "",
     locationId: o.location_id ?? "",
@@ -405,7 +413,7 @@ export async function createOrder(
     },
   });
   if (!res.order) throw new Error("Square order creation returned no order");
-  return mapOrder(res.order);
+  return mapOrder(res.order, inputCurrency(input.lineItems));
 }
 
 /**
@@ -482,7 +490,7 @@ export async function searchOrdersByCustomer(
         sort: { sort_field: "CREATED_AT", sort_order: "DESC" },
       },
     });
-    orders.push(...(res.orders ?? []).map(mapOrder));
+    orders.push(...(res.orders ?? []).map((o) => mapOrder(o)));
   }
   // `limit` is per request, so N chunks can return N×limit. Re-sort and trim so
   // the caller gets the newest `limit` orders overall, which is what they asked
@@ -573,7 +581,7 @@ export async function searchOrders(
           },
         },
       );
-      orders.push(...(res.orders ?? []).map(mapOrder));
+      orders.push(...(res.orders ?? []).map((o) => mapOrder(o)));
       cursor = res.cursor;
       if (!cursor) break;
     }
@@ -615,5 +623,5 @@ export async function calculateOrder(
     order: orderPricingBody(input),
   });
   if (!res.order) throw new Error("Square order calculation returned no order");
-  return mapOrder(res.order);
+  return mapOrder(res.order, inputCurrency(input.lineItems));
 }
