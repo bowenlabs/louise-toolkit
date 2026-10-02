@@ -785,3 +785,80 @@ describe("customers who sign in by magic link", () => {
     expect(render).not.toHaveBeenCalled();
   });
 });
+
+describe("customer magic links: rate limit, background send, and the captcha warning", () => {
+  const instanceOf = async (env: LouiseAuthEnv, baseURL: string, over: Record<string, unknown>) =>
+    (
+      (await getLouiseAuth(env, baseURL, { ...authBase, ...over } as never)) as unknown as {
+        options: {
+          rateLimit?: { enabled?: boolean; customStorage?: unknown };
+          advanced?: { cookiePrefix?: string; backgroundTasks?: { handler: unknown } };
+          plugins: {
+            id?: string;
+            options?: {
+              sendMagicLink: (
+                data: { email: string; url: string; token: string },
+                ctx?: unknown,
+              ) => Promise<void>;
+            };
+          }[];
+        };
+      }
+    ).options;
+
+  it("switches Better Auth's rate limiter on for customer links, and only for them", async () => {
+    const links = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+    });
+    expect(links.rateLimit?.enabled).toBe(true);
+    const password = await instanceOf(authEnv, "https://shop.example.com", { customers: {} });
+    expect(password.rateLimit).toBeUndefined();
+  });
+
+  it("passes waitUntil to Better Auth's background tasks, beside the cookie prefix", async () => {
+    const waitUntil = vi.fn();
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      waitUntil,
+      cookiePrefix: "shop",
+    });
+    expect(options.advanced?.backgroundTasks?.handler).toBe(waitUntil);
+    expect(options.advanced?.cookiePrefix).toBe("shop");
+    expect((await instanceOf(authEnv, "https://shop.example.com", {})).advanced).toBeUndefined();
+  });
+
+  it("hands the send to runInBackgroundOrAwait, so the response needn't wait for it", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const runInBackgroundOrAwait = vi.fn(async (p: Promise<unknown>) => {
+      await p.catch(() => {});
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait } },
+    );
+    expect(runInBackgroundOrAwait).toHaveBeenCalledOnce();
+    expect(runInBackgroundOrAwait.mock.calls[0]?.[0]).toBeInstanceOf(Promise);
+    error.mockRestore();
+  });
+
+  it("logs a degrade for each customer link sent with no captcha off localhost", async () => {
+    const options = await instanceOf(authEnv, "https://shop.example.com", {
+      customers: { signIn: "magic-link" },
+      resolveAdmins: () => [],
+      renderMagicLinkEmail: () => ({ subject: "s", html: "h", text: "t" }),
+    });
+    const send = options.plugins.find((p) => p.id === "magic-link")?.options?.sendMagicLink;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await send?.(
+      { email: "kai@example.com", url: "https://shop.example.com/v", token: "t" },
+      { context: { runInBackgroundOrAwait: async (p: Promise<unknown>) => p.catch(() => {}) } },
+    );
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("auth.magic-link-no-captcha"));
+    error.mockRestore();
+  });
+});

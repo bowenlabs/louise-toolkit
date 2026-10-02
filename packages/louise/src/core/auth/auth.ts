@@ -6,15 +6,17 @@
 // natively: pass the binding straight to `database` (it uses D1's batch() for
 // atomicity; D1 has no interactive transactions).
 //
-// Plugins, always on: magic-link (editor sign-in, allowlist-gated in the route
-// handler), admin (owner/editor roles), passkey (WebAuthn—rpID is derived
-// per request from `baseURL`, so passkeys bind to the site's own origin, dev
-// and prod alike). Captcha (Turnstile) mounts only when configured. Customer
-// email/password + extra user fields are opt-in.
+// Plugins, always on: magic-link (editor sign-in, allowlist-gated, unless
+// customers sign in by link too), admin (owner/editor roles), passkey
+// (WebAuthn—rpID is derived per request from `baseURL`, so passkeys bind to the
+// site's own origin, dev and prod alike). Captcha (Turnstile) mounts only when
+// configured. Customer sign-in (password or magic link) and extra user fields
+// are opt-in.
 
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { admin, captcha, magicLink, organization } from "better-auth/plugins";
+import { reportDegraded } from "../degraded.js";
 import { sendEmail } from "../email/index.js";
 import {
   durableRateLimitStorage,
@@ -126,10 +128,24 @@ export interface LouiseAuthConfig {
      * `"magic-link"` turns email and password off and opens the magic-link
      * endpoint to every address instead of only the admin allowlist: anyone can
      * ask for a one-time link, and following it signs them in, creating the
-     * account unless `disableSignUp` is set. The account's email is verified by
-     * the link itself. Serve the instance with `auth.handler`, not
-     * {@link handleAuthRequest}, whose gate admits only admins; on a deployed
-     * origin, Turnstile guards the endpoint whenever its captcha is active.
+     * account unless `disableSignUp` is set. The link itself verifies the
+     * account's email. Serve the instance with `auth.handler`, not
+     * {@link handleAuthRequest}, whose gate admits only admins.
+     *
+     * Because a stranger can make the site send mail, three things guard the
+     * endpoint, and two of them are the site's to turn on:
+     *
+     * - **Better Auth's rate limiter**, which this option switches on. Better
+     *   Auth only enables it by itself when `NODE_ENV` is `production`, which
+     *   a Worker never sets. Set {@link LouiseAuthConfig.rateLimitDo} too: the
+     *   KV and D1 fallbacks undercount under a burst.
+     * - **Turnstile**, only when both a real secret and a real site key are
+     *   set. With the test keys, which every Worker Preview gets, or with none,
+     *   the captcha is off, so the endpoint mails any address that asks. Each
+     *   link sent that way off localhost logs an `auth.magic-link-no-captcha`
+     *   degrade.
+     * - **{@link LouiseAuthConfig.waitUntil}**, so the send leaves the response
+     *   path and the endpoint answers in the same time whether or not it mails.
      */
     signIn?: "password" | "magic-link";
     /** Password sign-in only. Default 8. */
@@ -137,7 +153,9 @@ export interface LouiseAuthConfig {
     /** Password sign-in only. A link proves the address, so it needs no flag. */
     requireEmailVerification?: boolean;
     /** Close public sign-up—accounts are provisioned by staff instead. With
-     *  `"magic-link"`, an address with no account gets no email at all. */
+     *  `"magic-link"`, an address with no account gets no email at all; set
+     *  {@link LouiseAuthConfig.waitUntil}, or the response time shows which
+     *  addresses have one. */
     disableSignUp?: boolean;
     /** Password sign-in only. Revoke existing sessions when a password is
      *  reset. Default `true`: a reset usually means the old credentials are
@@ -213,6 +231,18 @@ export interface LouiseAuthConfig {
    * otherwise the database).
    */
   rateLimitDo?: RateLimitNamespace;
+  /**
+   * The runtime's `waitUntil`, from `cloudflare:workers` or the request's
+   * execution context. Better Auth hands it the work it can finish after the
+   * response: here, sending a magic-link email. Without it the endpoint
+   * waits for the send, so how long it takes tells a caller whether an email
+   * went out, which matters once a customer instance mails only existing
+   * accounts (`customers.disableSignUp` with `signIn: "magic-link"`).
+   *
+   * A failed send in the background is logged, not returned: the person sees
+   * the same "check your inbox" either way.
+   */
+  waitUntil?: (promise: Promise<unknown>) => void;
   /** Enable multi-editor tenancy (organization plugin). Omit for a single-editor
    *  site. Mirror this on `AuthSchemaConfig.organizations` when regenerating the
    *  migration. See {@link LouiseOrganizationsConfig}. */
@@ -386,7 +416,14 @@ export async function getLouiseAuth(
     // A second instance on the same origin needs its own mount and its own
     // cookie prefix, or the two sessions collide.
     ...(config.basePath ? { basePath: config.basePath } : {}),
-    ...(config.cookiePrefix ? { advanced: { cookiePrefix: config.cookiePrefix } } : {}),
+    ...(config.cookiePrefix || config.waitUntil
+      ? {
+          advanced: {
+            ...(config.cookiePrefix ? { cookiePrefix: config.cookiePrefix } : {}),
+            ...(config.waitUntil ? { backgroundTasks: { handler: config.waitUntil } } : {}),
+          },
+        }
+      : {}),
     // Single custom domain in prod, localhost in dev.
     trustedOrigins: [baseURL],
     ...(config.sessionCacheKv
@@ -394,8 +431,18 @@ export async function getLouiseAuth(
       : {}),
     // Checked ahead of secondaryStorage by Better Auth, so wiring this retires
     // the KV `increment` rather than merely documenting its limits.
-    ...(config.rateLimitDo
-      ? { rateLimit: { customStorage: durableRateLimitStorage(config.rateLimitDo) } }
+    // Better Auth enables its limiter by itself only when `NODE_ENV` is
+    // `production`, which a Worker never sets. An endpoint that mails any
+    // address can't go without it.
+    ...(config.rateLimitDo || customerLinks
+      ? {
+          rateLimit: {
+            ...(customerLinks ? { enabled: true } : {}),
+            ...(config.rateLimitDo
+              ? { customStorage: durableRateLimitStorage(config.rateLimitDo) }
+              : {}),
+          },
+        }
       : {}),
     session: {
       expiresIn: config.session?.expiresIn ?? 60 * 60 * 24 * 45,
@@ -480,8 +527,13 @@ export async function getLouiseAuth(
             console.log(`[dev] Magic link for ${email}: ${link}`);
             return;
           }
+          // An open endpoint with no captcha mails whoever asks. Say so on
+          // every send, so a site that meant to turn Turnstile on finds out.
+          if (customerLinks && !captchaKey && !isAdmin(email)) {
+            reportDegraded("auth.magic-link-no-captcha", undefined, { host });
+          }
           const mail = config.renderMagicLinkEmail({ url: link, toEmail: email });
-          await sendEmail(
+          const send = sendEmail(
             env.EMAIL,
             {
               from: config.mailFrom,
@@ -496,6 +548,10 @@ export async function getLouiseAuth(
             // bundler's `import.meta.env` too—it reflects THIS request.
             { dev: isDev },
           );
+          // Off the response path when the site passed `waitUntil`, so the
+          // endpoint answers as fast whether or not it mailed; awaited
+          // otherwise. Better Auth's own plugin awaits this callback directly.
+          await (ctx ? ctx.context.runInBackgroundOrAwait(send) : send);
         },
       }),
       admin(),
