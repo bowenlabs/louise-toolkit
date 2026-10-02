@@ -482,6 +482,59 @@ environment your server uses before mounting the card form. A placeholder ID, or
 an ID from the other environment, otherwise fails inside the payment SDK with an
 error a customer can't act on.
 
+### Subscriptions
+
+A subscription bills a card on file on a schedule. Square splits it in three:
+a **plan** in the catalog says what can be subscribed to, each of its
+**variations** says how often and for how much, and a **subscription** is one
+customer's enrollment in a variation. `listSubscriptionPlans` reads the first
+two, variations joined to their plan, deleted ones skipped. Each variation's
+`phases` run in order: `cadence` names the interval (`WEEKLY`, `MONTHLY`, and
+so on), `periods` how many of them before the next phase, `null` meaning
+forever. A phase prices one of two ways:
+
+- `STATIC` bills `priceCents` each cadence. Enroll with `createSubscription`
+  and the plan variation; nothing else is needed.
+- `RELATIVE` bills an order each cadence, less the phase's `discountIds`. The
+  order comes from a template: a `DRAFT` order from `createOrder` with the
+  items, and the fulfillment, each cycle should carry. Pass one `phases` entry
+  per plan phase, naming its template.
+
+```ts
+const template = await createOrder(config, {
+  locationId,
+  customerId,
+  state: "DRAFT",
+  lineItems: [{ catalogObjectId: variationId, quantity: 1 }],
+  fulfillments: [{ type: "shipment", recipient }],
+});
+const subscription = await createSubscription(config, {
+  locationId,
+  planVariationId,
+  customerId,
+  cardId,
+  phases: [{ ordinal: 0, orderTemplateId: template.id }],
+  idempotencyKey,
+});
+```
+
+Each billing cycle copies the template, fulfillment included, into the order
+Square bills, so the shipping address lives on the template and the seller
+sees a shippable order in the Dashboard. A fixed-price `STATIC` phase raises an
+invoice only. A customer whose card is to change gets `updateSubscription` with
+the new `cardId`.
+
+A change to a subscription is scheduled, not immediate. `cancelSubscription`
+sets `canceledDate` to the end of the current billing period and leaves the
+status `ACTIVE` until then; `updateSubscription(id, { canceledDate: null })`
+undoes it before that date. `pauseSubscription` pauses from the end of the
+period until resumed, or for `pauseCycles` bills, or until a
+`resumeEffectiveDate`; `resumeSubscription` resumes a paused or deactivated one,
+now by default. Each returns the subscription and the `actions` it scheduled,
+and `retrieveSubscription` shows the pending ones under `actions` until they
+take effect. `searchSubscriptionsByCustomer` lists a customer's subscriptions
+without their actions.
+
 ### Editing an existing object
 
 Square documents a silent data-loss hazard, verbatim: _"If a client reads an
@@ -525,8 +578,10 @@ import {
   ensureCustomer,
   createCard,
   retrieveLoyaltyAccountByCustomer,
+  listSubscriptionPlans,
   searchSubscriptionsByCustomer,
   createSubscription,
+  cancelSubscription,
   verifySquareSignature,
   type SquareConfig,
   type SquareCatalogItem,
@@ -534,6 +589,7 @@ import {
   type SquarePayment,
   type SquareCustomer,
   type SquareSubscription,
+  type SquareSubscriptionPlan,
 } from "louise-toolkit/commerce/square";
 ```
 
@@ -550,7 +606,7 @@ import {
 | **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
 | **Payments**              | `createPayment`—charge a Web Payments card token against an order.                                                                                                                                                                                                  |
 | **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                    |
-| **Cards & subscriptions** | `createCard`, `searchSubscriptionsByCustomer`, `createSubscription`                                                                                                                                                                                                 |
+| **Cards & subscriptions** | `createCard`, `listSubscriptionPlans`, `searchSubscriptionsByCustomer`, `retrieveSubscription`, `createSubscription`, `updateSubscription`, `cancelSubscription`, `pauseSubscription`, `resumeSubscription`; see below.                                             |
 | **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                                                  |
 | **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                                            |
 | **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                                                  |
@@ -559,7 +615,8 @@ import {
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
-`SquareSubscription`, `SquareMoney`, …) type the normalized, camelCase shapes the
+`SquareSubscription`, `SquareSubscriptionPlan`, `SquareMoney`, …) type the
+normalized, camelCase shapes the
 client returns. `SquareMoney` is an alias of the shared `Money`, and
 `centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)—both still import from `louise-toolkit/commerce/square`.
 

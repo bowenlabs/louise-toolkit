@@ -4,20 +4,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   calculateOrder,
+  cancelSubscription,
   createInvoice,
   createOrder,
   createPaymentLink,
   createSubscription,
   deletePaymentLink,
   orderSubtotal,
+  pauseSubscription,
   publishInvoice,
+  resumeSubscription,
   retrieveInvoice,
   retrieveLoyaltyAccountByCustomer,
   retrieveOrder,
   retrievePaymentLink,
+  retrieveSubscription,
   searchOrders,
   searchOrdersByCustomer,
   searchSubscriptionsByCustomer,
+  updateSubscription,
 } from "../../src/core/commerce/square.js";
 import { type DegradedEvent, onDegraded } from "../../src/core/degraded.js";
 
@@ -601,6 +606,24 @@ describe("invoices", () => {
 });
 
 describe("subscriptions", () => {
+  /** The mapped shape of a subscription Square sent nothing about. */
+  const EMPTY = {
+    id: "",
+    status: "",
+    planVariationId: null,
+    customerId: null,
+    cardId: null,
+    locationId: null,
+    startDate: null,
+    canceledDate: null,
+    chargedThroughDate: null,
+    invoiceIds: [],
+    phases: [],
+    actions: [],
+    version: null,
+    createdAt: null,
+  };
+
   it("searches one customer's subscriptions, at every location by default", async () => {
     const calls = answer({
       subscriptions: [
@@ -610,8 +633,18 @@ describe("subscriptions", () => {
           plan_variation_id: "PLAN1",
           customer_id: "C1",
           card_id: "CARD1",
+          location_id: "L1",
           start_date: "2026-09-01",
+          canceled_date: "2026-12-01",
           charged_through_date: "2026-10-01",
+          invoice_ids: ["INV2", "INV1"],
+          phases: [
+            { uid: "P1", ordinal: 0, order_template_id: "ORD_T", plan_phase_uid: "PP1" },
+            {},
+          ],
+          actions: [{ id: "A1", type: "CANCEL", effective_date: "2026-12-01" }],
+          version: 3,
+          created_at: "2026-09-01T10:00:00Z",
         },
         {},
       ],
@@ -626,18 +659,23 @@ describe("subscriptions", () => {
         planVariationId: "PLAN1",
         customerId: "C1",
         cardId: "CARD1",
+        locationId: "L1",
         startDate: "2026-09-01",
+        canceledDate: "2026-12-01",
         chargedThroughDate: "2026-10-01",
+        invoiceIds: ["INV2", "INV1"],
+        phases: [
+          { uid: "P1", ordinal: 0, orderTemplateId: "ORD_T", planPhaseUid: "PP1" },
+          // A phase without an ordinal takes its position in the list.
+          { uid: null, ordinal: 1, orderTemplateId: null, planPhaseUid: null },
+        ],
+        actions: [
+          { id: "A1", type: "CANCEL", effectiveDate: "2026-12-01", newPlanVariationId: null },
+        ],
+        version: 3,
+        createdAt: "2026-09-01T10:00:00Z",
       },
-      {
-        id: "",
-        status: "",
-        planVariationId: null,
-        customerId: null,
-        cardId: null,
-        startDate: null,
-        chargedThroughDate: null,
-      },
+      EMPTY,
     ]);
   });
 
@@ -651,6 +689,25 @@ describe("subscriptions", () => {
     });
   });
 
+  it("retrieves one subscription with its actions, and null for an unknown id", async () => {
+    const calls = square((call) =>
+      call.path.endsWith("/SUB1")
+        ? { body: { subscription: { id: "SUB1", status: "PAUSED" } } }
+        : { status: 404, body: { errors: [{ code: "NOT_FOUND" }] } },
+    );
+    expect(await retrieveSubscription(CONFIG, "SUB1")).toMatchObject({
+      id: "SUB1",
+      status: "PAUSED",
+    });
+    expect(await retrieveSubscription(CONFIG, "nope")).toBeNull();
+    expect(calls[0]).toMatchObject({ method: "GET", path: "/v2/subscriptions/SUB1" });
+  });
+
+  it("throws when a retrieve answers 200 without a subscription", async () => {
+    answer({});
+    await expect(retrieveSubscription(CONFIG, "SUB1")).rejects.toThrow(/SUB1 not found/);
+  });
+
   it("enrolls a customer against a saved card", async () => {
     const calls = answer({ subscription: { id: "SUB1", status: "PENDING" } });
     const sub = await createSubscription(CONFIG, {
@@ -661,6 +718,7 @@ describe("subscriptions", () => {
       idempotencyKey: "enroll C1 in PLAN1",
     });
     expect(calls[0]).toMatchObject({ method: "POST", path: "/v2/subscriptions" });
+    // Nothing optional is sent when nothing optional was given.
     expect(calls[0]?.body).toEqual({
       idempotency_key: "enroll C1 in PLAN1",
       location_id: "L1",
@@ -669,6 +727,29 @@ describe("subscriptions", () => {
       card_id: "CARD1",
     });
     expect(sub).toMatchObject({ id: "SUB1", status: "PENDING" });
+  });
+
+  it("enrolls against order templates, with a start date, override, tax, and zone", async () => {
+    const calls = answer({ subscription: { id: "SUB1", status: "PENDING" } });
+    await createSubscription(CONFIG, {
+      locationId: "L1",
+      planVariationId: "PLAN1",
+      customerId: "C1",
+      cardId: "CARD1",
+      startDate: "2026-11-01",
+      phases: [{ ordinal: 0, orderTemplateId: "ORD_T" }],
+      priceOverride: { amount: 1800, currency: "USD" },
+      taxPercentage: "8.5",
+      timezone: "America/Chicago",
+    });
+    expect(calls[0]?.body).toMatchObject({
+      start_date: "2026-11-01",
+      phases: [{ ordinal: 0, order_template_id: "ORD_T" }],
+      price_override_money: { amount: 1800, currency: "USD" },
+      tax_percentage: "8.5",
+      timezone: "America/Chicago",
+    });
+    expect((calls[0]?.body as { idempotency_key: string }).idempotency_key).toMatch(UUID);
   });
 
   it("throws when Square answers without a subscription", async () => {
@@ -681,6 +762,101 @@ describe("subscriptions", () => {
         cardId: "CARD1",
       }),
     ).rejects.toThrow(/returned no subscription/);
+  });
+
+  it("updates sparsely: a new card, a cleared cancel, and the version read", async () => {
+    const calls = answer({ subscription: { id: "SUB1", status: "ACTIVE", version: 4 } });
+    const sub = await updateSubscription(CONFIG, "SUB1", {
+      cardId: "CARD2",
+      canceledDate: null,
+      version: 3,
+    });
+    expect(calls[0]).toMatchObject({ method: "PUT", path: "/v2/subscriptions/SUB1" });
+    expect(calls[0]?.body).toEqual({
+      subscription: { card_id: "CARD2", canceled_date: null, version: 3 },
+    });
+    expect(sub).toMatchObject({ id: "SUB1", version: 4 });
+  });
+
+  it("sends an empty subscription for an update with nothing to change", async () => {
+    const calls = answer({ subscription: { id: "SUB1" } });
+    await updateSubscription(CONFIG, "SUB1", {});
+    expect(calls[0]?.body).toEqual({ subscription: {} });
+    answer({});
+    await expect(updateSubscription(CONFIG, "SUB1", { cardId: "CARD2" })).rejects.toThrow(
+      /update returned no subscription/,
+    );
+  });
+
+  it("cancels at the end of the period, answering the scheduled action", async () => {
+    const calls = answer({
+      subscription: { id: "SUB1", status: "ACTIVE", canceled_date: "2026-11-01" },
+      actions: [{ id: "A1", type: "CANCEL", effective_date: "2026-11-01" }],
+    });
+    const change = await cancelSubscription(CONFIG, "SUB1");
+    expect(calls[0]).toMatchObject({
+      method: "POST",
+      path: "/v2/subscriptions/SUB1/cancel",
+      body: {},
+    });
+    expect(change.subscription).toMatchObject({ status: "ACTIVE", canceledDate: "2026-11-01" });
+    expect(change.actions).toEqual([
+      { id: "A1", type: "CANCEL", effectiveDate: "2026-11-01", newPlanVariationId: null },
+    ]);
+  });
+
+  it("pauses with an empty body by default, and passes each option through", async () => {
+    const calls = answer({ subscription: { id: "SUB1" }, actions: [{ type: "PAUSE" }] });
+    const change = await pauseSubscription(CONFIG, "SUB1");
+    expect(calls[0]).toMatchObject({
+      method: "POST",
+      path: "/v2/subscriptions/SUB1/pause",
+      body: {},
+    });
+    expect(change.actions).toEqual([
+      { id: "", type: "PAUSE", effectiveDate: null, newPlanVariationId: null },
+    ]);
+    await pauseSubscription(CONFIG, "SUB1", {
+      pauseEffectiveDate: "2026-11-01",
+      pauseCycles: 2,
+      resumeEffectiveDate: "2027-01-01",
+      resumeChangeTiming: "END_OF_PERIOD",
+      pauseReason: "Travelling",
+    });
+    expect(calls[1]?.body).toEqual({
+      pause_effective_date: "2026-11-01",
+      pause_cycle_duration: 2,
+      resume_effective_date: "2027-01-01",
+      resume_change_timing: "END_OF_PERIOD",
+      pause_reason: "Travelling",
+    });
+  });
+
+  it("resumes now by default, or on a date with a timing", async () => {
+    const calls = answer({ subscription: { id: "SUB1", status: "ACTIVE" }, actions: [] });
+    await resumeSubscription(CONFIG, "SUB1");
+    expect(calls[0]).toMatchObject({
+      method: "POST",
+      path: "/v2/subscriptions/SUB1/resume",
+      body: {},
+    });
+    await resumeSubscription(CONFIG, "SUB1", {
+      resumeEffectiveDate: "2026-11-15",
+      resumeChangeTiming: "IMMEDIATE",
+    });
+    expect(calls[1]?.body).toEqual({
+      resume_effective_date: "2026-11-15",
+      resume_change_timing: "IMMEDIATE",
+    });
+  });
+
+  it.each([
+    ["cancelSubscription", () => cancelSubscription(CONFIG, "SUB1"), /cancel returned no/],
+    ["pauseSubscription", () => pauseSubscription(CONFIG, "SUB1"), /pause returned no/],
+    ["resumeSubscription", () => resumeSubscription(CONFIG, "SUB1"), /resume returned no/],
+  ])("%s throws when Square answers without a subscription", async (_name, call, message) => {
+    answer({});
+    await expect(call()).rejects.toThrow(message);
   });
 });
 

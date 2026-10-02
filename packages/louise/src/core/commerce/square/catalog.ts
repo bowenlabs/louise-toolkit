@@ -10,9 +10,9 @@ import {
   type CatalogSearchResponse,
   imageUrlMap,
   isArchivedItem,
+  mapPresence,
   type RawCatalogObject,
   type RawCustomAttributes,
-  type RawPresence,
   type RawVariationData,
 } from "./wire.js";
 
@@ -168,16 +168,6 @@ export interface SquareCatalogItem extends SquarePresence {
   customAttributes?: SquareCustomAttribute[];
   /** Object version—pass back to {@link upsertCatalogItem} when updating. */
   version: number;
-}
-
-/** Normalize the three presence fields, defaulting to Square's own default
- *  (`present_at_all_locations` is true when the field is absent). */
-function mapPresence(raw: RawPresence): SquarePresence {
-  return {
-    presentAtAllLocations: raw.present_at_all_locations ?? true,
-    presentAtLocationIds: raw.present_at_location_ids ?? [],
-    absentAtLocationIds: raw.absent_at_location_ids ?? [],
-  };
 }
 
 function mapCustomAttributes(raw: RawCustomAttributes): SquareCustomAttribute[] {

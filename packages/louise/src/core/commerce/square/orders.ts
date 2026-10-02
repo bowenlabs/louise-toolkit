@@ -338,6 +338,11 @@ export async function createOrder(
     /** How the order reaches the customer. Not a pricing input, so
      *  {@link calculateOrder} does not take it. */
     fulfillments?: SquareFulfillment[];
+    /** `"DRAFT"` makes an order template: a subscription phase names it (see
+     *  `createSubscription`), and each billing cycle copies it, line items and
+     *  fulfillment included, into the order Square bills. A draft can't be paid
+     *  or fulfilled itself. Omit it for an order to charge now. */
+    state?: "DRAFT";
   },
 ): Promise<SquareOrder> {
   const res = await sqPost<{ order?: RawOrder }>(config, "/v2/orders", {
@@ -345,6 +350,7 @@ export async function createOrder(
     order: {
       ...orderPricingBody(input),
       reference_id: input.referenceId,
+      ...(input.state ? { state: input.state } : {}),
       ...(input.fulfillments?.length
         ? { fulfillments: input.fulfillments.map(fulfillmentBody) }
         : {}),
