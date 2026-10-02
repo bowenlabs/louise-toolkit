@@ -1,5 +1,17 @@
 # @louise-toolkit/astro
 
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [acaf805]
+- Updated dependencies [62422f8]
+- Updated dependencies [aa3129f]
+- Updated dependencies [89d90b4]
+- Updated dependencies [1329de4]
+- Updated dependencies [9ad4bde]
+  - louise-toolkit@0.41.0
+
 ## 0.6.5
 
 ### Patch Changes
