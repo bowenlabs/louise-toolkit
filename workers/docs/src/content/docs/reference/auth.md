@@ -93,7 +93,7 @@ export const getAuth = (env: Env, baseURL: string) =>
 
 Magic-link + `admin` + passkey are always on; captcha (Turnstile) mounts only
 when both a real secret and a real site key are configured. Better Auth's rate
-limiter is on everywhere except `localhost` and `127.0.0.1`; see
+limiter is on unless `baseURL` is on `localhost` or `127.0.0.1`; see
 [Rate limiting](#rate-limiting).
 
 ### One passkey across an admin subdomain
@@ -149,12 +149,18 @@ measured the extra D1 read on the verification path and decided it matters.
 ### Rate limiting
 
 Better Auth's rate limiter is on for every instance, the editor's included,
-except when the request host is `localhost` or `127.0.0.1`. Better Auth enables
-it by itself only when `NODE_ENV` is `production`, which a Worker never sets, so
-`getLouiseAuth` turns it on.
+except when the host in `baseURL` is `localhost` or `127.0.0.1`: the same check
+that allows the dev session secret. `[::1]` and `*.localhost` don't count as
+local, and neither does a fixed production `baseURL` in local dev, so derive
+`baseURL` from the request. Better Auth enables the limiter by itself only when
+`NODE_ENV` is `production`, which a Worker never sets, so `getLouiseAuth` turns
+it on.
 
-It counts per client address and path, and answers a request over budget with a
-429 and an `X-Retry-After` header. Better Auth's default budgets:
+It counts per instance, client address, and path, and answers a request over
+budget with a 429 and an `X-Retry-After` header. Each instance counts on its
+own: customers asking for links at `/api/shop-auth` don't spend the editor's
+budget at `/api/auth`, and two sites on one Worker don't share one. Better
+Auth's default budgets:
 
 | path                                       | budget             |
 | ------------------------------------------ | ------------------ |
@@ -165,17 +171,23 @@ It counts per client address and path, and answers a request over budget with a
 The address comes from the `CF-Connecting-IP` header, which Cloudflare sets and
 overwrites. Better Auth's default, `X-Forwarded-For`, carries whatever the
 client sent ahead of the real address, and when it holds more than one address
-Better Auth puts every such request in one shared bucket per path.
+Better Auth puts every such request in one shared bucket per path. A request
+with no `CF-Connecting-IP`, which only happens off Cloudflare, lands in that
+shared bucket too.
 
 People behind one address, such as a shop's guest Wi-Fi, share a budget. Four
 of them signing in by password within 10 seconds get a 429 on the fourth try.
 Wire your sign-in forms to show the 429 as "try again in a moment" rather than a
-generic error.
+generic error. An owner who hits the limit waits out the window, a minute at
+most, or signs in from another network. A session they already have keeps
+working: the editor reads it on the server, and the limiter only counts requests
+to `/api/auth` itself. ADR 0012's amendment says why `/api/auth` gets an address limiter
+when `/api/louise/*` doesn't.
 
 #### Where it counts
 
-Better Auth checks `rateLimit.customStorage` **before** secondary storage, so
-setting `rateLimitDo` means its rate limiting stops going through KV entirely.
+Setting `rateLimitDo` moves the count into a Durable Object, and rate limiting
+stops going through KV entirely.
 
 ```ts
 getLouiseAuth(env, baseURL, {
