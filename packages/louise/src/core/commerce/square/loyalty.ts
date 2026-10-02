@@ -91,7 +91,14 @@ interface RawLoyaltyProgram {
 }
 
 function mapLoyaltyProgram(p: RawLoyaltyProgram): SquareLoyaltyProgram {
-  const optMoney = (m?: { amount?: number; currency?: string }) => (m ? money(m) : null);
+  // The program's currency, from the first rule that names one, for a rule
+  // whose amount came without it.
+  const currency = p.accrual_rules
+    ?.map(
+      (r) => r.spend_data?.amount_money?.currency ?? r.visit_data?.minimum_amount_money?.currency,
+    )
+    .find(Boolean);
+  const optMoney = (m?: { amount?: number; currency?: string }) => (m ? money(m, currency) : null);
   return {
     id: p.id ?? "",
     status: p.status ?? "",
