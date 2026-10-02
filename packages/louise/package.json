@@ -238,7 +238,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
-    "@better-auth/passkey": "^1.7.2",
+    "@better-auth/passkey": "^1.7.7",
     "@cloudflare/puppeteer": "^1.4.0",
     "@cloudflare/workers-types": "^5.20260829.1",
     "@modelcontextprotocol/client": "^2.1.0",
@@ -250,7 +250,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vercel/stega": "^1.1.0",
     "@vitest/coverage-v8": "4.1.11",
-    "better-auth": "^1.7.2",
+    "better-auth": "^1.7.7",
     "dom-accessibility-api": "^0.7.1",
     "drizzle-orm": "^0.45.2",
     "happy-dom": "^20.11.15",
@@ -263,14 +263,14 @@
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@better-auth/passkey": "^1.6.23",
+    "@better-auth/passkey": "^1.7.7",
     "@cloudflare/puppeteer": "^1.0.0",
     "@prosekit/pm": "^0.1.18",
     "@resvg/resvg-wasm": "^2.6.2",
     "@tanstack/solid-query": "^5.101.2",
     "@tanstack/solid-router": "^1.170.0",
     "@vercel/stega": "^1.1.0",
-    "better-auth": "^1.6.23",
+    "better-auth": "^1.7.7",
     "drizzle-orm": "^0.45.0",
     "harper.js": "^2.4.0",
     "prosekit": "^0.21.4",
