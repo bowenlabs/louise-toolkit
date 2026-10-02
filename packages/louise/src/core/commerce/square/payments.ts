@@ -29,13 +29,16 @@ interface RawPayment {
   tip_money?: { amount?: number; currency?: string };
 }
 
-function mapPayment(p: RawPayment): SquarePayment {
+/** `fallback` is the currency the caller charged in, when it knows one. */
+function mapPayment(p: RawPayment, fallback?: string): SquarePayment {
+  // No tip comes back as no `tip_money`, so take the payment's own currency.
+  const currency = p.amount_money?.currency ?? p.tip_money?.currency ?? fallback;
   return {
     id: p.id ?? "",
     status: p.status ?? "",
     orderId: p.order_id ?? null,
-    amountMoney: money(p.amount_money),
-    tipMoney: money(p.tip_money),
+    amountMoney: money(p.amount_money, currency),
+    tipMoney: money(p.tip_money, currency),
     receiptUrl: p.receipt_url ?? null,
     createdAt: p.created_at ?? null,
   };
@@ -81,7 +84,7 @@ export async function createPayment(
     reference_id: input.referenceId,
   });
   if (!res.payment) throw new Error("Square payment creation returned no payment");
-  return mapPayment(res.payment);
+  return mapPayment(res.payment, input.amountMoney.currency);
 }
 
 /**

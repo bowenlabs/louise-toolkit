@@ -667,6 +667,23 @@ describe("retrievePayment", () => {
     });
   });
 
+  it("gives a sparse created payment the currency it was charged in", async () => {
+    answer({ payment: { id: "P3" } });
+    const payment = await createPayment(CONFIG, {
+      sourceId: "cnon:card-nonce-ok",
+      amountMoney: { amount: 1200, currency: "CAD" },
+      locationId: "L1",
+    });
+    expect(payment.amountMoney).toEqual({ amount: 0, currency: "CAD" });
+    expect(payment.tipMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
+  it("gives a payment with no tip the payment's currency", async () => {
+    answer({ payment: { id: "P2", amount_money: { amount: 1200, currency: "CAD" } } });
+    const payment = await retrievePayment(CONFIG, "P2");
+    expect(payment.tipMoney).toEqual({ amount: 0, currency: "CAD" });
+  });
+
   it("throws when Square answers without a payment", async () => {
     answer({});
     await expect(retrievePayment(CONFIG, "P9")).rejects.toThrow(/Square payment P9 not found/);
