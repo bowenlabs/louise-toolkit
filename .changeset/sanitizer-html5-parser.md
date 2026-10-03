@@ -1,5 +1,5 @@
 ---
-"louise-toolkit": patch
+"louise-toolkit": minor
 ---
 
 Sanitizer hardening: `sanitizeRichHtml` and `sanitizeModelHtml` in `louise-toolkit/security` now parse with [parse5](https://github.com/inikulin/parse5), an implementation of the WHATWG HTML parser, in place of ultrahtml. The sanitizers read markup the way a browser does, write new HTML from the parsed tree with every text node and attribute value escaped, and never throw, whatever the input. Before, some malformed markup could reach the output in a form a browser would read differently, and a stray closing tag could throw during render.

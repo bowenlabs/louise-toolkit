@@ -261,10 +261,24 @@ describe("sanitizer hardening", () => {
     });
 
     it("handles many top-level nodes in linear time", () => {
-      const html = "<li>a".repeat(50_000);
-      const start = performance.now();
-      sanitizeRichHtml(html);
-      expect(performance.now() - start).toBeLessThan(5000);
+      // Compares sizes rather than a wall-clock bound, so a slow runner can't
+      // fail it. Five times the nodes measures 6 to 9 times as long here, with
+      // allocation overhead, and about 26 times with the quadratic fragment
+      // parse this replaced. The best of three runs keeps a garbage-collection
+      // pause out of the ratio.
+      const fastest = (nodes: number) => {
+        const html = "<li>a".repeat(nodes);
+        let best = Infinity;
+        for (let run = 0; run < 3; run++) {
+          const start = performance.now();
+          sanitizeRichHtml(html);
+          best = Math.min(best, performance.now() - start);
+        }
+        return best;
+      };
+      fastest(10_000); // Warm up the JIT.
+      const ratio = fastest(50_000) / fastest(10_000);
+      expect(ratio).toBeLessThan(16);
     });
 
     it("treats a non-string as its string form", () => {
@@ -355,7 +369,7 @@ describe("sanitizer hardening", () => {
       '<div><section data-block="grid" class="pb-grid" data-cols="3"><figure data-block="image" class="pb-figure"><img src="/media/a.png" alt=""><figcaption class="pb-caption">cap</figcaption></figure></section></div>',
       '<div data-block="row" class="pb-row" style="grid-template-columns: 6fr 4fr"><div data-block="col" class="pb-col"><p>a</p></div></div>',
       '<hr class="pb-divider" data-block="divider" data-size="lg">',
-      "<div><p>Tom &amp; Jerry &lt;3 5 &gt; 4</p></div>",
+      "<div><p>Alex &amp; Kai &lt;3 5 &gt; 4</p></div>",
       "<div><p>a&nbsp;b&nbsp;&nbsp;c</p></div>",
       "<div><p>Café — “quoted” ’s \"plain\" 'single'</p></div>",
       '<div><p><span lang="fr">bonjour</span></p></div>',
