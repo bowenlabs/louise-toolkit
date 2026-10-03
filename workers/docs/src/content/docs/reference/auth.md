@@ -65,22 +65,22 @@ Two guarantees hold on every instance, whatever route serves it:
 
 ### `LouiseAuthConfig`
 
-| field                  | purpose                                                                                                                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rpName`               | passkey relying-party display name                                                                                                                                                  |
-| `rpID?`                | passkey relying-party **domain**. Defaults to the request origin's hostname; pin it to the apex so one passkey covers an admin subdomain too—see below                              |
-| `mailFrom`             | `from` for the magic-link email                                                                                                                                                     |
-| `renderMagicLinkEmail` | render the email body (site branding)                                                                                                                                               |
-| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup                                                  |
-| `customers?`           | enable customer sign-in (omit for an admin-only editor). `signIn` is `"password"` (default) or `"magic-link"`; see [Customers who sign in by link](#customers-who-sign-in-by-link)  |
-| `additionalFields?`    | extra Better Auth user columns (for example, `squareCustomerId`)                                                                                                                    |
-| `tablePrefix?`         | namespace the auth tables in the same D1 (for example, `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names |
-| `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                          |
-| `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                              |
-| `verificationStorage?` | where single-use values (magic links, resets) are consumed from; defaults to `"database"`                                                                                           |
-| `rateLimitDo?`         | Durable Object namespace where Better Auth's rate limiter counts. The limiter is on for every instance off `localhost` either way; see [Rate limiting](#rate-limiting)              |
-| `waitUntil?`           | the runtime's `waitUntil`; sends magic-link email after the response, so the endpoint's timing doesn't show whether it mailed                                                       |
-| `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                      |
+| field                  | purpose                                                                                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rpName`               | passkey relying-party display name                                                                                                                                                                                                                                |
+| `rpID?`                | passkey relying-party **domain**. Defaults to the request origin's hostname; pin it to the apex so one passkey covers an admin subdomain too—see below                                                                                                            |
+| `mailFrom`             | `from` for the magic-link email                                                                                                                                                                                                                                   |
+| `renderMagicLinkEmail` | render the email body (site branding)                                                                                                                                                                                                                             |
+| `resolveAdmins?`       | Site Admin allowlist; defaults to `OWNER_EMAIL` + `ENGINEER_EMAIL` from env. A platform passes a per-tenant `tenant_admins` lookup                                                                                                                                |
+| `customers?`           | enable customer sign-in (omit for an admin-only editor). `signIn` is `"password"` (default) or `"magic-link"`; see [Customers who sign in by link](#customers-who-sign-in-by-link). `adminEndpoints` defaults to `false`; see [Admin endpoints](#admin-endpoints) |
+| `additionalFields?`    | extra Better Auth user columns (for example, `squareCustomerId`)                                                                                                                                                                                                  |
+| `tablePrefix?`         | namespace the auth tables in the same D1 (for example, `"auth_"`); must match the value passed to the [schema generator](#generating-the-auth-schema). Omit for default table names                                                                               |
+| `session?`             | lifetime overrides (default 45-day rolling, daily refresh)                                                                                                                                                                                                        |
+| `sessionCacheKv?`      | cache sessions in KV (`secondaryStorage` + `storeSessionInDatabase`); omit for D1-only                                                                                                                                                                            |
+| `verificationStorage?` | where single-use values (magic links, resets) are consumed from; defaults to `"database"`                                                                                                                                                                         |
+| `rateLimitDo?`         | Durable Object namespace where Better Auth's rate limiter counts. The limiter is on for every instance off `localhost` either way; see [Rate limiting](#rate-limiting)                                                                                            |
+| `waitUntil?`           | the runtime's `waitUntil`; sends magic-link email after the response, so the endpoint's timing doesn't show whether it mailed                                                                                                                                     |
+| `extraPlugins?`        | additional Better Auth plugins                                                                                                                                                                                                                                    |
 
 ```ts
 // src/lib/auth.ts
@@ -95,8 +95,11 @@ export const getAuth = (env: Env, baseURL: string) =>
   });
 ```
 
-Magic-link + `admin` + passkey are always on; captcha (Turnstile) mounts only
-when both a real secret and a real site key are configured. Better Auth's rate
+Magic-link and passkey are always on. The `admin` plugin is on for an editor
+instance and off for a customer instance unless it sets
+`customers.adminEndpoints`; see [Admin endpoints](#admin-endpoints). Captcha
+(Turnstile) mounts only when both a real secret and a real site key are
+configured. Better Auth's rate
 limiter is on unless `baseURL` is on `localhost` or `127.0.0.1`; see
 [Rate limiting](#rate-limiting).
 
@@ -261,6 +264,40 @@ Turnstile widget after each request.
 Accounts that already had a password keep their hash in the `account` table
 (rows with `providerId = 'credential'`). Those people sign in by link to the same
 account. To store no hash, delete those rows once you've switched.
+
+## Admin endpoints
+
+Better Auth's `admin` plugin serves user administration at
+`<basePath>/admin/*`: listing, creating, and removing users, setting roles,
+banning, and impersonation. The endpoints check only the session user's `role`.
+
+An editor-only instance, with no `customers`, mounts them. Any instance with
+`customers` set doesn't: a request to `<basePath>/admin/list-users` gets a 404,
+whatever the user's role. Everything else the plugin did stays the same:
+
+- The `role` and ban columns stay in the generated schema, and the session user
+  still carries `role`.
+- A new account still gets its role, and no one can set their own role or ban,
+  even if `additionalFields` declares a field with the same name.
+- A banned user can't start a new session, and a ban that has expired is
+  cleared at the next sign-in.
+
+A ban doesn't end the sessions a user already has. The `ban-user` endpoint did
+that, and it isn't mounted, so a ban is set in the database. When you set one,
+also delete the user's rows in the `session` table (with your `tablePrefix`),
+and their session entries in KV when `sessionCacheKv` is set.
+
+**One instance for editors and customers.** If editors and customers share an
+instance, that instance has `customers` set, so it loses
+`/api/auth/admin/*` too. Turning `adminEndpoints` on there gives every editor,
+who holds the `admin` role, the power to list, remove, ban, and impersonate
+every customer. To administer editors through these endpoints, give editors an
+instance of their own.
+
+To mount the endpoints on a customer instance, set
+`customers: { adminEndpoints: true }`, and make sure no customer row can hold an
+admin role. Neither setting changes the schema, so switching needs no
+migration.
 
 ## `handleAuthRequest(auth, request, admins)`
 

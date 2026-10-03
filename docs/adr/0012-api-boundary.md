@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -287,6 +287,52 @@ A request that matched a rule before still matches one, but the first matching
 rule can now be a different one: rules are tried in order, and an earlier rule
 for the canonical path can now claim a spelling a later rule was written for. A
 request that matched nothing, such as a POST to a slashed path, can now get a 429. Both are upgrade edges the changeset names.
+
+## Amendment (2026-10-03, customer instances don't mount the admin endpoints)
+
+`getLouiseAuth` added Better Auth's `admin` plugin to every instance. The
+plugin mounts user administration at `<basePath>/admin/*`: listing, creating,
+and removing users, setting roles, banning, and impersonation. Its only check is
+the session user's `role`. An editor instance uses that role and those
+endpoints. A customer instance, one with `customers` set, uses neither, and it
+can't promise that no row in its user table holds an admin role: a table once
+shared with editors, a hand edit, or an import can each leave one there.
+
+Deny by default applies to these endpoints as it does to `/api/louise/*`: a
+surface nothing uses shouldn't be reachable. So **a customer instance doesn't
+mount the admin plugin** unless the site sets `customers.adminEndpoints: true`.
+An editor-only instance, one with no `customers`, keeps it.
+
+**One instance for editors and customers counts as a customer instance.** A
+site can serve both from one instance and one user table, the shape #494 met in
+`editorsRoute`. That instance has `customers` set, so it loses
+`/api/auth/admin/*` too. Turning `adminEndpoints` on there doesn't restore an
+editor-only surface: every editor holds the `admin` role, so every editor can
+list, remove, ban, and impersonate every customer. A site in that shape that
+needs user administration should give editors their own instance instead.
+
+What the plugin did on every request stays, so the change removes endpoints
+and nothing else:
+
+- **The schema doesn't change.** `generateAuthSchemaSql` still emits the `role`
+  and ban columns for every instance, so an existing database needs no
+  migration, and switching `adminEndpoints` on or off needs none either.
+- **`role` stays on the session user.** The factory declares the plugin's user
+  fields itself when the plugin is off, with `input: false`, and after the
+  site's `additionalFields`, so a site field of the same name can't loosen
+  them. A new account still gets its role, the session user still carries it,
+  and no one can set their own.
+- **A ban blocks a new session.** The factory refuses a banned user a new
+  session, and clears an expired ban instead, as the plugin does. It doesn't
+  end sessions the user already has: the plugin's `ban-user` endpoint did that,
+  and it isn't mounted. With the endpoints off, a ban is set in the database,
+  and whoever sets it also deletes the user's `session` rows, and their entries
+  in KV when `sessionCacheKv` is set.
+
+**Considered and rejected:** keeping the plugin and passing it an
+`adminRoles` value no customer holds. That leaves every endpoint mounted behind
+a value in a table the instance can't vouch for, which is the dependency this
+amendment removes.
 
 ## Out of scope, tracked separately
 
