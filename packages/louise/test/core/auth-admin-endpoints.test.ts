@@ -1,4 +1,5 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { admin } from "better-auth/plugins";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   generateAuthSchemaSql,
@@ -88,13 +89,17 @@ const get = (auth: LouiseAuth, path: string, cookie: string) =>
   auth.handler(new Request(`${ORIGIN}${path}`, { headers: { cookie } }));
 
 /** A customer instance over a fresh database, and a signed-in customer. */
-async function customerInstance(customers: Record<string, unknown> = {}) {
+async function customerInstance(
+  customers: Record<string, unknown> = {},
+  over: Record<string, unknown> = {},
+) {
   const { sqlite, db } = sqliteD1(
     generateAuthSchemaSql({ customers: true, tablePrefix: portal.tablePrefix }),
   );
   const auth = await getLouiseAuth(envFor(db), ORIGIN, {
     ...authBase,
     ...portal,
+    ...over,
     customers,
   } as never);
   const signUp = await post(auth, `${portal.basePath}/sign-up/email`, {
@@ -156,6 +161,39 @@ describe("admin endpoints on a customer instance", () => {
     expect(((await banned.json()) as { code?: string }).code).toBe("BANNED_USER");
     sqlite.exec(`UPDATE "portal_user" SET "banExpires" = '2000-01-01T00:00:00.000Z'`);
     expect((await signIn()).status).toBe(200);
+    // The expired ban is cleared, as the admin plugin clears it.
+    expect(
+      sqlite.prepare(`SELECT "banned", "banReason", "banExpires" FROM "portal_user"`).get(),
+    ).toEqual({ banned: 0, banReason: null, banExpires: null });
+  });
+
+  it("keeps role and bans locked when a site declares a field of the same name", async () => {
+    const { sqlite, auth, cookie } = await customerInstance(
+      {},
+      { additionalFields: { role: { type: "string", required: false, input: true } } },
+    );
+    const admins = () =>
+      sqlite.prepare(`SELECT "email" FROM "portal_user" WHERE "role" = 'admin'`).all();
+    const signUp = await post(auth, `${portal.basePath}/sign-up/email`, {
+      email: "kai@example.com",
+      password: "correct-horse-battery",
+      name: "Kai",
+      role: "admin",
+    });
+    expect(signUp.status).toBe(400);
+    await post(auth, `${portal.basePath}/update-user`, { role: "admin" }, cookie);
+    expect(admins()).toEqual([]);
+  });
+
+  it("declares the same user fields as Better Auth's admin plugin", async () => {
+    // The generated schema takes these columns from the plugin and the runtime
+    // declares its own copy, so a Better Auth upgrade that changes them fails here.
+    const { auth } = await customerInstance();
+    const declared = (
+      auth as unknown as { options: { user: { additionalFields: Record<string, unknown> } } }
+    ).options.user.additionalFields;
+    const plugin = admin().schema.user.fields;
+    for (const [name, field] of Object.entries(plugin)) expect(declared[name]).toEqual(field);
   });
 
   it("are mounted when the site opts in with customers.adminEndpoints", async () => {

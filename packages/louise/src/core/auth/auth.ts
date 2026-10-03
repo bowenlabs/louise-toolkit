@@ -10,8 +10,8 @@
 // customers sign in by link too) and passkey (WebAuthn—rpID is derived per
 // request from `baseURL`, so passkeys bind to the site's own origin, dev and
 // prod alike). Admin (owner/editor roles and the user-administration endpoints)
-// is on for an editor instance and off for a customer one unless the site sets
-// `customers.adminEndpoints`. Captcha (Turnstile) mounts only when configured.
+// is on for an editor-only instance and off for any instance with `customers`
+// set unless the site sets `customers.adminEndpoints`. Captcha (Turnstile) mounts only when configured.
 // Customer sign-in (password or magic link) and extra user fields are opt-in.
 
 import { passkey } from "@better-auth/passkey";
@@ -176,8 +176,16 @@ export interface LouiseAuthConfig {
      *
      * Off, the instance keeps what the plugin did for every request: the `role`
      * and ban columns stay in the user table and on the session user, a new
-     * account still gets its role, and a banned user still can't sign in. The
-     * schema doesn't change, so turning this on or off needs no migration.
+     * account still gets its role, and a banned user can't start a new session.
+     * A ban set in the database doesn't end the sessions the user already has;
+     * delete their rows in the `session` table, and their entries in
+     * {@link LouiseAuthConfig.sessionCacheKv} when it's set. The schema doesn't
+     * change, so turning this on or off needs no migration.
+     *
+     * One instance that serves both editors and customers counts as a customer
+     * instance, so it loses these endpoints too. Setting this on it gives every
+     * editor, who holds the `admin` role, the power to list, remove, and
+     * impersonate every customer.
      *
      * Set it only when the site administers its customers through these
      * endpoints, and make sure no customer row can hold an admin role.
@@ -521,9 +529,11 @@ export async function getLouiseAuth(
     // Louise's standard first/last name fields, ahead of the site's own extras.
     // Without the admin plugin, its columns too, so `role` and bans still work.
     additionalFields: {
-      ...(adminEndpoints ? {} : ADMIN_USER_FIELDS),
       ...LOUISE_USER_FIELDS,
       ...config.additionalFields,
+      // Last, so a site field with the same name can't make `role` or a ban
+      // something a person sets for themselves.
+      ...(adminEndpoints ? {} : ADMIN_USER_FIELDS),
     },
   };
 
@@ -636,6 +646,8 @@ export async function getLouiseAuth(
       },
       // The admin plugin refuses a banned user a new session. Without the
       // plugin, this does the same, so a ban outlives turning the endpoints off.
+      // It doesn't end a session the user already has: the plugin's `ban-user`
+      // endpoint revoked those, and it isn't mounted here.
       ...(adminEndpoints
         ? {}
         : {
@@ -648,8 +660,16 @@ export async function getLouiseAuth(
                     banExpires?: Date | string | null;
                   } | null;
                   if (!user?.banned) return;
-                  // An expired ban no longer applies, as with the plugin.
-                  if (user.banExpires && new Date(user.banExpires).getTime() < Date.now()) return;
+                  // An expired ban is cleared and no longer applies, as with
+                  // the plugin.
+                  if (user.banExpires && new Date(user.banExpires).getTime() < Date.now()) {
+                    await ctx.context.internalAdapter.updateUser(session.userId, {
+                      banned: false,
+                      banReason: null,
+                      banExpires: null,
+                    });
+                    return;
+                  }
                   throw new APIError("FORBIDDEN", {
                     message: "You can't sign in to this account.",
                     code: "BANNED_USER",
@@ -715,8 +735,9 @@ export async function getLouiseAuth(
         },
       }),
       // User administration at `<basePath>/admin/*`, guarded only by the
-      // session user's role. An editor instance needs it; a customer instance
-      // gets it only by asking (see `customers.adminEndpoints`).
+      // session user's role. An editor-only instance needs it; any instance
+      // with `customers` set, one shared with editors included, gets it only by
+      // asking (see `customers.adminEndpoints`).
       ...(adminEndpoints ? [admin()] : []),
       // rpID is domain-bound: a localhost-enrolled passkey won't work on prod.
       // Defaults to this origin's hostname; an explicit value (typically the

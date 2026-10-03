@@ -301,7 +301,15 @@ shared with editors, a hand edit, or an import can each leave one there.
 Deny by default applies to these endpoints as it does to `/api/louise/*`: a
 surface nothing uses shouldn't be reachable. So **a customer instance doesn't
 mount the admin plugin** unless the site sets `customers.adminEndpoints: true`.
-An editor instance keeps it.
+An editor-only instance, one with no `customers`, keeps it.
+
+**One instance for editors and customers counts as a customer instance.** A
+site can serve both from one instance and one user table, the shape #494 met in
+`editorsRoute`. That instance has `customers` set, so it loses
+`/api/auth/admin/*` too. Turning `adminEndpoints` on there doesn't restore an
+editor-only surface: every editor holds the `admin` role, so every editor can
+list, remove, ban, and impersonate every customer. A site in that shape that
+needs user administration should give editors their own instance instead.
 
 What the plugin did on every request stays, so the change removes endpoints
 and nothing else:
@@ -310,11 +318,16 @@ and nothing else:
   and ban columns for every instance, so an existing database needs no
   migration, and switching `adminEndpoints` on or off needs none either.
 - **`role` stays on the session user.** The factory declares the plugin's user
-  fields itself when the plugin is off, with `input: false`, so a new account
-  still gets its role, the session user still carries it, and no one can set
-  their own.
-- **A ban still holds.** The factory refuses a banned user a new session, until
-  the ban expires, as the plugin does.
+  fields itself when the plugin is off, with `input: false`, and after the
+  site's `additionalFields`, so a site field of the same name can't loosen
+  them. A new account still gets its role, the session user still carries it,
+  and no one can set their own.
+- **A ban blocks a new session.** The factory refuses a banned user a new
+  session, and clears an expired ban instead, as the plugin does. It doesn't
+  end sessions the user already has: the plugin's `ban-user` endpoint did that,
+  and it isn't mounted. With the endpoints off, a ban is set in the database,
+  and whoever sets it also deletes the user's `session` rows, and their entries
+  in KV when `sessionCacheKv` is set.
 
 **Considered and rejected:** keeping the plugin and passing it an
 `adminRoles` value no customer holds. That leaves every endpoint mounted behind

@@ -271,14 +271,28 @@ Better Auth's `admin` plugin serves user administration at
 `<basePath>/admin/*`: listing, creating, and removing users, setting roles,
 banning, and impersonation. The endpoints check only the session user's `role`.
 
-An editor instance, with no `customers`, mounts them. A customer instance
-doesn't: a request to `<basePath>/admin/list-users` gets a 404, whatever the
-customer's role. Everything else the plugin did stays the same:
+An editor-only instance, with no `customers`, mounts them. Any instance with
+`customers` set doesn't: a request to `<basePath>/admin/list-users` gets a 404,
+whatever the user's role. Everything else the plugin did stays the same:
 
 - The `role` and ban columns stay in the generated schema, and the session user
   still carries `role`.
-- A new account still gets its role, and no one can set their own role or ban.
-- A banned user still can't sign in, until the ban expires.
+- A new account still gets its role, and no one can set their own role or ban,
+  even if `additionalFields` declares a field with the same name.
+- A banned user can't start a new session, and a ban that has expired is
+  cleared at the next sign-in.
+
+A ban doesn't end the sessions a user already has. The `ban-user` endpoint did
+that, and it isn't mounted, so a ban is set in the database. When you set one,
+also delete the user's rows in the `session` table (with your `tablePrefix`),
+and their session entries in KV when `sessionCacheKv` is set.
+
+**One instance for editors and customers.** If editors and customers share an
+instance, that instance has `customers` set, so it loses
+`/api/auth/admin/*` too. Turning `adminEndpoints` on there gives every editor,
+who holds the `admin` role, the power to list, remove, ban, and impersonate
+every customer. To administer editors through these endpoints, give editors an
+instance of their own.
 
 To mount the endpoints on a customer instance, set
 `customers: { adminEndpoints: true }`, and make sure no customer row can hold an
