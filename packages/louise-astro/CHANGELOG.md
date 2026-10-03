@@ -10,6 +10,7 @@
 
 ### Patch Changes
 
+- Updated dependencies [ca79f32]
 - Updated dependencies [63b5cb8]
   - louise-toolkit@0.42.0
 
