@@ -1,5 +1,69 @@
 # louise-toolkit
 
+## 0.41.0
+
+### Minor Changes
+
+- acaf805: The `LouiseAuth` type that `getLouiseAuth` returns now includes `api.signOut({ headers, asResponse: true })`, which returns a `Promise<Response>`, as in Better Auth 1.7. The instance always had the method, but the type hid it, so the sign-out example in the `redirectWithCookies` docs didn't compile without a cast:
+
+  ```ts
+  const result = await auth.api.signOut({ headers: request.headers, asResponse: true });
+  return redirectWithCookies(result, "/");
+  ```
+
+  Nothing changes at run time. If your site casts `auth` to reach `signOut`, or builds a sign-out `Request` and passes it to `auth.handler`, you can call `auth.api.signOut` directly. Code that builds a `LouiseAuth` by hand, such as a test stub, needs a `signOut` method, or a cast as before.
+
+- 62422f8: Better Auth's rate limiter is on for every `getLouiseAuth` instance, unless the host in `baseURL` is `localhost` or `127.0.0.1`. Until now it was off on every Louise site, the editor's magic-link and passkey endpoints included: Better Auth turns it on by itself only when `NODE_ENV` is `production`, which a Worker never sets. Only a customer instance with `customers.signIn: "magic-link"` had it.
+
+  - **Each count is keyed on `CF-Connecting-IP`.** Better Auth's default header, `X-Forwarded-For`, carries whatever the client sent ahead of the real address. When it holds more than one address, Better Auth puts every such request in one shared bucket per path, where a stranger could spend everyone's sign-in budget. Sessions now record their IP address from the same header.
+  - **Each instance counts on its own.** Better Auth drops `basePath` from its key, so an editor at `/api/auth` and a customer instance at `/api/shop-auth` would have shared one count, and customers asking for links on a shop's Wi-Fi could spend the owner's budget. Every key now starts with the instance's host and `basePath`.
+  - **`rateLimitDo` still chooses where it counts.** Without it, the limiter counts in KV when `sessionCacheKv` is set, and otherwise in each isolate's memory.
+
+  **What a site might notice:** Better Auth answers a burst with a 429 and an `X-Retry-After` header, from any auth endpoint. The default budgets, per address and path, are 5 a minute each for requesting and following a magic link, 3 per 10 seconds for other sign-in and sign-up paths, and 100 per 10 seconds for everything else, passkeys included. People who share an address, such as a shop's guest Wi-Fi, share a budget.
+
+  **Upgrading:**
+
+  - Make your sign-in forms show a 429 as "try again in a moment" rather than a generic error. A followed magic link that's over budget gets Better Auth's JSON error, not a redirect.
+  - An end-to-end test that signs in many times against a deployed Preview can now hit the limit. Run it against `localhost`, or space the sign-ins out. In local dev, derive `baseURL` from the request: a fixed production `baseURL` keeps the limiter on, and so does `[::1]` or a `*.localhost` name.
+  - Counts start fresh when you deploy, since every key changes. On `rateLimitDo`, the old objects delete their counts by alarm when their windows end.
+  - Set `rateLimitDo` if you haven't. The KV and in-memory counters undercount under a burst, which is weak for sign-in; see `createRateLimiter` in `louise-toolkit/security` for the Durable Object.
+
+- aa3129f: `better-auth` and `@better-auth/passkey` now need 1.7.7 or later, the release that fixes three Better Auth advisories published on 2026-09-30.
+
+  - **[GHSA-965c-763c-88jm](https://github.com/better-auth/better-auth/security/advisories/GHSA-965c-763c-88jm) (critical):** Better Auth accepted an OAuth state value as a magic-link token, so anyone who knew an email address could sign in as it. Every instance `getLouiseAuth` builds runs the magic-link plugin. The attack also needs a social or Generic OAuth provider, which the toolkit doesn't configure, so an instance is exposed only if a site adds one through `extraPlugins` or its own Better Auth setup.
+  - **[GHSA-r4xp-prcw-77qf](https://github.com/better-auth/better-auth/security/advisories/GHSA-r4xp-prcw-77qf) (high):** sign-in as another user through the OAuth Proxy plugin, which the toolkit doesn't use.
+  - **[GHSA-44jh-23m7-hpcf](https://github.com/better-auth/better-auth/security/advisories/GHSA-44jh-23m7-hpcf) (low):** concurrent requests could exceed rate limits on PostgreSQL. Louise sites run D1.
+
+  The peer ranges move from `^1.6.23` to `^1.7.7`, and the toolkit's own development copies from `^1.7.2`.
+
+  **`getLouiseAuth` turns off Better Auth's runtime schema check.** Better Auth 1.7.7 checks the database schema before an instance's first query, by default, and caches the verdict on that instance. `getLouiseAuth` builds an instance per request, so every request that touched auth would list D1's tables and read each one's columns first, and any difference would fail the request. The factory now sets `advanced.database.validateSchema: false`; `generateAuthSchemaSql` and the site's migrations keep the schema right.
+
+  **Upgrading:** a site that resolves Better Auth below 1.7.7 gets a peer-dependency warning, or an install error under strict peers. Bump both packages, `corepack pnpm add better-auth@^1.7.7 @better-auth/passkey@^1.7.7`, and check that the lockfile holds one copy of each.
+
+  You don't have to wait for this release to take the security fix: the older toolkit's `^1.6.23` range already admits 1.7.7, so a site can bump Better Auth now. Until it also runs this toolkit, though, Better Auth's schema check stays on and runs on every request, so upgrade the toolkit soon after.
+
+- 89d90b4: Customers can sign in by magic link instead of a password: `customers.signIn: "magic-link"` on `getLouiseAuth`.
+
+  - **Email and password turn off.** The instance mounts no password sign-in, sign-up, or reset endpoint.
+  - **The magic-link endpoint opens to every address.** Before, the factory mailed a link only to the admin allowlist, on every instance. Now a customer instance mails anyone who asks; following the link signs them in, creating the account unless `customers.disableSignUp` is set, and verifies the email. With sign-up closed, an address with no account gets no email, and the response body is the same either way.
+  - **Better Auth's rate limiter guards the endpoint,** as it now does on every instance off `localhost`.
+  - **A new `waitUntil` option** hands the email send to the runtime, so the endpoint answers as fast whether or not it mailed.
+
+  **Upgrading:** nothing changes unless you set the option; `"password"` stays the default. If you set it:
+
+  - Serve the instance with `auth.handler`, not `handleAuthRequest`, whose gate admits only admins.
+  - **Turnstile guards the endpoint only with both real keys set.** With the test keys, which every Worker Preview gets, or with none, the captcha is off and the endpoint mails any address that asks; each such send off `localhost` logs an `auth.magic-link-no-captcha` degrade. Set real keys in production and `rateLimitDo`, since the KV and in-memory limiter fallbacks undercount under a burst.
+  - Pass `waitUntil`, from `cloudflare:workers`. Without it, with `disableSignUp` on, the response time shows which addresses have an account.
+  - Existing password hashes stay in the `account` table (rows with `providerId = 'credential'`). Those customers sign in by link to the same account. Delete the rows to store no hash; ADR 0016 is amended to match.
+
+- 9ad4bde: `louise-toolkit/commerce/square` can tell whether an order was paid when the payment call's response was lost. `SquareOrder` gains `tenders` (each with `paymentId`, `amountMoney`, and `tipMoney`) and `netAmountDueMoney`, and the new `retrievePayment` reads a payment by ID, receipt included. `SquarePayment` gains `createdAt`. Existing fields are unchanged.
+
+  The new fields are required, since the mappers always fill them. Code that builds a `SquareOrder` by hand, such as a test stub or a fake `retrieveOrder`, now needs `netAmountDueMoney` and `tenders` (an empty array for an unpaid order), and code that builds a `SquarePayment` by hand needs `createdAt` (null is fine).
+
+### Patch Changes
+
+- 1329de4: `louise-toolkit/commerce/square` takes a missing amount's currency from the amounts around it rather than assuming USD. Square leaves out a zero amount, often a tip. An order's money fields now fall back to the order's currency, found on its total, amount due, tenders, or line items. A tender's tip falls back to the tender's amount. A payment's amounts fall back to its own currency, and for `createPayment` to the currency it was charged in. USD is left only when a response carries no currency anywhere. A loyalty program's amounts fall back to the currency its other rules name, and an order the toolkit creates or prices falls back to the currency the caller named on an ad hoc line or a service charge, such as shipping. Callers have nothing to do.
+
 ## 0.40.0
 
 ### Minor Changes
