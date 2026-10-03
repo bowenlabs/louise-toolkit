@@ -14,6 +14,7 @@ import {
   hasRichText,
   rateLimit,
   matchRateRule,
+  normalizeRatePath,
   getSessionSecret,
   readSecret,
   louiseSecurityHeaders,
@@ -28,7 +29,7 @@ import {
 
 The security-critical primitives every Louise site shares—so a fix lands once
 and protects every site. Each helper takes its binding explicitly, so a site
-stays free to name bindings however it likes. No required peers (`ultrahtml` is
+stays free to name bindings however it likes. No required peers (`parse5` is
 bundled).
 
 ## `sanitizeRichHtml(html, options?)`
@@ -38,10 +39,14 @@ function sanitizeRichHtml(html: string, options?: { mediaBase?: string }): strin
 ```
 
 Parser-based **allowlist** sanitizer for editor-authored rich text. Parses with
-ultrahtml and rebuilds against a strict element + per-tag attribute allowlist,
-scrubs `href`/`src` schemes and inline `style`, and strips any stray dangerous
-token. The allowlist matches exactly what the [`client`](/reference/client/)
-ProseKit editor emits—run it on **write and render**.
+parse5, an implementation of the WHATWG HTML parser, so it reads markup the way
+a browser does. It rebuilds the HTML against a strict element and per-tag
+attribute allowlist, scrubs `href`/`src` schemes and inline `style`, and
+escapes every text node and attribute value it writes. It never throws: markup
+it can't use is dropped or kept as text, and markup nested more than 256
+elements deep comes back as escaped text. The allowlist matches exactly what the
+[`client`](/reference/client/) ProseKit editor emits—run it on **write and
+render**.
 
 ```ts
 const safe = sanitizeRichHtml(untrustedEditorHtml); // <script>, on*, javascript: … removed
@@ -171,6 +176,42 @@ if (rule) {
     });
 }
 ```
+
+### Every spelling of a path matches
+
+A router commonly answers several spellings of one path from the same endpoint.
+A trailing slash is ignored by default, and duplicate slashes and
+percent-encoded letters are normalized before routes match. A rule written as
+`(p) => p === "/api/checkout"` would then miss `/api/checkout/`, and the
+endpoint would get no limit from it.
+
+`matchRateRule` tests each rule against the path as given and against
+`normalizeRatePath(path)`, and either one matching is a match. Write rules
+against the canonical path, with no trailing slash. A rule written for a slashed
+path still matches the path as given, so a site with trailing slashes always on
+keeps working. Every spelling counts against the same budget, because the
+bucket is keyed by the rule's name.
+
+A request that matched a rule before this change still matches one, but not
+always the same one. Rules are tried in order, so with a rule for `/a` ahead of
+a rule for `/a/`, a request to `/a/` now matches the first and spends its
+budget. Keep one rule per endpoint, written for the canonical path. A request
+that matched nothing before, such as a POST to `/api/checkout/`, can now get a 429.
+
+```ts
+function normalizeRatePath(path: string): string;
+
+normalizeRatePath("/api/checkout/"); // "/api/checkout"
+normalizeRatePath("//api//checkout"); // "/api/checkout"
+normalizeRatePath("/api/%63heckout"); // "/api/checkout"
+normalizeRatePath("/"); // "/"
+```
+
+It decodes with `decodeURI` until the path stops changing, at most 10 times,
+then collapses each run of slashes to one and removes a trailing slash, except
+on the root path. `decodeURI` leaves an encoded reserved character such as
+`%2F` encoded, so decoding can't create a path separator. An invalid escape
+stops the decoding and keeps what decoded so far.
 
 ## `createRateLimiter(ctx)` · `durableRateLimitStorage(namespace)`
 

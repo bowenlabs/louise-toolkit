@@ -137,7 +137,7 @@ thanks to the authors and maintainers of the projects that make it possible:
 [![Phosphor Icons](https://img.shields.io/badge/Phosphor_Icons-2B2B2B?logo=phosphoricons&logoColor=white)](https://phosphoricons.com)
 [![Roboto Flex](https://img.shields.io/badge/Roboto_Flex-5C6370)](https://github.com/googlefonts/roboto-flex)
 [![resvg](https://img.shields.io/badge/resvg-5C6370)](https://github.com/yisibl/resvg-js)
-[![ultrahtml](https://img.shields.io/badge/ultrahtml-5C6370)](https://github.com/natemoo-re/ultrahtml)
+[![parse5](https://img.shields.io/badge/parse5-5C6370)](https://parse5.js.org)
 
 **Styling**
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)

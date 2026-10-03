@@ -233,6 +233,13 @@ export function createLouiseMiddleware<TEditor = unknown>(
     // Rate-limit the public, unauthenticated POST surfaces before any other
     // work. Keyed by client IP via a KV counter; `rateLimit` fails open on a KV
     // error so a limiter outage never takes down sign-in or the contact form.
+    //
+    // Astro decodes the path and collapses duplicate slashes before it builds
+    // `context.url`, but with the default `trailingSlash: "ignore"` it routes
+    // `/api/checkout/` to the `/api/checkout` endpoint and leaves the slash in
+    // `pathname`. `matchRateRule` tests each rule against the normalized path
+    // too, so an exact rule still limits the slashed spelling, and both count
+    // against one budget, since the bucket is keyed by the rule's name.
     if (config.rateLimit) {
       const rule = matchRateRule(
         config.rateLimit.rules,
