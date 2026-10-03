@@ -164,3 +164,19 @@ Versions are pre-1.0, so a minor bump is where breaking changes live and there's
 no deprecation cycle. Read the changelogs before publishing: `changeset version`
 writes them from the changesets, and they're the only place a behavior change
 is explained at the length it deserves.
+
+### The adapter moves a minor with every toolkit release
+
+`@louise-toolkit/astro` depends on `louise-toolkit` as `workspace:*`, which
+publishes as an exact pin, and `.changeset/config.json` sets
+`updateInternalDependencies: "patch"`. So `changeset version` gives the adapter
+a patch for every toolkit release. Ship that patch and every caret range on the
+adapter, `create-astroid`'s included, picks it up and installs a second toolkit
+beside the one `astroidjs` resolves.
+
+Make the adapter a minor instead. Either add an `"@louise-toolkit/astro": minor`
+changeset beside the toolkit's, or, after `changeset version`, raise the
+adapter's version to the next minor by hand and turn its changelog entry into
+"Minor Changes" saying which toolkit version it requires and to bump the
+adapter, the toolkit, and `astroidjs` together. The 0.7.0 and 0.8.0 entries are
+the model.
