@@ -106,6 +106,21 @@ overrides:
   # a bare `devalue:` key would move the tree onto a major astro hasn't adopted.
   devalue@5: "^5.9.3"
 
+# Advisories `pnpm audit` reports that no release fixes yet, and that can't
+# reach anything this repository ships. Each entry says why and when to drop it.
+auditConfig:
+  ignoreGhsas:
+    # http-cache-semantics—GHSA-ch52-4w7c-c8xp: through 4.2.0, the latest
+    # release, a request's `max-stale` can make a shared cache serve an entry
+    # that was zeroed to protect another user's Set-Cookie. There's no patched
+    # version to override to. astro is its only dependent here, in
+    # workers/docs and workers/sandbox, and astro loads it only in
+    # `assets/build/remote.js`: the cache for remote images during `astro
+    # build`. That cache serves one build process, never several users, so the
+    # leak needs a shared cache this repository never runs. Drop this entry
+    # once http-cache-semantics publishes a fix and the tree moves to it.
+    - GHSA-ch52-4w7c-c8xp
+
 # Postinstall-script approvals. Without these, esbuild/workerd skip their
 # postinstall and the Astro (Cloudflare) build fails. pnpm 11 renamed the
 # `onlyBuiltDependencies` list to the `allowBuilds` map.
