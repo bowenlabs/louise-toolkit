@@ -1,20 +1,29 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
 // Parser-based allowlist sanitizer for editor-authored rich text. Parses the
-// HTML with ultrahtml and rebuilds it against a strict allowlist:
+// HTML with parse5, an implementation of the WHATWG HTML parser, so it builds
+// the same tree a browser would, then writes new HTML from that tree against a
+// strict allowlist:
 //
-//   1. Element allowlist: any tag not in ALLOWED_TAGS is dropped with its
-//      children (ultrahtml's `sanitize`), so script/style/iframe/svg/etc. and
-//      their contents never survive.
-//   2. Strict per-tag attribute allowlist: ultrahtml keeps unknown attributes
-//      by default (it only drops what's in `dropAttributes`), so we run our own
-//      pass that deletes every attribute not explicitly allowed for its tag.
-//      This is what removes `on*` handlers, arbitrary `style`, etc.
-//   3. URL-scheme + style-value scrubbing: `href`/`src` must be HTTP or HTTPS,
+//   1. Element allowlist: any element not in ALLOWED_TAGS is dropped with its
+//      children, so script, style, iframe, svg, and the like never survive,
+//      and neither do their contents. Only HTML elements qualify; anything in
+//      the SVG or MathML namespace is dropped.
+//   2. Strict per-tag attribute allowlist: every attribute not explicitly
+//      allowed for its tag is dropped. This is what removes `on*` handlers,
+//      arbitrary `style`, and so on.
+//   3. URL-scheme and style-value scrubbing: `href`/`src` must be HTTP or HTTPS,
 //      mailto, or same-document/relative; inline `style` is limited to a plain
-//      `color:` declaration (the only style the ProseKit text-color mark emits).
-//   4. A final regex net strips any stray dangerous-tag token left by the
-//      parser's serialization of malformed input (for example, `<scr<script>ipt>`).
+//      `color:` declaration (the only style the ProseKit text-color mark emits)
+//      or a numeric grid track list.
+//   4. Escaping on output: the serializer writes only allowed tag and attribute
+//      names, and escapes every text node and attribute value. Markup the
+//      parser read as text stays text, and a value can't close its own quotes,
+//      so the output needs no second, pattern-matching pass.
+//
+// The sanitizer never throws. The parser accepts any string, the walk is
+// iterative so deep nesting can't overflow the stack, and anything unexpected
+// falls back to the input as escaped text.
 //
 // The allowlist matches exactly the formatting Louise's ProseKit client emits
 // (see `../content/richtext`): block + inline formatting, resizable images
@@ -26,16 +35,15 @@
 // A second, narrower preset, `sanitizeModelHtml`, holds model-generated HTML to
 // a subset of this allowlist. See "The model preset" below.
 
-import { ELEMENT_NODE, transformSync, walkSync } from "ultrahtml";
-import sanitizeElements from "ultrahtml/transformers/sanitize";
+import { type DefaultTreeAdapterTypes, defaultTreeAdapter, html as spec, parse } from "parse5";
 
-/** ultrahtml doesn't export its node type; this is the shape we touch. */
-type UhNode = { type: number; name?: string; attributes?: Record<string, string> };
+type ChildNode = DefaultTreeAdapterTypes.ChildNode;
+type Element = DefaultTreeAdapterTypes.Element;
 
 /** Tags ProseKit's basic + blockquote + image + text-color extensions emit.
  * `div` is the editor's serialization wrapper: prosekit's `htmlFromNode`
  * returns the doc container's outerHTML, so every rich payload arrives as
- * `<div>…</div>`. ultrahtml's sanitize drops disallowed elements WITH their
+ * `<div>…</div>`. The sanitizer drops disallowed elements WITH their
  * children, so omitting `div` empties the entire payload. Divs carry no
  * attributes here (stripped below), so they're inert. */
 export const ALLOWED_TAGS = [
@@ -121,14 +129,6 @@ function isSafeStyle(value: string): boolean {
   return SAFE_COLOR_STYLE.test(value) || SAFE_GRID_STYLE.test(value);
 }
 
-/** Stray dangerous tokens a malformed-input round-trip can serialize. */
-const DANGEROUS_TOKENS =
-  /<\/?(?:script|style|iframe|object|embed|form|meta|link|base|svg|math)\b[^>]*>/gi;
-
-/** An `<img>` with no `src=` attribute—what a non-media `src` becomes after
- *  the strict scrub deletes it, so we drop the now-empty element entirely. */
-const SRCLESS_IMG = /<img\b(?![^>]*\bsrc=)[^>]*>/gi;
-
 /** Whether `src` is served from `base` (the site's `MEDIA_URL`)—mirrors
  *  `isMediaUrl` in louise-toolkit/media, inlined so this base-security module stays
  *  dependency-free. */
@@ -149,70 +149,214 @@ export interface SanitizeOptions {
   mediaBase?: string;
 }
 
-/** Strict attribute + URL/style scrub, applied after element allowlisting.
- *  With `mediaBase`, an `<img src>` that isn't media-hosted has its `src`
- *  stripped (the element is then removed by {@link SRCLESS_IMG}). */
-function strictAttributes(mediaBase?: string) {
-  return (doc: UhNode) => {
-    walkSync(doc as never, (node: unknown) => {
-      const el = node as UhNode;
-      if (el.type !== ELEMENT_NODE || !el.name || !el.attributes) return;
-      const allowed = ATTR_ALLOW[el.name] ?? NO_ATTRS;
-      for (const name of Object.keys(el.attributes)) {
-        const value = String(el.attributes[name] ?? "");
-        if (!allowed.has(name)) {
-          delete el.attributes[name];
-          continue;
-        }
-        if ((name === "href" || name === "src") && !SAFE_URL.test(value.trim())) {
-          delete el.attributes[name];
-        }
-        // Media-strictness: an image src that isn't from the media base is a
-        // hotlink—drop it (the src-less img is then removed on serialize).
-        if (
-          name === "src" &&
-          el.name === "img" &&
-          mediaBase &&
-          !isFromMediaBase(mediaBase, value.trim())
-        ) {
-          delete el.attributes[name];
-        }
-        if (name === "style" && !isSafeStyle(value)) {
-          delete el.attributes[name];
-        }
-        if (name === "lang" && !BCP47_TAG.test(value.trim())) {
-          delete el.attributes[name];
-        }
-        if (name === "class") {
-          if (!PB_CLASS_TAGS.has(el.name)) {
-            delete el.attributes[name];
-            continue;
-          }
-          const kept = value.split(/\s+/).filter((t) => PB_TOKEN.test(t));
-          if (kept.length === 0) delete el.attributes[name];
-          else el.attributes[name] = kept.join(" ");
-        }
+// ── Parse, walk, and serialize ───────────────────────────────────────────────
+
+/** One attribute, as the parser read it and as the serializer writes it. */
+type Attr = { name: string; value: string };
+
+/** What becomes of an element: kept with these attributes, unwrapped (the
+ *  element goes, and its children are walked in its place), or dropped with
+ *  everything inside it. */
+type Decision = { keep: Attr[] } | "unwrap" | "drop";
+
+/** Decides each element's fate. The walk calls it only for HTML elements, by
+ *  their lowercase tag name; it drops anything foreign before it gets here. */
+type Policy = (tag: string, attrs: Attr[]) => Decision;
+
+/** Elements that have no end tag and no children. Of the allowed tags only
+ *  `br`, `hr`, and `img` are void; the rest are listed so a void element that a
+ *  future allowlist adds never gets an end tag. */
+const VOID_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "source",
+  "track",
+  "wbr",
+]);
+
+/** Text escaping: `&`, `<`, and `>`, plus U+00A0 as `&nbsp;`, the way a
+ *  browser's own serializer writes text, so editor HTML round-trips unchanged. */
+function escapeText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/ /g, "&nbsp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** Escaping for a double-quoted attribute value. `<` and `>` are harmless
+ *  inside quotes, but escaping them means a value never reads as a tag to
+ *  anything downstream that scans the HTML as text. */
+function escapeAttr(value: string): string {
+  return escapeText(value).replace(/"/g, "&quot;");
+}
+
+/** Writes `nodes` back out as HTML, applying `policy` to every element.
+ *  Iterative, with an explicit stack, so input nested thousands of levels deep
+ *  can't overflow the call stack. */
+function serialize(nodes: ChildNode[], policy: Policy): string {
+  let out = "";
+  // The parser drops one newline right after `<pre>`, as a browser does, so a
+  // `<pre>` whose text starts with a newline needs an extra one written back.
+  let afterPre = false;
+  const stack: (ChildNode | string)[] = nodes.toReversed();
+  while (stack.length > 0) {
+    const item = stack.pop()!;
+    if (typeof item === "string") {
+      out += item;
+      afterPre = false;
+      continue;
+    }
+    if (item.nodeName === "#text") {
+      const text = (item as DefaultTreeAdapterTypes.TextNode).value;
+      if (afterPre && text.startsWith("\n")) out += "\n";
+      out += escapeText(text);
+      afterPre = false;
+      continue;
+    }
+    // Comments, and anything else that isn't an element, are dropped.
+    if (!("tagName" in item)) continue;
+    const el = item as Element;
+    if (el.namespaceURI !== spec.NS.HTML) continue;
+    const decision = policy(
+      el.tagName,
+      el.attrs.map(({ name, value }) => ({ name, value })),
+    );
+    if (decision === "drop") continue;
+    const children = el.childNodes;
+    if (decision === "unwrap") {
+      for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]!);
+      continue;
+    }
+    out += `<${el.tagName}`;
+    for (const { name, value } of decision.keep) out += ` ${name}="${escapeAttr(value)}"`;
+    out += ">";
+    afterPre = el.tagName === "pre";
+    if (VOID_TAGS.has(el.tagName)) continue;
+    stack.push(`</${el.tagName}>`);
+    for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]!);
+  }
+  return out;
+}
+
+/** The deepest element nesting the parser builds before it gives up. Rich text
+ *  never comes close, and browsers cap tree depth too (Chromium at 512). The
+ *  cap matters for cost: the parser's scope checks walk the stack of open
+ *  elements, so without it a payload of nothing but nested tags is quadratic
+ *  work. */
+const MAX_DEPTH = 256;
+
+/** Thrown from the tree adapter to stop a parse that nests past {@link MAX_DEPTH}. */
+class TooDeepError extends Error {}
+
+/** parse5's default tree adapter, with a depth count on every element it
+ *  inserts, starting from the `<body>`. A template's content starts at the
+ *  template's own depth, so nesting templates doesn't reset the count. */
+function depthLimitedAdapter(): typeof defaultTreeAdapter {
+  const depths = new WeakMap<object, number>();
+  const place = (parent: object, node: ChildNode) => {
+    if (!("tagName" in node)) return;
+    // The parser makes one body per document; a `<body>` tag in the input only
+    // adds attributes to it.
+    const depth = node.tagName === "body" ? 0 : (depths.get(parent) ?? 0) + 1;
+    if (depth > MAX_DEPTH) throw new TooDeepError();
+    depths.set(node, depth);
+  };
+  return {
+    ...defaultTreeAdapter,
+    appendChild(parent, node) {
+      place(parent, node);
+      defaultTreeAdapter.appendChild(parent, node);
+    },
+    insertBefore(parent, node, reference) {
+      place(parent, node);
+      defaultTreeAdapter.insertBefore(parent, node, reference);
+    },
+    setTemplateContent(template, content) {
+      depths.set(content, depths.get(template) ?? 0);
+      defaultTreeAdapter.setTemplateContent(template, content);
+    },
+  };
+}
+
+/** The element child of `parent` named `name`, if there is one. */
+function childElement(parent: { childNodes: ChildNode[] }, name: string): Element | undefined {
+  return parent.childNodes.find((n): n is Element => n.nodeName === name);
+}
+
+/** Parses `html` as the body of a standards-mode document, which is how a
+ *  browser parses markup a page renders in its body, and serializes the
+ *  result under `policy`.
+ *
+ *  A whole document rather than a fragment, because parse5's fragment parse
+ *  moves each top-level node out of a temporary root one array splice at a
+ *  time, which is quadratic in the number of top-level nodes.
+ *
+ *  Never throws: if the parse fails or nests past {@link MAX_DEPTH}, the input
+ *  comes back as escaped text, which is safe to render and loses nothing. */
+function sanitizeWith(html: string, policy: Policy): string {
+  const input = typeof html === "string" ? html : String(html ?? "");
+  try {
+    const doc = parse(`<!DOCTYPE html><body>${input}`, { treeAdapter: depthLimitedAdapter() });
+    const root = childElement(doc, "html");
+    // A `<frameset>` at the very start replaces the body; nothing survives it.
+    const body = root && childElement(root, "body");
+    return body ? serialize(body.childNodes, policy) : "";
+  } catch {
+    return escapeText(input);
+  }
+}
+
+/** The rich preset's policy: the element and per-tag attribute allowlists,
+ *  URL schemes, style values, `lang`, and `pb-*` classes. With `mediaBase`, an
+ *  `<img>` whose `src` isn't media-hosted is dropped entirely, so nothing
+ *  broken persists. */
+function richPolicy(mediaBase?: string): Policy {
+  const allowedTags = new Set(ALLOWED_TAGS);
+  return (tag, attrs) => {
+    if (!allowedTags.has(tag)) return "drop";
+    const allowed = ATTR_ALLOW[tag] ?? NO_ATTRS;
+    const keep: Attr[] = [];
+    for (const { name, value } of attrs) {
+      if (!allowed.has(name)) continue;
+      const trimmed = value.trim();
+      if ((name === "href" || name === "src") && !SAFE_URL.test(trimmed)) continue;
+      // Media-strictness: an image src that isn't from the media base is a
+      // hotlink, so it goes, and the src-less image goes with it below.
+      if (name === "src" && tag === "img" && mediaBase && !isFromMediaBase(mediaBase, trimmed)) {
+        continue;
       }
-    });
-    return doc;
+      if (name === "style" && !isSafeStyle(value)) continue;
+      if (name === "lang" && !BCP47_TAG.test(trimmed)) continue;
+      if (name === "class") {
+        if (!PB_CLASS_TAGS.has(tag)) continue;
+        const kept = value.split(/\s+/).filter((t) => PB_TOKEN.test(t));
+        if (kept.length > 0) keep.push({ name, value: kept.join(" ") });
+        continue;
+      }
+      keep.push({ name, value });
+    }
+    if (tag === "img" && mediaBase && !keep.some((a) => a.name === "src")) return "drop";
+    return { keep };
   };
 }
 
 /**
- * Sanitize editor-authored HTML down to a safe formatting subset. Synchronous
- * (ultrahtml's *Sync variants) so callers don't need to await. Pass
+ * Sanitize editor-authored HTML down to a safe formatting subset. Synchronous,
+ * so callers don't need to await, and it never throws, whatever the input. Pass
  * `{ mediaBase }` to additionally drop `<img>` that isn't hosted in the media
  * library (see {@link SanitizeOptions.mediaBase}).
  */
 export function sanitizeRichHtml(html: string, options: SanitizeOptions = {}): string {
-  const transformers = [
-    sanitizeElements({ allowElements: ALLOWED_TAGS, allowComments: false }),
-    strictAttributes(options.mediaBase),
-  ] as Parameters<typeof transformSync>[1];
-  const out = transformSync(html, transformers).replace(DANGEROUS_TOKENS, "");
-  // With media-strictness on, a non-media image had its src stripped above;
-  // remove the resulting src-less <img> so nothing broken persists.
-  return options.mediaBase ? out.replace(SRCLESS_IMG, "") : out;
+  return sanitizeWith(html, richPolicy(options.mediaBase));
 }
 
 // ── The model preset (#465) ──────────────────────────────────────────────────
@@ -270,38 +414,23 @@ const MODEL_UNWRAP_TAGS = ALLOWED_TAGS.filter((t) => !MODEL_ALLOWED_TAGS.include
 /** Absolute HTTP, HTTPS, or `mailto` only. No relative path, hash, or other scheme. */
 const MODEL_SAFE_URL = /^(?:https?:|mailto:)/i;
 
-/** The part of a parent node the link unwrap touches. */
-type UhParent = { children: unknown[] };
-
-/** Strict attribute scrub for the model preset. An `<a>` whose `href` doesn't
- *  survive is unwrapped, keeping its text; one whose `href` does survive gets
+/** The model preset's policy. An `<a>` whose `href` doesn't survive is
+ *  unwrapped, keeping its text; one whose `href` does survive gets
  *  {@link MODEL_LINK_REL}. */
-function modelAttributes() {
-  return (doc: UhNode) => {
-    const deadLinks: { node: UhNode; parent: UhParent }[] = [];
-    walkSync(doc as never, (node: unknown, parent: unknown) => {
-      const el = node as UhNode;
-      if (el.type !== ELEMENT_NODE || !el.name || !el.attributes) return;
-      const allowed = MODEL_ATTR_ALLOW[el.name] ?? NO_ATTRS;
-      for (const name of Object.keys(el.attributes)) {
-        const value = String(el.attributes[name] ?? "").trim();
-        if (!allowed.has(name) || (name === "href" && !MODEL_SAFE_URL.test(value))) {
-          delete el.attributes[name];
-        }
-      }
-      if (el.name !== "a") return;
-      if (el.attributes.href) el.attributes.rel = MODEL_LINK_REL;
-      else if (parent) deadLinks.push({ node: el, parent: parent as UhParent });
-    });
-    // Innermost first: the walk is depth-first, so the reverse order unwraps a
-    // nested dead link before its ancestor.
-    for (let i = deadLinks.length - 1; i >= 0; i--) {
-      const { node, parent } = deadLinks[i]!;
-      parent.children = parent.children.flatMap((c) =>
-        c === node ? ((node as unknown as UhParent).children ?? []) : [c],
-      );
-    }
-    return doc;
+function modelPolicy(): Policy {
+  const allowedTags = new Set(MODEL_ALLOWED_TAGS);
+  const unwrapTags = new Set(MODEL_UNWRAP_TAGS);
+  return (tag, attrs) => {
+    if (unwrapTags.has(tag)) return "unwrap";
+    if (!allowedTags.has(tag)) return "drop";
+    const allowed = MODEL_ATTR_ALLOW[tag] ?? NO_ATTRS;
+    const keep = attrs.filter(
+      ({ name, value }) =>
+        allowed.has(name) && (name !== "href" || MODEL_SAFE_URL.test(value.trim())),
+    );
+    if (tag !== "a") return { keep };
+    if (!keep.some((a) => a.name === "href")) return "unwrap";
+    return { keep: [...keep, { name: "rel", value: MODEL_LINK_REL }] };
   };
 }
 
@@ -322,17 +451,10 @@ function modelAttributes() {
  *   unwrapped to its text, and a link with one gets
  *   `rel="noopener noreferrer nofollow"` ({@link MODEL_LINK_REL}).
  *
- * Synchronous, like {@link sanitizeRichHtml}, and a plain `(html) => string`, so
- * you can pass it anywhere a route takes a `sanitize` function.
+ * Synchronous and never throws, like {@link sanitizeRichHtml}, and a plain
+ * `(html) => string`, so you can pass it anywhere a route takes a `sanitize`
+ * function.
  */
 export function sanitizeModelHtml(html: string): string {
-  const transformers = [
-    sanitizeElements({
-      allowElements: MODEL_ALLOWED_TAGS,
-      blockElements: MODEL_UNWRAP_TAGS,
-      allowComments: false,
-    }),
-    modelAttributes(),
-  ] as Parameters<typeof transformSync>[1];
-  return transformSync(html, transformers).replace(DANGEROUS_TOKENS, "");
+  return sanitizeWith(html, modelPolicy());
 }

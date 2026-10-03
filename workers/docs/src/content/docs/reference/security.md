@@ -29,7 +29,7 @@ import {
 
 The security-critical primitives every Louise site shares—so a fix lands once
 and protects every site. Each helper takes its binding explicitly, so a site
-stays free to name bindings however it likes. No required peers (`ultrahtml` is
+stays free to name bindings however it likes. No required peers (`parse5` is
 bundled).
 
 ## `sanitizeRichHtml(html, options?)`
@@ -39,10 +39,14 @@ function sanitizeRichHtml(html: string, options?: { mediaBase?: string }): strin
 ```
 
 Parser-based **allowlist** sanitizer for editor-authored rich text. Parses with
-ultrahtml and rebuilds against a strict element + per-tag attribute allowlist,
-scrubs `href`/`src` schemes and inline `style`, and strips any stray dangerous
-token. The allowlist matches exactly what the [`client`](/reference/client/)
-ProseKit editor emits—run it on **write and render**.
+parse5, an implementation of the WHATWG HTML parser, so it reads markup the way
+a browser does. It rebuilds the HTML against a strict element and per-tag
+attribute allowlist, scrubs `href`/`src` schemes and inline `style`, and
+escapes every text node and attribute value it writes. It never throws: markup
+it can't use is dropped or kept as text, and markup nested more than 256
+elements deep comes back as escaped text. The allowlist matches exactly what the
+[`client`](/reference/client/) ProseKit editor emits—run it on **write and
+render**.
 
 ```ts
 const safe = sanitizeRichHtml(untrustedEditorHtml); // <script>, on*, javascript: … removed

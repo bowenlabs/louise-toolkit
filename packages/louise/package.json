@@ -260,10 +260,10 @@
     "drizzle-orm": "^0.45.2",
     "happy-dom": "^20.11.15",
     "harper.js": "^2.7.0",
+    "parse5": "^8.0.1",
     "prosekit": "^0.21.4",
     "solid-js": "^1.9.15",
     "typescript": "^6.0.3",
-    "ultrahtml": "^1.7.0",
     "vite-plugin-solid": "^2.11.14",
     "vitest": "^4.1.11"
   },
