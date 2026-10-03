@@ -104,9 +104,9 @@ export interface RateRule {
   method: string;
   /**
    * Exact path or a prefix test. {@link matchRateRule} calls it with the path
-   * as given and, when no rule matches that, with its {@link normalizeRatePath}
-   * form, so write it against the canonical path (`p === "/api/checkout"`) and
-   * the slashed and encoded spellings of that path match too.
+   * as given and with its {@link normalizeRatePath} form, so write it against
+   * the canonical path (`p === "/api/checkout"`) and the slashed and encoded
+   * spellings of that path match too.
    */
   match: (path: string) => boolean;
   limit: number;
@@ -155,34 +155,28 @@ export function normalizeRatePath(path: string): string {
  * (its own routes + budgets); pass it in. Editor endpoints are usually
  * session-gated and omitted so the editor can never lock itself out.
  *
- * It makes two passes over the rules, each in order. The first tests each rule
- * against `path` as given, and the first rule that matches wins. Only when no
- * rule matches does the second pass test each rule against the
- * {@link normalizeRatePath} form. So a request that a rule matches as given
- * always gets that rule, including a rule written for a slashed path (a site
- * with trailing slashes always on), and an earlier rule for the canonical path
- * can't take a spelling that a later rule was written for.
+ * Each rule is tested against `path` as given and against its
+ * {@link normalizeRatePath} form, and either one matching is a match. The
+ * normalized test means an exact rule for `/api/checkout` also limits
+ * `/api/checkout/`, which the router sends to the same endpoint. The test on
+ * the path as given keeps a rule written for a slashed path (a site with
+ * trailing slashes always on) matching.
  *
- * The second pass means an exact rule for `/api/checkout` also limits
- * `/api/checkout/`, which the router sends to the same endpoint. A request that
- * matched nothing before, such as a POST to `/api/checkout/`, can now be
- * limited.
+ * A request that matched a rule before still matches one, but not always the
+ * same one: rules are tried in order, and an earlier rule can now match the
+ * normalized path ahead of a later rule written for the spelling as given. A
+ * request that matched nothing before, such as a POST to `/api/checkout/`, can
+ * now be limited.
  */
 export function matchRateRule(
   rules: readonly RateRule[],
   method: string,
   path: string,
 ): RateRule | null {
-  const asGiven = firstMatch(rules, method, path);
-  if (asGiven) return asGiven;
   const normalized = normalizeRatePath(path);
-  return normalized === path ? null : firstMatch(rules, method, normalized);
-}
-
-/** The first rule for `method` whose `match` accepts `path`, or null. */
-function firstMatch(rules: readonly RateRule[], method: string, path: string): RateRule | null {
   for (const rule of rules) {
-    if (rule.method === method && rule.match(path)) return rule;
+    if (rule.method !== method) continue;
+    if (rule.match(path) || (normalized !== path && rule.match(normalized))) return rule;
   }
   return null;
 }
