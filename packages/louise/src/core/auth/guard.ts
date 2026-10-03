@@ -91,6 +91,12 @@ export function requireEditorFromContext(
  * it stayed on that origin. What comes back is the normalized path + query +
  * hash, never the caller's original string.
  *
+ * Staying on the origin isn't enough on its own. The parser resolves `.` and
+ * `..` segments and reads `\` as `/`, so `/.//evil.example` and
+ * `/a/..\\evil.example` both stay on the placeholder origin with the pathname
+ * `//evil.example`, which is off-site once the browser reads it. A normalized
+ * pathname that starts with `//` falls back too.
+ *
  * `fallback` is required: where a user lands by default is the site's call.
  */
 export function safeNextPath(raw: string | null | undefined, fallback: string): string {
@@ -98,7 +104,8 @@ export function safeNextPath(raw: string | null | undefined, fallback: string): 
   const base = "https://next.invalid";
   try {
     const url = new URL(raw, base);
-    return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : fallback;
+    if (url.origin !== base || url.pathname.startsWith("//")) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return fallback;
   }
