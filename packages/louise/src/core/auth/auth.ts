@@ -7,14 +7,16 @@
 // atomicity; D1 has no interactive transactions).
 //
 // Plugins, always on: magic-link (editor sign-in, allowlist-gated, unless
-// customers sign in by link too), admin (owner/editor roles), passkey
-// (WebAuthn—rpID is derived per request from `baseURL`, so passkeys bind to the
-// site's own origin, dev and prod alike). Captcha (Turnstile) mounts only when
-// configured. Customer sign-in (password or magic link) and extra user fields
-// are opt-in.
+// customers sign in by link too) and passkey (WebAuthn—rpID is derived per
+// request from `baseURL`, so passkeys bind to the site's own origin, dev and
+// prod alike). Admin (owner/editor roles and the user-administration endpoints)
+// is on for an editor instance and off for a customer one unless the site sets
+// `customers.adminEndpoints`. Captcha (Turnstile) mounts only when configured.
+// Customer sign-in (password or magic link) and extra user fields are opt-in.
 
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { admin, captcha, magicLink, organization } from "better-auth/plugins";
 import { reportDegraded } from "../degraded.js";
 import { sendEmail } from "../email/index.js";
@@ -164,6 +166,23 @@ export interface LouiseAuthConfig {
     /** Password sign-in only. Send the self-serve reset link. Omit to leave
      *  reset unavailable. */
     sendResetPassword?: (args: { user: { email: string }; url: string }) => Promise<void> | void;
+    /**
+     * Mount Better Auth's admin endpoints on this instance. Default `false`.
+     *
+     * The admin plugin serves user administration at `<basePath>/admin/*`:
+     * listing, creating, and removing users, setting roles, banning, and
+     * impersonation. Their only check is the session user's `role`, and a
+     * customer instance has no use for them, so it leaves them off.
+     *
+     * Off, the instance keeps what the plugin did for every request: the `role`
+     * and ban columns stay in the user table and on the session user, a new
+     * account still gets its role, and a banned user still can't sign in. The
+     * schema doesn't change, so turning this on or off needs no migration.
+     *
+     * Set it only when the site administers its customers through these
+     * endpoints, and make sure no customer row can hold an admin role.
+     */
+    adminEndpoints?: boolean;
   };
   /**
    * Mount point for this instance's routes. Default `/api/auth`.
@@ -264,6 +283,21 @@ export interface LouiseAuthConfig {
   /** Display name for newly-created non-admin users (default "Editor"). */
   defaultUserName?: string;
 }
+
+/**
+ * The user columns Better Auth's admin plugin declares, for an instance that
+ * leaves the plugin off. Declared here instead, the instance still writes and
+ * reads `role` and the ban state, so the session user keeps its `role` and the
+ * generated schema, which always includes them, stays the one the runtime uses.
+ * `input: false`, as in the plugin, so no one sets their own role or ban
+ * through `update-user` or sign-up.
+ */
+const ADMIN_USER_FIELDS = {
+  role: { type: "string", required: false, input: false },
+  banned: { type: "boolean", defaultValue: false, required: false, input: false },
+  banReason: { type: "string", required: false, input: false },
+  banExpires: { type: "date", required: false, input: false },
+} as const;
 
 /** KV's floor for `expirationTtl`. Shorter TTLs are rejected outright. */
 const KV_MIN_TTL_SEC = 60;
@@ -401,7 +435,8 @@ function scopedRateLimitStorage(
   return { consume: (key, rule) => inner.consume(`${scope}|${key}`, rule) };
 }
 
-/** The current user on a resolved session (Better Auth + admin-plugin `role`). */
+/** The current user on a resolved session (Better Auth's user, with the admin
+ *  plugin's `role`, which a customer instance declares itself). */
 export interface LouiseSessionUser {
   id: string;
   email?: string;
@@ -463,6 +498,9 @@ export async function getLouiseAuth(
   // email and password stay off (see `customers.signIn`).
   const customerLinks = config.customers?.signIn === "magic-link";
   const customerSignUpClosed = customerLinks && !!config.customers?.disableSignUp;
+  // A customer instance leaves the admin endpoints off unless the site asks for
+  // them (see `customers.adminEndpoints`).
+  const adminEndpoints = !config.customers || config.customers.adminEndpoints === true;
 
   // Same-D1 auth namespace (issue #15, Option B): when set, every auth table is
   // renamed `<prefix><model>` so it queries the same tables the namespaced
@@ -481,7 +519,12 @@ export async function getLouiseAuth(
   const userOptions = {
     ...(prefix ? { modelName: `${prefix}user` } : {}),
     // Louise's standard first/last name fields, ahead of the site's own extras.
-    additionalFields: { ...LOUISE_USER_FIELDS, ...config.additionalFields },
+    // Without the admin plugin, its columns too, so `role` and bans still work.
+    additionalFields: {
+      ...(adminEndpoints ? {} : ADMIN_USER_FIELDS),
+      ...LOUISE_USER_FIELDS,
+      ...config.additionalFields,
+    },
   };
 
   // Member-invitation email (org plugin): only wired when the site provides a
@@ -591,6 +634,30 @@ export async function getLouiseAuth(
           }),
         },
       },
+      // The admin plugin refuses a banned user a new session. Without the
+      // plugin, this does the same, so a ban outlives turning the endpoints off.
+      ...(adminEndpoints
+        ? {}
+        : {
+            session: {
+              create: {
+                before: async (session, ctx) => {
+                  if (!ctx) return;
+                  const user = (await ctx.context.internalAdapter.findUserById(session.userId)) as {
+                    banned?: boolean | null;
+                    banExpires?: Date | string | null;
+                  } | null;
+                  if (!user?.banned) return;
+                  // An expired ban no longer applies, as with the plugin.
+                  if (user.banExpires && new Date(user.banExpires).getTime() < Date.now()) return;
+                  throw new APIError("FORBIDDEN", {
+                    message: "You can't sign in to this account.",
+                    code: "BANNED_USER",
+                  });
+                },
+              },
+            },
+          }),
     },
     plugins: [
       magicLink({
@@ -647,7 +714,10 @@ export async function getLouiseAuth(
           await (ctx ? ctx.context.runInBackgroundOrAwait(send) : send);
         },
       }),
-      admin(),
+      // User administration at `<basePath>/admin/*`, guarded only by the
+      // session user's role. An editor instance needs it; a customer instance
+      // gets it only by asking (see `customers.adminEndpoints`).
+      ...(adminEndpoints ? [admin()] : []),
       // rpID is domain-bound: a localhost-enrolled passkey won't work on prod.
       // Defaults to this origin's hostname; an explicit value (typically the
       // apex) lets one passkey cover an admin subdomain too—see the option.

@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -220,6 +220,39 @@ and a header with more than one address resolves to no address, so every such
 request would share one bucket per path. That shared bucket is the lockout this
 ADR worries about, open to anyone, so the factory reads the header Cloudflare
 sets and overwrites.
+
+## Amendment (2026-10-03, customer instances don't mount the admin endpoints)
+
+`getLouiseAuth` added Better Auth's `admin` plugin to every instance. The
+plugin mounts user administration at `<basePath>/admin/*`: listing, creating,
+and removing users, setting roles, banning, and impersonation. Its only check is
+the session user's `role`. An editor instance uses that role and those
+endpoints. A customer instance, one with `customers` set, uses neither, and it
+can't promise that no row in its user table holds an admin role: a table once
+shared with editors, a hand edit, or an import can each leave one there.
+
+Deny by default applies to these endpoints as it does to `/api/louise/*`: a
+surface nothing uses shouldn't be reachable. So **a customer instance doesn't
+mount the admin plugin** unless the site sets `customers.adminEndpoints: true`.
+An editor instance keeps it.
+
+What the plugin did on every request stays, so the change removes endpoints
+and nothing else:
+
+- **The schema doesn't change.** `generateAuthSchemaSql` still emits the `role`
+  and ban columns for every instance, so an existing database needs no
+  migration, and switching `adminEndpoints` on or off needs none either.
+- **`role` stays on the session user.** The factory declares the plugin's user
+  fields itself when the plugin is off, with `input: false`, so a new account
+  still gets its role, the session user still carries it, and no one can set
+  their own.
+- **A ban still holds.** The factory refuses a banned user a new session, until
+  the ban expires, as the plugin does.
+
+**Considered and rejected:** keeping the plugin and passing it an
+`adminRoles` value no customer holds. That leaves every endpoint mounted behind
+a value in a table the instance can't vouch for, which is the dependency this
+amendment removes.
 
 ## Out of scope, tracked separately
 

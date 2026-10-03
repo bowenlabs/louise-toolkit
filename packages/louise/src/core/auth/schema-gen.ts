@@ -43,8 +43,8 @@ export interface AuthSchemaConfig {
 }
 
 /**
- * The field-affecting Better Auth options for Louise's always-on plugin set
- * (magic-link, admin, passkey) plus the site's opt-in customer sign-in and extra
+ * The field-affecting Better Auth options for the plugins whose columns every
+ * Louise instance uses (magic-link, admin, passkey) plus the site's opt-in customer sign-in and extra
  * user fields. Runtime-only concerns (email sender, captcha secret, rpID) don't
  * change the schema, so they're omitted—the plugins are constructed with inert
  * options purely for introspection.
@@ -57,6 +57,10 @@ export function authSchemaOptions(config: AuthSchemaConfig): BetterAuthOptions {
     user: { additionalFields: { ...LOUISE_USER_FIELDS, ...config.additionalFields } },
     plugins: [
       magicLink({ sendMagicLink: async () => {} }),
+      // Always, including for customers: a customer instance leaves the admin
+      // endpoints off by default but still reads and writes `role` and the ban
+      // columns, and keeping them means `customers.adminEndpoints` can change
+      // without a migration.
       admin(),
       passkey(),
       // No prefix/schema override here: `generateAuthSchemaSql` namespaces every
