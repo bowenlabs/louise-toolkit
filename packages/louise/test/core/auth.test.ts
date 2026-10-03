@@ -407,6 +407,25 @@ describe("safeNextPath", () => {
   it("returns the normalized path, never the raw string", () => {
     expect(safeNextPath("/a/../b/./c", "/")).toBe("/b/c");
   });
+
+  it("refuses a dot segment that normalizes into //", () => {
+    // Each stays on the placeholder origin, but its pathname comes back as
+    // `//evil.example`, which a browser reads as another host.
+    for (const raw of [
+      "/.//evil.example",
+      "/a/..//evil.example",
+      "/a/..\\\\evil.example",
+      "/a/../\\evil.example",
+      "/%2e%2e//evil.example",
+      "/.\t//evil.example",
+    ]) {
+      expect(safeNextPath(raw, "/home"), JSON.stringify(raw)).toBe("/home");
+    }
+  });
+
+  it("keeps a double slash after the first segment", () => {
+    expect(safeNextPath("/a//b", "/")).toBe("/a//b");
+  });
 });
 
 describe("resolveSession (generic, ungated)", () => {
