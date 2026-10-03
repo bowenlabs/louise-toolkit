@@ -96,6 +96,8 @@ Subscriptions reuse the same tokenized-card model: save a card on file with
 `createCard`, pick a variation of a plan from `listSubscriptionPlans`, then
 enroll with `createSubscription`. A variation that bills an order each cycle
 takes a `DRAFT` order from `createOrder` as its template, fulfillment included.
+`subscriptionOffersFor` turns the plans into the ways to subscribe to one item,
+and `templatePhases` names the template for each phase that bills it.
 Cancel, pause, and resume are scheduled changes; see the
 [reference](/reference/commerce/#subscriptions).
 

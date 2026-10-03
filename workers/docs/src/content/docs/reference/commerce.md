@@ -524,6 +524,70 @@ sees a shippable order in the Dashboard. A fixed-price `STATIC` phase raises an
 invoice only. A customer whose card is to change gets `updateSubscription` with
 the new `cardId`.
 
+#### Offering a subscription on an item
+
+Five pure helpers sit between `listSubscriptionPlans` and `createSubscription`,
+so a site doesn't re-derive which plans an item can be subscribed under:
+
+- `subscriptionOffersFor(plans, item, locationId?, { labels }?)` returns a
+  `SquareSubscriptionOffer` for each way to subscribe to an item, in the plans'
+  order. `item` is a `SquareSubscribableItem`: `{ itemId, categoryIds }`. A plan
+  has to cover the item (`planCoversItem`: it names the item, one of its
+  categories, or every item), and when you pass `locationId`, both the plan and
+  the variation have to be present there.
+- `findSubscriptionOffer(plans, item, planVariationId, locationId?, { labels }?)`
+  returns the one offer for a plan variation ID, or `null`. Check an ID a
+  client sent with it before you enroll.
+- `ongoingPhase(variation)` is the last phase, the one a subscription settles
+  into after a trial.
+- `cadenceLabel(cadence, labels?)` reads a cadence as a customer would:
+  `EVERY_TWO_WEEKS` is "Every 2 weeks". A cadence it doesn't know reads as
+  Square names it ("Every five weeks"). The table and that fallback are
+  English. Pass `labels` as a map, keyed by cadence, to replace entries, or as
+  a function, called for every cadence, to replace the fallback too; it
+  returns `undefined` for a cadence it leaves to the built-in label.
+- `templatePhases(variation, templateOrderId)` returns the `phases` that
+  `createSubscription` takes: one entry per `RELATIVE` phase, by ordinal, and
+  `[]` for a variation with none.
+
+Only a variation whose ongoing phase prices `RELATIVE` becomes an offer. Square
+bills it by copying the order template, so each cycle can carry a shipment and
+its shipping charge. A `STATIC` variation raises an invoice only, with no order
+to fulfill, and a variation with no phase has nothing to bill. An offer's
+`priceCents` is therefore `null`: the item bills at its catalog price, less the
+plan's discounts.
+
+```ts
+const plans = await listSubscriptionPlans(config);
+const item = { itemId: product.id, categoryIds: product.categoryIds };
+
+// The product page lists these.
+const offers = subscriptionOffersFor(plans, item, locationId);
+
+// The enrollment checks what the client sent.
+const offer = findSubscriptionOffer(plans, item, body.planVariationId, locationId);
+if (!offer) return new Response("That plan isn't available.", { status: 400 });
+const variation = plans
+  .find((plan) => plan.id === offer.planId)
+  ?.variations.find((v) => v.id === offer.variationId);
+
+const template = await createOrder(config, {
+  locationId,
+  customerId,
+  state: "DRAFT",
+  lineItems,
+  fulfillments,
+});
+const subscription = await createSubscription(config, {
+  locationId,
+  planVariationId: offer.variationId,
+  customerId,
+  cardId,
+  phases: variation ? templatePhases(variation, template.id) : [],
+  idempotencyKey,
+});
+```
+
 A change to a subscription is scheduled, not immediate. `cancelSubscription`
 sets `canceledDate` to the end of the current billing period and leaves the
 status `ACTIVE` until then; `updateSubscription(id, { canceledDate: null })`
@@ -580,6 +644,9 @@ import {
   createCard,
   retrieveLoyaltyAccountByCustomer,
   listSubscriptionPlans,
+  subscriptionOffersFor,
+  findSubscriptionOffer,
+  templatePhases,
   searchSubscriptionsByCustomer,
   createSubscription,
   cancelSubscription,
@@ -592,32 +659,33 @@ import {
   type SquareCustomer,
   type SquareSubscription,
   type SquareSubscriptionPlan,
+  type SquareSubscriptionOffer,
 } from "louise-toolkit/commerce/square";
 ```
 
-| Area                      | Exports                                                                                                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                                            |
-| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                                           |
-| **Catalog images**        | `createCatalogImage`—multipart upload returning the ID that `imageIds` takes                                                                                                                                                                                        |
-| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                                              |
-| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                        |
-| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                        |
-| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                                               |
-| **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                                             |
-| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling) |
-| **Payments**              | `createPayment`—charge a Web Payments card token against an order. `retrievePayment`—read one back by ID, with its status and receipt.                                                                                                                              |
-| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                    |
-| **Cards & subscriptions** | `createCard`, `listSubscriptionPlans`, `searchSubscriptionsByCustomer`, `retrieveSubscription`, `createSubscription`, `updateSubscription`, `cancelSubscription`, `pauseSubscription`, `resumeSubscription`; see below.                                             |
-| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                                                  |
-| **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                                            |
-| **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                                                  |
-| **Invoices**              | `createInvoice`, `publishInvoice`, `retrieveInvoice`, `SquareInvoice`, `InvoicePaymentRequestInput`                                                                                                                                                                 |
-| **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                                         |
+| Area                      | Exports                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Config**                | `SquareConfig` (`accessToken`, `environment`, `version`, `retry`), `SquareRetryConfig`, `SQUARE_VERSION`, `centsToMajor`                                                                                                                                                                                                                      |
+| **Locations**             | `listLocations`, `retrieveLocation`, `createLocation`, `updateLocation` (sparse), `SquareLocation`, `SquareLocationInput`                                                                                                                                                                                                                     |
+| **Catalog images**        | `createCatalogImage`—multipart upload returning the ID that `imageIds` takes                                                                                                                                                                                                                                                                  |
+| **Catalog**               | `listCatalogItems`, `retrieveCatalogItem`, `retrieveVariationPrices`, `mapCatalogItem`                                                                                                                                                                                                                                                        |
+| **Catalog (write)**       | `upsertCatalogItem`, `batchUpsertCatalogObjects`—per-location pricing via `locationOverrides`, presence via `presentAt` / `priceAtLocation`. Both refuse a variation sold where its item isn't, and an item over Square's 250-variation cap.                                                                                                  |
+| **Catalog (edit)**        | `readModifyWriteCatalog(config, id, mutate)`—edit one field of an existing object without erasing the ones this client doesn't model. Use it over hand-rolling a read/write pair; see below.                                                                                                                                                  |
+| **Inventory**             | `retrieveInventoryCounts`, `batchChangeInventory`, `setPhysicalCount`                                                                                                                                                                                                                                                                         |
+| **Menu**                  | `buildMenuTabs`—order-ahead menu tabs from the category tree, with sold-out state and modifier bounds. Pure; see below.                                                                                                                                                                                                                       |
+| **Orders**                | `createOrder`, `retrieveOrder`, `calculateOrder` (price a cart without persisting it), `orderSubtotal` (after discounts, before tax), `searchOrdersByCustomer`, `searchOrders` (date/state/location filters, cursor-paged, chunked at Square's 10-location ceiling)                                                                           |
+| **Payments**              | `createPayment`—charge a Web Payments card token against an order. `retrievePayment`—read one back by ID, with its status and receipt.                                                                                                                                                                                                        |
+| **Customers**             | `searchCustomersByEmail`, `retrieveCustomer`, `createCustomer`, `ensureCustomer`                                                                                                                                                                                                                                                              |
+| **Cards & subscriptions** | `createCard`, `listSubscriptionPlans`, `subscriptionOffersFor`, `findSubscriptionOffer`, `planCoversItem`, `ongoingPhase`, `cadenceLabel`, `templatePhases`, `searchSubscriptionsByCustomer`, `retrieveSubscription`, `createSubscription`, `updateSubscription`, `cancelSubscription`, `pauseSubscription`, `resumeSubscription`; see below. |
+| **Loyalty**               | `retrieveLoyaltyAccountByCustomer`                                                                                                                                                                                                                                                                                                            |
+| **Team**                  | `createTeamMember`, `updateTeamMember`, `retrieveTeamMember`, `searchTeamMembers`, `SquareTeamMember`, `TeamMemberInput`                                                                                                                                                                                                                      |
+| **Labor**                 | `createTimecard` (clock in), `updateTimecard` (clock out), `retrieveTimecard`, `searchTimecards`, `SquareTimecard`, `TimecardWage`                                                                                                                                                                                                            |
+| **Invoices**              | `createInvoice`, `publishInvoice`, `retrieveInvoice`, `SquareInvoice`, `InvoicePaymentRequestInput`                                                                                                                                                                                                                                           |
+| **Webhooks**              | `verifySquareSignature(url, body, header, key)`—note the URL is signed too.                                                                                                                                                                                                                                                                   |
 
 The `Square*` interfaces (`SquareCatalogItem`, `SquareVariation`, `SquareOrder`,
 `SquareTender`, `SquarePayment`, `SquareCustomer`, `SquareCard`, `SquareLoyaltyAccount`,
-`SquareSubscription`, `SquareSubscriptionPlan`, `SquareMoney`, …) type the
+`SquareSubscription`, `SquareSubscriptionPlan`, `SquareSubscriptionOffer`, `SquareMoney`, …) type the
 normalized, camelCase shapes the
 client returns. `SquareMoney` is an alias of the shared `Money`, and
 `centsToMajor` is re-exported from the [shared base](#louisetoolkitcommerce-shared-base)—both still import from `louise-toolkit/commerce/square`.
