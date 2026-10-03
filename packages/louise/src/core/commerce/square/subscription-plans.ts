@@ -50,7 +50,7 @@ export interface SquareSubscriptionPlanVariation extends SquarePresence {
 export interface SquareSubscriptionPlan extends SquarePresence {
   id: string;
   name: string;
-  /** Every item is eligible; the two id lists are then empty. */
+  /** Every item is eligible; the two ID lists are then empty. */
   allItems: boolean;
   eligibleItemIds: string[];
   eligibleCategoryIds: string[];
@@ -90,7 +90,7 @@ function mapVariation(obj: RawCatalogObject): SquareSubscriptionPlanVariation {
  *
  * Square returns a variation two ways, nested under its plan and as an object
  * of its own, and either can arrive alone, so both are read and joined on the
- * plan id. A variation whose plan isn't in the catalog is dropped: there's
+ * plan ID. A variation whose plan isn't in the catalog is dropped: there's
  * nothing to subscribe it to. Deleted plans and variations are skipped.
  */
 export async function listSubscriptionPlans(
@@ -144,7 +144,7 @@ export async function listSubscriptionPlans(
 export interface SquareSubscriptionOffer {
   planId: string;
   planName: string;
-  /** The plan variation id, which `createSubscription` enrolls in. */
+  /** The plan variation ID, which `createSubscription` enrolls in. */
   variationId: string;
   /** The variation's name, as the seller wrote it in Square. */
   name: string;
@@ -163,7 +163,7 @@ export interface SquareSubscriptionOffer {
 /** The item side of a plan's eligibility: a catalog item and the categories
  *  it's in. */
 export interface SquareSubscribableItem {
-  /** The catalog item id, which a plan's `eligibleItemIds` names. */
+  /** The catalog item ID, which a plan's `eligibleItemIds` names. */
   itemId: string;
   categoryIds: readonly string[];
 }
@@ -186,18 +186,31 @@ const CADENCE_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A site's own words for Square's cadence names. A map replaces the built-in
+ * label for each cadence it names and leaves the rest English. A function is
+ * asked about every cadence, including one Square adds later, so a site in
+ * another language never shows English; it returns `undefined` to fall back
+ * to the built-in label.
+ */
+export type SquareCadenceLabels =
+  | Readonly<Record<string, string>>
+  | ((cadence: string) => string | undefined);
+
+/**
  * A Square cadence name as a customer reads it: "Every 2 weeks" for
  * `EVERY_TWO_WEEKS`. A cadence the table doesn't know reads as Square names
  * it, lowercased ("Every five weeks" for `EVERY_FIVE_WEEKS`), so a new one is
  * odd rather than blank. An empty cadence gives `""`.
  *
- * The built-in table and the fallback are English. `labels` overrides or
- * extends the table, cadence by cadence, so a site in another language passes
- * its own label for each cadence it sells; a cadence `labels` leaves out
- * falls back to the English table.
+ * The built-in table and the fallback are English. `labels` replaces either:
+ * a map, cadence by cadence, or a function, for every cadence (see
+ * `SquareCadenceLabels`).
  */
-export function cadenceLabel(cadence: string, labels?: Readonly<Record<string, string>>): string {
-  if (labels && Object.hasOwn(labels, cadence)) return labels[cadence] ?? "";
+export function cadenceLabel(cadence: string, labels?: SquareCadenceLabels): string {
+  if (typeof labels === "function") {
+    const own = labels(cadence);
+    if (own !== undefined) return own;
+  } else if (labels && Object.hasOwn(labels, cadence)) return labels[cadence] ?? "";
   if (Object.hasOwn(CADENCE_LABELS, cadence)) return CADENCE_LABELS[cadence] ?? "";
   const words = cadence
     .toLowerCase()
@@ -249,7 +262,7 @@ export function subscriptionOffersFor(
   plans: readonly SquareSubscriptionPlan[],
   item: SquareSubscribableItem,
   locationId?: string,
-  options: { labels?: Readonly<Record<string, string>> } = {},
+  options: { labels?: SquareCadenceLabels } = {},
 ): SquareSubscriptionOffer[] {
   const offers: SquareSubscriptionOffer[] = [];
   for (const plan of plans) {
@@ -276,17 +289,17 @@ export function subscriptionOffersFor(
 }
 
 /**
- * The offer for one plan variation id, or `null` when the item has no such
+ * The offer for one plan variation ID, or `null` when the item has no such
  * offer: the variation doesn't exist, the item isn't eligible, it isn't
  * present at `locationId`, or `subscriptionOffersFor` doesn't offer it. Check a
- * plan variation id a client sent with this before you enroll in it.
+ * plan variation ID a client sent with this before you enroll in it.
  */
 export function findSubscriptionOffer(
   plans: readonly SquareSubscriptionPlan[],
   item: SquareSubscribableItem,
   planVariationId: string,
   locationId?: string,
-  options: { labels?: Readonly<Record<string, string>> } = {},
+  options: { labels?: SquareCadenceLabels } = {},
 ): SquareSubscriptionOffer | null {
   return (
     subscriptionOffersFor(plans, item, locationId, options).find(

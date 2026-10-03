@@ -542,8 +542,10 @@ so a site doesn't re-derive which plans an item can be subscribed under:
   into after a trial.
 - `cadenceLabel(cadence, labels?)` reads a cadence as a customer would:
   `EVERY_TWO_WEEKS` is "Every 2 weeks". A cadence it doesn't know reads as
-  Square names it ("Every five weeks"). The table is English; pass `labels`,
-  keyed by cadence, to replace any of it.
+  Square names it ("Every five weeks"). The table and that fallback are
+  English. Pass `labels` as a map, keyed by cadence, to replace entries, or as
+  a function, called for every cadence, to replace the fallback too; it
+  returns `undefined` for a cadence it leaves to the built-in label.
 - `templatePhases(variation, templateOrderId)` returns the `phases` that
   `createSubscription` takes: one entry per `RELATIVE` phase, by ordinal, and
   `[]` for a variation with none.

@@ -111,6 +111,14 @@ describe("cadenceLabel", () => {
     expect(cadenceLabel("EVERY_FIVE_WEEKS", labels)).toBe("Toutes les cinq semaines");
     expect(cadenceLabel("WEEKLY", labels)).toBe("Every week");
   });
+
+  it("asks a labels function about every cadence, and falls back on undefined", () => {
+    const labels = (cadence: string) =>
+      cadence === "WEEKLY" ? undefined : `Cadence ${cadence.toLowerCase()}`;
+    expect(cadenceLabel("MONTHLY", labels)).toBe("Cadence monthly");
+    expect(cadenceLabel("EVERY_FIVE_WEEKS", labels)).toBe("Cadence every_five_weeks");
+    expect(cadenceLabel("WEEKLY", labels)).toBe("Every week");
+  });
 });
 
 describe("ongoingPhase", () => {
