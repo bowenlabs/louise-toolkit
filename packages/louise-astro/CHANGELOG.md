@@ -4,6 +4,10 @@
 
 ### Patch Changes
 
+- This release requires `louise-toolkit` 0.43.1, a security patch: `safeNextPath` no longer returns a path a browser reads as another host. It's a patch, unlike the minor a toolkit minor brings, because 0.43.1 sits inside every `^0.43.0` range.
+
+  **Upgrading:** update `@louise-toolkit/astro` and `louise-toolkit` together, then check that the lockfile holds one `louise-toolkit` version. Updating only the adapter nests 0.43.1 beside your 0.43.0, and your own code keeps calling the unfixed copy.
+
 - Updated dependencies [4ee7c4a]
   - louise-toolkit@0.43.1
 
