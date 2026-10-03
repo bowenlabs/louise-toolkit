@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed, and rate rules match every spelling of a path.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -234,8 +234,8 @@ and the address limiter from the 2026-10-02 amendment still holds.
 A pre-launch audit of a site found that choice copied to a payment form. A
 checkout takes a card token from anyone, and the captcha is what stands between
 a card-testing script and a run of authorizations. A deploy whose Secrets Store
-binding broke would turn that captcha off without a word, leaving only a
-per-address rate limit that fails open itself.
+binding broke would silently turn that captcha off, leaving only a per-address
+rate limit that fails open itself.
 
 **Each control decides.** `resolveCaptcha(env, { devServer })` returns one of
 three states: `off` (not provisioned), `on` with the site key and secret, or
@@ -243,12 +243,12 @@ three states: `off` (not provisioned), `on` with the site key and secret, or
 `unavailable` result as the `auth.captcha-unavailable` degrade. The caller
 chooses what `unavailable` means:
 
-| Control                                 | On `unavailable` | Why                                                                                                        |
-| --------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
-| Studio sign-in (`getLouiseAuth`)        | Fail open        | Locking the owner out is worse. Unchanged: it still reads `activeCaptchaSecret`.                           |
-| A checkout, or any form that charges    | Fail closed      | A captcha that turns off without a word invites card testing. Refuse with a 503 and the degrade.           |
-| A form that mails an address it's given | Fail closed      | It's a mail cannon without the captcha, and nobody's locked out of anything they own.                      |
-| A customer sign-in link                 | The site decides | It mails any address, as above, but a site may prefer that customers can still sign in. Say so in its ADR. |
+| Control                                 | On `unavailable` | Why                                                                                                          |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| Studio sign-in (`getLouiseAuth`)        | Fail open        | Locking the owner out is worse. Unchanged: it still reads `activeCaptchaSecret`.                             |
+| A checkout, or any form that charges    | Fail closed      | A captcha that silently turns off invites card testing. Refuse with a 503 and the degrade.                   |
+| A form that mails an address it's given | Fail closed      | It's a mail cannon without the captcha, and nobody's locked out of anything they own.                        |
+| A customer sign-in link                 | The site decides | It mails any address, as above, but a site might prefer that customers can still sign in. Say so in its ADR. |
 
 **The dev server is `off`, decided by a build-time flag.** The dev server reads
 the real site key from the Wrangler config and has no Secrets Store, so it
@@ -263,16 +263,30 @@ A preview of a build is a build, so it fails closed like one, unless
 `turnstileSecret`, and `turnstileSiteKey` still fail open, so nothing changes
 for a site until it moves a control onto `resolveCaptcha`.
 
-**Rate rules match every spelling of a path.** The same audit found a related
-gap in the per-address limiter. Astro's default `trailingSlash: "ignore"` sends
-`/api/checkout/` to the `/api/checkout` endpoint, but an exact rule tested the
-raw path and missed it, so the slashed spelling had no limit at all.
+**A closed control has to be heard.** A checkout that fails closed answers 503
+until someone repairs the secret, and only a critical incident alerts anyone
+(ADR 0022 § 6). The report's cause says whether the binding is missing or
+unreadable, so the incident record names the fix. A site that moves a checkout
+onto `resolveCaptcha` adds `auth.captcha-unavailable` to its `critical` list.
+
+## Amendment (2026-10-03, rate rules match every spelling of a path)
+
+The same audit found a gap in the per-address limiter. Astro's default
+`trailingSlash: "ignore"` sends `/api/checkout/` to the `/api/checkout`
+endpoint, but an exact rule tested the raw path and missed it, so the slashed
+spelling had no limit at all.
+
 `matchRateRule` now also tests each rule against `normalizeRatePath(path)`:
 decoded with `decodeURI` until stable, duplicate slashes collapsed, and the
 trailing slash removed. That matches what Astro 7 does before it routes, which
 decodes the same way, collapses duplicate slashes, and ignores one trailing
 slash. Testing the raw path as well keeps a rule written for a slashed path
-working, so the change only ever adds matches.
+working.
+
+A request that matched a rule before still matches one, but the first matching
+rule can now be a different one: rules are tried in order, and an earlier rule
+for the canonical path can now claim a spelling a later rule was written for. A
+request that matched nothing, such as a POST to a slashed path, can now get a 429. Both are upgrade edges the changeset names.
 
 ## Out of scope, tracked separately
 

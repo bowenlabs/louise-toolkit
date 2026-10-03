@@ -3,6 +3,7 @@ import {
   activeCaptcha,
   activeCaptchaSecret,
   CAPTCHA_UNAVAILABLE_DEGRADED,
+  type CaptchaEnv,
   defaultResolveAdmins,
   resolveCaptcha,
   getLouiseAuth,
@@ -150,6 +151,29 @@ describe("resolveCaptcha", () => {
       { reason: "missing" },
       { reason: "unreadable" },
     ]);
+    // The reason is the cause, not only a detail, so it reaches the incident
+    // record: the incident report keeps `message` and drops `details`.
+    expect(reports.map((event) => event.message)).toEqual([
+      "the Turnstile secret is unreadable, empty, or the placeholder",
+      "the Turnstile secret binding is missing",
+      "the Turnstile secret is unreadable, empty, or the placeholder",
+    ]);
+    // A binding that throws is reported by the read too: one outage, two names.
+    expect(events.map((event) => event.name)).toEqual([
+      CAPTCHA_UNAVAILABLE_DEGRADED,
+      CAPTCHA_UNAVAILABLE_DEGRADED,
+      "security.readSecret",
+      CAPTCHA_UNAVAILABLE_DEGRADED,
+    ]);
+  });
+
+  it("takes an env with only the two Turnstile bindings", async () => {
+    const e: CaptchaEnv = { TURNSTILE_SITE_KEY: "0xREAL", TURNSTILE_SECRET: "real" };
+    expect(await resolveCaptcha(e, deployed)).toEqual({
+      kind: "on",
+      siteKey: "0xREAL",
+      secret: "real",
+    });
   });
 
   it("is off on the dev server, which has the real site key and no Secrets Store", async () => {

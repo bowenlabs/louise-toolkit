@@ -160,7 +160,13 @@ export function normalizeRatePath(path: string): string {
  * normalized test means an exact rule for `/api/checkout` also limits
  * `/api/checkout/`, which the router sends to the same endpoint. The test on
  * the path as given keeps a rule written for a slashed path (a site with
- * trailing slashes always on) matching as it did before.
+ * trailing slashes always on) matching.
+ *
+ * A request that matched a rule before still matches one, but not always the
+ * same one: rules are tried in order, and an earlier rule can now match the
+ * normalized path ahead of a later rule written for the spelling as given. A
+ * request that matched nothing before, such as a POST to `/api/checkout/`, can
+ * now be limited.
  */
 export function matchRateRule(
   rules: readonly RateRule[],

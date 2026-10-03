@@ -135,7 +135,9 @@ describe("createLouiseMiddleware — rate limiting", () => {
       rateLimit: { rules: exact, kv: makeKv() },
     });
     // Astro routes all three to one endpoint under `trailingSlash: "ignore"`,
-    // so all three spend one budget: the third request is over it.
+    // so all three spend one budget: the third request is over it. (Astro
+    // collapses the double slash before middleware runs, so in real traffic
+    // the third arrives as `/api/checkout/`; the core normalizes it anyway.)
     expect((await run(mw, makeContext("POST", "/api/checkout"))).status).toBe(200);
     expect((await run(mw, makeContext("POST", "/api/checkout/"))).status).toBe(200);
     expect((await run(mw, makeContext("POST", "/api//checkout/"))).status).toBe(429);

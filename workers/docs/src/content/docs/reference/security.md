@@ -188,6 +188,12 @@ path still matches the path as given, so a site with trailing slashes always on
 keeps working. Every spelling counts against the same budget, because the
 bucket is keyed by the rule's name.
 
+A request that matched a rule before this change still matches one, but not
+always the same one. Rules are tried in order, so with a rule for `/a` ahead of
+a rule for `/a/`, a request to `/a/` now matches the first and spends its
+budget. Keep one rule per endpoint, written for the canonical path. A request
+that matched nothing before, such as a POST to `/api/checkout/`, can now get a 429.
+
 ```ts
 function normalizeRatePath(path: string): string;
 

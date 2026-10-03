@@ -21,14 +21,18 @@ export const TURNSTILE_PLACEHOLDER = "DUMMY_REPLACE_ME";
  *  verify against a real secret, so captcha also requires a real site key. */
 export const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
+/** The two Turnstile bindings. Either might be missing. Every `LouiseAuthEnv`
+ *  fits, and so does a route's own env that has only these two. */
+export type CaptchaEnv = Pick<LouiseAuthEnv, "TURNSTILE_SECRET" | "TURNSTILE_SITE_KEY">;
+
 /** The public site key to render, or null to render no widget (test/unset). */
-export function turnstileSiteKey(env: LouiseAuthEnv): string | null {
+export function turnstileSiteKey(env: CaptchaEnv): string | null {
   const key = env.TURNSTILE_SITE_KEY?.trim();
   return key && key !== TURNSTILE_TEST_SITE_KEY ? key : null;
 }
 
 /** The stored Turnstile secret, or null while it's the placeholder/unreadable. */
-export function turnstileSecret(env: LouiseAuthEnv): Promise<string | null> {
+export function turnstileSecret(env: CaptchaEnv): Promise<string | null> {
   return readSecret(env.TURNSTILE_SECRET, { placeholder: TURNSTILE_PLACEHOLDER });
 }
 
@@ -59,9 +63,6 @@ export async function activeCaptcha(
   const secret = activeCaptchaSecret(env, await turnstileSecret(env));
   return siteKey && secret ? { siteKey, secret } : null;
 }
-
-/** The two bindings {@link resolveCaptcha} reads. Either may be missing. */
-export type CaptchaEnv = Pick<LouiseAuthEnv, "TURNSTILE_SECRET" | "TURNSTILE_SITE_KEY">;
 
 /**
  * Whether a control's captcha is on, from {@link resolveCaptcha}:
@@ -100,6 +101,14 @@ export interface ResolveCaptchaOptions {
  *  captcha under. */
 export const CAPTCHA_UNAVAILABLE_DEGRADED = "auth.captcha-unavailable";
 
+// The report's cause, one per reason. It's a string rather than a detail so it
+// reaches the incident record, where the two need different fixes: provision
+// the binding, or repair the store or replace the placeholder.
+const UNAVAILABLE_CAUSE = {
+  missing: "the Turnstile secret binding is missing",
+  unreadable: "the Turnstile secret is unreadable, empty, or the placeholder",
+} as const;
+
 /**
  * Decide a control's captcha in three states, for a control that must not
  * quietly lose its captcha. See {@link CaptchaDecision}.
@@ -107,15 +116,17 @@ export const CAPTCHA_UNAVAILABLE_DEGRADED = "auth.captcha-unavailable";
  * {@link activeCaptcha} folds "not provisioned" and "provisioned but the secret
  * can't be read" into one `null`, which is right for the studio's sign-in: a
  * broken secret then keeps the owner able to sign in. A checkout can't afford
- * that, because a broken Secrets Store binding would turn its captcha off
- * without a word. This call keeps the two apart, so the control can refuse
- * while its captcha is `unavailable`.
+ * that, because a broken Secrets Store binding would silently turn its captcha
+ * off. This call keeps the two apart, so the control can refuse while its
+ * captcha is `unavailable`.
  *
  * Use it for the widget and the check alike, as with {@link activeCaptcha}: a
  * page renders the widget only for `on`, and the route verifies a token only
  * for `on`. An `unavailable` result is reported once per call with
- * `reportDegraded` under {@link CAPTCHA_UNAVAILABLE_DEGRADED}, so the outage
- * shows up in the log before a customer reports it.
+ * `reportDegraded` under {@link CAPTCHA_UNAVAILABLE_DEGRADED}, with a cause that
+ * says whether the binding is missing or unreadable, so the outage shows up in
+ * the log and the incident record before a customer reports it. A binding that
+ * throws is also reported as `security.readSecret` by the read itself.
  *
  * @example
  * ```ts
@@ -130,14 +141,12 @@ export async function resolveCaptcha(
   env: CaptchaEnv,
   options: ResolveCaptchaOptions,
 ): Promise<CaptchaDecision> {
-  const authEnv = env as LouiseAuthEnv;
-  const siteKey = turnstileSiteKey(authEnv);
+  const siteKey = turnstileSiteKey(env);
   if (!siteKey) return { kind: "off" };
-  const secret = await turnstileSecret(authEnv);
+  const secret = await turnstileSecret(env);
   if (secret) return { kind: "on", siteKey, secret };
   if (options.devServer) return { kind: "off" };
-  reportDegraded(CAPTCHA_UNAVAILABLE_DEGRADED, undefined, {
-    reason: env.TURNSTILE_SECRET == null ? "missing" : "unreadable",
-  });
+  const reason = env.TURNSTILE_SECRET == null ? "missing" : "unreadable";
+  reportDegraded(CAPTCHA_UNAVAILABLE_DEGRADED, UNAVAILABLE_CAUSE[reason], { reason });
   return { kind: "unavailable" };
 }

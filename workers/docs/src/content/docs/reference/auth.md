@@ -359,7 +359,7 @@ const next = safeNextPath(url.searchParams.get("next"), "/account");
 - `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the
   lower-level halves `activeCaptcha` combines.
 - `resolveCaptcha(env, { devServer })`—the same decision in three states, for a
-  control that must not lose its captcha without a word. See
+  control that must not silently lose its captcha. See
   [Captcha that fails closed](#captcha-that-fails-closed).
 
 ### Captcha that fails closed
@@ -368,8 +368,8 @@ const next = safeNextPath(url.searchParams.get("next"), "/account");
 the site key is real but the secret can't be read: the binding is missing,
 holds `TURNSTILE_PLACEHOLDER`, or throws. For the studio's sign-in that's the
 intended trade, because a broken secret then keeps the owner able to sign in. For
-a payment form it isn't: a broken Secrets Store binding turns the captcha off
-without a word, and a card-testing script faces only the rate limit.
+a payment form it isn't: a broken Secrets Store binding silently turns the
+captcha off, and a card-testing script faces only the rate limit.
 
 `resolveCaptcha` keeps the two cases apart:
 
@@ -383,13 +383,38 @@ type CaptchaDecision =
 ```
 
 `CaptchaEnv` is the two bindings it reads, `TURNSTILE_SITE_KEY` and
-`TURNSTILE_SECRET`, so any `LouiseAuthEnv` fits.
+`TURNSTILE_SECRET`, so any `LouiseAuthEnv` fits. `turnstileSiteKey` and
+`turnstileSecret` take a `CaptchaEnv` too.
 
 Each control decides what `unavailable` means for it. A checkout fails closed
 and refuses the request. A sign-in form can fail open and let it through. Either
 way, render no widget, since there's no secret to check its token against.
+
 `resolveCaptcha` reports every `unavailable` result with `reportDegraded` under
-`auth.captcha-unavailable` (`CAPTCHA_UNAVAILABLE_DEGRADED`).
+`auth.captcha-unavailable` (`CAPTCHA_UNAVAILABLE_DEGRADED`). The cause says
+which of the two fixes the outage needs, and it's what reaches the incident
+record, so the two group as separate incidents:
+
+| Cause                                                           | Fix                                                  |
+| --------------------------------------------------------------- | ---------------------------------------------------- |
+| `the Turnstile secret binding is missing`                       | Add the `TURNSTILE_SECRET` binding                   |
+| `the Turnstile secret is unreadable, empty, or the placeholder` | Repair the Secrets Store, or replace the placeholder |
+
+A binding that throws is also reported by the read itself, as
+`security.readSecret`, so that outage opens two incidents: one for the secret
+and one for the captcha it turned off. That's expected; fix the secret and both
+stop.
+
+A checkout that fails closed answers 503 until someone fixes the secret, and
+only a critical incident sends an alert. Add the name to `onIncident`'s
+`critical` list so the outage reaches you before a customer does:
+
+```ts
+onIncident: {
+  sinks: [d1Incidents((env) => env.DB)],
+  critical: ["auth.captcha-unavailable", "commerce.checkout"],
+},
+```
 
 `devServer` is the build's own flag, such as `import.meta.env.DEV`. The dev
 server reads the real site key from the Wrangler config and has no Secrets
