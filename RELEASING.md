@@ -178,5 +178,4 @@ Make the adapter a minor instead. Either add an `"@louise-toolkit/astro": minor`
 changeset beside the toolkit's, or, after `changeset version`, raise the
 adapter's version to the next minor by hand and turn its changelog entry into
 "Minor Changes" saying which toolkit version it requires and to bump the
-adapter, the toolkit, and `astroidjs` together. The 0.7.0 and 0.8.0 entries are
-the model.
+adapter, the toolkit, and `astroidjs` together. The 0.8.0 entry is the model.
