@@ -254,6 +254,10 @@ Because a stranger can make the site send mail, guard the endpoint:
 Serve the instance with `auth.handler`, not `handleAuthRequest`: that gate admits
 only admins, so it would turn every customer away.
 
+For the sign-in page, [`SignInLinkForm`](/reference/client/#louise-toolkitclientsign-in)
+asks for the link, reads the 429 the limiter answers with, and resets the
+Turnstile widget after each request.
+
 Accounts that already had a password keep their hash in the `account` table
 (rows with `providerId = 'credential'`). Those people sign in by link to the same
 account. To store no hash, delete those rows once you've switched.

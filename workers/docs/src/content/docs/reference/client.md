@@ -550,3 +550,103 @@ host rewrite.
 with no router dependency: `screenTitle(nav, pathname, options)`,
 `focusScreenHeading(container)`, `revealActiveNavLink(nav)`, `activeNavItem`,
 `studioBasepath` and `studioHref`. Call them from your router's navigation hook.
+
+## `louise-toolkit/client/sign-in`
+
+```ts
+import { SignInLinkForm, requestSignInLink } from "louise-toolkit/client/sign-in";
+```
+
+The sign-in form every site used to write by hand: one email field that asks a
+Better Auth instance for a one-time sign-in link. It serves an editor sign-in,
+where the server mails only the allowlist, and a customer one, with
+`customers.signIn: "magic-link"`, where following the link makes the account.
+See [Customers who sign in by link](/reference/auth/#customers-who-sign-in-by-link).
+It's on its own subpath so a sign-in page loads none of the editor, and it needs
+only `solid-js`.
+
+```astro
+---
+import { env } from "cloudflare:workers";
+import { activeCaptcha } from "louise-toolkit/auth";
+import { SignInLinkForm } from "louise-toolkit/client/sign-in";
+
+const captcha = await activeCaptcha(env);
+---
+
+<SignInLinkForm
+  client:only="solid-js"
+  basePath="/api/shop-auth"
+  callbackURL="/account"
+  errorCallbackURL="/login"
+  turnstile={captcha ? { siteKey: captcha.siteKey } : null}
+  sentMessage="Check your inbox: a sign-in link is on its way."
+/>
+```
+
+Mount it with `client:only="solid-js"`, like the rest of the client: the
+package ships it compiled for the browser.
+
+| Prop                 | What it does                                                                                                         |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `basePath`           | The instance's mount. Default `/api/auth`, the editor instance.                                                      |
+| `callbackURL`        | Where the link lands after signing in. Required.                                                                     |
+| `newUserCallbackURL` | Where it lands instead when following it made the account.                                                           |
+| `errorCallbackURL`   | Where an expired or used link lands. Better Auth appends `?error=…`.                                                 |
+| `turnstile`          | `{ siteKey, appearance?, action?, size?, theme? }`, or `null` when captcha is off. `action` defaults to `"sign-in"`. |
+| `label`, `inputId`   | The field's label (default "Email") and ID (default a generated one).                                                |
+| `placeholder`        | The field's placeholder. Omitted, none.                                                                              |
+| `submitLabel`        | The button. Default "Email me a link"; `sendingLabel` while the request runs, default "Sending…".                    |
+| `sentMessage`        | Shown once a link is sent.                                                                                           |
+| `notice`             | Shown above the form until a link is sent, such as an expired-link alert.                                            |
+| `messages`           | Override any error message: see `SignInLinkMessages`.                                                                |
+| `classes`            | A site's own classes per part, added beside the hooks.                                                               |
+| `onSent`             | Called after the server accepts a request.                                                                           |
+
+**Take `turnstile` from `activeCaptcha`.** Better Auth's captcha plugin refuses
+a link request without a token the moment the server's captcha is on, so the
+widget has to appear exactly then. Deciding the two apart is how a site key that
+stopped resolving once locked every editor out.
+
+What the form handles, so a site doesn't have to:
+
+- **It reads the answer.** A 2xx shows `sentMessage`. A 429 says to wait, a
+  refused captcha says to try again, and a dropped connection says to check it;
+  the form stays, with the address still typed. The endpoint answers the same
+  for an address with an account and one without, so none of this reveals
+  whether an address has one. Keep `sentMessage` the same way.
+- **The token is good for one request.** The widget resets after every request,
+  sent or not, and a submit before a token arrives says it's still checking
+  instead of sending a request the server would refuse. A widget that can't load
+  says so before anyone types.
+- **Screen readers and keyboards.** The `role="status"` region is in the page
+  from the start, so the confirmation is announced when it arrives, and focus
+  moves to it because the button that had focus is gone. An error is tied to the
+  field with `aria-describedby`, and the button is `aria-busy` while the request
+  runs.
+
+The form is unstyled. Each part carries a `louise-signin-<part>` class (`root`,
+`notice`, `status`, `sent`, `form`, `field`, `label`, `input`, `captcha`,
+`error`, `submit`), and `classes` adds your own beside it, so
+`classes={{ submit: "btn btn-primary" }}` keeps a site's button.
+
+### Your own screen: `requestSignInLink(options)`
+
+A sign-in screen with its own markup can keep the same request and the same
+reading of the answer:
+
+```ts
+const result = await requestSignInLink({
+  email,
+  basePath: "/api/shop-auth",
+  callbackURL: "/account",
+  captchaToken: widget?.token(),
+});
+widget?.reset(); // spent, whatever the answer
+if (!result.ok) showError(result.reason);
+```
+
+It takes the same `basePath` and callbacks as the form, plus `captchaToken`,
+which it sends as the `x-captcha-response` header. It never throws. It resolves
+with `{ ok: true }` for any 2xx, or `{ ok: false, reason }` where `reason` is
+`"rate-limited"`, `"captcha"`, `"invalid-email"`, `"failed"`, or `"network"`.
