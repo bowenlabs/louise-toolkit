@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path. **Amended 2026-10-03** (see _Amendment (2026-10-03, the path as given is tried first)_ below): every rule sees the path as given before any rule sees the normalized path, so a request keeps the rule it matched before. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -286,7 +286,27 @@ working.
 A request that matched a rule before still matches one, but the first matching
 rule can now be a different one: rules are tried in order, and an earlier rule
 for the canonical path can now claim a spelling a later rule was written for. A
-request that matched nothing, such as a POST to a slashed path, can now get a 429. Both are upgrade edges the changeset names.
+request that matched nothing, such as a POST to a slashed path, can now get a 429. Both are upgrade edges the changeset names. (Amended 2026-10-03: the
+first edge is gone; see _Amendment (2026-10-03, the path as given is tried
+first)_.)
+
+## Amendment (2026-10-03, the path as given is tried first)
+
+The amendment above tested each rule against both spellings before moving to
+the next rule, so a rule for `/a` ahead of a rule for `/a/` took a request to
+`/a/` from the rule written for it. That changed which budget an existing
+request spent, which a security fix shouldn't do.
+
+`matchRateRule` now makes two passes over the rules, each in order. The first
+tests every rule against the path as given, which is exactly what it did before
+the amendment above. Only when no rule matches does the second pass test every
+rule against `normalizeRatePath(path)`. Budgets are still keyed by the rule's
+name, so the slashed and encoded spellings of a path spend the budget of the
+rule for its canonical form.
+
+A request that a rule matched before now matches that same rule. The only
+upgrade edge left is the one the fix exists for: a request that matched no
+rule, such as a POST to a slashed path, can now get a 429.
 
 ## Amendment (2026-10-03, customer instances don't mount the admin endpoints)
 

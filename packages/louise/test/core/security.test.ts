@@ -407,12 +407,56 @@ describe("matchRateRule", () => {
     expect(matchRateRule(slashed, "POST", "/contact")).toBeNull();
   });
 
-  it("keeps first-match order across the raw and normalized tests", () => {
+  it("limits the slashed spellings of an exact checkout rule", () => {
+    const checkout: RateRule[] = [
+      {
+        name: "checkout",
+        method: "POST",
+        match: (p) => p === "/api/checkout",
+        limit: 1,
+        windowSec: 60,
+      },
+    ];
+    expect(matchRateRule(checkout, "POST", "/api/checkout/")?.name).toBe("checkout");
+    expect(matchRateRule(checkout, "POST", "/api//checkout/")?.name).toBe("checkout");
+  });
+
+  // Every rule sees the path as given before any rule sees the normalized
+  // path, so an earlier rule for the canonical path can't take a spelling that
+  // a later rule was written for.
+  it("gives a spelling to the rule written for it, ahead of an earlier canonical rule", () => {
     const ordered: RateRule[] = [
       { name: "first", method: "POST", match: (p) => p === "/a", limit: 1, windowSec: 60 },
       { name: "second", method: "POST", match: (p) => p === "/a/", limit: 1, windowSec: 60 },
     ];
-    expect(matchRateRule(ordered, "POST", "/a/")?.name).toBe("first");
+    expect(matchRateRule(ordered, "POST", "/a/")?.name).toBe("second");
+    expect(matchRateRule(ordered, "POST", "/a")?.name).toBe("first");
+    // No rule matches `/a//` as given, so its normalized form `/a` decides.
+    expect(matchRateRule(ordered, "POST", "/a//")?.name).toBe("first");
+  });
+
+  it("keeps first-match order within each pass", () => {
+    const ordered: RateRule[] = [
+      {
+        name: "prefix",
+        method: "POST",
+        match: (p) => p.startsWith("/api/"),
+        limit: 1,
+        windowSec: 60,
+      },
+      { name: "exact", method: "POST", match: (p) => p === "/api/x", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(ordered, "POST", "/api/x")?.name).toBe("prefix");
+    expect(matchRateRule(ordered, "POST", "//api/x/")?.name).toBe("prefix");
+  });
+
+  it("ignores a rule for another method in both passes", () => {
+    const methods: RateRule[] = [
+      { name: "get", method: "GET", match: (p) => p === "/a/", limit: 1, windowSec: 60 },
+      { name: "post", method: "POST", match: (p) => p === "/a", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(methods, "POST", "/a/")?.name).toBe("post");
+    expect(matchRateRule(methods, "PUT", "/a/")).toBeNull();
   });
 });
 

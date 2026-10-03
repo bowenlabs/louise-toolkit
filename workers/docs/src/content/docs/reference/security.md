@@ -185,18 +185,18 @@ percent-encoded letters are normalized before routes match. A rule written as
 `(p) => p === "/api/checkout"` would then miss `/api/checkout/`, and the
 endpoint would get no limit from it.
 
-`matchRateRule` tests each rule against the path as given and against
-`normalizeRatePath(path)`, and either one matching is a match. Write rules
-against the canonical path, with no trailing slash. A rule written for a slashed
-path still matches the path as given, so a site with trailing slashes always on
-keeps working. Every spelling counts against the same budget, because the
-bucket is keyed by the rule's name.
+`matchRateRule` makes two passes over the rules, each in order. The first tests
+each rule against the path as given. Only when no rule matches does the second
+test each rule against `normalizeRatePath(path)`. Write rules against the
+canonical path, with no trailing slash. Every spelling counts against the same
+budget, because the bucket is keyed by the rule's name.
 
-A request that matched a rule before this change still matches one, but not
-always the same one. Rules are tried in order, so with a rule for `/a` ahead of
-a rule for `/a/`, a request to `/a/` now matches the first and spends its
-budget. Keep one rule per endpoint, written for the canonical path. A request
-that matched nothing before, such as a POST to `/api/checkout/`, can now get a 429.
+A request that a rule matches as given always gets that rule. A rule written for
+a slashed path keeps matching, so a site with trailing slashes always on keeps
+working, and with a rule for `/a` ahead of a rule for `/a/`, a request to `/a/`
+spends the second rule's budget. The only change for an existing site is
+that a request that matched nothing before, such as a POST to `/api/checkout/`,
+can now get a 429.
 
 ```ts
 function normalizeRatePath(path: string): string;
