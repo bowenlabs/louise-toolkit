@@ -1,5 +1,19 @@
 # @louise-toolkit/astro
 
+## 0.8.0
+
+### Minor Changes
+
+- This release requires `louise-toolkit` 0.42.0. The adapter pins the toolkit to an exact version, so it's a minor rather than a patch. A caret range on 0.7 doesn't pick it up. If it did, it would install a second toolkit beside the one your site or `astroidjs` resolves.
+
+  **Upgrading:** bump `@louise-toolkit/astro`, `louise-toolkit`, and `astroidjs` together, then check that the lockfile holds one `louise-toolkit` version. The toolkit's 0.42.0 entry lists what's new; nothing existing changes.
+
+### Patch Changes
+
+- Updated dependencies [ca79f32]
+- Updated dependencies [63b5cb8]
+  - louise-toolkit@0.42.0
+
 ## 0.7.0
 
 ### Minor Changes
