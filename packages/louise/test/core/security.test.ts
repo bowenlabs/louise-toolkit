@@ -407,12 +407,81 @@ describe("matchRateRule", () => {
     expect(matchRateRule(slashed, "POST", "/contact")).toBeNull();
   });
 
-  it("keeps first-match order across the raw and normalized tests", () => {
+  it("limits the slashed spellings of an exact checkout rule", () => {
+    const checkout: RateRule[] = [
+      {
+        name: "checkout",
+        method: "POST",
+        match: (p) => p === "/api/checkout",
+        limit: 1,
+        windowSec: 60,
+      },
+    ];
+    expect(matchRateRule(checkout, "POST", "/api/checkout/")?.name).toBe("checkout");
+    expect(matchRateRule(checkout, "POST", "/api//checkout/")?.name).toBe("checkout");
+  });
+
+  // A broader rule after an exact one mustn't take the exact rule's other
+  // spellings: the router sends them all to the same endpoint, so a slash or
+  // an escape would otherwise trade the tight budget for the loose one.
+  it("keeps every spelling on an exact rule ahead of a broader catch-all", () => {
+    const ordered: RateRule[] = [
+      {
+        name: "checkout",
+        method: "POST",
+        match: (p) => p === "/api/checkout",
+        limit: 5,
+        windowSec: 60,
+      },
+      {
+        name: "api",
+        method: "POST",
+        match: (p) => p.startsWith("/api/"),
+        limit: 100,
+        windowSec: 60,
+      },
+    ];
+    for (const path of ["/api/checkout", "/api/checkout/", "/api//checkout/", "/api/%63heckout"]) {
+      expect(matchRateRule(ordered, "POST", path)?.name, path).toBe("checkout");
+    }
+    expect(matchRateRule(ordered, "POST", "/api/contact/")?.name).toBe("api");
+  });
+
+  it("keeps first-match order for a broader rule ahead of an exact one", () => {
+    const ordered: RateRule[] = [
+      {
+        name: "prefix",
+        method: "POST",
+        match: (p) => p.startsWith("/api/"),
+        limit: 1,
+        windowSec: 60,
+      },
+      { name: "exact", method: "POST", match: (p) => p === "/api/x", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(ordered, "POST", "/api/x")?.name).toBe("prefix");
+    expect(matchRateRule(ordered, "POST", "//api/x/")?.name).toBe("prefix");
+  });
+
+  // The documented upgrade edge from 0.43.0 (ADR 0012): each rule sees both
+  // spellings before the next rule is tried, so an earlier rule for the
+  // canonical path takes a spelling that a later rule was written for.
+  it("lets an earlier canonical rule take a spelling a later rule was written for", () => {
     const ordered: RateRule[] = [
       { name: "first", method: "POST", match: (p) => p === "/a", limit: 1, windowSec: 60 },
       { name: "second", method: "POST", match: (p) => p === "/a/", limit: 1, windowSec: 60 },
     ];
     expect(matchRateRule(ordered, "POST", "/a/")?.name).toBe("first");
+    expect(matchRateRule(ordered, "POST", "/a")?.name).toBe("first");
+  });
+
+  it("ignores a rule for another method on either spelling", () => {
+    const methods: RateRule[] = [
+      { name: "get", method: "GET", match: (p) => p === "/a", limit: 1, windowSec: 60 },
+      { name: "post", method: "POST", match: (p) => p === "/a", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(methods, "POST", "/a/")?.name).toBe("post");
+    expect(matchRateRule(methods, "GET", "/a/")?.name).toBe("get");
+    expect(matchRateRule(methods, "PUT", "/a/")).toBeNull();
   });
 });
 

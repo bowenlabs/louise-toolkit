@@ -288,6 +288,16 @@ rule can now be a different one: rules are tried in order, and an earlier rule
 for the canonical path can now claim a spelling a later rule was written for. A
 request that matched nothing, such as a POST to a slashed path, can now get a 429. Both are upgrade edges the changeset names.
 
+**Considered and rejected (2026-10-03):** testing every rule against the path
+as given before any rule sees the normalized path. That keeps a request on the
+rule it matched before 0.43.0, so `/a/` stays with a later rule for `/a/`, but
+it reopens the bypass this amendment closes whenever a broader rule follows an
+exact one. With an exact rule for `/api/checkout` ahead of a rule for
+`p.startsWith("/api/")`, a request to `/api/checkout/` matches the broad rule as
+given and spends its budget, while the router still sends it to the checkout
+endpoint. A rule's `match` is an opaque predicate, so no ordering gets both
+cases right. The canonical rule wins, and the first edge above stays.
+
 ## Amendment (2026-10-03, customer instances don't mount the admin endpoints)
 
 `getLouiseAuth` added Better Auth's `admin` plugin to every instance. The

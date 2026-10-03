@@ -143,6 +143,32 @@ describe("createLouiseMiddleware — rate limiting", () => {
     expect((await run(mw, makeContext("POST", "/api//checkout/"))).status).toBe(429);
   });
 
+  it("keeps the slashed spelling on an exact rule ahead of a broader one", async () => {
+    const ordered: RateRule[] = [
+      {
+        name: "checkout",
+        method: "POST",
+        match: (p) => p === "/api/checkout",
+        limit: 1,
+        windowSec: 60,
+      },
+      {
+        name: "api",
+        method: "POST",
+        match: (p) => p.startsWith("/api/"),
+        limit: 100,
+        windowSec: 60,
+      },
+    ];
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rateLimit: { rules: ordered, kv: makeKv() },
+    });
+    // The slash mustn't move the request onto the loose `api` budget.
+    expect((await run(mw, makeContext("POST", "/api/checkout"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/api/checkout/"))).status).toBe(429);
+  });
+
   it("still accepts a plain backend (non-getter) — backward compatible", async () => {
     const mw = createLouiseMiddleware({
       resolveEditor: () => null,
