@@ -66,6 +66,11 @@
       "import": "./dist/client/studio-shell/index.js",
       "default": "./dist/client/studio-shell/index.js"
     },
+    "./client/sign-in": {
+      "types": "./dist/client/sign-in/index.d.ts",
+      "import": "./dist/client/sign-in/index.js",
+      "default": "./dist/client/sign-in/index.js"
+    },
     "./content": {
       "types": "./dist/core/content/index.d.ts",
       "import": "./dist/core/content/index.js",

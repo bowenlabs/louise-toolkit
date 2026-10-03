@@ -31,6 +31,7 @@
         "src/client/settings/index.ts",
         "src/client/studio/index.ts",
         "src/client/studio-shell/index.ts",
+        "src/client/sign-in/index.ts",
         "src/core/ai/index.ts",
         "src/core/analytics/index.ts",
         "src/core/auth/index.ts",
