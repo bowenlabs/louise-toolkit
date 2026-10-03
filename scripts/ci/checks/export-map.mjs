@@ -77,6 +77,7 @@ const required = {
   "./auth": ["EditorSession"],
   "./forms": ["FormConfig", "FormField"],
   "./forms/turnstile": ["renderTurnstile", "turnstileCsp", "verifyTurnstileToken"],
+  "./client/sign-in": ["SignInLinkForm", "requestSignInLink"],
   "./db": ["D1_BOOKMARK_COOKIE"],
   "./worker": [
     "LOUISE_EDIT_COOKIE",
@@ -167,6 +168,17 @@ const lightEntries = {
   "./forms/turnstile": "*",
   // The router is an optional peer for `client/studio-shell` only (ADR 0011).
   "./client/studio": ["@tanstack/solid-router"],
+  // A sign-in page loads this before anyone is signed in: Solid, and nothing
+  // of the editor or an auth client (ADR 0019, decision 7).
+  "./client/sign-in": [
+    "prosekit",
+    "@prosekit/pm",
+    "better-auth",
+    "@better-auth/passkey",
+    "@tanstack/solid-query",
+    "@tanstack/solid-router",
+    "drizzle-orm",
+  ],
 };
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/g;
 

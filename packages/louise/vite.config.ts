@@ -89,6 +89,7 @@ export default {
       "src/client/settings/index.ts",
       "src/client/studio/index.ts",
       "src/client/studio-shell/index.ts",
+      "src/client/sign-in/index.ts",
       "src/core/content/index.ts",
       // Drizzle-free "describe content" entry—see the note in define.ts.
       "src/core/content/define.ts",
