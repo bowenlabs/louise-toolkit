@@ -1,5 +1,59 @@
 # louise-toolkit
 
+## 0.43.0
+
+### Minor Changes
+
+- fa0deca: Customer auth instances no longer mount Better Auth's admin endpoints. `getLouiseAuth` added the `admin` plugin to every instance, which serves user administration at `<basePath>/admin/*`: listing, creating, and removing users, setting roles, banning, and impersonation. An instance with `customers` set now leaves the plugin off unless it sets the new `customers.adminEndpoints: true`. An editor-only instance, with no `customers`, keeps it.
+
+  Only the endpoints go. With the plugin off, the instance still does what the plugin did on every request:
+
+  - **The schema doesn't change.** `generateAuthSchemaSql` still emits the `role` and ban columns, so you don't need a migration.
+  - **`role` stays on the session user.** A new account still gets its role, and no one can set their own role or ban, even when `additionalFields` declares a field with the same name.
+  - **A ban blocks a new session.** A banned user can't sign in, and an expired ban is cleared at the next sign-in. A ban doesn't end the sessions the user already has, since that was the `ban-user` endpoint's job.
+
+  **What to do:**
+
+  - Most sites: nothing. No Louise or Astroid code calls the admin endpoints on a customer instance.
+  - If your site calls `<basePath>/admin/*` on a customer instance, or uses Better Auth's `adminClient` against one, set `customers: { adminEndpoints: true }` on that instance to mount them again. Before you do, make sure no customer row holds an admin role, since the endpoints check only `role`.
+  - **If editors and customers share one instance,** that instance has `customers` set, so it loses `/api/auth/admin/*` too. Setting `adminEndpoints: true` on it gives every editor, who holds the `admin` role, the power to list, remove, ban, and impersonate every customer. To administer editors through these endpoints, move editors to an instance of their own.
+  - **If you ban customers by hand,** also delete the user's rows in the `session` table, and their entries in KV when `sessionCacheKv` is set. Without the `ban-user` endpoint, a ban only stops new sessions.
+
+- 6c09fe8: Two security fixes from a pre-launch audit of a site built on the toolkit.
+
+  **Rate rules match every spelling of a path.** `matchRateRule` tested each rule against the raw path. With Astro's default `trailingSlash: "ignore"`, `/api/checkout/` reaches the `/api/checkout` endpoint, so an exact rule such as `(p) => p === "/api/checkout"` missed it, and that spelling had no per-address limit. `matchRateRule` now also tests each rule against `normalizeRatePath(path)`, a new export from `louise-toolkit/security`. It percent-decodes with `decodeURI` until the path stops changing (at most 10 times), collapses each run of slashes to one, and removes a trailing slash, except on `/`. Every spelling counts against the rule's one budget, because the bucket is keyed by the rule's name. `createLouiseMiddleware` in `@louise-toolkit/astro` calls `matchRateRule`, so it picks this up with no change.
+
+  A rule still sees the path as given too, so a rule written for a slashed path keeps matching. A request that matched a rule before still matches one, but two things can change on upgrade:
+
+  - **The matching rule can be a different one.** Rules are tried in order, and an earlier rule now also sees the normalized path. With a rule for `/a` ahead of a rule for `/a/`, a request to `/a/` used to match the second and now matches the first, so it spends the first rule's budget. If you wrote a rule for each spelling of one endpoint, keep only the one for the canonical path, with no trailing slash.
+  - **Requests that had no limit can now get a 429.** A client that posts to a slashed URL, such as a form with `action="/api/contact/"`, used to skip the exact rule and now spends its budget. Check that the budget fits that traffic, or fix the URL the client posts to.
+
+  **A control can make its captcha fail closed.** `activeCaptcha` answers `null` both when Turnstile isn't provisioned and when the site key is real but the secret can't be read, so a broken Secrets Store binding silently turns the captcha off. That's the intended trade for the studio's sign-in, and wrong for a checkout. `louise-toolkit/auth` adds:
+
+  - `resolveCaptcha(env, { devServer })`, which returns a `CaptchaDecision`: `{ kind: "off" }`, `{ kind: "on", siteKey, secret }`, or `{ kind: "unavailable" }` for a real site key whose secret is missing, the placeholder, or unreadable. Pass the build's dev flag, such as `import.meta.env.DEV`, as `devServer`: the dev server has the real site key and no Secrets Store, so it's `off` there. It's a build flag, not the request's host, because a local preview of a build rewrites the host to the route's zone.
+  - Each `unavailable` result is reported with `reportDegraded` as `auth.captcha-unavailable` (`CAPTCHA_UNAVAILABLE_DEGRADED`). The cause says whether the binding is missing or the secret is unreadable, so the incident record names the fix. A binding that throws is also reported as `security.readSecret`, so that outage opens two incidents.
+  - The types `CaptchaDecision`, `CaptchaEnv` (the two Turnstile bindings), and `ResolveCaptchaOptions`. `turnstileSiteKey` and `turnstileSecret` now accept a `CaptchaEnv`, which every `LouiseAuthEnv` satisfies.
+
+  Existing exports keep their behavior: `activeCaptcha`, `activeCaptchaSecret`, `turnstileSecret`, and `turnstileSiteKey` still fail open, and the studio's sign-in still uses them. To make a payment form fail closed, read `resolveCaptcha` for the page's widget and the route's check alike, and answer `unavailable` with a 503. Then add `auth.captcha-unavailable` to `onIncident`'s `critical` list: a closed checkout answers 503 until someone repairs the secret, and only a critical incident sends an alert. ADR 0012's two amendments of 2026-10-03 record which controls fail open and which fail closed, and the rate-rule change.
+
+  **To upgrade:** this is a minor release, and before 1.0 a caret range doesn't admit the next minor. Widen your `louise-toolkit` range to this version to get either fix, and move `astroidjs` and `@louise-toolkit/astro` with it.
+
+- 91de840: Sanitizer hardening: `sanitizeRichHtml` and `sanitizeModelHtml` in `louise-toolkit/security` now parse with [parse5](https://github.com/inikulin/parse5), an implementation of the WHATWG HTML parser, in place of ultrahtml. The sanitizers read markup the way a browser does, write new HTML from the parsed tree with every text node and attribute value escaped, and never throw, whatever the input. Before, some malformed markup could reach the output in a form a browser would read differently, and a stray closing tag could throw during render.
+
+  The public API, the allowlists, `mediaBase`, and the URL and style checks stay the same, so there's no code to change. The toolkit's save paths sanitize on write, so every save after you deploy gets the fix. HTML stored before then went through the old sanitizer: if your site also sanitizes rich text on render, as the security reference recommends, the next render covers it; if it doesn't, start sanitizing on render, or run stored rich text through `sanitizeRichHtml` once.
+
+  Output for content the editor wrote is the same. Hand-written or pasted HTML can come back different in ways that render the same, or better:
+
+  - **Character references:** apart from `&amp;`, `&lt;`, `&gt;`, `&nbsp;`, and `&quot;` inside an attribute, the sanitizers write the character a reference stands for. `&mdash;` becomes `—` and `&#39;` becomes `'`.
+  - **Attribute values:** `<` and `>` inside a value come back as `&lt;` and `&gt;`. Before, the old sanitizer cut an `alt` text short at its first `>`.
+  - **Line endings:** `\r\n` becomes `\n`.
+  - **Comments** go, as the old sanitizer meant them to and didn't.
+  - **Uppercase tags,** such as `<P>`, survive as their lowercase allowed tag rather than disappearing.
+  - **Malformed markup** gets the repair a browser gives it, so a misnested or unclosed tag can close in a different place than before.
+  - **Deep nesting:** markup nested more than 256 elements deep comes back as escaped text rather than HTML. Rich text never nests that deep, and the cap keeps a crafted payload from costing quadratic parse time.
+
+  The build bundles parse5, as it bundled ultrahtml, so the package still has no runtime dependencies. The `louise-toolkit/security`, `louise-toolkit/editor`, and `louise-toolkit/mcp` entries grow by about 150 KB minified, or 40 KB minified and gzipped, in the server bundle only. The browser client doesn't import the sanitizers.
+
 ## 0.42.0
 
 ### Minor Changes
