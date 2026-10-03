@@ -176,13 +176,18 @@ picks it up and installs a second toolkit beside the one `astroidjs` resolves,
 since `astroidjs`'s range doesn't admit the new minor yet.
 
 A toolkit patch is the exception: keep the adapter's patch. The new toolkit
-version sits inside every caret range that admits the old one, so it doesn't
-install a second toolkit. Making the adapter a minor would do harm, since a
-site or scaffold on the current adapter range would keep the old toolkit
-nested under the adapter. That matters most for a security patch.
+version sits inside every caret range that admits the old one, so a site that
+updates the toolkit together with the adapter ends up with one toolkit without
+leaving its ranges. A site that updates only the adapter gets the new toolkit
+nested beside its old one until it updates the toolkit too, so the adapter's
+changelog entry says to update both and then check that the lockfile holds one
+`louise-toolkit` version. Making the adapter a minor would do harm, since a
+site or scaffold on the current adapter range would never receive it and would
+keep the old toolkit nested under the adapter. That matters most for a
+security patch.
 
-For a toolkit minor, make the adapter a minor instead. Either add an `"@louise-toolkit/astro": minor`
-changeset beside the toolkit's, or, after `changeset version`, raise the
+For a toolkit minor, make the adapter a minor instead. Either add an
+`"@louise-toolkit/astro": minor` changeset beside the toolkit's, or, after `changeset version`, raise the
 adapter's version to the next minor by hand and turn its changelog entry into
 "Minor Changes" saying which toolkit version it requires and to bump the
 adapter, the toolkit, and `astroidjs` together. The 0.8.0 entry is the model.
