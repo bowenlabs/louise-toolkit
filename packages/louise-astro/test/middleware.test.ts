@@ -120,6 +120,27 @@ describe("createLouiseMiddleware — rate limiting", () => {
     expect((await hit()).status).toBe(200);
   });
 
+  it("limits the slashed spelling of an exact path, in the same budget", async () => {
+    const exact: RateRule[] = [
+      {
+        name: "checkout",
+        method: "POST",
+        match: (p) => p === "/api/checkout",
+        limit: 2,
+        windowSec: 60,
+      },
+    ];
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rateLimit: { rules: exact, kv: makeKv() },
+    });
+    // Astro routes all three to one endpoint under `trailingSlash: "ignore"`,
+    // so all three spend one budget: the third request is over it.
+    expect((await run(mw, makeContext("POST", "/api/checkout"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/api/checkout/"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/api//checkout/"))).status).toBe(429);
+  });
+
   it("still accepts a plain backend (non-getter) — backward compatible", async () => {
     const mw = createLouiseMiddleware({
       resolveEditor: () => null,

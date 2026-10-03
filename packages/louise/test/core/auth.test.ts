@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activeCaptcha,
   activeCaptchaSecret,
+  CAPTCHA_UNAVAILABLE_DEGRADED,
   defaultResolveAdmins,
+  resolveCaptcha,
   getLouiseAuth,
   handleAuthRequest,
   redirectWithCookies,
@@ -25,6 +27,7 @@ import {
   TURNSTILE_TEST_SITE_KEY,
 } from "../../src/core/auth/index.js";
 import { kvSecondaryStorage } from "../../src/core/auth/auth.js";
+import { type DegradedEvent, onDegraded } from "../../src/core/errors.js";
 
 const env = (over: Partial<Record<string, unknown>>): LouiseAuthEnv =>
   ({
@@ -85,6 +88,79 @@ describe("turnstile activation", () => {
     ]) {
       expect(await activeCaptcha(e)).toBeNull();
     }
+  });
+});
+
+describe("resolveCaptcha", () => {
+  let events: DegradedEvent[];
+  let off: () => void;
+  beforeEach(() => {
+    events = [];
+    off = onDegraded((event) => events.push(event));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    off();
+    vi.restoreAllMocks();
+  });
+  const deployed = { devServer: false };
+  const devServer = { devServer: true };
+
+  it("is on with a real site key and a real secret, on any host", async () => {
+    const e = env({ siteKey: "0xREAL", secret: "real" });
+    const on = { kind: "on", siteKey: "0xREAL", secret: "real" };
+    expect(await resolveCaptcha(e, deployed)).toEqual(on);
+    expect(await resolveCaptcha(e, devServer)).toEqual(on);
+    expect(events).toEqual([]);
+  });
+
+  it("is off when it isn't provisioned: no site key, or the test key", async () => {
+    for (const e of [
+      env({}),
+      env({ secret: "real" }),
+      env({ siteKey: TURNSTILE_TEST_SITE_KEY }),
+      env({ siteKey: TURNSTILE_TEST_SITE_KEY, secret: "real" }),
+      env({ siteKey: "  " }),
+    ]) {
+      expect(await resolveCaptcha(e, deployed)).toEqual({ kind: "off" });
+    }
+    expect(events).toEqual([]);
+  });
+
+  it("is unavailable for a real site key whose secret can't be read, and reports it", async () => {
+    const throwing = {
+      TURNSTILE_SITE_KEY: "0xREAL",
+      TURNSTILE_SECRET: {
+        get: async () => {
+          throw new Error("store unreachable");
+        },
+      },
+    } as unknown as LouiseAuthEnv;
+    const missing = { TURNSTILE_SITE_KEY: "0xREAL" } as LouiseAuthEnv;
+    for (const e of [
+      env({ siteKey: "0xREAL", secret: TURNSTILE_PLACEHOLDER }),
+      missing,
+      throwing,
+    ]) {
+      expect(await resolveCaptcha(e, deployed)).toEqual({ kind: "unavailable" });
+    }
+    const reports = events.filter((event) => event.name === CAPTCHA_UNAVAILABLE_DEGRADED);
+    expect(reports.map((event) => event.details)).toEqual([
+      { reason: "unreadable" },
+      { reason: "missing" },
+      { reason: "unreadable" },
+    ]);
+  });
+
+  it("is off on the dev server, which has the real site key and no Secrets Store", async () => {
+    const e = { TURNSTILE_SITE_KEY: "0xREAL" } as LouiseAuthEnv;
+    expect(await resolveCaptcha(e, devServer)).toEqual({ kind: "off" });
+    expect(events).toEqual([]);
+  });
+
+  it("leaves activeCaptcha failing open in the same state", async () => {
+    const e = env({ siteKey: "0xREAL", secret: TURNSTILE_PLACEHOLDER });
+    expect(await activeCaptcha(e)).toBeNull();
   });
 });
 

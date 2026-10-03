@@ -358,6 +358,65 @@ const next = safeNextPath(url.searchParams.get("next"), "/account");
   [`renderTurnstile`](/reference/forms/#the-widget-renderturnstileel-options).
 - `turnstileSiteKey(env)`, `turnstileSecret(env)`, `activeCaptchaSecret(env, secret)`—the
   lower-level halves `activeCaptcha` combines.
+- `resolveCaptcha(env, { devServer })`—the same decision in three states, for a
+  control that must not lose its captcha without a word. See
+  [Captcha that fails closed](#captcha-that-fails-closed).
+
+### Captcha that fails closed
+
+`activeCaptcha` answers `null` both when the captcha isn't provisioned and when
+the site key is real but the secret can't be read: the binding is missing,
+holds `TURNSTILE_PLACEHOLDER`, or throws. For the studio's sign-in that's the
+intended trade, because a broken secret then keeps the owner able to sign in. For
+a payment form it isn't: a broken Secrets Store binding turns the captcha off
+without a word, and a card-testing script faces only the rate limit.
+
+`resolveCaptcha` keeps the two cases apart:
+
+```ts
+function resolveCaptcha(env: CaptchaEnv, options: { devServer: boolean }): Promise<CaptchaDecision>;
+
+type CaptchaDecision =
+  | { kind: "off" } // not provisioned, or the dev server
+  | { kind: "on"; siteKey: string; secret: string }
+  | { kind: "unavailable" }; // a real site key whose secret can't be read
+```
+
+`CaptchaEnv` is the two bindings it reads, `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET`, so any `LouiseAuthEnv` fits.
+
+Each control decides what `unavailable` means for it. A checkout fails closed
+and refuses the request. A sign-in form can fail open and let it through. Either
+way, render no widget, since there's no secret to check its token against.
+`resolveCaptcha` reports every `unavailable` result with `reportDegraded` under
+`auth.captcha-unavailable` (`CAPTCHA_UNAVAILABLE_DEGRADED`).
+
+`devServer` is the build's own flag, such as `import.meta.env.DEV`. The dev
+server reads the real site key from the Wrangler config and has no Secrets
+Store, so a real site key with no secret is `off` there. Don't derive it from
+the request's host: a local preview of a build (`wrangler dev` on the built
+Worker) rewrites the host to the route's zone, so a host test can't tell a
+preview from production. Set the test site key in `.dev.vars` to preview a build
+with the captcha off.
+
+```ts
+import { resolveCaptcha } from "louise-toolkit/auth";
+import { verifyTurnstileToken } from "louise-toolkit/forms/turnstile";
+
+const captcha = await resolveCaptcha(env, { devServer: import.meta.env.DEV });
+if (captcha.kind === "unavailable") {
+  return Response.json({ error: "Checkout isn't available right now." }, { status: 503 });
+}
+if (captcha.kind === "on") {
+  const ip = request.headers.get("cf-connecting-ip");
+  if (!(await verifyTurnstileToken(captcha.secret, token, ip))) {
+    return Response.json({ error: "Reload the page and try again." }, { status: 403 });
+  }
+}
+```
+
+The page reads the same call and renders the widget only for `on`, with
+`captcha.siteKey`.
 
 When captcha is on, Better Auth's captcha plugin guards `/sign-in/magic-link`
 and rejects any request without an `x-captcha-response` **header**. A token in

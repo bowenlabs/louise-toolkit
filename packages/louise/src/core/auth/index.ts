@@ -47,6 +47,11 @@ export {
 export {
   activeCaptcha,
   activeCaptchaSecret,
+  CAPTCHA_UNAVAILABLE_DEGRADED,
+  type CaptchaDecision,
+  type CaptchaEnv,
+  resolveCaptcha,
+  type ResolveCaptchaOptions,
   TURNSTILE_PLACEHOLDER,
   TURNSTILE_TEST_SITE_KEY,
   turnstileSecret,

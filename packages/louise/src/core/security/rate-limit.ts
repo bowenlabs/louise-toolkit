@@ -102,24 +102,75 @@ export async function rateLimit(
 export interface RateRule {
   name: string;
   method: string;
-  /** Exact path or a prefix test. */
+  /**
+   * Exact path or a prefix test. {@link matchRateRule} calls it with the path
+   * as given and with its {@link normalizeRatePath} form, so write it against
+   * the canonical path (`p === "/api/checkout"`) and the slashed and encoded
+   * spellings of that path match too.
+   */
   match: (path: string) => boolean;
   limit: number;
   windowSec: number;
+}
+
+// The same bound the router uses before it refuses a request as multiply
+// encoded. A path still changing after this many decodes is left as it stands.
+const MAX_DECODE_ITERATIONS = 10;
+const DUPLICATE_SLASHES = /\/{2,}/g;
+
+/**
+ * The canonical form of a request path, for matching rate rules: percent-decoded
+ * until it stops changing, with each run of slashes collapsed to one and any
+ * trailing slash removed. The root path stays `/`.
+ *
+ * Routers commonly answer every one of these spellings from one endpoint: a
+ * trailing slash is ignored by default, and duplicate slashes and
+ * percent-encoded letters are normalized before routes are matched. A rule that
+ * tests the raw path for equality misses every other spelling, and the endpoint
+ * behind it gets no limit. So `/api//checkout/` and `/api/%63heckout` both
+ * normalize to `/api/checkout`.
+ *
+ * Decoding uses `decodeURI`, so an encoded reserved character such as `%2F`
+ * stays encoded and can't turn into a path separator. An invalid escape stops
+ * the decoding and keeps what decoded so far.
+ */
+export function normalizeRatePath(path: string): string {
+  let decoded = path;
+  for (let i = 0; i < MAX_DECODE_ITERATIONS; i++) {
+    let next: string;
+    try {
+      next = decodeURI(decoded);
+    } catch {
+      break;
+    }
+    if (next === decoded) break;
+    decoded = next;
+  }
+  const collapsed = decoded.replace(DUPLICATE_SLASHES, "/");
+  return collapsed.length > 1 && collapsed.endsWith("/") ? collapsed.slice(0, -1) : collapsed;
 }
 
 /**
  * First matching rule for a request, or null. The site owns the `rules` array
  * (its own routes + budgets); pass it in. Editor endpoints are usually
  * session-gated and omitted so the editor can never lock itself out.
+ *
+ * Each rule is tested against `path` as given and against its
+ * {@link normalizeRatePath} form, and either one matching is a match. The
+ * normalized test means an exact rule for `/api/checkout` also limits
+ * `/api/checkout/`, which the router sends to the same endpoint. The test on
+ * the path as given keeps a rule written for a slashed path (a site with
+ * trailing slashes always on) matching as it did before.
  */
 export function matchRateRule(
   rules: readonly RateRule[],
   method: string,
   path: string,
 ): RateRule | null {
+  const normalized = normalizeRatePath(path);
   for (const rule of rules) {
-    if (rule.method === method && rule.match(path)) return rule;
+    if (rule.method !== method) continue;
+    if (rule.match(path) || (normalized !== path && rule.match(normalized))) return rule;
   }
   return null;
 }
