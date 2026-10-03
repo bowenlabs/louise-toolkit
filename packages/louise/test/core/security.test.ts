@@ -4,6 +4,7 @@ import {
   getSessionSecret,
   louiseSecurityHeaders,
   matchRateRule,
+  normalizeRatePath,
   rateLimit,
   readSecret,
   rewriteCspStyleSrc,
@@ -379,6 +380,68 @@ describe("matchRateRule", () => {
     expect(matchRateRule(rules, "POST", "/api/auth/sign-in/magic-link")?.name).toBe("magic-link");
     expect(matchRateRule(rules, "GET", "/api/auth/sign-in/magic-link")).toBeNull();
     expect(matchRateRule(rules, "POST", "/other")).toBeNull();
+  });
+
+  // A router that ignores a trailing slash, collapses duplicate slashes, and
+  // decodes the path sends each of these to the endpoint behind the exact rule,
+  // so each one has to spend that rule's budget.
+  it("matches every spelling of an exact path that routes to the same endpoint", () => {
+    for (const path of [
+      "/api/auth/sign-in/magic-link/",
+      "/api/auth/sign-in/magic-link//",
+      "/api//auth/sign-in//magic-link",
+      "//api/auth/sign-in/magic-link/",
+      "/api/auth/sign-in/%6Dagic-link",
+      "/api/auth/sign-in/%256Dagic-link",
+    ]) {
+      expect(matchRateRule(rules, "POST", path)?.name, path).toBe("magic-link");
+    }
+    expect(matchRateRule(rules, "POST", "/api/auth/sign-in/magic-link-other/")).toBeNull();
+  });
+
+  it("still matches a rule written for a slashed path", () => {
+    const slashed: RateRule[] = [
+      { name: "slashed", method: "POST", match: (p) => p === "/contact/", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(slashed, "POST", "/contact/")?.name).toBe("slashed");
+    expect(matchRateRule(slashed, "POST", "/contact")).toBeNull();
+  });
+
+  it("keeps first-match order across the raw and normalized tests", () => {
+    const ordered: RateRule[] = [
+      { name: "first", method: "POST", match: (p) => p === "/a", limit: 1, windowSec: 60 },
+      { name: "second", method: "POST", match: (p) => p === "/a/", limit: 1, windowSec: 60 },
+    ];
+    expect(matchRateRule(ordered, "POST", "/a/")?.name).toBe("first");
+  });
+});
+
+describe("normalizeRatePath", () => {
+  it("removes a trailing slash and collapses duplicate slashes", () => {
+    expect(normalizeRatePath("/api/checkout")).toBe("/api/checkout");
+    expect(normalizeRatePath("/api/checkout/")).toBe("/api/checkout");
+    expect(normalizeRatePath("/api/checkout///")).toBe("/api/checkout");
+    expect(normalizeRatePath("//api//checkout")).toBe("/api/checkout");
+  });
+
+  it("keeps the root path", () => {
+    expect(normalizeRatePath("/")).toBe("/");
+    expect(normalizeRatePath("//")).toBe("/");
+    expect(normalizeRatePath("")).toBe("");
+  });
+
+  it("decodes until the path stops changing, as the router does", () => {
+    expect(normalizeRatePath("/api/%63heckout")).toBe("/api/checkout");
+    expect(normalizeRatePath("/api/%2563heckout")).toBe("/api/checkout");
+  });
+
+  it("never decodes an encoded slash into a separator", () => {
+    expect(normalizeRatePath("/api%2Fcheckout")).toBe("/api%2Fcheckout");
+  });
+
+  it("keeps a path with an invalid escape as it stands", () => {
+    expect(normalizeRatePath("/api/%E0%A4%A/")).toBe("/api/%E0%A4%A");
+    expect(normalizeRatePath("/100%/")).toBe("/100%");
   });
 });
 

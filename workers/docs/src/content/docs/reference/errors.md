@@ -172,6 +172,7 @@ The toolkit's own fallbacks call `reportDegraded` with these names:
 | -------------------------------------------- | ------------------------------------------------------------------------ |
 | `security.rateLimit`                         | A KV, native, or Durable Object rate limiter failed open                 |
 | `security.readSecret`                        | A declared secret binding threw on read, so the feature behind it is off |
+| `auth.captcha-unavailable`                   | `resolveCaptcha` found a real site key with no readable secret           |
 | `forms.turnstile`                            | Siteverify was unreachable, so the submission was refused                |
 | `forms.notify.webhook`, `forms.notify.email` | A submission notification failed                                         |
 | `editor.pages.afterWrite`                    | The pages route's `afterWrite` hook threw                                |

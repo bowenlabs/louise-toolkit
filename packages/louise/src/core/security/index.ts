@@ -30,7 +30,13 @@ export {
 // pulling in the whole auth barrel. `guard` has no runtime imports, so this adds
 // nothing but the function.
 export { isSameOrigin } from "../auth/guard";
-export { matchRateRule, rateLimit, type RateLimitResult, type RateRule } from "./rate-limit";
+export {
+  matchRateRule,
+  normalizeRatePath,
+  rateLimit,
+  type RateLimitResult,
+  type RateRule,
+} from "./rate-limit";
 // The Durable-Object limiter—the only atomic counter on Workers, and the one
 // the auth surface should use. KV and the native binding are both permissive and
 // eventually consistent; see the header of ./rate-limit-do.
