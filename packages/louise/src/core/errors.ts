@@ -208,3 +208,6 @@ export {
   type DegradedEvent,
   type DegradedListener,
 } from "./degraded.js";
+
+// A caught error a site logs itself goes through the same reduction.
+export { loggableError } from "./query-error.js";

@@ -127,9 +127,22 @@ function redactMessage(text: string): string;
 ```
 
 Replaces email addresses with `[email]`, and any run of 24 or more token
-characters that includes a digit with `[redacted]`. Every report's `message` and
-`path` go through it. It's a floor, not a guarantee: never put personal data in
-an error message or a degrade's details.
+characters that includes a digit with `[redacted]`. A failed query quoted in the
+text, `Failed query: <sql> params: <values>`, shrinks to the statement's kind
+and table, such as `Failed query: insert into inquiries`. The bound values are
+often personal data, such as a name or a street address, that the other two rules
+can't recognize. Every report's `message` and `path` go through
+it. It's a floor, not a guarantee: never put personal data in an error message
+or a degrade's details.
+
+A report built from drizzle-orm's `DrizzleQueryError` itself, thrown or passed
+to `reportDegraded`, is named `DrizzleQueryError` and keeps the first line of
+the database's error from its `cause`:
+`Failed query: insert into inquiries. Cause: D1_ERROR: UNIQUE constraint failed: inquiries.email`.
+A database can quote the value in that line, as D1 does in
+`D1_TYPE_ERROR: Type 'object' not supported for value '…'`, so the line stops
+at its first quoted literal: `Cause: D1_TYPE_ERROR: Type <value>`. The same
+query failing with different values is one incident.
 
 ## `isCriticalIncident(report, critical)`
 
@@ -161,7 +174,11 @@ reporting on.
 
 `context.env` is the Worker's bindings, for a sink that writes somewhere.
 `context.cause` is the value that was thrown, or a degrade's cause, as it was:
-with its stack and unredacted. It lives in memory only. A sink that sends it
+with its stack and unredacted. An error whose `cause` chain holds a failed
+query is the exception: the sink gets
+[`loggableError`](/reference/errors/#loggableerrorvalue)'s copy, of the same
+class and with the same own fields, whose messages and stacks carry no bound
+values, so a sink that reads stack frames can't pick one up. It lives in memory only. A sink that sends it
 anywhere, such as an error tracker, owns scrubbing it first.
 
 ## The `incidents` table

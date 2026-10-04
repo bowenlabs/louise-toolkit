@@ -16,6 +16,7 @@
 
 import { timestampAge } from "../health/age.js";
 import { isStale } from "../health/index.js";
+import { loggableError } from "../query-error.js";
 import { LOUISE_STATUS_PATH, publicRoute } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
 import { json, matchPath } from "./shared.js";
@@ -113,7 +114,7 @@ async function runOne<Env>(
     }
     return toReport(result);
   } catch (err) {
-    console.error(`[louise] status check "${name}" failed`, err);
+    console.error(`[louise] status check "${name}" failed`, loggableError(err));
     return { ok: false };
   } finally {
     clearTimeout(timer);

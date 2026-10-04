@@ -14,6 +14,7 @@
 // site that already imports those has it at hand. Kit modules import it from
 // here directly.
 
+import { isQueryError, loggableError, queryErrorParts, redactQueryText } from "./query-error.js";
 import { UpstreamError, upstreamLogLine } from "./security/upstream.js";
 
 /** Small, JSON-serializable context for a degrade: an id, a count, a status.
@@ -27,7 +28,11 @@ export interface DegradedEvent {
   /** The cause, reduced to one line of text: `"TypeError: fetch failed"`. An
    *  `UpstreamError` adds its operation and what the provider said. */
   readonly message: string;
-  /** The original cause, as passed. `undefined` when there wasn't one. */
+  /**
+   * The cause, as passed, unless it holds a failed query: then it's
+   * `loggableError`'s copy, of the same class and with the same own fields,
+   * without the SQL and bound values. `undefined` when there wasn't one.
+   */
   readonly cause: unknown;
   /** The details, as passed. */
   readonly details: DegradedDetails | undefined;
@@ -86,7 +91,9 @@ export function reportDegraded(name: string, cause?: unknown, details?: Degraded
     const event: DegradedEvent = {
       name: safeText(name, "unnamed"),
       message: describeCause(cause),
-      cause,
+      // A listener may forward the cause to an error tracker, so it never
+      // gets a failed query's bound values.
+      cause: loggableError(cause),
       details,
     };
     const extra = serializeDetails(details);
@@ -132,7 +139,8 @@ function describeCause(cause: unknown): string {
 
 /**
  * A thrown value's name and message, each flattened to one line, without ever
- * throwing. `name` is empty for a value that isn't an `Error`. Incident capture
+ * throwing. A failed query's error keeps its statement and its driver's error,
+ * never its bound values. `name` is empty for a value that isn't an `Error`. Incident capture
  * reads a cause the same way, so it's exported, but it's on no subpath.
  */
 export function causeParts(cause: unknown): { name: string; message: string } {
@@ -142,18 +150,24 @@ export function causeParts(cause: unknown): { name: string; message: string } {
     // and what the provider said, which `upstreamLogLine` adds.
     try {
       const name = safeText(read(cause, "name") ?? "UpstreamError", "UpstreamError");
-      return { name, message: safeText(upstreamLogLine(cause), "") };
+      return { name, message: redactQueryText(safeText(upstreamLogLine(cause), "")) };
     } catch {
       // Fall through to the plain `Error` path.
     }
   }
+  if (isError(cause) && isQueryError(cause)) {
+    // drizzle-orm's message carries the query's bound values, which are
+    // personal data as often as not. Keep the statement and the driver's error.
+    const parts = queryErrorParts(cause);
+    return { name: safeText(parts.name, "Error"), message: safeText(parts.message, "") };
+  }
   if (isError(cause)) {
     return {
       name: safeText(read(cause, "name") ?? "Error", "Error"),
-      message: safeText(read(cause, "message") ?? "", ""),
+      message: redactQueryText(safeText(read(cause, "message") ?? "", "")),
     };
   }
-  return { name: "", message: safeText(cause, "unprintable cause") };
+  return { name: "", message: redactQueryText(safeText(cause, "unprintable cause")) };
 }
 
 /** `instanceof Error`, or `false` when a proxy's prototype trap throws. */

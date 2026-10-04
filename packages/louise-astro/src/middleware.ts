@@ -30,6 +30,7 @@ import {
   rewriteCspStyleSrc,
 } from "louise-toolkit/security";
 import type { EditorSession } from "louise-toolkit/auth";
+import { loggableError } from "louise-toolkit/errors";
 import {
   hasBearerCredential,
   isLouisePublicPath,
@@ -275,6 +276,18 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * reaches `composeWorker`'s `onIncident` sinks. Without `onIncident` it does
    * nothing. Default `true`.
    *
+   * An error whose `cause` chain holds a failed query, the query error itself
+   * or an error that wraps one, is reported and re-thrown as `loggableError`'s
+   * copy (`louise-toolkit/errors`), so neither Astro's error log nor the
+   * platform's exception record keeps its bound values. The copy has the
+   * original's class, `name`, `code`, and other own fields; only the query
+   * error's message and stack change, and its `query` and `params` are left
+   * out. An error too big or too deep to check (a `cause` chain past ten
+   * levels, or more than 5,000 fields or values) is copied too, with what's
+   * past the limit left out. Any other error is re-thrown as it was. With
+   * `false`, the error passes
+   * through untouched.
+   *
    * An error a streamed page throws after its first bytes are sent happens
    * outside every middleware, so no middleware can report it.
    */
@@ -476,8 +489,11 @@ export function createLouiseMiddleware<TEditor = unknown>(
     try {
       return await handle(context, next);
     } catch (err) {
-      reportIncident({ kind: "fetch", cause: err, request: context.request });
-      throw err;
+      // A failed query's error carries its bound values; the report, Astro's
+      // error log, and the platform's exception record get a copy without them.
+      const safe = loggableError(err);
+      reportIncident({ kind: "fetch", cause: safe, request: context.request });
+      throw safe;
     }
   };
   return reporting;

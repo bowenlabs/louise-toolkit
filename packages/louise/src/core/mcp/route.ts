@@ -53,6 +53,7 @@ import {
   type SaveDraftResult,
 } from "../editor/versions.js";
 import { LouiseAccessDeniedError, LouiseContentError, LouiseValidationError } from "../errors.js";
+import { loggableError } from "../query-error.js";
 import { sanitizeModelHtml } from "../security/sanitize.js";
 import { bearerRoute, hasBearerCredential, resolveEditorOnce } from "../worker/gate.js";
 import type { WorkerRoute } from "../worker/index.js";
@@ -559,7 +560,7 @@ async function callReadTool(
     }
     // Not found, and the Local API's other refusals, are written for a reader.
     if (err instanceof LouiseContentError) return toolError(err.message);
-    console.error(`[louise] MCP tool ${tool.name} failed`, err);
+    console.error(`[louise] MCP tool ${tool.name} failed`, loggableError(err));
     return toolError(
       `Reading ${label} failed on the server. Try again, or tell the person it failed.`,
     );
@@ -803,7 +804,7 @@ async function callWriteTool(
       return toolError(violationText(err.message, err.violations));
     }
     if (err instanceof LouiseContentError) return toolError(err.message);
-    console.error(`[louise] MCP tool ${tool.name} failed`, err);
+    console.error(`[louise] MCP tool ${tool.name} failed`, loggableError(err));
     return toolError(
       `Saving ${label} failed on the server. Try again, or tell the person it failed.`,
     );

@@ -48,7 +48,10 @@ An error a page, an endpoint, or the middleware throws is reported as an
 incident, then re-thrown, so Astro still renders its error page. Astro catches
 the error outside every middleware, so `composeWorker` never sees a throw; this
 is how it still reaches the sinks you gave `composeWorker`'s `onIncident`
-(ADR 0022). Pass `reportErrors: false` to turn it off.
+(ADR 0022). Pass `reportErrors: false` to turn it off. An error whose `cause`
+chain holds a failed query is reported and re-thrown as `loggableError`'s copy
+from `louise-toolkit/errors`, so Astro's error log doesn't keep its bound
+values. The copy keeps the original's class, `name`, and `code`.
 Middleware runs before Astro knows which route file answers, so a public route
 is declared by path: the toolkit's form, vitals, and status routes are exempt
 at their default paths, and `apiGate: { isPublic: (path) => … }` adds your own.

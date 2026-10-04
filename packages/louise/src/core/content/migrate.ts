@@ -1,5 +1,6 @@
 // Copyright (c) 2026 BowenLabs. Louise Toolkit is MIT licensed.
 
+import { loggableError } from "../query-error.js";
 import type { LocalApi } from "./localApi.js";
 import { computePatch, type Patch } from "./patch.js";
 import type { JsonValue } from "./types.js";
@@ -104,7 +105,8 @@ export async function runMigration<TContext, TDoc extends Doc = Doc>(
       changes.push({ id: before.id, patch });
       changed++;
     } catch (err) {
-      errors.push(`document ${before.id}: ${String(err)}`);
+      // A failed write's message can quote its bound values.
+      errors.push(`document ${before.id}: ${String(loggableError(err))}`);
     }
   }
 
