@@ -42,7 +42,8 @@ export interface MailFonts {
  * SVG, and most block remote images until the reader allows them, so point
  * `src` at a PNG on a public host, export it at twice the displayed size, and
  * give the displayed size here. The alt text stands in while the image is
- * blocked.
+ * blocked, drawn like the wordmark: in `onDark`, in the serif font, at
+ * `brandSize`.
  */
 export interface MailLogo {
   /** Absolute `https:` URL of the image. Any other scheme falls back to the wordmark. */
@@ -330,11 +331,15 @@ function logoMastheadRow(theme: MailTheme, pad: number): string {
   const { palette: p, fonts, brand } = theme;
   const bg = theme.mastheadBg ?? p.ink;
   const src = theme.logo ? mailSrc(theme.logo.src) : "";
+  // A client that blocks the image draws its alt text with the image's own
+  // font and color, or the cell's, so both carry the wordmark's type in
+  // `onDark`. Without them, the alt text inherits `ink` on an `ink` band.
+  const type = `font-family:${fonts.serif};font-weight:400;font-size:${theme.brandSize ?? 22}px;line-height:1.2;color:${p.onDark};`;
   const mark =
     theme.logo && src
-      ? `<img src="${src}" alt="${escapeHtml(theme.logo.alt ?? brand.name)}" width="${theme.logo.width}" height="${theme.logo.height}" style="display:block;margin:0 auto;width:${theme.logo.width}px;height:${theme.logo.height}px;border:0;">`
-      : `<span style="font-family:${fonts.serif};font-weight:400;font-size:${theme.brandSize ?? 22}px;line-height:1.2;color:${p.onDark};">${brand.name}</span>`;
-  return `<tr><td align="center" style="padding:22px ${pad}px;background:${bg};text-align:center;">
+      ? `<img src="${src}" alt="${escapeHtml(theme.logo.alt ?? brand.name)}" width="${theme.logo.width}" height="${theme.logo.height}" style="display:block;margin:0 auto;width:${theme.logo.width}px;height:${theme.logo.height}px;border:0;${type}">`
+      : `<span style="${type}">${brand.name}</span>`;
+  return `<tr><td align="center" style="padding:22px ${pad}px;background:${bg};text-align:center;color:${p.onDark};">
 ${mark}
 </td></tr>`;
 }
