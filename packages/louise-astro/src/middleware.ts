@@ -49,7 +49,22 @@ interface LouiseLocals {
 }
 
 export interface LouiseMiddlewareRateLimit {
-  /** The site's rate-limit rules—the public POST surfaces worth protecting. */
+  /**
+   * The site's rate-limit rules—the public POST surfaces worth protecting.
+   *
+   * Write a rule for an Astro Action against its RPC path, such as
+   * `(p) => p === "/_actions/subscribe"`. Astro also runs an action as a form
+   * action, from a POST to any on-demand route with `?_action=<name>`, so the
+   * middleware matches that request against `/_actions/<name>` as well as its
+   * own path. One rule then covers both ways to call the action, in one budget.
+   * When both paths match different rules, the request spends both budgets,
+   * since Astro runs the action and then the route.
+   *
+   * The form action's path carries no `base` from `astro.config`, because
+   * middleware can't read it. With a `base`, write an action rule that matches
+   * both spellings, such as
+   * `(p) => p === "/_actions/subscribe" || p === "/docs/_actions/subscribe"`.
+   */
   rules: RateRule[];
   /**
    * Rate-limit backend—a KV counter or Cloudflare's native Rate Limiting
@@ -60,6 +75,59 @@ export interface LouiseMiddlewareRateLimit {
    * yet) simply skips rate-limiting—fail open, consistent with {@link rateLimit}.
    */
   kv: RateLimitBackend | (() => RateLimitBackend | undefined);
+}
+
+// Astro runs an action two ways: by RPC, on its own route at
+// `/_actions/<name>`, and as a form action, from a POST to any on-demand route
+// with `?_action=<name>`. These mirror `ACTION_RPC_ROUTE_PATTERN` and
+// `ACTION_QUERY_PARAMS.actionName` in Astro's actions runtime, which Astro
+// doesn't export.
+const ACTION_RPC_ROUTE = "/_actions/[...path]";
+const ACTION_RPC_PREFIX = "/_actions/";
+const ACTION_QUERY_PARAM = "_action";
+
+/**
+ * An action's name as Astro looks it up: split at each dot, with each key
+ * decoded by `decodeURIComponent`. That decodes a reserved character such as
+ * `%24` (`$`), which `normalizeRatePath` leaves encoded. A key that doesn't
+ * decode stays as it is; Astro answers that request with an error and runs no
+ * action.
+ */
+function actionLookupName(name: string): string {
+  return name
+    .split(".")
+    .map((key) => {
+      try {
+        return decodeURIComponent(key);
+      } catch {
+        return key;
+      }
+    })
+    .join(".");
+}
+
+/**
+ * The paths a request's rate rules are matched against, in the order they're
+ * tried.
+ *
+ * A form action comes first: a `POST` with a nonempty `_action` search param, on
+ * any route but the RPC route, which Astro routes by its path alone. It's
+ * matched as the RPC path `/_actions/<name>`, so a rule written for the RPC path
+ * covers it too. The request's own path always follows, since Astro runs the
+ * route after the action. On the RPC route, the name in the path is spelled as
+ * Astro looks it up. Every path is then normalized by `matchRateRule`.
+ */
+function ratePaths(context: APIContext): string[] {
+  const { pathname, searchParams } = context.url;
+  if (context.routePattern === ACTION_RPC_ROUTE) {
+    // Astro takes the name from after the last `/_actions/`, so a site `base`
+    // stays in front of it.
+    const at = pathname.lastIndexOf(ACTION_RPC_PREFIX) + ACTION_RPC_PREFIX.length;
+    return [pathname.slice(0, at) + actionLookupName(pathname.slice(at))];
+  }
+  // Astro runs a form action only for a POST, like the RPC route.
+  const name = context.request.method === "POST" ? searchParams.get(ACTION_QUERY_PARAM) : null;
+  return name ? [ACTION_RPC_PREFIX + actionLookupName(name), pathname] : [pathname];
 }
 
 export interface LouiseMiddlewareApiGate {
@@ -240,13 +308,18 @@ export function createLouiseMiddleware<TEditor = unknown>(
     // `pathname`. `matchRateRule` tests each rule against the normalized path
     // too, so an exact rule still limits the slashed spelling, and both count
     // against one budget, since the bucket is keyed by the rule's name.
+    //
+    // A form action (`POST /any/route?_action=<name>`) is also matched as
+    // `/_actions/<name>`, so a rule for an action's RPC path can't be skipped by
+    // calling the action from another route. See `ratePaths`.
     if (config.rateLimit) {
-      const rule = matchRateRule(
-        config.rateLimit.rules,
-        context.request.method,
-        context.url.pathname,
-      );
-      if (rule) {
+      const { rules } = config.rateLimit;
+      const matched: RateRule[] = [];
+      for (const path of ratePaths(context)) {
+        const rule = matchRateRule(rules, context.request.method, path);
+        if (rule && !matched.includes(rule)) matched.push(rule);
+      }
+      if (matched.length > 0) {
         // Resolve the backend only for a matched surface, and per request: a
         // getter defers the `env` binding read to request scope (never
         // module-eval). A falsy backend (binding not yet provisioned) skips
@@ -255,20 +328,25 @@ export function createLouiseMiddleware<TEditor = unknown>(
           typeof config.rateLimit.kv === "function" ? config.rateLimit.kv() : config.rateLimit.kv;
         if (backend) {
           const ip = context.request.headers.get("cf-connecting-ip") ?? "unknown";
-          const { ok, retryAfter } = await rateLimit(
-            backend,
-            `${rule.name}:${ip}`,
-            rule.limit,
-            rule.windowSec,
-          );
-          if (!ok) {
-            return new Response(
-              JSON.stringify({ error: "Too many requests. Please try again shortly." }),
-              {
-                status: 429,
-                headers: { "content-type": "application/json", "retry-after": String(retryAfter) },
-              },
+          for (const rule of matched) {
+            const { ok, retryAfter } = await rateLimit(
+              backend,
+              `${rule.name}:${ip}`,
+              rule.limit,
+              rule.windowSec,
             );
+            if (!ok) {
+              return new Response(
+                JSON.stringify({ error: "Too many requests. Please try again shortly." }),
+                {
+                  status: 429,
+                  headers: {
+                    "content-type": "application/json",
+                    "retry-after": String(retryAfter),
+                  },
+                },
+              );
+            }
           }
         }
       }
