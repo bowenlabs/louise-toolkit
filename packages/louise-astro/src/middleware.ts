@@ -52,13 +52,18 @@ export interface LouiseMiddlewareRateLimit {
   /**
    * The site's rate-limit rules—the public POST surfaces worth protecting.
    *
-   * Write a rule for an Astro Action against its RPC path, such as
-   * `(p) => p === "/_actions/subscribe"`. Astro also runs an action as a form
-   * action, from a POST to any on-demand route with `?_action=<name>`, so the
-   * middleware matches that request against `/_actions/<name>` as well as its
-   * own path. One rule then covers both ways to call the action, in one budget.
-   * When both paths match different rules, the request spends both budgets,
-   * since Astro runs the action and then the route.
+   * Write a rule for an Astro Action against its remote procedure call (RPC)
+   * path, such as `(p) => p === "/_actions/subscribe"`. Astro also runs an
+   * action as a form action, from a POST to any on-demand route with
+   * `?_action=<name>`, so the middleware matches that request against
+   * `/_actions/<name>` as well as its own path. One rule then covers both ways
+   * to call the action, in one budget.
+   *
+   * When the two paths match rules with different names, the request spends
+   * both budgets, since Astro runs the action and then the route. The action's
+   * rule is checked first, so a 429 from the route's rule still counts against
+   * the action's rule. Rules that share a name share a budget, and a request
+   * spends it once.
    *
    * The form action's path carries no `base` from `astro.config`, because
    * middleware can't read it. With a `base`, write an action rule that matches
@@ -317,7 +322,9 @@ export function createLouiseMiddleware<TEditor = unknown>(
       const matched: RateRule[] = [];
       for (const path of ratePaths(context)) {
         const rule = matchRateRule(rules, context.request.method, path);
-        if (rule && !matched.includes(rule)) matched.push(rule);
+        // A budget is keyed by the rule's name, so two rules with one name are
+        // one budget, and a request spends it once.
+        if (rule && !matched.some((m) => m.name === rule.name)) matched.push(rule);
       }
       if (matched.length > 0) {
         // Resolve the backend only for a matched surface, and per request: a

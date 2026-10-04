@@ -309,6 +309,24 @@ describe("createLouiseMiddleware — rate limiting form actions", () => {
     expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(429);
   });
 
+  it("spends one budget when two rules share a name", async () => {
+    // Two rule objects, one name: one bucket, so one unit a request.
+    const shared: RateRule[] = [
+      ...actionRule("subscribe"),
+      {
+        name: "subscribe",
+        method: "POST",
+        match: (p) => p === "/contact",
+        limit: 2,
+        windowSec: 60,
+      },
+    ];
+    const { mw } = counted(shared);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(429);
+  });
+
   it("leaves ordinary paths as they were", async () => {
     const rules: RateRule[] = [
       ...actionRule("subscribe"),
