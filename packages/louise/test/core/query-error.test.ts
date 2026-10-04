@@ -2,6 +2,7 @@ import { DrizzleQueryError } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { causeParts } from "../../src/core/degraded.js";
 import {
+  LouiseApiError,
   LouiseContentError,
   LouiseError,
   onDegraded,
@@ -85,6 +86,20 @@ describe("queryErrorParts", () => {
     );
     expect(summary("with recent as (select 1) select * from recent")).toBe("Failed query: with");
     expect(summary("'Avery Example' is not SQL")).toBe("Failed query: query");
+  });
+
+  it("never takes a table name from inside an inlined string literal", () => {
+    const summary = (sql: string) => queryErrorParts(new DrizzleQueryError(sql, [])).message;
+    expect(summary(`select 'moved into Quinn' as note from "orders"`)).toBe(
+      "Failed query: select from orders",
+    );
+    expect(summary(`insert into "notes" ("body") values ('from Quinn')`)).toBe(
+      "Failed query: insert into notes",
+    );
+    expect(summary(`select 'it''s from Quinn' as note from "orders"`)).toBe(
+      "Failed query: select from orders",
+    );
+    expect(summary(`select 'moved into Quinn`)).toBe("Failed query: select");
   });
 
   it("drops a table name that isn't name-shaped", () => {
@@ -206,7 +221,11 @@ describe("a query error in a report", () => {
 
   it("keeps its values out of reportDegraded's log line and event", () => {
     const events: string[] = [];
-    const off = onDegraded((event) => events.push(event.message));
+    const causes: unknown[] = [];
+    const off = onDegraded((event) => {
+      events.push(event.message);
+      causes.push(event.cause);
+    });
     try {
       reportDegraded("forms.inquiry", failedInsert(), { form: "contact" });
     } finally {
@@ -219,6 +238,24 @@ describe("a query error in a report", () => {
     expectNoPii(line);
     expect(events).toHaveLength(1);
     expectNoPii(events[0]!);
+    // A listener that forwards the cause to an error tracker gets the copy.
+    const cause = causes[0] as Error;
+    expect(cause).toBeInstanceOf(DrizzleQueryError);
+    expectNoPii(`${cause.message}\n${cause.stack}`);
+    expect(Object.hasOwn(cause, "params")).toBe(false);
+  });
+
+  it("hands an onDegraded listener any other cause as it was", () => {
+    const causes: unknown[] = [];
+    const off = onDegraded((event) => causes.push(event.cause));
+    const plain = new TypeError("fetch failed");
+    try {
+      reportDegraded("content.read", plain);
+    } finally {
+      off();
+    }
+    expect(causes).toEqual([plain]);
+    expect(causes[0]).toBe(plain);
   });
 
   it("keeps its values out of an incident report", () => {
@@ -368,6 +405,65 @@ describe("loggableError", () => {
     const copied = buildIncidentReport({ kind: "fetch", cause: loggableError(wrapper), now: 1 });
     expect(copied).toEqual(original);
     expect(copied.code).toBe("CONTENT_ERROR");
+  });
+
+  it("reduces a query error inside an AggregateError's errors", () => {
+    const fine = new Error("row 4 not found");
+    const batch = new AggregateError([fine, failedInsert()], "the batch failed");
+    const copy = loggableError(batch) as AggregateError;
+    expect(copy).not.toBe(batch);
+    expect(copy).toBeInstanceOf(AggregateError);
+    expect(copy.message).toBe("the batch failed");
+    expect(copy.errors).toHaveLength(2);
+    expect(copy.errors[0]).toBe(fine);
+    const failed = copy.errors[1] as Error;
+    expect(failed).toBeInstanceOf(DrizzleQueryError);
+    expectNoPii(`${failed.message}\n${failed.stack}`);
+  });
+
+  it("reduces a query error held in an own field, and leaves out what it can't check", () => {
+    const failed = Object.assign(new Error("checkout failed"), {
+      originalError: failedInsert(),
+      attempts: [failedInsert(), "Failed query: select 1\nparams: Avery Example"],
+      body: { detail: failedInsert().message, step: { name: "payment" } },
+      headers: new Map([["x-customer", "CUST-7Q2X"]]),
+      attemptCount: 2,
+    });
+    const copy = loggableError(failed) as typeof failed;
+    expect(copy).not.toBe(failed);
+    expect(copy.originalError).toBeInstanceOf(DrizzleQueryError);
+    expect(copy.attempts).toHaveLength(2);
+    expect(copy.attempts[1]).toBe("Failed query: select");
+    expect(copy.body.detail).toBe("Failed query: insert into inquiries");
+    expect(copy.body.step).toBe(failed.body.step);
+    expect(copy.attemptCount).toBe(2);
+    expect(Object.hasOwn(copy, "headers")).toBe(false);
+    const all = JSON.stringify(copy, (_key, field: unknown) =>
+      field instanceof Error ? `${field.message}\n${field.stack}` : field,
+    );
+    expectNoPii(all);
+  });
+
+  it("reduces a LouiseApiError body that quotes a failed query", () => {
+    const failed = new LouiseApiError("Upstream failed", 502, {
+      error: failedInsert().message,
+    });
+    const copy = loggableError(failed) as LouiseApiError;
+    expect(copy).toBeInstanceOf(LouiseApiError);
+    expect(copy.status).toBe(502);
+    expect(copy.body).toEqual({ error: "Failed query: insert into inquiries" });
+  });
+
+  it("reduces a cause that's a plain object rather than an error", () => {
+    const copy = loggableError(
+      new Error("save failed", { cause: { message: failedInsert().message } }),
+    ) as Error;
+    expect(copy.cause).toEqual({ message: "Failed query: insert into inquiries" });
+  });
+
+  it("returns an error with fields it can't look inside as it was", () => {
+    const failed = Object.assign(new Error("fetch failed"), { headers: new Map() });
+    expect(loggableError(failed)).toBe(failed);
   });
 
   it("copies a chain that holds a query error further down", () => {

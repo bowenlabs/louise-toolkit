@@ -14,7 +14,7 @@
 // site that already imports those has it at hand. Kit modules import it from
 // here directly.
 
-import { isQueryError, queryErrorParts, redactQueryText } from "./query-error.js";
+import { isQueryError, loggableError, queryErrorParts, redactQueryText } from "./query-error.js";
 import { UpstreamError, upstreamLogLine } from "./security/upstream.js";
 
 /** Small, JSON-serializable context for a degrade: an id, a count, a status.
@@ -28,7 +28,11 @@ export interface DegradedEvent {
   /** The cause, reduced to one line of text: `"TypeError: fetch failed"`. An
    *  `UpstreamError` adds its operation and what the provider said. */
   readonly message: string;
-  /** The original cause, as passed. `undefined` when there wasn't one. */
+  /**
+   * The cause, as passed, unless it holds a failed query: then it's
+   * `loggableError`'s copy, of the same class and with the same own fields,
+   * without the SQL and bound values. `undefined` when there wasn't one.
+   */
   readonly cause: unknown;
   /** The details, as passed. */
   readonly details: DegradedDetails | undefined;
@@ -87,7 +91,9 @@ export function reportDegraded(name: string, cause?: unknown, details?: Degraded
     const event: DegradedEvent = {
       name: safeText(name, "unnamed"),
       message: describeCause(cause),
-      cause,
+      // A listener may forward the cause to an error tracker, so it never
+      // gets a failed query's bound values.
+      cause: loggableError(cause),
       details,
     };
     const extra = serializeDetails(details);

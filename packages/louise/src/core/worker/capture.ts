@@ -136,7 +136,7 @@ export function withIncidentCapture<Env, QMessage>(
     try {
       ctx.waitUntil(Promise.all(work));
     } catch (err) {
-      console.error("[louise] incident capture couldn't schedule its sinks", err);
+      console.error("[louise] incident capture couldn't schedule its sinks", loggableError(err));
     }
   };
 
@@ -158,7 +158,7 @@ export function withIncidentCapture<Env, QMessage>(
       }
       dispatch(captured, env, ctx);
     } catch (err) {
-      console.error("[louise] incident capture failed", err);
+      console.error("[louise] incident capture failed", loggableError(err));
     }
   };
 

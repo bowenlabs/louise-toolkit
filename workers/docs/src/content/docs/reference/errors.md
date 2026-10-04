@@ -154,13 +154,16 @@ function onDegraded(listener: (event: DegradedEvent) => void): () => void;
 interface DegradedEvent {
   readonly name: string;
   readonly message: string; // the cause as one line of text
-  readonly cause: unknown; // the original cause, as passed
+  readonly cause: unknown; // the cause as passed, or loggableError's copy of a failed query
   readonly details: DegradedDetails | undefined;
 }
 ```
 
 Listens for every `reportDegraded` call in the isolate, for example, to forward
-degrades to an error tracker or count them in a metric. It returns a function
+degrades to an error tracker or count them in a metric. An event's `cause` is the
+cause as passed, unless it holds a failed query: then it's
+[`loggableError`](#loggableerrorvalue)'s copy, so a listener that forwards it
+never sends the query's bound values. It returns a function
 that removes the listener. Listeners run synchronously after the log line, and
 a listener that throws is ignored. Register one at module scope rather than per
 request, because the listener set lives as long as the isolate. Louise's own
@@ -206,15 +209,20 @@ Returns a value that's safe to pass to `console.error`. Starting with its
 0.44 release, drizzle-orm's `DrizzleQueryError` puts a failed query's SQL and
 bound values in its message and its stack, and the bound values are often
 personal data, such as a name, an address, or a note. `loggableError` returns a
-copy of such an error, or of an error with one anywhere in its `cause` chain,
-with each query error reduced the way `reportDegraded` reduces it.
+copy of such an error, or of an error that holds one anywhere (in its `cause`
+chain, in an `AggregateError`'s `errors`, or in another own field, an array, or
+a plain object), with each query error reduced the way `reportDegraded` reduces
+it.
 
 Each error in the copy keeps its original's class, so `instanceof
 LouiseContentError` or `instanceof DrizzleQueryError` still matches, and its own
 fields, such as `name`, `code`, and `status`, with any string that quotes a
 failed query reduced. Only a query error's message and stack change, and its
-`query` and `params` fields are left out. The stack keeps its frames. When it
-can't tell whether part of the error holds a value, it leaves that part out. A
+`query` and `params` fields are left out. The stack keeps its frames. An array
+is copied element by element, and a plain object field by field. When it can't
+tell whether part of the error holds a value, it leaves that part out: a field
+holding any other kind of object, such as a `Map` or a `Response`, and anything
+past ten levels deep. A
 string that quotes a failed query comes back reduced. Anything else comes back
 as it was, so it costs nothing to call on every caught error.
 
