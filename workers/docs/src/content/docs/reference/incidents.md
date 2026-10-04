@@ -129,9 +129,9 @@ function redactMessage(text: string): string;
 Replaces email addresses with `[email]`, and any run of 24 or more token
 characters that includes a digit with `[redacted]`. A failed query quoted in the
 text, `Failed query: <sql> params: <values>`, shrinks to the statement's kind
-and table, such as `Failed query: insert into inquiries`, because the bound
-values are often personal data that the other two rules can't recognize, such
-as a name or a street address. Every report's `message` and `path` go through
+and table, such as `Failed query: insert into inquiries`. The bound values are
+often personal data, like a name or a street address, that the other two rules
+can't recognize. Every report's `message` and `path` go through
 it. It's a floor, not a guarantee: never put personal data in an error message
 or a degrade's details.
 
@@ -139,7 +139,10 @@ A report built from drizzle-orm's `DrizzleQueryError` itself, thrown or passed
 to `reportDegraded`, is named `DrizzleQueryError` and keeps the first line of
 the database's error from its `cause`:
 `Failed query: insert into inquiries. Cause: D1_ERROR: UNIQUE constraint failed: inquiries.email`.
-The same query failing with different values is one incident.
+A database can quote the value in that line, as D1 does in
+`D1_TYPE_ERROR: Type 'object' not supported for value '…'`, so the line stops
+at its first quoted literal: `Cause: D1_TYPE_ERROR: Type <value>`. The same
+query failing with different values is one incident.
 
 ## `isCriticalIncident(report, critical)`
 

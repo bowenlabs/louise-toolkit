@@ -1,6 +1,6 @@
 # ADR 0022: Incident capture
 
-- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`. **Amended 2026-09-27** (see _Amendment (2026-09-27, at § 8)_ below): the AI reason is part of the degrade's name, not only its details.
+- **Status:** Accepted (2026-09-27). **Amended 2026-09-27** (see _Amendment (2026-09-27, before § 4)_ below): Sentry is the operator's issue system for Monitored and Supported sites, Watchtower pulls incidents instead of sites pushing them, § 5's summary sink is withdrawn, and `incidentsRoute` serves editors only. **Amended again 2026-09-27** (see _Amendment (2026-09-27, at § 7)_ below): `processBatch` and the dead-letter consumer report through capture's buffer instead of taking `onIncident`. **Amended 2026-09-27** (see _Amendment (2026-09-27, at § 8)_ below): the AI reason is part of the degrade's name, not only its details. **Amended 2026-10-04** (see _Amendment (2026-10-04, at § 2)_ below): a failed query's error is reduced to its statement and its database's error before it's reported, and is named for its class.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0012 (API boundary), ADR 0016 (privacy-first, § 1 and § 7), ADR 0017 (client accounts and access), issues #480, #556, #557, #558, #559, #235, the platform plan's A5 track in louise-ops
 
@@ -134,6 +134,17 @@ Instead, both hand their incident to an internal isolate channel, and capture bu
 § 8 put the `reason` in `runAi`'s degrade details. A report doesn't carry details (§ 1), so the reason wouldn't reach the incident row, its fingerprint, or Sentry. It's part of the name instead: `ai.run.model-retired`, `ai.run.rate-limited`, and so on, with the reason still in the details for the log line. A search for `ai.run`, and a `critical` entry of `ai.run`, still match every one. An unusable reply is reported as `ai.invalid-output`, beside the existing `ai.truncated`.
 
 The helpers keep returning `null`, and tell a caller why through an `onFailure` option, which `aiRoute` uses for its `502` body.
+
+## Amendment (2026-10-04, at § 2)
+
+§ 2's redaction missed a failed query. drizzle-orm 0.44 and later wrap one in `DrizzleQueryError`, whose message is `Failed query: <sql>` with a `params: <bound values>` line after it. The values are whatever the query wrote or matched on, such as a name, an address, or a note, and neither the email rule nor the token rule recognizes them. So a query error that reached reporting, caught or uncaught, put them in Workers Logs, the `incidents` table, and Sentry.
+
+- **A query error's message is reduced before any redaction.** It keeps the statement's kind and first table (`Failed query: insert into inquiries`) and the first line of the database's error from `cause`, cut at its first quoted literal, because D1 quotes a rejected value (`D1_TYPE_ERROR: Type <value>`). The SQL and the bound values are dropped. The reduction happens where every cause is read, so the `reportDegraded` log line, which § 2's redaction never covered, gets it too.
+- **`redactMessage` gains a third rule.** A failed query quoted in free text, with its `params:` marker, shrinks the same way. Email addresses and token runs are redacted as before, after it.
+- **A query error is named for its class.** drizzle-orm doesn't set `name`, so its errors read `Error`. A report names one `DrizzleQueryError`, from its constructor, and § 2's fingerprint hashes that name and the reduced message. The same query failing with different values is one incident. Incidents recorded before this change keep their old fingerprint, so a failing query opens a new row and a new Sentry issue once.
+- **The kit's own error logs get a reduced copy.** Where the kit logs a caught error with `console.error`, it logs a copy whose query errors are reduced, with their stack frames and the error's own fields, such as `code`, kept. When the copy can't be sure a part holds no values, it leaves that part out.
+
+The sink's `context.cause` doesn't change: it's still the original error, and a sink that sends it anywhere scrubs it first, as the amendment before § 4 says.
 
 ## Consequences
 

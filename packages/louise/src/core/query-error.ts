@@ -8,8 +8,12 @@
 // IDs. Logged as they are, they reach Workers Logs, the incidents table, and
 // any error tracker. Email and token redaction can't catch a name or a street,
 // so a query error is reduced instead: the statement's kind and table, and the
-// first line of the driver's own error, which says what went wrong without
-// the values.
+// first line of the driver's own error, which says what went wrong. A driver
+// can quote a value in that line too (`D1_TYPE_ERROR: Type 'object' not
+// supported for value '…'`), so the line stops at its first quoted literal.
+//
+// Every fallback fails closed: when this can't tell whether something holds a
+// value, it leaves that thing out.
 //
 // It's matched by its name and its message's shape, never imported, so the
 // zero-dependency core stays that way.
@@ -29,8 +33,24 @@ const PARAMS_MARKER = /\s+params: /;
 /** Longest driver message a reduced query error keeps. */
 const MAX_CAUSE = 200;
 
-/** How deep a `cause` chain is followed, against a chain that loops. */
-const MAX_DEPTH = 5;
+/** How deep a `cause` chain is followed, against a chain that loops. Past it,
+ *  the rest of the chain is left out. */
+const MAX_DEPTH = 10;
+
+/** What a quoted literal in a driver's error becomes. */
+const VALUE = "<value>";
+
+/**
+ * The first quote that opens a literal, and everything after it. A driver's
+ * line can quote a value with a quote inside, or be cut inside one, so the
+ * rest of the line goes with it. A quote counts only at the start or after a
+ * space or an opening mark, so the apostrophe in "can't" doesn't open one.
+ */
+const LITERAL = /(^|[\s(=:[,])['"`].*$/;
+
+/** Own properties a copy never takes: the parts it rebuilds, and a query
+ *  error's SQL and bound values. */
+const SKIPPED_FIELDS = new Set(["name", "message", "stack", "cause", "query", "params"]);
 
 /** Statement keywords worth naming. Anything else is reported as a query. */
 const KINDS = new Set([
@@ -97,12 +117,14 @@ export function redactQueryText(text: string): string {
  * A value that's safe to pass to `console.error`. A failed query's error, or
  * an error with one anywhere in its `cause` chain, comes back as a copy whose
  * query errors carry their reduced message and a stack of frames only, so the
- * log line keeps the trace and loses the values. Anything else comes back as
+ * log line keeps the trace and loses the values. The copy keeps each error's
+ * other string and number fields, such as a `LouiseError`'s `code`. A string
+ * that quotes a failed query comes back reduced. Anything else comes back as
  * it was. It never throws.
  */
 export function loggableError(value: unknown): unknown {
   try {
-    return hasQueryError(value, 0) ? safeCopy(value, 0) : value;
+    return needsCopy(value, 0) ? safeCopy(value, 0) : value;
   } catch {
     return "[an error that couldn't be read]";
   }
@@ -167,27 +189,48 @@ function causeLine(cause: unknown, depth: number): string {
   } catch {
     return "";
   }
-  const line = redactQueryText(text.split(/\r?\n/, 1)[0]!.trim());
+  const line = redactLiterals(redactQueryText(text.split(/\r?\n/, 1)[0]!.trim()));
   return line.length > MAX_CAUSE ? `${line.slice(0, MAX_CAUSE)}…` : line;
 }
 
-function hasQueryError(value: unknown, depth: number): boolean {
-  if (depth > MAX_DEPTH || !isError(value)) return false;
-  if (isQueryError(value)) return true;
-  const message = read(value, "message");
-  if (typeof message === "string" && redactQueryText(message) !== message) return true;
-  return hasQueryError(read(value, "cause"), depth + 1);
+/** The line up to its first quoted literal, with a placeholder for the rest. */
+function redactLiterals(line: string): string {
+  return line.replace(LITERAL, (_match, lead: string) => `${lead}${VALUE}`);
 }
 
-/** A copy of an error and its chain, with every query error reduced. */
+/**
+ * Whether a value needs a copy: an error or a string that is or quotes a failed
+ * query, anywhere in its chain. A chain longer than {@link MAX_DEPTH} counts,
+ * since what's past the limit can't be checked.
+ */
+function needsCopy(value: unknown, depth: number): boolean {
+  if (value === undefined || value === null) return false;
+  if (depth > MAX_DEPTH) return true;
+  if (typeof value === "string") return quotesQuery(value);
+  if (!isError(value)) return false;
+  if (isQueryError(value) || quotesQuery(read(value, "message"))) return true;
+  return needsCopy(read(value, "cause"), depth + 1);
+}
+
+/** Whether text quotes a failed query with its bound values. */
+function quotesQuery(text: unknown): boolean {
+  return typeof text === "string" && redactQueryText(text) !== text;
+}
+
+/** A copy of an error and its chain, with every query error reduced. Past
+ *  {@link MAX_DEPTH}, the rest of the chain is dropped. */
 function safeCopy(value: unknown, depth: number): unknown {
-  if (depth > MAX_DEPTH || !isError(value) || !hasQueryError(value, 0)) return value;
-  const { name, message } = isQueryError(value) ? queryErrorParts(value) : plainParts(value);
+  if (depth > MAX_DEPTH) return undefined;
+  if (typeof value === "string") return redactQueryText(value);
+  if (!isError(value) || !needsCopy(value, 0)) return value;
+  const query = isQueryError(value);
+  const { name, message } = query ? queryErrorParts(value) : plainParts(value);
   const copy = new Error(message);
   copy.name = name;
-  copy.stack = `${name}: ${message}${framesOf(value)}`;
-  const cause = read(value, "cause");
-  if (cause !== undefined) copy.cause = safeCopy(cause, depth + 1);
+  copy.stack = `${name}: ${message}${framesOf(value, query || quotesQuery(read(value, "message")))}`;
+  copyFields(value, copy);
+  const cause = safeCopy(read(value, "cause"), depth + 1);
+  if (cause !== undefined) copy.cause = cause;
   return copy;
 }
 
@@ -201,16 +244,42 @@ function plainParts(error: Error): { name: string; message: string } {
   };
 }
 
+/** The error's own string and number fields, such as `code` and `status`,
+ *  onto the copy. Never a query error's SQL or bound values. */
+function copyFields(from: Error, to: Error): void {
+  let keys: string[];
+  try {
+    keys = Object.getOwnPropertyNames(from);
+  } catch {
+    return;
+  }
+  for (const key of keys) {
+    if (SKIPPED_FIELDS.has(key)) continue;
+    let field: unknown;
+    try {
+      field = (from as unknown as Record<string, unknown>)[key];
+    } catch {
+      continue;
+    }
+    if (typeof field === "number") (to as unknown as Record<string, unknown>)[key] = field;
+    else if (typeof field === "string") {
+      (to as unknown as Record<string, unknown>)[key] = redactQueryText(field);
+    }
+  }
+}
+
 /**
  * An error's stack frames, without its first lines, which repeat the message.
  * It starts looking after the message, so a value that looks like a frame
- * stays out.
+ * stays out. When the error holds a value and its message can't be found in
+ * its stack, it returns no frames at all.
  */
-function framesOf(error: Error): string {
+function framesOf(error: Error, holdsValues: boolean): string {
   const stack = read(error, "stack");
   const message = read(error, "message");
   if (typeof stack !== "string") return "";
   const at = typeof message === "string" && message ? stack.indexOf(message) : -1;
+  if (at === -1 && holdsValues) return "";
   const tail = at === -1 ? stack : stack.slice(at + (message as string).length);
   const frames = tail.split("\n").filter((line) => /^\s+at\s/.test(line));
   return frames.length > 0 ? `\n${frames.join("\n")}` : "";

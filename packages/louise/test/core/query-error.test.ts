@@ -87,6 +87,32 @@ describe("queryErrorParts", () => {
     ).toBe("Failed query: select");
   });
 
+  it("replaces the values a driver quotes in its error", () => {
+    const typeError = new DrizzleQueryError(
+      SQL,
+      [...PII],
+      new Error("D1_TYPE_ERROR: Type 'object' not supported for value 'Avery Example'"),
+    );
+    expect(queryErrorParts(typeError).message).toBe(
+      "Failed query: insert into inquiries. Cause: D1_TYPE_ERROR: Type <value>",
+    );
+    const cause = (text: string) =>
+      queryErrorParts(new DrizzleQueryError(SQL, [], new Error(text))).message;
+    expect(cause("D1_TYPE_ERROR: Type 'string' not supported for value 'O'Brien'")).not.toContain(
+      "Brien",
+    );
+    expect(cause('SQLITE_ERROR: near "Avery Example": syntax error')).toBe(
+      "Failed query: insert into inquiries. Cause: SQLITE_ERROR: near <value>",
+    );
+    // A value with a line break leaves an unclosed quote on the first line.
+    expect(cause("D1_TYPE_ERROR: Type 'x' not supported for value 'Avery\nExample'")).toBe(
+      "Failed query: insert into inquiries. Cause: D1_TYPE_ERROR: Type <value>",
+    );
+    expect(cause("D1_ERROR: can't open the table: SQLITE_CANTOPEN")).toBe(
+      "Failed query: insert into inquiries. Cause: D1_ERROR: can't open the table: SQLITE_CANTOPEN",
+    );
+  });
+
   it("reduces a query error nested in the cause", () => {
     const inner = new DrizzleQueryError('select * from "people"', ["Avery Example"]);
     const outer = new DrizzleQueryError('insert into "log" values (?)', ["CUST-7Q2X"], inner);
@@ -178,6 +204,17 @@ describe("a query error in a report", () => {
     expectNoPii(JSON.stringify(report));
   });
 
+  it("keeps a value the driver quoted out of the log line and the report", () => {
+    const typeError = new DrizzleQueryError(
+      SQL,
+      [...PII],
+      new Error("D1_TYPE_ERROR: Type 'object' not supported for value 'Avery Example'"),
+    );
+    reportDegraded("forms.inquiry", typeError);
+    expectNoPii(error.mock.calls[0]![0] as string);
+    expectNoPii(JSON.stringify(buildIncidentReport({ kind: "fetch", cause: typeError })));
+  });
+
   it("keeps a quoted query's values out of a wrapping error's report", () => {
     const wrapped = new Error(`Save failed: ${failedInsert().message}`);
     expectNoPii(JSON.stringify(buildIncidentReport({ kind: "fetch", cause: wrapped })));
@@ -216,6 +253,53 @@ describe("loggableError", () => {
   it("keeps a value shaped like a frame out of the copy's stack", () => {
     const sneaky = new DrizzleQueryError(SQL, ["x\n    at Avery Example (1 Example Lane)"]);
     expectNoPii((loggableError(sneaky) as Error).stack!);
+  });
+
+  it("keeps no frames when it can't find a query error's message in its stack", () => {
+    const changed = new DrizzleQueryError(SQL, ["x\n    at Avery Example (1 Example Lane)"]);
+    // V8 formats a stack when it's first read, so read it before the change.
+    expect(changed.stack).toContain("Avery Example");
+    changed.message = "Failed query: insert into inquiries";
+    const copy = loggableError(changed) as Error;
+    expect(copy.stack).toBe("DrizzleQueryError: Failed query: insert into inquiries");
+
+    const unreadable = new DrizzleQueryError(SQL, ["x\n    at Avery Example (1 Example Lane)"]);
+    Object.defineProperty(unreadable, "message", {
+      get() {
+        throw new Error("no");
+      },
+    });
+    expectNoPii((loggableError(unreadable) as Error).stack!);
+  });
+
+  it("drops a chain past its depth limit rather than keep it unchecked", () => {
+    let chain: Error = failedInsert();
+    for (let i = 0; i < 12; i++) chain = new Error(`step ${i}`, { cause: chain });
+    const copy = loggableError(chain) as Error;
+    expect(copy).not.toBe(chain);
+    const texts: string[] = [];
+    for (let link: unknown = copy; link instanceof Error; link = link.cause) {
+      texts.push(link.message, link.stack ?? "");
+    }
+    expect(texts.length).toBeLessThan(26);
+    expectNoPii(texts.join("\n"));
+  });
+
+  it("reduces a string that quotes a failed query, on its own or as a cause", () => {
+    const text = failedInsert().message;
+    expect(loggableError(text)).toBe("Failed query: insert into inquiries");
+    const copy = loggableError(new Error("save failed", { cause: text })) as Error;
+    expect(copy.message).toBe("save failed");
+    expect(copy.cause).toBe("Failed query: insert into inquiries");
+  });
+
+  it("keeps each error's own fields, but never a query's SQL or values", () => {
+    const wrapper = new LouiseContentError("Write failed", failedInsert());
+    const copy = loggableError(wrapper) as Error & { code?: string };
+    expect(copy.code).toBe("CONTENT_ERROR");
+    const cause = copy.cause as Record<string, unknown>;
+    expect(cause.query).toBeUndefined();
+    expect(cause.params).toBeUndefined();
   });
 
   it("copies a chain that holds a query error further down", () => {
