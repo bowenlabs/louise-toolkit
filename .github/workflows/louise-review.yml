@@ -1,7 +1,8 @@
 # The Louise review: the `louise:reviewer` agent reviews each pull request
-# and posts one comment, on its own twice at most. The `louise:review` label
-# asks for another. bowenlabs/claude-plugins' README, section Review in CI,
-# describes the workflow and its secrets.
+# and posts one comment, which it updates. It reviews a pull request on its
+# own at most twice; the `louise:review` label asks for another.
+# bowenlabs/claude-plugins' README, section Review in CI, describes the
+# workflow and its secrets.
 name: Louise review
 
 on:
