@@ -133,7 +133,9 @@ Set `onIncident` and every failure the Worker's handlers see becomes an
   bound values, because the runtime writes an uncaught exception's message and
   stack to Workers Logs. The copy has the original's class, `name`, `code`, and
   other own fields, so an `instanceof` check or a `code` mapping still
-  matches. Any other thrown value is re-thrown as it was. A `queue`
+  matches. A query error's `cause`, the database driver's own error, becomes
+  its first line cut at the first quoted literal, since a driver can quote a
+  value. An error too big or too deep to check (a `cause` chain past ten levels, or more than 5,000 fields or values) is copied too, and what's past the limit is left out. Any other thrown value is re-thrown as it was. A `queue`
   report's `path` is the queue's name; a `scheduled` report's is the cron
   expression.
 - **A `reportDegraded` call** is reported too, and so is a queue message that

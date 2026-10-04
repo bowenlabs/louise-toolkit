@@ -282,7 +282,10 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * platform's exception record keeps its bound values. The copy has the
    * original's class, `name`, `code`, and other own fields; only the query
    * error's message and stack change, and its `query` and `params` are left
-   * out. Any other error is re-thrown as it was. With `false`, the error passes
+   * out. An error too big or too deep to check (a `cause` chain past ten
+   * levels, or more than 5,000 fields or values) is copied too, with what's
+   * past the limit left out. Any other error is re-thrown as it was. With
+   * `false`, the error passes
    * through untouched.
    *
    * An error a streamed page throws after its first bytes are sent happens

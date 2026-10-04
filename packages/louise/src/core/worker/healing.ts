@@ -38,6 +38,7 @@
 
 import { reportDegraded } from "../degraded.js";
 import { LouiseError } from "../errors.js";
+import { loggableError } from "../query-error.js";
 import type { WorkerRoute } from "./index.js";
 
 /**
@@ -212,6 +213,8 @@ export function withHealing<Env = unknown>(
 export interface FailureReport {
   /** `LouiseError.code`, for example, "DB_ERROR". */
   readonly code: string;
+  /** The error's message. A failed query's SQL and bound values, in it or
+   *  under it, are reduced the way `loggableError` reduces them. */
   readonly message: string;
   readonly method: string;
   /**
@@ -231,9 +234,10 @@ export interface FailureReport {
  * tests.
  */
 export function describeFailure(ctx: HealingContext, now: number = Date.now()): FailureReport {
+  const safe = loggableError(ctx.error);
   return {
     code: ctx.code,
-    message: ctx.error.message,
+    message: safe instanceof Error ? safe.message : String(safe),
     method: ctx.request.method,
     url: new URL(ctx.request.url).pathname,
     attempts: ctx.attempts,

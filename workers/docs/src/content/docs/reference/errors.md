@@ -218,11 +218,14 @@ Each error in the copy keeps its original's class, so `instanceof
 LouiseContentError` or `instanceof DrizzleQueryError` still matches, and its own
 fields, such as `name`, `code`, and `status`, with any string that quotes a
 failed query reduced. Only a query error's message and stack change, and its
-`query` and `params` fields are left out. The stack keeps its frames. An array
+`query` and `params` fields are left out. A query error's `cause`, the
+database driver's own error, becomes an error of the same class whose message
+is its first line cut at the first quoted literal, with no fields but
+code-shaped strings, numbers, and booleans, and no `cause` of its own. The
+stack keeps its frames. An array
 is copied element by element, and a plain object field by field. When it can't
 tell whether part of the error holds a value, it leaves that part out: a field
-holding any other kind of object, such as a `Map` or a `Response`, and anything
-past ten levels deep. A
+holding any other kind of object, such as a `Map` or a `Response`. An error too big or too deep to check (a `cause` chain past ten levels, or more than 5,000 fields or values) is copied too, and what's past the limit is left out. That holds for an error with no query error in it too. A
 string that quotes a failed query comes back reduced. Anything else comes back
 as it was, so it costs nothing to call on every caught error.
 

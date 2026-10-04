@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { DrizzleQueryError } from "drizzle-orm";
 import { LouiseContentError, LouiseError } from "louise-toolkit/errors";
 import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
@@ -899,6 +900,22 @@ describe("createLouiseMiddleware—incidents (ADR 0022)", () => {
     expect(reports).toHaveLength(1);
     expect(JSON.stringify(reports)).not.toContain("Avery");
     expect(causes).toEqual([rethrown]);
+  });
+
+  it("keeps a value the driver quoted out of everything it re-throws and reports", async () => {
+    const driver = new Error(
+      "D1_TYPE_ERROR: Type 'object' not supported for value 'Avery Example'",
+    );
+    const failed = new DrizzleQueryError(
+      'insert into "inquiries" ("name") values (?)',
+      ["Avery Example"],
+      driver,
+    );
+    const wrapper = new LouiseContentError('Write failed for collection "inquiries"', failed);
+    const { rethrown, reports, causes } = await throughWorkerCatching(wrapper);
+    const text = inspect([rethrown, reports, causes], { depth: Infinity, showHidden: true });
+    expect(text).not.toContain("Avery");
+    expect(text).toContain("D1_TYPE_ERROR: Type <value>");
   });
 
   it("keeps a LouiseError that wraps a failed query a LouiseError, with its code", async () => {

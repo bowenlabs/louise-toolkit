@@ -75,7 +75,9 @@ const MAX_PENDING = 100;
  * copy has the original's class, `name`, `code`, and other own fields, so an
  * `instanceof` check or a `code` mapping above it still matches; only the
  * query error's message and stack change, and its `query` and `params` are
- * left out. Any other thrown value is re-thrown as it was. A handler that
+ * left out. An error too big or too deep to check (a `cause` chain past ten
+ * levels, or more than 5,000 fields or values) is copied too, with what's past
+ * the limit left out. Any other thrown value is re-thrown as it was. A handler that
  * isn't there stays absent.
  */
 export function withIncidentCapture<Env, QMessage>(

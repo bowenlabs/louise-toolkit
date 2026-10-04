@@ -60,6 +60,9 @@ const QUERY_FIELDS = new Set(["query", "params"]);
 /** Most values one check or copy looks at. */
 const MAX_NODES = 5000;
 
+/** A field value a reduced driver error keeps: an identifier, not a sentence. */
+const CODE_SHAPE = /^[A-Za-z0-9_.$-]{1,64}$/;
+
 /** Most own fields a value can have and still be checked. */
 const MAX_FIELDS = 5000;
 
@@ -151,7 +154,11 @@ export function redactQueryText(text: string): string {
  * keeps the trace and loses the values. Each copied error keeps its original's
  * class, so `instanceof` still matches, and its own fields, such as a
  * `LouiseError`'s `name`, `code`, and `status`; a query error's `query` and
- * `params` are left out, and so is any field it can't check. A string that
+ * `params` are left out, and so is any field it can't check. A query error's
+ * `cause`, the driver's own error, becomes its first line cut at the first
+ * quoted literal, since a driver can quote a value. An error too big or too
+ * deep to check (a `cause` chain past ten levels, or more than 5,000 fields or
+ * values) is copied too, with what's past the limit left out. A string that
  * quotes a failed query comes back reduced. Anything else comes back as it
  * was. It never throws.
  */
@@ -260,6 +267,7 @@ function needsCopy(value: unknown, depth: number, walk: Walk): boolean {
   if (typeof value === "string") return quotesQuery(value);
   if (typeof value !== "object") return false;
   if (!isInspectable(value)) return false;
+  if (copies.has(value)) return false;
   if (depth > MAX_DEPTH || --walk.left < 0) return true;
   if (isError(value)) {
     if (isQueryError(value) || quotesQuery(read(value, "message"))) return true;
@@ -293,6 +301,7 @@ function safeCopy(value: unknown, depth: number, walk: Walk): unknown {
   if (typeof value === "string") return redactQueryText(value);
   if (typeof value !== "object" || value === null) return value;
   if (!isInspectable(value)) return value;
+  if (copies.has(value)) return value;
   if (!needsCopy(value, 0, { left: MAX_NODES })) return value;
   if (--walk.left < 0) return undefined;
   if (!isError(value)) return copyContainer(value, depth, walk);
@@ -305,6 +314,7 @@ function safeCopy(value: unknown, depth: number, walk: Walk): unknown {
   } catch {
     // A proxy that refuses: the copy stays a plain `Error`, which is still safe.
   }
+  copies.add(copy);
   copyFields(value, copy, query, depth, walk);
   const holdsValues = query || quotesQuery(read(value, "message"));
   Object.defineProperty(copy, "stack", {
@@ -313,7 +323,11 @@ function safeCopy(value: unknown, depth: number, walk: Walk): unknown {
     configurable: true,
     enumerable: false,
   });
-  const cause = safeCopy(read(value, "cause"), depth + 1, walk);
+  // A query error's cause is the driver's error, whose message can quote a
+  // bound value. It's replaced with its scrubbed first line, never kept.
+  const cause = query
+    ? driverCause(read(value, "cause"), depth + 1, walk)
+    : safeCopy(read(value, "cause"), depth + 1, walk);
   if (cause !== undefined) {
     Object.defineProperty(copy, "cause", {
       value: cause,
@@ -322,6 +336,57 @@ function safeCopy(value: unknown, depth: number, walk: Walk): unknown {
       enumerable: ownEnumerable(value, "cause"),
     });
   }
+  return copy;
+}
+
+/**
+ * The driver's error behind a query error, reduced: an error of the same
+ * class whose message is its first line cut at the first quoted literal (as
+ * the report's `Cause:` has it), whose stack is frames only, and whose own
+ * fields are only code-shaped strings, numbers, and booleans, such as
+ * `code: "SQLITE_CONSTRAINT"`. Its own `cause` is left out. A query error is
+ * reduced as a query error, and a string to its scrubbed line.
+ */
+function driverCause(cause: unknown, depth: number, walk: Walk): unknown {
+  if (cause === undefined || cause === null || depth > MAX_DEPTH) return undefined;
+  if (isQueryError(cause)) return safeCopy(cause, depth, walk);
+  const line = causeLine(cause, depth);
+  if (!isError(cause)) return line || undefined;
+  const copy = new Error(line);
+  try {
+    Object.setPrototypeOf(copy, Object.getPrototypeOf(cause) as object | null);
+  } catch {
+    // The copy stays a plain `Error`, which is still safe.
+  }
+  let descriptors: PropertyDescriptorMap = {};
+  try {
+    descriptors = Object.getOwnPropertyDescriptors(cause);
+  } catch {
+    // No fields, then.
+  }
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (REBUILT_FIELDS.has(key) || !("value" in descriptor)) continue;
+    const field: unknown = descriptor.value;
+    const keep =
+      typeof field === "number" ||
+      typeof field === "boolean" ||
+      (typeof field === "string" && CODE_SHAPE.test(field));
+    if (!keep) continue;
+    try {
+      Object.defineProperty(copy, key, descriptor);
+    } catch {
+      // Left out.
+    }
+  }
+  const name = read(copy, "name");
+  const shown = typeof name === "string" && CODE_SHAPE.test(name) ? name : "Error";
+  Object.defineProperty(copy, "stack", {
+    value: `${shown}: ${line}${framesOf(cause, true)}`,
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
+  copies.add(copy);
   return copy;
 }
 
