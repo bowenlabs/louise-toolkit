@@ -174,10 +174,11 @@ reporting on.
 
 `context.env` is the Worker's bindings, for a sink that writes somewhere.
 `context.cause` is the value that was thrown, or a degrade's cause, as it was:
-with its stack and unredacted. A failed query's error is the exception: the
-sink gets [`loggableError`](/reference/errors/#loggableerrorvalue)'s copy,
-whose message and stack carry no bound values, so a sink that reads stack
-frames can't pick one up. It lives in memory only. A sink that sends it
+with its stack and unredacted. An error whose `cause` chain holds a failed
+query is the exception: the sink gets
+[`loggableError`](/reference/errors/#loggableerrorvalue)'s copy, of the same
+class and with the same own fields, whose messages and stacks carry no bound
+values, so a sink that reads stack frames can't pick one up. It lives in memory only. A sink that sends it
 anywhere, such as an error tracker, owns scrubbing it first.
 
 ## The `incidents` table

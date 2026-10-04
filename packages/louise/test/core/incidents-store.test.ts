@@ -13,7 +13,7 @@ import {
   resolveIncident,
   upsertIncident,
 } from "../../src/core/incidents/index.js";
-import { reportDegraded } from "../../src/core/errors.js";
+import { LouiseContentError, LouiseError, reportDegraded } from "../../src/core/errors.js";
 import { composeWorker } from "../../src/core/worker/index.js";
 
 // The table as drizzle-kit generates it from `incidentsColumns`.
@@ -272,7 +272,7 @@ describe("d1Incidents with composeWorker", () => {
 
     /** A site whose insert fails on drizzle-orm's D1 driver, with a sink that
      *  keeps what it would forward to an error tracker. */
-    function site(mode: "throw" | "degrade") {
+    function site(mode: "throw" | "degrade" | "wrap") {
       const d1 = sqliteD1();
       d1.sqlite.exec(
         "CREATE TABLE inquiries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, address TEXT, note TEXT, customer_id TEXT)",
@@ -287,6 +287,9 @@ describe("d1Incidents with composeWorker", () => {
             await orm.insert(inquiries).values(pii);
           } catch (err) {
             if (mode === "throw") throw err;
+            if (mode === "wrap") {
+              throw new LouiseContentError('Write failed for collection "inquiries"', err);
+            }
             reportDegraded("forms.inquiry", err);
           }
           return new Response("ok");
@@ -332,6 +335,40 @@ describe("d1Incidents with composeWorker", () => {
       });
       expectNoPii(JSON.stringify(rows));
       expect(forwarded).toHaveLength(1);
+      expectNoPii(forwarded[0]!);
+    });
+
+    it("leave a wrapping LouiseError's class, code, and fingerprint as they were", async () => {
+      const { db, forwarded, causes, worker } = site("wrap");
+      const { ctx: c, settled } = ctx();
+      const request = new Request("https://site.example/contact") as unknown as IncomingRequest;
+      const thrown = await Promise.resolve(worker.fetch!(request, { DB: db }, c)).then(
+        () => undefined,
+        (err: unknown) => err,
+      );
+      await settled();
+      expect(thrown).toBeInstanceOf(LouiseContentError);
+      expect(thrown).toBeInstanceOf(LouiseError);
+      const wrapper = thrown as LouiseContentError;
+      expect(wrapper.code).toBe("CONTENT_ERROR");
+      expect(wrapper.message).toBe('Write failed for collection "inquiries"');
+      expectNoPii(
+        `${wrapper.stack}\n${(wrapper.cause as Error).message}\n${(wrapper.cause as Error).stack}`,
+      );
+      expect(causes).toEqual([thrown]);
+      const rows = await listIncidents(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        name: "LouiseContentError",
+        code: "CONTENT_ERROR",
+        message: 'Write failed for collection "inquiries"',
+      });
+      // The same fingerprint the original error, before any copy, gives.
+      const original = buildIncidentReport({
+        kind: "fetch",
+        cause: new LouiseContentError('Write failed for collection "inquiries"'),
+      });
+      expect(rows[0]!.fingerprint).toBe(original.fingerprint);
       expectNoPii(forwarded[0]!);
     });
 

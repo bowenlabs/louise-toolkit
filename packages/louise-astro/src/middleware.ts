@@ -276,10 +276,14 @@ export interface LouiseMiddlewareConfig<TEditor = unknown> {
    * reaches `composeWorker`'s `onIncident` sinks. Without `onIncident` it does
    * nothing. Default `true`.
    *
-   * A failed query's error is reported and re-thrown as `loggableError`'s copy
-   * (`louise-toolkit/errors`), so neither Astro's error log nor the platform's
-   * exception record keeps its bound values. Anything else is re-thrown as it
-   * was. With `false`, the error passes through untouched.
+   * An error whose `cause` chain holds a failed query, the query error itself
+   * or an error that wraps one, is reported and re-thrown as `loggableError`'s
+   * copy (`louise-toolkit/errors`), so neither Astro's error log nor the
+   * platform's exception record keeps its bound values. The copy has the
+   * original's class, `name`, `code`, and other own fields; only the query
+   * error's message and stack change, and its `query` and `params` are left
+   * out. Any other error is re-thrown as it was. With `false`, the error passes
+   * through untouched.
    *
    * An error a streamed page throws after its first bytes are sent happens
    * outside every middleware, so no middleware can report it.

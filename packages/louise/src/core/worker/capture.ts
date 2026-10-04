@@ -5,9 +5,10 @@
 //
 // A throw from `fetch`, `queue`, or `scheduled` becomes an `IncidentReport`,
 // goes to the site's sinks through `ctx.waitUntil`, and is re-thrown, so
-// Cloudflare answers exactly as it would have. A failed query's error is
-// re-thrown as a copy without its bound values, since the runtime records an
-// uncaught exception's message and stack in Workers Logs. A `reportDegraded` call has no
+// Cloudflare answers exactly as it would have. An error whose chain holds a
+// failed query is re-thrown as a copy of the same class without its bound
+// values, since the runtime records an uncaught exception's message and stack
+// in Workers Logs. A `reportDegraded` call has no
 // `ctx` of its own, and neither does an incident a kit module emits (a queue
 // message's last attempt, a dead letter), so each one waits in a small buffer
 // until the next handler in this isolate finishes and flushes it.
@@ -68,10 +69,14 @@ const MAX_PENDING = 100;
  * this isolate.
  *
  * `fetch`, `queue`, and `scheduled` keep their behavior. A throw is reported,
- * then re-thrown. A failed query's error is re-thrown as `loggableError`'s
- * copy, so the runtime's exception record doesn't keep its bound values;
- * anything else is re-thrown as it was. A handler that isn't there stays
- * absent.
+ * then re-thrown. An error whose `cause` chain holds a failed query, the query
+ * error itself or an error that wraps one, is re-thrown as `loggableError`'s
+ * copy, so the runtime's exception record doesn't keep its bound values. The
+ * copy has the original's class, `name`, `code`, and other own fields, so an
+ * `instanceof` check or a `code` mapping above it still matches; only the
+ * query error's message and stack change, and its `query` and `params` are
+ * left out. Any other thrown value is re-thrown as it was. A handler that
+ * isn't there stays absent.
  */
 export function withIncidentCapture<Env, QMessage>(
   handler: ExportedHandler<Env, QMessage>,

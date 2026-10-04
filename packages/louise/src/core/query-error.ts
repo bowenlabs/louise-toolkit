@@ -51,9 +51,9 @@ const LITERAL = /(^|[\s(=:[,])['"`].*$/;
 /** The copies {@link loggableError} made, so a copy passed back is kept. */
 const copies = new WeakSet<object>();
 
-/** Own properties a copy never takes: the parts it rebuilds, and a query
- *  error's SQL and bound values. */
-const SKIPPED_FIELDS = new Set(["name", "message", "stack", "cause", "query", "params"]);
+/** Own properties a copy never takes from its original: the parts it
+ *  rebuilds, and a query error's SQL and bound values. */
+const SKIPPED_FIELDS = new Set(["message", "stack", "cause", "query", "params"]);
 
 /** Statement keywords worth naming. Anything else is reported as a query. */
 const KINDS = new Set([
@@ -135,8 +135,10 @@ export function redactQueryText(text: string): string {
  * A value that's safe to pass to `console.error`. A failed query's error, or
  * an error with one anywhere in its `cause` chain, comes back as a copy whose
  * query errors carry their reduced message and a stack of frames only, so the
- * log line keeps the trace and loses the values. The copy keeps each error's
- * other string and number fields, such as a `LouiseError`'s `code`. A string
+ * log line keeps the trace and loses the values. Each copy keeps its
+ * original's class, so `instanceof` still matches, and its own fields, such as
+ * a `LouiseError`'s `name`, `code`, and `status`; a query error's `query` and
+ * `params` are left out. A string
  * that quotes a failed query comes back reduced. Anything else comes back as
  * it was. It never throws.
  */
@@ -241,20 +243,44 @@ function quotesQuery(text: unknown): boolean {
   return typeof text === "string" && redactQueryText(text) !== text;
 }
 
-/** A copy of an error and its chain, with every query error reduced. Past
- *  {@link MAX_DEPTH}, the rest of the chain is dropped. */
+/**
+ * A copy of an error and its chain, with every query error reduced. Each copy
+ * keeps its original's class (its prototype, so `instanceof` still matches)
+ * and its own fields, so a `LouiseError` wrapping a query error keeps its
+ * `name`, `code`, and `status`. Only text changes: a query error's message and
+ * stack, and its `query` and `params` fields, which are left out. Past
+ * {@link MAX_DEPTH}, the rest of the chain is dropped.
+ */
 function safeCopy(value: unknown, depth: number): unknown {
   if (depth > MAX_DEPTH) return undefined;
   if (typeof value === "string") return redactQueryText(value);
   if (!isError(value) || !needsCopy(value, 0)) return value;
   const query = isQueryError(value);
   const { name, message } = query ? queryErrorParts(value) : plainParts(value);
+  // A native error, so a runtime prints it as one, then given the original's class.
   const copy = new Error(message);
-  copy.name = name;
-  copy.stack = `${name}: ${message}${framesOf(value, query || quotesQuery(read(value, "message")))}`;
-  copyFields(value, copy);
+  try {
+    Object.setPrototypeOf(copy, Object.getPrototypeOf(value) as object | null);
+  } catch {
+    // A proxy that refuses: the copy stays a plain `Error`, which is still safe.
+  }
+  copyFields(value, copy, depth);
+  const holdsValues = query || quotesQuery(read(value, "message"));
+  Object.defineProperty(copy, "stack", {
+    value: `${name}: ${message}${framesOf(value, holdsValues)}`,
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
   const cause = safeCopy(read(value, "cause"), depth + 1);
-  if (cause !== undefined) copy.cause = cause;
+  if (cause !== undefined) {
+    Object.defineProperty(copy, "cause", {
+      value: cause,
+      writable: true,
+      configurable: true,
+      enumerable: ownEnumerable(value, "cause"),
+    });
+  }
   return copy;
 }
 
@@ -268,27 +294,40 @@ function plainParts(error: Error): { name: string; message: string } {
   };
 }
 
-/** The error's own string and number fields, such as `code` and `status`,
- *  onto the copy. Never a query error's SQL or bound values. */
-function copyFields(from: Error, to: Error): void {
-  let keys: string[];
+/**
+ * The error's own data fields, such as `name`, `code`, `status`, and
+ * `violations`, onto the copy, as they were. A string that quotes a failed
+ * query is reduced, and an error is copied the same way as the chain. Never a
+ * query error's SQL or bound values, and never a getter, which would run
+ * against the copy.
+ */
+function copyFields(from: Error, to: Error, depth: number): void {
+  let descriptors: PropertyDescriptorMap;
   try {
-    keys = Object.getOwnPropertyNames(from);
+    descriptors = Object.getOwnPropertyDescriptors(from);
   } catch {
     return;
   }
-  for (const key of keys) {
-    if (SKIPPED_FIELDS.has(key)) continue;
-    let field: unknown;
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (SKIPPED_FIELDS.has(key) || !("value" in descriptor)) continue;
+    const field: unknown = descriptor.value;
+    let safe: unknown = field;
+    if (typeof field === "string") safe = redactQueryText(field);
+    else if (isError(field)) safe = safeCopy(field, depth + 1);
     try {
-      field = (from as unknown as Record<string, unknown>)[key];
+      Object.defineProperty(to, key, { ...descriptor, value: safe });
     } catch {
-      continue;
+      // A field the copy can't take is left out.
     }
-    if (typeof field === "number") (to as unknown as Record<string, unknown>)[key] = field;
-    else if (typeof field === "string") {
-      (to as unknown as Record<string, unknown>)[key] = redactQueryText(field);
-    }
+  }
+}
+
+/** Whether `key` is an own enumerable property, `false` when it can't tell. */
+function ownEnumerable(value: object, key: string): boolean {
+  try {
+    return Object.getOwnPropertyDescriptor(value, key)?.enumerable === true;
+  } catch {
+    return false;
   }
 }
 

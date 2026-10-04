@@ -203,15 +203,20 @@ function loggableError(value: unknown): unknown;
 ```
 
 Returns a value that's safe to pass to `console.error`. Starting with its
-0.44 release, drizzle-orm's `DrizzleQueryError` puts a failed query's SQL and bound values in
-its message and its stack, and the bound values are often personal data, such
-as a name, an address, or a note. `loggableError` returns a copy of such an
-error, or of an error with one anywhere in its `cause` chain, with each query
-error reduced the way `reportDegraded` reduces it. The copy keeps the stack
-frames and each error's own string and number fields, such as `code`. When it
-can't tell whether part of the error holds a value, it leaves that part out.
-A string that quotes a failed query comes back reduced. Anything else comes
-back as it was, so it costs nothing to call on every caught error.
+0.44 release, drizzle-orm's `DrizzleQueryError` puts a failed query's SQL and
+bound values in its message and its stack, and the bound values are often
+personal data, such as a name, an address, or a note. `loggableError` returns a
+copy of such an error, or of an error with one anywhere in its `cause` chain,
+with each query error reduced the way `reportDegraded` reduces it.
+
+Each error in the copy keeps its original's class, so `instanceof
+LouiseContentError` or `instanceof DrizzleQueryError` still matches, and its own
+fields, such as `name`, `code`, and `status`, with any string that quotes a
+failed query reduced. Only a query error's message and stack change, and its
+`query` and `params` fields are left out. The stack keeps its frames. When it
+can't tell whether part of the error holds a value, it leaves that part out. A
+string that quotes a failed query comes back reduced. Anything else comes back
+as it was, so it costs nothing to call on every caught error.
 
 ```ts
 try {
@@ -223,5 +228,6 @@ try {
 ```
 
 The toolkit already calls it where it logs an error itself, and
-`composeWorker` re-throws a failed query's error as this copy. Call it where
+`composeWorker` re-throws an error whose chain holds a failed query as this
+copy. Call it where
 your own code logs a caught error.

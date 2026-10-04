@@ -1,4 +1,5 @@
 import { DrizzleQueryError } from "drizzle-orm";
+import { LouiseContentError, LouiseError } from "louise-toolkit/errors";
 import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
 import { describe, expect, it } from "vitest";
 import { createLouiseMiddleware } from "../src/middleware.js";
@@ -849,26 +850,27 @@ describe("createLouiseMiddleware—incidents (ADR 0022)", () => {
     expect(reports[0]).toMatchObject({ kind: "fetch", name: "TypeError", path: "/menu" });
   });
 
-  it("reports and re-throws a failed query without its bound values", async () => {
+  /** A page that throws `thrown`, through the middleware and `composeWorker`:
+   *  what Astro's error page would catch, and what the sinks got. */
+  async function throughWorkerCatching(thrown: unknown) {
     const mw = createLouiseMiddleware({ resolveEditor: () => null });
-    const failed = new DrizzleQueryError('insert into "inquiries" ("name") values (?)', [
-      "Avery Example",
-    ]);
     let rethrown: unknown;
     const reports: IncidentReport[] = [];
+    const causes: unknown[] = [];
     const worker = composeWorker({
       fetch: async (request) => {
         try {
           return (await mw(makeContext("GET", new URL(request.url).pathname), async () => {
-            throw failed;
+            throw thrown;
           })) as Response;
         } catch (err) {
           rethrown = err;
           return new Response("Astro's error page", { status: 500 });
         }
       },
-      onIncident: (report) => {
+      onIncident: (report, context) => {
         reports.push(report);
+        causes.push(context.cause);
       },
     });
     const pending: Promise<unknown>[] = [];
@@ -880,13 +882,42 @@ describe("createLouiseMiddleware—incidents (ADR 0022)", () => {
       { waitUntil: (p: Promise<unknown>) => pending.push(p) } as unknown as ExecutionContext,
     );
     await Promise.all(pending);
-    expect(rethrown).toBeInstanceOf(Error);
+    return { rethrown, reports, causes };
+  }
+
+  const failedQuery = () =>
+    new DrizzleQueryError('insert into "inquiries" ("name") values (?)', ["Avery Example"]);
+
+  it("reports and re-throws a failed query without its bound values", async () => {
+    const failed = failedQuery();
+    const { rethrown, reports, causes } = await throughWorkerCatching(failed);
+    expect(rethrown).toBeInstanceOf(DrizzleQueryError);
     expect(rethrown).not.toBe(failed);
     const thrown = rethrown as Error;
     expect(thrown.message).toBe("Failed query: insert into inquiries");
     expect(`${thrown.stack}`).not.toContain("Avery");
     expect(reports).toHaveLength(1);
     expect(JSON.stringify(reports)).not.toContain("Avery");
+    expect(causes).toEqual([rethrown]);
+  });
+
+  it("keeps a LouiseError that wraps a failed query a LouiseError, with its code", async () => {
+    const wrapper = new LouiseContentError(
+      'Write failed for collection "inquiries"',
+      failedQuery(),
+    );
+    const { rethrown, reports } = await throughWorkerCatching(wrapper);
+    expect(rethrown).toBeInstanceOf(LouiseContentError);
+    expect(rethrown).toBeInstanceOf(LouiseError);
+    expect((rethrown as LouiseContentError).code).toBe("CONTENT_ERROR");
+    expect((rethrown as LouiseContentError).message).toBe(wrapper.message);
+    expect(`${((rethrown as Error).cause as Error).stack}`).not.toContain("Avery");
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ name: "LouiseContentError", code: "CONTENT_ERROR" });
+    const { reports: direct } = await throughWorkerCatching(
+      new LouiseContentError('Write failed for collection "inquiries"'),
+    );
+    expect(reports[0]!.fingerprint).toBe(direct[0]!.fingerprint);
   });
 
   it("reports a guard that throws", async () => {

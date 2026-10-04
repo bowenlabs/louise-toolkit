@@ -1,7 +1,12 @@
 import { DrizzleQueryError } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { causeParts } from "../../src/core/degraded.js";
-import { LouiseContentError, onDegraded, reportDegraded } from "../../src/core/errors.js";
+import {
+  LouiseContentError,
+  LouiseError,
+  onDegraded,
+  reportDegraded,
+} from "../../src/core/errors.js";
 import { buildIncidentReport, redactMessage } from "../../src/core/incidents/report.js";
 import { UpstreamError } from "../../src/core/security/upstream.js";
 import {
@@ -278,7 +283,9 @@ describe("loggableError", () => {
     const original = failedInsert();
     const copy = loggableError(original) as Error;
     expect(copy).not.toBe(original);
-    expect(copy.name).toBe("DrizzleQueryError");
+    // The same class and name as the original, which drizzle-orm leaves as Error.
+    expect(copy).toBeInstanceOf(DrizzleQueryError);
+    expect(copy.name).toBe(original.name);
     expect(copy.message).toMatch(/^Failed query: insert into inquiries\. Cause: D1_ERROR/);
     expect(copy.stack).toMatch(/^DrizzleQueryError: Failed query: insert into inquiries/);
     expect(copy.stack).toMatch(/\n\s+at /);
@@ -329,13 +336,38 @@ describe("loggableError", () => {
     expect(copy.cause).toBe("Failed query: insert into inquiries");
   });
 
-  it("keeps each error's own fields, but never a query's SQL or values", () => {
+  it("keeps each error's class and own fields, but never a query's SQL or values", () => {
     const wrapper = new LouiseContentError("Write failed", failedInsert());
-    const copy = loggableError(wrapper) as Error & { code?: string };
+    const violations = [{ path: "email" }];
+    Object.assign(wrapper, { status: 409, violations });
+    const copy = loggableError(wrapper) as LouiseContentError & {
+      status?: number;
+      violations?: unknown;
+    };
+    expect(copy).not.toBe(wrapper);
+    expect(copy).toBeInstanceOf(LouiseContentError);
+    expect(copy).toBeInstanceOf(LouiseError);
+    expect(copy).toBeInstanceOf(Error);
+    expect(copy.name).toBe("LouiseContentError");
     expect(copy.code).toBe("CONTENT_ERROR");
-    const cause = copy.cause as Record<string, unknown>;
-    expect(cause.query).toBeUndefined();
-    expect(cause.params).toBeUndefined();
+    expect(copy.status).toBe(409);
+    expect(copy.violations).toBe(violations);
+    expect(Object.keys(copy).sort()).toEqual(Object.keys(wrapper).sort());
+    const cause = copy.cause as DrizzleQueryError;
+    expect(cause).toBeInstanceOf(DrizzleQueryError);
+    expect(Object.hasOwn(cause, "query")).toBe(false);
+    expect(Object.hasOwn(cause, "params")).toBe(false);
+  });
+
+  it("reports a copied wrapper with the original's code and fingerprint", () => {
+    const wrapper = new LouiseContentError(
+      'Write failed for collection "inquiries"',
+      failedInsert(),
+    );
+    const original = buildIncidentReport({ kind: "fetch", cause: wrapper, now: 1 });
+    const copied = buildIncidentReport({ kind: "fetch", cause: loggableError(wrapper), now: 1 });
+    expect(copied).toEqual(original);
+    expect(copied.code).toBe("CONTENT_ERROR");
   });
 
   it("copies a chain that holds a query error further down", () => {
@@ -347,7 +379,7 @@ describe("loggableError", () => {
     expect(copy.name).toBe("LouiseContentError");
     expect(copy.message).toBe('Write failed for collection "inquiries"');
     const cause = copy.cause as Error;
-    expect(cause.name).toBe("DrizzleQueryError");
+    expect(cause).toBeInstanceOf(DrizzleQueryError);
     const all = [copy.stack, cause.stack, cause.message, (cause.cause as Error).message].join("\n");
     expectNoPii(all);
   });
