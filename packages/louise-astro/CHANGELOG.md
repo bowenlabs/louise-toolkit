@@ -16,7 +16,7 @@
 
   With a `base` in `astro.config`, the form action's path carries no base, because middleware can't read it. Write the action's rule to match both spellings, such as `(p) => p === "/_actions/subscribe" || p === "/docs/_actions/subscribe"`.
 
-  **To upgrade:** on a `^0.9.0` range, update `@louise-toolkit/astro` within that range. This release pins the same `louise-toolkit` as the one before it, so the lockfile keeps one toolkit version. A range below `^0.9.0`, or an exact pin, doesn't receive this fix. Move to this release, together with `louise-toolkit` 0.43 and the `astroidjs` release that accepts it, then check that the lockfile holds one `louise-toolkit` version.
+  **To upgrade:** this release requires `louise-toolkit` 0.43.2, which sits inside every `^0.43.0` range. On a `^0.9.0` range, update `@louise-toolkit/astro` and `louise-toolkit` together, then check that the lockfile holds one `louise-toolkit` version. If you update only the adapter, 0.43.2 is installed beside your current toolkit. A range below `^0.9.0`, or an exact pin, doesn't receive this fix. Move to this release together with `louise-toolkit` 0.43.2 and an `astroidjs` release that accepts it.
 
 - Updated dependencies [bfd189f]
   - louise-toolkit@0.43.2
