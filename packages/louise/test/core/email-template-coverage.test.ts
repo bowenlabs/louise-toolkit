@@ -225,6 +225,18 @@ describe("renderEmailShell — fluid card and the logo masthead", () => {
     expect(html).toContain('text-align:center;">\n<p');
   });
 
+  it("draws the logo's alt text in onDark and the wordmark's type, for a blocked image", () => {
+    const html = renderEmailShell({ ...theme, masthead: "logo", logo }, opts);
+    const img = html.match(/<img [^>]*>/)?.[0] ?? "";
+    expect(img).toContain("display:block;margin:0 auto;width:160px;height:44px;border:0;");
+    expect(img).toContain(
+      "font-family:Georgia, serif;font-weight:400;font-size:22px;line-height:1.2;color:#fafafa;",
+    );
+    expect(html).toContain("background:#111111;text-align:center;color:#fafafa;");
+    const sized = renderEmailShell({ ...theme, masthead: "logo", logo, brandSize: 28 }, opts);
+    expect(sized.match(/<img [^>]*>/)?.[0]).toContain("font-size:28px;");
+  });
+
   it("takes the logo's own alt text and masthead fill, escaped", () => {
     const html = renderEmailShell(
       { ...theme, masthead: "logo", mastheadBg: "#222222", logo: { ...logo, alt: 'Kai & "Co"' } },
