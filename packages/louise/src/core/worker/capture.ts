@@ -15,6 +15,7 @@
 // would feed the next flush, which would fail the same way, forever.
 
 import { onDegraded } from "../degraded.js";
+import { loggableError } from "../query-error.js";
 import { emitIncident, onIncidentEmitted, wasReported } from "../incidents/channel.js";
 import {
   buildIncidentReport,
@@ -114,7 +115,7 @@ export function withIncidentCapture<Env, QMessage>(
           .catch((err: unknown) => {
             console.error(
               `[louise] incident sink failed for ${marked.name} (${marked.fingerprint})`,
-              err,
+              loggableError(err),
             );
           }),
       );

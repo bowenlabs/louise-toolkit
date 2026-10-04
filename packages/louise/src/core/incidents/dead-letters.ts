@@ -13,6 +13,7 @@ import { desc, eq } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { db } from "../db/index.js";
 import type { D1Client } from "../db/session.js";
+import { loggableError } from "../query-error.js";
 import { emitIncident } from "./channel.js";
 
 /** The `dead_letters` columns, to compose into your own schema. */
@@ -84,7 +85,7 @@ export function deadLetterConsumer<Env, Body = unknown>(
       } catch (err) {
         console.error(
           `[louise] couldn't keep dead letter ${message.id} from ${batch.queue}; marking it for retry`,
-          err,
+          loggableError(err),
         );
         message.retry();
         continue;

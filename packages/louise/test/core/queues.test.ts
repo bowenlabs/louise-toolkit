@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LouiseQueueError } from "../../src/core/errors.js";
 import type { IncidentInput } from "../../src/core/incidents/index.js";
@@ -65,6 +66,19 @@ describe("processBatch", () => {
     expect(good.ack).toHaveBeenCalledOnce();
     expect(bad.retry).toHaveBeenCalledOnce();
     expect(bad.ack).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed query without its bound values", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = new DrizzleQueryError('insert into "orders" ("note") values (?)', [
+      "Leave it with the neighbor",
+    ]);
+    await processBatch(fakeBatch([fakeMessage("order")]), async () => {
+      throw failed;
+    });
+    const logged = error.mock.calls[0]![1] as Error;
+    expect(logged.message).toBe("Failed query: insert into orders");
+    expect(`${logged.message}\n${logged.stack}`).not.toContain("neighbor");
   });
 
   it("logs each failure with the queue, message id, and attempt before retrying", async () => {

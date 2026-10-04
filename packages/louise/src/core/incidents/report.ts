@@ -16,6 +16,7 @@
 
 import { causeParts, type DegradedEvent } from "../degraded.js";
 import { LouiseError } from "../errors.js";
+import { redactQueryText } from "../query-error.js";
 
 /** Where a failure came from: the Worker handler that saw it, or a fallback. */
 export type IncidentKind = "fetch" | "queue" | "scheduled" | "degraded";
@@ -197,13 +198,15 @@ export function fingerprintFailure(failure: {
 }
 
 /**
- * The redaction every report's `message` and `path` get: email addresses
- * become `[email]`, and a run of 24 or more token characters that includes a
- * digit becomes `[redacted]`. It's a floor, not a guarantee, so never put
- * personal data in an error message or a degrade's details.
+ * The redaction every report's `message` and `path` get: a failed query's SQL
+ * and bound values (`Failed query: … params: …`) shrink to the statement's
+ * kind and table, email addresses become `[email]`, and a run of 24 or more
+ * token characters that includes a digit becomes `[redacted]`. It's a floor,
+ * not a guarantee, so never put personal data in an error message or a
+ * degrade's details.
  */
 export function redactMessage(text: string): string {
-  return text.replace(EMAIL, "[email]").replace(TOKEN, "[redacted]");
+  return redactQueryText(text).replace(EMAIL, "[email]").replace(TOKEN, "[redacted]");
 }
 
 // Deliberately loose: a false positive costs one placeholder in a log line,

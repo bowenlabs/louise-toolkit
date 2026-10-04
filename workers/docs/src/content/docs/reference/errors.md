@@ -113,8 +113,11 @@ It logs exactly one line at error level, in a fixed shape:
 - **`cause`** is whatever the `catch` caught: an `Error` logs as
   `Name: message`, and anything else as its string form. An `UpstreamError`
   logs the way `upstreamLogLine` ([`/security`](/reference/security/)) formats
-  it, with the operation and what the provider said. The line stays one line,
-  and a long message is cut at 500 characters.
+  it, with the operation and what the provider said. A failed query's error
+  from drizzle-orm logs its statement's kind and table and the database's own
+  error, never the SQL or the bound values its message carries:
+  `DrizzleQueryError: Failed query: insert into inquiries. Cause: D1_ERROR: UNIQUE constraint failed: inquiries.email`.
+  The line stays one line, and a long message is cut at 500 characters.
 - **`details`** is optional, small, JSON-serializable context, such as an ID, a
   count, or a status. It's logged, so never put a secret, a token, or personal
   data in it, including a visitor's IP address.

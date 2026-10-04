@@ -12,6 +12,7 @@
 
 import { LouiseQueueError } from "../errors.js";
 import { emitIncident } from "../incidents/channel.js";
+import { loggableError } from "../query-error.js";
 
 /**
  * A deferred post-write side-effect drained by a Worker's `queue()` consumer
@@ -125,7 +126,7 @@ export async function processBatch<T>(
             ? "that was its last attempt, so it goes to the dead-letter queue, if the queue has one"
             : "marking it for retry"
         }`,
-        err,
+        loggableError(err),
       );
       if (last) emitIncident({ kind: "queue", cause: err, path: batch.queue });
       message.retry({ delaySeconds: retryDelay(message.attempts) });

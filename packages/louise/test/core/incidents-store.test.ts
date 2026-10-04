@@ -1,4 +1,6 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { drizzle } from "drizzle-orm/d1";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { EditorSession } from "../../src/core/auth/types.js";
 import { incidentsRoute } from "../../src/core/editor/incidents.js";
@@ -11,6 +13,7 @@ import {
   resolveIncident,
   upsertIncident,
 } from "../../src/core/incidents/index.js";
+import { reportDegraded } from "../../src/core/errors.js";
 import { composeWorker } from "../../src/core/worker/index.js";
 
 // The table as drizzle-kit generates it from `incidentsColumns`.
@@ -247,6 +250,98 @@ describe("d1Incidents with composeWorker", () => {
     await settled();
     expect(seen).toEqual([env, boom]);
     expect(await listIncidents(db)).toHaveLength(1);
+  });
+
+  describe("a failed query's bound values", () => {
+    // What a contact form writes: personal data no log, row, or tracker may keep.
+    const pii = {
+      name: "Avery Example",
+      email: "avery@example.com",
+      address: "1 Example Lane",
+      note: "Leave it with the neighbor",
+      customerId: "CUST-7Q2X",
+    };
+    const inquiries = sqliteTable("inquiries", {
+      id: integer("id").primaryKey(),
+      name: text("name").notNull(),
+      email: text("email").notNull().unique(),
+      address: text("address"),
+      note: text("note"),
+      customerId: text("customer_id"),
+    });
+
+    /** A site whose insert fails on drizzle-orm's D1 driver, with a sink that
+     *  keeps what it would forward to an error tracker. */
+    function site(mode: "throw" | "degrade") {
+      const d1 = sqliteD1();
+      d1.sqlite.exec(
+        "CREATE TABLE inquiries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, address TEXT, note TEXT, customer_id TEXT)",
+      );
+      const forwarded: string[] = [];
+      const worker = composeWorker<Env>({
+        fetch: async (_request, env) => {
+          const orm = drizzle(env.DB);
+          await orm.insert(inquiries).values(pii);
+          try {
+            await orm.insert(inquiries).values(pii);
+          } catch (err) {
+            if (mode === "throw") throw err;
+            reportDegraded("forms.inquiry", err);
+          }
+          return new Response("ok");
+        },
+        onIncident: [
+          d1Incidents((env: Env) => env.DB),
+          (report) => {
+            forwarded.push(JSON.stringify(report));
+          },
+        ],
+      });
+      return { ...d1, forwarded, worker };
+    }
+
+    function expectNoPii(text: string): void {
+      for (const value of Object.values(pii)) expect(text).not.toContain(value);
+      expect(text).not.toContain("params:");
+    }
+
+    it("stay out of the incident row and the forwarded report when the error is uncaught", async () => {
+      const { db, forwarded, worker } = site("throw");
+      const { ctx: c, settled } = ctx();
+      const request = new Request("https://site.example/contact") as unknown as IncomingRequest;
+      await expect(worker.fetch!(request, { DB: db }, c)).rejects.toThrow(/^Failed query/);
+      await settled();
+      const rows = await listIncidents(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        kind: "fetch",
+        name: "DrizzleQueryError",
+        message: expect.stringMatching(
+          /^Failed query: insert into inquiries\. Cause: .*UNIQUE constraint failed: inquiries\.email/,
+        ),
+      });
+      expectNoPii(JSON.stringify(rows));
+      expect(forwarded).toHaveLength(1);
+      expectNoPii(forwarded[0]!);
+    });
+
+    it("stay out of the log line, the incident row, and the forwarded report when it degrades", async () => {
+      const { db, forwarded, worker } = site("degrade");
+      const { ctx: c, settled } = ctx();
+      const request = new Request("https://site.example/contact") as unknown as IncomingRequest;
+      const response = await worker.fetch!(request, { DB: db }, c);
+      expect(response.status).toBe(200);
+      await settled();
+      const lines = error.mock.calls.map((args) => args.map(String).join(" "));
+      expect(lines.some((line) => line.startsWith("[louise] degraded forms.inquiry: "))).toBe(true);
+      for (const line of lines) expectNoPii(line);
+      const rows = await listIncidents(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ kind: "degraded", name: "forms.inquiry" });
+      expectNoPii(JSON.stringify(rows));
+      expect(forwarded).toHaveLength(1);
+      expectNoPii(forwarded[0]!);
+    });
   });
 });
 
