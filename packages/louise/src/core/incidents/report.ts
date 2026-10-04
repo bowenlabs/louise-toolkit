@@ -58,7 +58,9 @@ export interface IncidentSinkContext<Env = unknown> {
   readonly env: Env;
   /**
    * The value that was thrown, or a degrade's cause, as it was: with its stack,
-   * unredacted. It lives in memory only. A sink that sends it anywhere, such
+   * unredacted. A failed query's error is the exception: it arrives as
+   * `loggableError`'s copy, without the SQL and bound values its message and
+   * stack carried. It lives in memory only. A sink that sends it anywhere, such
    * as an error tracker, owns scrubbing it first.
    */
   readonly cause?: unknown;

@@ -5,7 +5,9 @@
 //
 // A throw from `fetch`, `queue`, or `scheduled` becomes an `IncidentReport`,
 // goes to the site's sinks through `ctx.waitUntil`, and is re-thrown, so
-// Cloudflare answers exactly as it would have. A `reportDegraded` call has no
+// Cloudflare answers exactly as it would have. A failed query's error is
+// re-thrown as a copy without its bound values, since the runtime records an
+// uncaught exception's message and stack in Workers Logs. A `reportDegraded` call has no
 // `ctx` of its own, and neither does an incident a kit module emits (a queue
 // message's last attempt, a dead letter), so each one waits in a small buffer
 // until the next handler in this isolate finishes and flushes it.
@@ -66,7 +68,10 @@ const MAX_PENDING = 100;
  * this isolate.
  *
  * `fetch`, `queue`, and `scheduled` keep their behavior. A throw is reported,
- * then re-thrown. A handler that isn't there stays absent.
+ * then re-thrown. A failed query's error is re-thrown as `loggableError`'s
+ * copy, so the runtime's exception record doesn't keep its bound values;
+ * anything else is re-thrown as it was. A handler that isn't there stays
+ * absent.
  */
 export function withIncidentCapture<Env, QMessage>(
   handler: ExportedHandler<Env, QMessage>,
@@ -109,9 +114,12 @@ export function withIncidentCapture<Env, QMessage>(
       const marked = critical.length
         ? { ...report, critical: isCriticalIncident(report, critical) }
         : report;
+      // A failed query's error carries its bound values in its message and
+      // stack. A sink gets a copy without them, as the log does.
+      const safeCause = loggableError(cause);
       return sinks.map((sink) =>
         Promise.resolve()
-          .then(() => sink(marked, { env, cause }))
+          .then(() => sink(marked, { env, cause: safeCause }))
           .catch((err: unknown) => {
             console.error(
               `[louise] incident sink failed for ${marked.name} (${marked.fingerprint})`,
@@ -157,10 +165,11 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         return await fetch(request, env, ctx);
       } catch (err) {
+        const safe = loggableError(err);
         if (!wasReported(err)) {
-          thrown = { kind: "fetch", cause: err, request: request as unknown as Request };
+          thrown = { kind: "fetch", cause: safe, request: request as unknown as Request };
         }
-        throw err;
+        throw safe;
       } finally {
         flush(env, ctx, thrown);
       }
@@ -172,8 +181,9 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         await queue(batch, env, ctx);
       } catch (err) {
-        if (!wasReported(err)) thrown = { kind: "queue", cause: err, path: batch.queue };
-        throw err;
+        const safe = loggableError(err);
+        if (!wasReported(err)) thrown = { kind: "queue", cause: safe, path: batch.queue };
+        throw safe;
       } finally {
         flush(env, ctx, thrown);
       }
@@ -185,8 +195,11 @@ export function withIncidentCapture<Env, QMessage>(
       try {
         await scheduled(controller, env, ctx);
       } catch (err) {
-        if (!wasReported(err)) thrown = { kind: "scheduled", cause: err, path: controller.cron };
-        throw err;
+        const safe = loggableError(err);
+        if (!wasReported(err)) {
+          thrown = { kind: "scheduled", cause: safe, path: controller.cron };
+        }
+        throw safe;
       } finally {
         flush(env, ctx, thrown);
       }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { causeParts } from "../../src/core/degraded.js";
 import { LouiseContentError, onDegraded, reportDegraded } from "../../src/core/errors.js";
 import { buildIncidentReport, redactMessage } from "../../src/core/incidents/report.js";
+import { UpstreamError } from "../../src/core/security/upstream.js";
 import {
   isQueryError,
   loggableError,
@@ -151,6 +152,21 @@ describe("redactQueryText", () => {
     expect(redactQueryText(text)).toBe("Failed query: insert into inquiries");
   });
 
+  it("reduces quoted SQL that lost its params marker", () => {
+    expect(
+      redactQueryText(
+        "Save failed: Failed query: select * from users where name = 'Avery Example'",
+      ),
+    ).toBe("Save failed: Failed query: select from users");
+    // The first line of drizzle-orm's message, as a log that keeps one line has it.
+    expect(redactQueryText(failedInsert().message.split("\n")[0]!)).toBe(
+      "Failed query: insert into inquiries",
+    );
+    expect(
+      redactQueryText("Failed query: insert into t. Cause: D1_TYPE_ERROR: Type 'x' 'Avery'"),
+    ).toBe("Failed query: insert into t. Cause: D1_TYPE_ERROR: Type <value>");
+  });
+
   it("changes nothing the second time, or without the params marker", () => {
     const once = redactQueryText(failedInsert().message);
     expect(redactQueryText(once)).toBe(once);
@@ -158,6 +174,11 @@ describe("redactQueryText", () => {
       "Failed query: insert into inquiries. Cause: D1_ERROR",
     );
     expect(redactQueryText("row 4 not found")).toBe("row 4 not found");
+    const nested = queryErrorParts(
+      new DrizzleQueryError('insert into "log" values (?)', [], failedInsert()),
+    ).message;
+    expect(redactQueryText(nested)).toBe(nested);
+    expect(redactMessage(redactMessage(nested))).toBe(redactMessage(nested));
   });
 });
 
@@ -215,6 +236,16 @@ describe("a query error in a report", () => {
     expectNoPii(JSON.stringify(buildIncidentReport({ kind: "fetch", cause: typeError })));
   });
 
+  it("reduces a failed query an upstream provider quoted", () => {
+    const upstream = new UpstreamError("Example API", 500, {
+      operation: "POST /orders",
+      detail: failedInsert().message,
+    });
+    const parts = causeParts(upstream);
+    expect(parts.message).toBe("Example API POST /orders 500: Failed query: insert into inquiries");
+    expectNoPii(JSON.stringify(buildIncidentReport({ kind: "fetch", cause: upstream })));
+  });
+
   it("keeps a quoted query's values out of a wrapping error's report", () => {
     const wrapped = new Error(`Save failed: ${failedInsert().message}`);
     expectNoPii(JSON.stringify(buildIncidentReport({ kind: "fetch", cause: wrapped })));
@@ -231,6 +262,11 @@ describe("a query error in a report", () => {
 });
 
 describe("loggableError", () => {
+  it("returns its own copy as it was", () => {
+    const copy = loggableError(failedInsert());
+    expect(loggableError(copy)).toBe(copy);
+  });
+
   it("returns any other value as it was", () => {
     const plain = new TypeError("fetch failed");
     expect(loggableError(plain)).toBe(plain);

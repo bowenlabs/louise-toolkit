@@ -130,7 +130,7 @@ Replaces email addresses with `[email]`, and any run of 24 or more token
 characters that includes a digit with `[redacted]`. A failed query quoted in the
 text, `Failed query: <sql> params: <values>`, shrinks to the statement's kind
 and table, such as `Failed query: insert into inquiries`. The bound values are
-often personal data, like a name or a street address, that the other two rules
+often personal data, such as a name or a street address, that the other two rules
 can't recognize. Every report's `message` and `path` go through
 it. It's a floor, not a guarantee: never put personal data in an error message
 or a degrade's details.
@@ -174,7 +174,10 @@ reporting on.
 
 `context.env` is the Worker's bindings, for a sink that writes somewhere.
 `context.cause` is the value that was thrown, or a degrade's cause, as it was:
-with its stack and unredacted. It lives in memory only. A sink that sends it
+with its stack and unredacted. A failed query's error is the exception: the
+sink gets [`loggableError`](/reference/errors/#loggableerrorvalue)'s copy,
+whose message and stack carry no bound values, so a sink that reads stack
+frames can't pick one up. It lives in memory only. A sink that sends it
 anywhere, such as an error tracker, owns scrubbing it first.
 
 ## The `incidents` table

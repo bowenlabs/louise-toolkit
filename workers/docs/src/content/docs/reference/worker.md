@@ -126,7 +126,11 @@ Set `onIncident` and every failure the Worker's handlers see becomes an
 [`IncidentReport`](/reference/incidents/) sent to your sinks:
 
 - **A throw** from a route, the fallback, `queue`, or `scheduled` is reported,
-  then re-thrown, so Cloudflare answers exactly as it would have. A `queue`
+  then re-thrown, so Cloudflare answers exactly as it would have. A failed
+  query's error is re-thrown as
+  [`loggableError`](/reference/errors/#loggableerrorvalue)'s copy, without the
+  bound values its message carries, because the runtime writes an uncaught
+  exception's message and stack to Workers Logs. A `queue`
   report's `path` is the queue's name; a `scheduled` report's is the cron
   expression.
 - **A `reportDegraded` call** is reported too, and so is a queue message that

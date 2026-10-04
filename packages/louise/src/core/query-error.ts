@@ -48,6 +48,9 @@ const VALUE = "<value>";
  */
 const LITERAL = /(^|[\s(=:[,])['"`].*$/;
 
+/** The copies {@link loggableError} made, so a copy passed back is kept. */
+const copies = new WeakSet<object>();
+
 /** Own properties a copy never takes: the parts it rebuilds, and a query
  *  error's SQL and bound values. */
 const SKIPPED_FIELDS = new Set(["name", "message", "stack", "cause", "query", "params"]);
@@ -68,6 +71,13 @@ const KINDS = new Set([
 
 /** The kinds whose first table is the one they act on. */
 const TABLE_KINDS = new Set(["select", "insert", "update", "delete", "replace"]);
+
+/** A statement as {@link statementSummary} writes it. */
+const SUMMARY =
+  "query|update [\\w$.]+|(?:select|insert|delete|replace) (?:into|from) [\\w$.]+|select|insert|update|delete|replace|with|create|drop|alter|pragma";
+
+/** Text after the prefix that's already reduced: a summary, and maybe a cause. */
+const REDUCED = new RegExp(`^(${SUMMARY})(?:\\. Cause: (.*))?$`, "s");
 
 /** The table a statement reads or writes, quoted or bare, with its schema. */
 const TABLE =
@@ -100,17 +110,25 @@ export function queryErrorParts(error: Error): { name: string; message: string }
 
 /**
  * `text` with a failed query's SQL and bound values reduced, for a message
- * that quotes one, such as `Save failed: Failed query: … params: …`. Only text
- * that carries the `params:` marker changes, so running it twice changes
- * nothing.
+ * that quotes one, such as `Save failed: Failed query: … params: …`. Text that
+ * quotes a query without its `params:` marker is reduced too, since a clipped
+ * line or SQL with an inlined value can still hold one. Text that's already
+ * reduced keeps its statement and has its cause cut at the first quoted
+ * literal, so running it twice changes nothing.
  */
 export function redactQueryText(text: string): string {
   const start = text.indexOf(QUERY_PREFIX);
   if (start === -1) return text;
+  const head = `${text.slice(0, start)}${QUERY_PREFIX}`;
   const rest = text.slice(start + QUERY_PREFIX.length);
   const marker = PARAMS_MARKER.exec(rest);
-  if (!marker) return text;
-  return `${text.slice(0, start)}${QUERY_PREFIX}${statementSummary(rest.slice(0, marker.index))}`;
+  if (marker) return `${head}${statementSummary(rest.slice(0, marker.index))}`;
+  const reduced = REDUCED.exec(rest);
+  if (!reduced) return `${head}${statementSummary(rest)}`;
+  const cause = reduced[2];
+  return cause === undefined
+    ? `${head}${reduced[1]}`
+    : `${head}${reduced[1]}. Cause: ${redactLiterals(redactQueryText(cause))}`;
 }
 
 /**
@@ -124,7 +142,11 @@ export function redactQueryText(text: string): string {
  */
 export function loggableError(value: unknown): unknown {
   try {
-    return needsCopy(value, 0) ? safeCopy(value, 0) : value;
+    if (typeof value === "object" && value !== null && copies.has(value)) return value;
+    if (!needsCopy(value, 0)) return value;
+    const copy = safeCopy(value, 0);
+    if (typeof copy === "object" && copy !== null) copies.add(copy);
+    return copy;
   } catch {
     return "[an error that couldn't be read]";
   }
@@ -139,7 +161,9 @@ function queryErrorName(error: Error): string {
 function queryErrorMessage(error: Error, depth: number): string {
   const message = read(error, "message");
   const sql = typeof message === "string" ? sqlOf(message) : "";
-  const reduced = `${QUERY_PREFIX}${statementSummary(sql)}`;
+  // A copy from `loggableError` already holds a summary; keep it.
+  const summary = REDUCED.exec(sql)?.[1] ?? statementSummary(sql);
+  const reduced = `${QUERY_PREFIX}${summary}`;
   const cause = causeLine(read(error, "cause"), depth + 1);
   return cause ? `${reduced}. Cause: ${cause}` : reduced;
 }
@@ -170,7 +194,7 @@ function statementSummary(sql: string): string {
 
 /** A table name without its quotes, or `""` when it isn't name-shaped. */
 function identifier(raw: string): string {
-  const name = raw.replace(/["`[\]]/g, "");
+  const name = raw.replace(/["`[\]]/g, "").replace(/\.+$/, "");
   return /^[\w$.]{1,128}$/.test(name) ? name : "";
 }
 

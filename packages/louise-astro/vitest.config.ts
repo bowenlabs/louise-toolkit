@@ -23,6 +23,7 @@ export default defineConfig({
       "louise-toolkit/security": new URL("../louise/src/core/security/index.ts", import.meta.url)
         .pathname,
       "louise-toolkit/db": new URL("../louise/src/core/db/index.ts", import.meta.url).pathname,
+      "louise-toolkit/errors": new URL("../louise/src/core/errors.ts", import.meta.url).pathname,
       "louise-toolkit/worker": new URL("../louise/src/core/worker/index.ts", import.meta.url)
         .pathname,
       "louise-toolkit/auth": new URL("../louise/src/core/auth/index.ts", import.meta.url).pathname,

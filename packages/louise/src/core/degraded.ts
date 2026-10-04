@@ -144,7 +144,7 @@ export function causeParts(cause: unknown): { name: string; message: string } {
     // and what the provider said, which `upstreamLogLine` adds.
     try {
       const name = safeText(read(cause, "name") ?? "UpstreamError", "UpstreamError");
-      return { name, message: safeText(upstreamLogLine(cause), "") };
+      return { name, message: redactQueryText(safeText(upstreamLogLine(cause), "")) };
     } catch {
       // Fall through to the plain `Error` path.
     }

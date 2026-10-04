@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import type { APIContext, MiddlewareHandler, MiddlewareNext } from "astro";
 import { describe, expect, it } from "vitest";
 import { createLouiseMiddleware } from "../src/middleware.js";
@@ -846,6 +847,46 @@ describe("createLouiseMiddleware—incidents (ADR 0022)", () => {
     expect(status).toBe(500);
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({ kind: "fetch", name: "TypeError", path: "/menu" });
+  });
+
+  it("reports and re-throws a failed query without its bound values", async () => {
+    const mw = createLouiseMiddleware({ resolveEditor: () => null });
+    const failed = new DrizzleQueryError('insert into "inquiries" ("name") values (?)', [
+      "Avery Example",
+    ]);
+    let rethrown: unknown;
+    const reports: IncidentReport[] = [];
+    const worker = composeWorker({
+      fetch: async (request) => {
+        try {
+          return (await mw(makeContext("GET", new URL(request.url).pathname), async () => {
+            throw failed;
+          })) as Response;
+        } catch (err) {
+          rethrown = err;
+          return new Response("Astro's error page", { status: 500 });
+        }
+      },
+      onIncident: (report) => {
+        reports.push(report);
+      },
+    });
+    const pending: Promise<unknown>[] = [];
+    await worker.fetch!(
+      new Request("https://example.com/contact") as unknown as Parameters<
+        NonNullable<ExportedHandler["fetch"]>
+      >[0],
+      {},
+      { waitUntil: (p: Promise<unknown>) => pending.push(p) } as unknown as ExecutionContext,
+    );
+    await Promise.all(pending);
+    expect(rethrown).toBeInstanceOf(Error);
+    expect(rethrown).not.toBe(failed);
+    const thrown = rethrown as Error;
+    expect(thrown.message).toBe("Failed query: insert into inquiries");
+    expect(`${thrown.stack}`).not.toContain("Avery");
+    expect(reports).toHaveLength(1);
+    expect(JSON.stringify(reports)).not.toContain("Avery");
   });
 
   it("reports a guard that throws", async () => {

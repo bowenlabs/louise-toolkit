@@ -278,6 +278,7 @@ describe("d1Incidents with composeWorker", () => {
         "CREATE TABLE inquiries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, address TEXT, note TEXT, customer_id TEXT)",
       );
       const forwarded: string[] = [];
+      const causes: unknown[] = [];
       const worker = composeWorker<Env>({
         fetch: async (_request, env) => {
           const orm = drizzle(env.DB);
@@ -292,12 +293,13 @@ describe("d1Incidents with composeWorker", () => {
         },
         onIncident: [
           d1Incidents((env: Env) => env.DB),
-          (report) => {
+          (report, context) => {
             forwarded.push(JSON.stringify(report));
+            causes.push(context.cause);
           },
         ],
       });
-      return { ...d1, forwarded, worker };
+      return { ...d1, forwarded, causes, worker };
     }
 
     function expectNoPii(text: string): void {
@@ -306,11 +308,19 @@ describe("d1Incidents with composeWorker", () => {
     }
 
     it("stay out of the incident row and the forwarded report when the error is uncaught", async () => {
-      const { db, forwarded, worker } = site("throw");
+      const { db, forwarded, causes, worker } = site("throw");
       const { ctx: c, settled } = ctx();
       const request = new Request("https://site.example/contact") as unknown as IncomingRequest;
-      await expect(worker.fetch!(request, { DB: db }, c)).rejects.toThrow(/^Failed query/);
+      const thrown = await Promise.resolve(worker.fetch!(request, { DB: db }, c)).then(
+        () => undefined,
+        (err: unknown) => err as Error,
+      );
       await settled();
+      // The runtime records what's re-thrown, so it's the copy without values.
+      expect(thrown?.message).toMatch(/^Failed query: insert into inquiries\. Cause: /);
+      expectNoPii(`${thrown?.message}\n${thrown?.stack}`);
+      // So is the cause a sink such as an error tracker reads frames from.
+      expect(causes).toEqual([thrown]);
       const rows = await listIncidents(db);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
@@ -326,7 +336,7 @@ describe("d1Incidents with composeWorker", () => {
     });
 
     it("stay out of the log line, the incident row, and the forwarded report when it degrades", async () => {
-      const { db, forwarded, worker } = site("degrade");
+      const { db, forwarded, causes, worker } = site("degrade");
       const { ctx: c, settled } = ctx();
       const request = new Request("https://site.example/contact") as unknown as IncomingRequest;
       const response = await worker.fetch!(request, { DB: db }, c);
@@ -341,6 +351,8 @@ describe("d1Incidents with composeWorker", () => {
       expectNoPii(JSON.stringify(rows));
       expect(forwarded).toHaveLength(1);
       expectNoPii(forwarded[0]!);
+      const cause = causes[0] as Error;
+      expectNoPii(`${cause.message}\n${cause.stack}`);
     });
   });
 });
