@@ -1,6 +1,6 @@
 # ADR 0012: API boundary—a deny-by-default inbound gate and one outbound client
 
-- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`.
+- **Status:** Accepted (2026-09-23). **Amended 2026-09-23** at slice 2 (see _Amendment_ below): a gate in framework middleware declares public routes by path. **Amended 2026-09-26** (see _Amendment (2026-09-26, #557)_ below): `statusRoute` is the toolkit's third public route. **Amended 2026-09-26** (see _Amendment (2026-09-26, the rewrite route caps its input)_ below): the rewrite route caps its input, so one of the items out of scope here is done. **Amended 2026-09-27** (see _Amendment (2026-09-27, bearer tokens reach only a bearer route)_ below): a bearer token isn't a credential to the gate; it reaches only a route that declared it checks one. **Amended 2026-10-02** (see _Amendment (2026-10-02, Better Auth's limiter on `/api/auth`)_ below): sign-in endpoints get an address limiter, though `/api/louise/*` still doesn't. **Amended 2026-10-03** (see _Amendment (2026-10-03, captcha fails open or closed per control)_ below): a control chooses whether an unreadable captcha secret fails open or closed. **Amended 2026-10-03** (see _Amendment (2026-10-03, rate rules match every spelling of a path)_ below): rate rules are also tested against the normalized path. **Amended 2026-10-03** (see _Amendment (2026-10-03, customer instances don't mount the admin endpoints)_ below): a customer auth instance leaves Better Auth's admin plugin off unless the site sets `customers.adminEndpoints`. **Amended 2026-10-04** (see _Amendment (2026-10-04, form actions match their action's RPC path)_ below): the Astro middleware matches a form action against its action's remote procedure call (RPC) path too.
 - **Deciders:** Baylee (solo maintainer)
 - **Related:** ADR 0006 (keep `composeWorker`; suggested a `withEditorGuard` wrapper), ADR 0009 (MCP bearer tokens), ADR 0002 (realtime auth), ADR 0004 (edge cache); #492 and #494 (the fixes this review produced); epic #481
 
@@ -343,6 +343,45 @@ and nothing else:
 `adminRoles` value no customer holds. That leaves every endpoint mounted behind
 a value in a table the instance can't vouch for, which is the dependency this
 amendment removes.
+
+## Amendment (2026-10-04, form actions match their action's RPC path)
+
+Astro runs an action two ways: by remote procedure call (RPC), with a POST to
+`/_actions/<name>`, and as a form action, with a POST to any on-demand route
+that carries `?_action=<name>`. `createLouiseMiddleware` matched rate rules
+against the request's path alone, so a rule for `/_actions/<name>` never saw the
+form action, and the action ran with no per-address limit from any route but its
+own.
+
+**A form action is one more spelling of `/_actions/<name>`.** For a POST with a
+nonempty `_action`, on any route but the RPC route, the middleware also tests
+the rules against `/_actions/<name>`. It decodes the name the way Astro does
+before Astro looks the action up: split at each dot, with each key decoded by
+`decodeURIComponent`. It decodes the name on the RPC route the same way, since
+`normalizeRatePath` leaves an encoded reserved character such as `%24` encoded
+and Astro doesn't. A GET never counts, and the RPC route ignores `_action`, both
+as in Astro. `matchRateRule` and `RateRule` don't change.
+
+**One request can spend up to two budgets.** Astro runs the action and then the
+route, so a form action spends its action's rule and its route's rule. Rules
+that share a name share a budget, so a request that matches one name both ways
+spends it once. The action's rule is checked first, and the KV limiter counts a
+check when it passes, so a 429 from the route's rule still counts against the
+action's rule. Checking the route first only moves that cost to the route's
+budget, so the order stays as written.
+
+**A site `base` isn't covered.** Middleware can't read `base` from
+`astro.config`, so the form action's path carries none. A site with a `base`
+writes each action rule to match both spellings.
+
+**Considered and rejected (2026-10-04):** an exported helper in
+`louise-toolkit/security` that maps a request to its action path, for
+`matchRateRule` callers outside the middleware. The form action is Astro
+behavior, and `lint:core` keeps Astro out of `packages/louise/src`. A new
+export in the adapter would also turn this fix into a feature. Keeping the
+mapping private in the middleware keeps the release a patch, which every site on
+a `^0.9` range receives. A site that calls `matchRateRule` itself in Astro
+middleware tests the action path as well, as `reference/security` says.
 
 ## Out of scope, tracked separately
 

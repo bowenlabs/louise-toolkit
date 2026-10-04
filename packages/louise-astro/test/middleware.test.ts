@@ -29,12 +29,18 @@ const RULES: RateRule[] = [
 ];
 
 /** Minimal APIContext for driving the middleware handler directly. */
-function makeContext(method: string, path: string, ip = "1.2.3.4"): APIContext {
+function makeContext(
+  method: string,
+  path: string,
+  ip = "1.2.3.4",
+  routePattern = new URL(`https://example.com${path}`).pathname,
+): APIContext {
   const url = new URL(`https://example.com${path}`);
   const jar = new Map<string, string>();
   return {
     request: new Request(url, { method, headers: { "cf-connecting-ip": ip } }),
     url,
+    routePattern,
     locals: {},
     cookies: {
       get: (k: string) => (jar.has(k) ? { value: jar.get(k) } : undefined),
@@ -178,6 +184,163 @@ describe("createLouiseMiddleware — rate limiting", () => {
     expect((await hit()).status).toBe(200);
     expect((await hit()).status).toBe(200);
     expect((await hit()).status).toBe(429);
+  });
+});
+
+describe("createLouiseMiddleware — rate limiting form actions", () => {
+  // Astro's own route pattern for the RPC route, which the middleware compares.
+  const RPC = "/_actions/[...path]";
+  const rpc = (name: string) => makeContext("POST", `/_actions/${name}`, "1.2.3.4", RPC);
+
+  /** One action rule, written against the RPC path the way a site writes it. */
+  const actionRule = (name: string, method = "POST"): RateRule[] => [
+    {
+      name: "subscribe",
+      method,
+      match: (p) => p === `/_actions/${name}`,
+      limit: 2,
+      windowSec: 60,
+    },
+  ];
+
+  /** A middleware whose limiter counts how often its backend is read. */
+  function counted(rules: RateRule[]) {
+    const kv = makeKv();
+    const reads = { count: 0 };
+    const mw = createLouiseMiddleware({
+      resolveEditor: () => null,
+      rateLimit: {
+        rules,
+        kv: () => {
+          reads.count++;
+          return kv;
+        },
+      },
+    });
+    return { mw, reads };
+  }
+
+  it("counts a form action from the root against the action's RPC rule", async () => {
+    const { mw } = counted(actionRule("subscribe"));
+    expect((await run(mw, rpc("subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=subscribe"))).status).toBe(429);
+  });
+
+  it("counts a form action from a nested page, with other params around it", async () => {
+    const { mw } = counted(actionRule("subscribe"));
+    const hit = () => run(mw, makeContext("POST", "/shop/item?ref=1&_action=subscribe&x=2"));
+    expect((await hit()).status).toBe(200);
+    expect((await hit()).status).toBe(200);
+    expect((await hit()).status).toBe(429);
+  });
+
+  it("decodes the name as Astro does before it looks the action up", async () => {
+    const { mw } = counted(actionRule("subscribe"));
+    // `%63` is `c`; `%2563` decodes to `%63` in the query and to `c` in Astro's
+    // lookup. A trailing slash is normalized away, as on any other path.
+    expect((await run(mw, makeContext("POST", "/?_action=subs%63ribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/a/b?_action=subs%2563ribe/"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=subscribe"))).status).toBe(429);
+  });
+
+  it("decodes a reserved character in a name, on both routes", async () => {
+    // `normalizeRatePath` leaves `%24` encoded, but Astro decodes each key of
+    // the name, so `/_actions/save%24` runs the action named `save$`.
+    const { mw } = counted(actionRule("save$"));
+    expect((await run(mw, rpc("save%24"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=save%2524"))).status).toBe(200);
+    expect((await run(mw, rpc("save$"))).status).toBe(429);
+  });
+
+  it("matches a nested action by its dotted name", async () => {
+    const { mw } = counted(actionRule("newsletter.subscribe"));
+    expect((await run(mw, rpc("newsletter.subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=newsletter.subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/?_action=newsletter%2Esubscribe"))).status).toBe(
+      429,
+    );
+  });
+
+  it("ignores `_action` on a GET, which Astro never runs as an action", async () => {
+    const { mw, reads } = counted(actionRule("subscribe", "GET"));
+    for (let i = 0; i < 3; i++) {
+      expect((await run(mw, makeContext("GET", "/?_action=subscribe"))).status).toBe(200);
+    }
+    expect(reads.count).toBe(0);
+  });
+
+  it("ignores an empty `_action`, which names no action", async () => {
+    const { mw, reads } = counted(actionRule(""));
+    expect((await run(mw, makeContext("POST", "/?_action="))).status).toBe(200);
+    expect(reads.count).toBe(0);
+  });
+
+  it("routes the RPC route by its path alone, as Astro does", async () => {
+    const { mw } = counted(actionRule("subscribe"));
+    // The query names `subscribe`, but Astro runs `other` here.
+    for (let i = 0; i < 3; i++) {
+      const ctx = makeContext("POST", "/_actions/other?_action=subscribe", "1.2.3.4", RPC);
+      expect((await run(mw, ctx)).status).toBe(200);
+    }
+  });
+
+  it("spends the action's budget and the route's, since Astro runs both", async () => {
+    const rules: RateRule[] = [
+      ...actionRule("subscribe"),
+      { name: "contact", method: "POST", match: (p) => p === "/contact", limit: 1, windowSec: 60 },
+    ];
+    const { mw } = counted(rules);
+    // The first request spends one from each. The second still has room in the
+    // action's budget, but the route's is spent.
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(429);
+    // The action's budget took the second request too, so it's now spent.
+    expect((await run(mw, makeContext("POST", "/?_action=subscribe"))).status).toBe(429);
+  });
+
+  it("spends one budget when the action and the route match the same rule", async () => {
+    const broad: RateRule[] = [
+      { name: "all", method: "POST", match: () => true, limit: 2, windowSec: 60 },
+    ];
+    const { mw } = counted(broad);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(429);
+  });
+
+  it("spends one budget when two rules share a name", async () => {
+    // Two rule objects, one name: one bucket, so one unit a request.
+    const shared: RateRule[] = [
+      ...actionRule("subscribe"),
+      {
+        name: "subscribe",
+        method: "POST",
+        match: (p) => p === "/contact",
+        limit: 2,
+        windowSec: 60,
+      },
+    ];
+    const { mw } = counted(shared);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact?_action=subscribe"))).status).toBe(429);
+  });
+
+  it("leaves ordinary paths as they were", async () => {
+    const rules: RateRule[] = [
+      ...actionRule("subscribe"),
+      { name: "contact", method: "POST", match: (p) => p === "/contact", limit: 1, windowSec: 60 },
+    ];
+    const { mw, reads } = counted(rules);
+    // No `_action`: an action rule never sees the request.
+    for (let i = 0; i < 3; i++) {
+      expect((await run(mw, makeContext("POST", "/?subscribe=1"))).status).toBe(200);
+    }
+    expect(reads.count).toBe(0);
+    // A route's own rule still matches its path, slash and all.
+    expect((await run(mw, makeContext("POST", "/contact/"))).status).toBe(200);
+    expect((await run(mw, makeContext("POST", "/contact"))).status).toBe(429);
   });
 });
 

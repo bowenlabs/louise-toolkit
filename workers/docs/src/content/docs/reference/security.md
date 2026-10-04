@@ -213,6 +213,44 @@ on the root path. `decodeURI` leaves an encoded reserved character such as
 `%2F` encoded, so decoding can't create a path separator. An invalid escape
 stops the decoding and keeps what decoded so far.
 
+### Astro Actions
+
+Astro runs an action two ways: by remote procedure call (RPC), with a POST to
+`/_actions/<name>`, and as a form action, with a POST to any on-demand route that carries
+`?_action=<name>`. A rule that only sees the request's path misses the second
+way, so a rule for `/_actions/subscribe` doesn't limit `POST /?_action=subscribe`.
+
+The `@louise-toolkit/astro` middleware (`createLouiseMiddleware`) closes that
+gap. It matches a POST that carries `_action` against `/_actions/<name>` too,
+and decodes the name the way Astro does before Astro looks the action up. Write
+one rule per action against its RPC path:
+
+```ts
+const RATE_RULES: RateRule[] = [
+  {
+    name: "subscribe",
+    method: "POST",
+    match: (p) => p === "/_actions/subscribe",
+    limit: 5,
+    windowSec: 600,
+  },
+];
+```
+
+Both ways to call the action then count against that rule's budget. A form
+action whose route has a rule of its own spends both budgets, because Astro
+runs the action and then the route. Rules that share a name share a budget, so
+a request that matches one name both ways spends it once. The middleware checks
+the action's rule first, so a 429 from the route's rule still counts against
+the action's rule. A GET never counts as an action, since Astro runs actions
+only for a POST.
+
+The middleware can't read `base` from `astro.config`, so a form action's path
+carries no base. With a `base`, write each action rule to match both
+spellings, such as
+`(p) => p === "/_actions/subscribe" || p === "/docs/_actions/subscribe"`. If you call `matchRateRule` yourself in
+Astro middleware, test a form action's RPC path as well as its route's path.
+
 ## `createRateLimiter(ctx)` · `durableRateLimitStorage(namespace)`
 
 ```ts
