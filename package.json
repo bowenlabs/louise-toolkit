@@ -35,7 +35,7 @@
     "eslint-plugin-solid": "^0.17.0",
     "knip": "^6.34.0",
     "typescript": "^6.0.3",
-    "vite-plus": "0.3.0"
+    "vite-plus": "1.1.0"
   },
   "engines": {
     "node": ">=26.0.0"
